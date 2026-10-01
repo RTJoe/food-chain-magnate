@@ -157,7 +157,8 @@ export type CardColour =
   | 'grey' // recruiting + training cards
   | 'lightGreen' // drink buyers
   | 'blue' // marketeers
-  | 'oliveGreen' // kitchen (+ fry chef, baristas, kimchi master: verify)
+  | 'oliveGreen' // kitchen (+ fry chef, kimchi master, sushi/noodle cooks)
+  | 'teal' // coffee cards (baristas etc.): their own colour group (employees.md §2)
   | 'ceo';
 
 /** Functional grouping used by UI and rules code. One per card. */
@@ -349,7 +350,9 @@ export type MilestoneTrigger =
   /** Placed a new restaurant with a local or regional manager. */
   | { kind: 'restaurantPlaced' }
   /** Ketchup §8: another chain sold to a house holding demand your campaign placed (end of dinnertime). */
-  | { kind: 'demandSoldByOther' };
+  | { kind: 'demandSoldByOther' }
+  /** base.md §7: checked at the start of Dinnertime (first_lower_prices). */
+  | { kind: 'startOfDinnertime'; condition: 'lowerPrices' };
 
 /**
  * Data description of a milestone effect. The logic lives in rules/milestones.ts and module hooks;
@@ -446,8 +449,8 @@ export interface MilestoneDef {
    * if still unclaimed (ketchup.md §3, §16). Usually set by the module at setup.
    */
   removeAfterRound?: number;
-  /** Physical copies (irrelevant to rules: proxies allowed; milestones.md rule 5). */
-  copies: number;
+  /** @deprecated No copy counts: milestones are per-player board marks (milestones.md rule 5). Ignored. */
+  copies?: number;
   text: string;
   rulesRef: string;
 }
@@ -488,7 +491,7 @@ export interface TileHouseDef {
 export interface TileRoadDef {
   /** Connected road squares of one printed road. */
   cells: TileCell[];
-  /** Edge-midpoint exits this road reaches. */
+  /** @deprecated Informational only; tiles link by adjacency (map.md §2), not by edge-midpoint exits. */
   exits: Direction[];
 }
 
@@ -503,6 +506,8 @@ export interface TileDef {
   roads: TileRoadDef[];
   /** Overpass at this cell: straight through only, no turning (tiles G, P). */
   bridge?: TileCell;
+  /** Capped road ends (map.md §2): the road square does not connect across this side. */
+  cappedEnds?: { cell: TileCell; side: Direction }[];
   /** Ketchup tile Z parks (2x2 each). */
   parks?: TileCell[][];
   /** Only in the pool when this module is on (tile Z: lobbyists). */
@@ -527,6 +532,8 @@ export interface MarketingTileDef {
    */
   w: number;
   h: number;
+  /** Airplanes (#4/#5/#6): covered rows/cols 1/3/5 (base.md §9); equals the placement `width`. */
+  width?: 1 | 3 | 5;
   /** Removed at low player counts (billboards #12/#15/#16, base.md §2.1): min players for this tile. */
   minPlayers?: number;
 }

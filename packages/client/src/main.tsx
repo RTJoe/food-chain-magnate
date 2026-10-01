@@ -1,50 +1,44 @@
+/**
+ * Bootstrap: theme, router, Preact overlay (#app) and the 3D board (#board-root, behind the overlay).
+ * The 3D layer is loaded lazily from three/index.ts (`mountScene(el, store)`) the first time a game
+ * view exists; ui/ and three/ never import each other (architecture §2).
+ */
 import { render } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
-import { PROTOCOL_VERSION, parseServerMessage, type ClientMessage } from '@fcm/protocol';
-import { ENGINE_VERSION } from '@fcm/engine';
-import { PLAYER_COLORS, applyTheme } from './theme.js';
+import { effect } from '@preact/signals';
+import { applyTheme } from './theme.js';
+import { startRouter } from './state/router.js';
+import * as store from './state/store.js';
+import { App } from './ui/App.js';
 import './styles/main.css';
 
-/** C0 placeholder: shows the palette and checks the /ws hello handshake. Replaced in C4. */
-function App() {
-  const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
-  const [detail, setDetail] = useState('');
-
-  useEffect(() => {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/ws`);
-    ws.onopen = () => {
-      const hello: ClientMessage = { t: 'hello', clientVersion: ENGINE_VERSION, protocol: PROTOCOL_VERSION };
-      ws.send(JSON.stringify(hello));
-    };
-    ws.onmessage = (e) => {
-      const msg = parseServerMessage(String(e.data));
-      if (msg?.t === 'welcome') {
-        setStatus('open');
-        setDetail(`server ${msg.serverVersion}, client ${msg.clientId}`);
-      }
-    };
-    ws.onclose = () => setStatus('closed');
-    return () => ws.close();
-  }, []);
-
-  return (
-    <main class="placeholder">
-      <h1>Food Chain Magnate</h1>
-      <p>Online multiplayer with a 3D board. The game table is under construction.</p>
-      <div class="swatches" aria-label="Player colours">
-        {PLAYER_COLORS.map((c) => (
-          <span key={c.id} class="swatch" title={c.name} style={{ background: c.base }} />
-        ))}
-      </div>
-      <span class="status" data-state={status}>
-        Server: {status}
-        {detail && ` (${detail})`}
-      </span>
-    </main>
-  );
-}
+export type StoreModule = typeof store;
+type SceneModule = { mountScene?: (el: HTMLElement, s: StoreModule) => unknown };
 
 applyTheme();
+startRouter();
+
+let boardRoot = document.getElementById('board-root');
+if (!boardRoot) {
+  boardRoot = document.createElement('div');
+  boardRoot.id = 'board-root';
+  document.body.prepend(boardRoot);
+}
+
 const root = document.getElementById('app');
 if (root) render(<App />, root);
+
+// Guarded: the glob is empty until three/index.ts exists, and the 2D board stays in charge.
+const scenes = import.meta.glob<SceneModule>('./three/index.ts');
+const loadScene = scenes['./three/index.ts'];
+let sceneRequested = false;
+effect(() => {
+  if (sceneRequested || !store.view.value || !loadScene || !boardRoot) return;
+  sceneRequested = true;
+  const el = boardRoot;
+  loadScene()
+    .then((m) => m.mountScene?.(el, store))
+    .catch((e: unknown) => {
+      console.error('3D board failed to load; using the 2D board', e);
+      store.pushToast('3D board failed to load; showing the 2D board', 'error');
+    });
+});

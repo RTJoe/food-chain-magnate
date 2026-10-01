@@ -15,7 +15,7 @@ const rules = {
   protocol: { allow: ['zod'], typeOnly: ['@fcm/engine'] },
   session: { allow: ['@fcm/engine', '@fcm/protocol'], typeOnly: [] },
   server: { allow: ['@fcm/engine', '@fcm/protocol', '@fcm/session', 'ws', 'node:*'], typeOnly: [] },
-  client: { allow: ['@fcm/engine', '@fcm/protocol', 'preact', 'preact/*', '@preact/*', 'three', 'three/*'], typeOnly: [] },
+  client: { allow: ['@fcm/engine', '@fcm/engine/*', '@fcm/protocol', 'uqr', 'preact', 'preact/*', '@preact/*', 'three', 'three/*'], typeOnly: [] },
 };
 
 const files = (dir) =>

@@ -91,6 +91,8 @@ export type GameEvent =
   | (E<'restaurantPlaced'> & { player: PlayerId; restaurantId: RestaurantId; x: number; y: number; entrance: Corner; comingSoon: boolean })
   | (E<'restaurantMoved'> & { player: PlayerId; restaurantId: RestaurantId; x: number; y: number; entrance: Corner })
   | (E<'restaurantOpened'> & { restaurantId: RestaurantId })
+  /** base.md §6.3a: drive-in signs placed on these open restaurants (Working step 3c). */
+  | (E<'driveInsOpened'> & { player: PlayerId; restaurantIds: RestaurantId[] })
   | (E<'houseBuilt'> & { player: PlayerId; houseId: HouseId; cells: Cell[]; garden: Cell[] })
   | (E<'gardenAdded'> & { player: PlayerId; houseId: HouseId; cells: Cell[] })
   | (E<'campaignPlaced'> & { player: PlayerId; campaign: Campaign })

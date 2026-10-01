@@ -1,0 +1,74 @@
+/** App shell: hash routes (#/, #/room/:id, #/hotseat, #/dev) and global overlays. */
+import { useEffect } from 'preact/hooks';
+import { route, navigate } from '../state/router.js';
+import { connection, mode, room, view } from '../state/store.js';
+import { loadToken, resync, startOnline } from '../net/session.js';
+import { Button } from './common.js';
+import { Home } from './Home.js';
+import { Logo } from './icons.js';
+import { DevGallery, HotseatSetup } from './LocalGames.js';
+import { Lobby } from './Lobby.js';
+import { Toasts } from './Overlays.js';
+import { Table } from './Table.js';
+
+let lastRoomId: string | null = null;
+
+export function App() {
+  const r = route.value;
+
+  // Deep link or reload on #/room/:id with a stored session: reconnect and re-attach the seat.
+  useEffect(() => {
+    if (r.name === 'room' && mode.value === null && loadToken()) startOnline({ id: r.id });
+  }, [r.name === 'room' ? r.id : null]);
+
+  // Follow the room we are in (created a room, or the server re-attached us to one).
+  const roomId = room.value?.id ?? null;
+  useEffect(() => {
+    if (roomId && roomId !== lastRoomId && mode.value === 'online' && !(r.name === 'room' && r.id === roomId)) navigate({ name: 'room', id: roomId });
+    lastRoomId = roomId;
+  }, [roomId]);
+
+  return (
+    <>
+      <Screen />
+      <Toasts />
+    </>
+  );
+}
+
+function Screen() {
+  const r = route.value;
+  switch (r.name) {
+    case 'home':
+      return <Home />;
+    case 'room': {
+      const rm = room.value;
+      if (rm && rm.id === r.id && rm.status !== 'lobby' && mode.value === 'online') return view.value ? <Table /> : <LoadingGame />;
+      return <Lobby roomId={r.id} />;
+    }
+    case 'hotseat':
+      return mode.value === 'hotseat' && view.value ? <Table /> : <HotseatSetup />;
+    case 'dev':
+      return (
+        <>
+          <DevGallery fixture={r.fixture} viewer={r.viewer} />
+          {r.fixture && mode.value === 'dev' && view.value && <Table />}
+        </>
+      );
+  }
+}
+
+function LoadingGame() {
+  return (
+    <main class="center-page">
+      <div class="glass card-narrow">
+        <Logo size={48} />
+        <h1>Loading the game…</h1>
+        <p class="muted">{connection.value === 'open' ? 'Fetching the table from the server.' : `Server: ${connection.value}`}</p>
+        <Button variant="secondary" onClick={() => resync()}>
+          Try again
+        </Button>
+      </div>
+    </main>
+  );
+}

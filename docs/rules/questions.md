@@ -13,6 +13,8 @@ Genuine ambiguities left after checking both Deluxe rulebooks (DLX = base, KX-DL
 | Q-B5 | Intro game "ensure all 3 drink supplier types are on the map": how? | p5: rule only, no method. | Redraw the whole map until all 3 types appear. | Medium |
 | Q-B6 | "First to Have $100": when must the owned CFO be fired? | p34: "you must fire them"; no timing. | Fire in this round's Payday firing step (no salary is then due). | Medium |
 | Q-B7 | Footprint orientation of campaign tiles: any rotation? | No restriction stated. | Any of the 2 orientations for non-square tiles. | Medium-High |
+| Q-B8 | CFO (or "First to Have $100" CEO) on a negative Dinnertime total: how is "+50%, rounded up" rounded? | Silent; JD 1473813 says the CFO applies to negative income. | Math.ceil (toward +∞): −$7 → −$3 bonus. Implemented in `rules/dinnertime.ts` `payCfo`. | Medium |
+| Q-B9 | A recruiting manager / HR director with unused recruit actions is fired in Payday step 1: does its $5-per-action discount still apply? | p29: discounts for unused recruit actions; firing comes first; no ruling on the combination. | Keep the discount (the actions went unused during Working; `unusedRecruitActions` is recorded then). | Low-Medium |
 
 ## Map
 
@@ -44,3 +46,17 @@ Genuine ambiguities left after checking both Deluxe rulebooks (DLX = base, KX-DL
 | Q-K8 | First Lobbyist Used: orientation of the extra tile. | Silent ("must align to the existing grid"). | Player's choice. | Medium |
 | Q-K9 | Night shift manager: pricing manager −$2, recruiting girl hires 2, errand boy fetches 2, kitchen trainee makes 2? | "Treat this as if you played two copies of that card." Clarifications cover trainer, marketing trainee, waitress, management trainee, CEO only. | Yes to all (literal reading). | Medium |
 | Q-K10 | "First Radio Campaign" (base) radio on an apartment: 4 counters? | Apartments get 2 per counter normally placed. | 4. | Medium-High |
+
+## Working phase and engine (resolved by C1)
+
+| id | Question | What DLX says | Implemented | Conf. |
+|---|---|---|---|---|
+| Q-W1 | Hiring from an empty pile (DLX p16): what if the card is then not trained? | "you may hire it if you immediately train it" in this turn's training step. | Allowed only while enough training actions remain. While it can still be trained, training must go to it first, the trainer cannot be skipped, and the turn cannot leave the train step. If it becomes untrainable (target pile emptied), it is removed when the train step closes; it never left the supply. | Medium |
+| Q-W2 | When exactly do drive-in signs appear (step 3c)? | p17: step 3c, after training. | Opened at the start of the player's Working turn. Hiring and training never look at restaurants and no restaurant is placed before 3g, so the effect is identical; it keeps validation of later steps independent of the current step. | High |
+| Q-W3 | Hand contents during Restructuring are "not public" (DLX p6, p13). | Cards in hand are hidden. | Owned cards stay visible in views: every hire/train/fire is a public event, so the hand is derivable anyway. Only the structure draft (until reveal) and the reserve card are hidden. | Medium-High |
+| Q-W4 | Regional manager rotate-in-place. | p25: may relocate one restaurant; rotating allowed if the entrance still touches a road. | A move to the same x,y with a different entrance; a "move" to the identical position is rejected. | High |
+| Q-W5 | New house road contact: house squares only, or the whole 2x3 piece? | p24: "part of one of its edges orthogonally adjacent to a road" (combo token). | Any square of the 2x3 house+garden piece. | Medium-High |
+| Q-W6 | Skipping a recruiting manager / HR director. | p15: unused recruit actions give $5 each. | Declining (skip) counts as unused: $5 per remaining action. | High |
+| Q-W7 | Coach/guru multi-step on one card across separate actions. | p15–16: may apply up to 2/3 steps to the same card. | Allowed in one action or several; the per-card cap counts steps by that trainer. Other trainers still need "First to pay $20". | Medium-High |
+| Q-W8 | Local manager range to the new restaurant. | p25: entrance must connect to the road the route used, range 3. | Distance to a road square orthogonally outside the entrance corner, plus 1 if that road square is on another tile than the corner (same rule as campaigns, DLX p19 example C). | Medium-High |
+| Q-W9 | Bankrupt chains during Working / Order of Business. | Silent. | Skipped; they keep their place at the end of the turn order. | Medium |

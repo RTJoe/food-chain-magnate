@@ -101,7 +101,12 @@ export type RngState = [number, number, number, number];
  * Working-phase sub-steps in strict order (base.md §6.1). `lobbyists` sits between houses and
  * restaurants (ketchup.md §2). Modules may change the list via the `workingStages` hook.
  */
-export type WorkStage = 'recruit' | 'train' | 'marketing' | 'food' | 'houses' | 'lobbyists' | 'restaurants';
+export type WorkStage = 'recruit' | 'train' | 'driveIns' | 'marketing' | 'food' | 'houses' | 'lobbyists' | 'restaurants';
+
+/** Base order of {@link WorkStage} (base.md §6.1; 3c Open Drive-Ins sits between Train and Launch Campaigns). */
+export const BASE_WORK_STAGE_ORDER: readonly WorkStage[] = [
+  'recruit', 'train', 'driveIns', 'marketing', 'food', 'houses', 'lobbyists', 'restaurants',
+];
 
 export type Phase =
   /**
@@ -125,8 +130,8 @@ export type Phase =
    * `houses`. After the houses: tips, CFO, $100 check. No player input except pending choices.
    */
   | { kind: 'dinnertime'; houses: HouseId[]; idx: number }
-  /** base.md §8: firing in turn order (`queue`), then salaries. */
-  | { kind: 'payday'; queue: PlayerId[]; idx: number }
+  /** base.md §8: simultaneous firing decision (all players at once), then salaries in turn order. */
+  | { kind: 'payday'; queue: PlayerId[]; idx: number; /** base.md §8: firing is simultaneous; players who have submitted their firing decision (awaiting.players = the rest). `queue`/`idx` are legacy and unused for ordering. */ decided?: PlayerId[] }
   /**
    * base.md §9: campaigns run in ascending number, `passes` times (1 + mass marketeers at work,
    * ketchup.md §10). Duration tokens removed only after the last pass.
@@ -302,8 +307,14 @@ export type CellKind =
   | 'park';
 
 export interface RoadCell {
-  /** Orthogonal neighbours this road square connects to (in-tile adjacency + edge-midpoint crossings). */
+  /**
+   * Orthogonal neighbours this road square connects to. map.md §2: any orthogonally adjacent road
+   * squares connect, including across tile borders, except bridges (straight through only),
+   * `capped` ends and restaurant entrances.
+   */
   links: Direction[];
+  /** Capped road ends: sides on which this square does NOT connect despite an adjacent road (map.md §2). */
+  capped?: Direction[];
   /** Overpass square: straight through only (map.md §2). */
   bridge: boolean;
   /** Lobbyist road still under construction: unusable (ketchup.md §2). */
@@ -374,6 +385,12 @@ export interface Restaurant {
   /** COMING SOON from a local manager; opens in Clean up (base.md §6.7). Derelict after bankruptcy. */
   status: RestaurantStatus;
   placedRound: number;
+  /**
+   * Drive-in sign (base.md §6.3a): every corner is an entrance. Set in Working step 3c when a
+   * local/regional manager is at work, and on a regional manager's new restaurant; removed in
+   * Clean up step C (the engine also clears it at the start of each round).
+   */
+  driveIn?: boolean;
 }
 
 /**
@@ -393,8 +410,10 @@ export type CampaignPlacement =
 export interface Campaign {
   id: CampaignId;
   owner: PlayerId;
-  /** Marketing tile number; run order (base.md §9). */
-  number: number;
+  /** Marketing tile number; null for rural campaigns (ketchup.md §12). */
+  number: number | null;
+  /** Phase-6 run order (base.md §9). Numbered: the number; rural (no number): explicit rule ketchup.md §12 / Q-K6. Lower runs first. */
+  runOrder?: number;
   kind: CampaignKind;
   /** Advertised good(s). Two entries only for the Ketchup two-good airplane (A then B). */
   goods: FoodId[];

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>FCM 3D playground</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #f4ead5;
+        font: 14px/1.3 ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+        color: #2b2a33;
+      }
+      #board {
+        position: fixed;
+        inset: 0;
+      }
+      #bar {
+        position: fixed;
+        left: 8px;
+        top: 8px;
+        right: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        pointer-events: none;
+      }
+      #bar > * {
+        pointer-events: auto;
+      }
+      #bar select,
+      #bar button {
+        min-height: 36px;
+        padding: 0 10px;
+        border-radius: 10px;
+        border: 1px solid #d4c6a8;
+        background: #fffaf0;
+        font: inherit;
+        cursor: pointer;
+      }
+      #bar button.on {
+        background: #3f8fd2;
+        color: #fff;
+      }
+      #info {
+        position: fixed;
+        left: 8px;
+        bottom: 8px;
+        padding: 6px 10px;
+        border-radius: 10px;
+        background: rgba(255, 250, 240, 0.9);
+        border: 1px solid #d4c6a8;
+        font-size: 12px;
+        max-width: calc(100% - 32px);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="board"></div>
+    <div id="bar">
+      <select id="fixture" aria-label="Fixture"></select>
+      <select id="tier" aria-label="Quality">
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+      <button id="top">Top</button>
+      <button id="grid">Grid</button>
+      <button id="place">Place restaurant</button>
+      <button id="market">Marketing</button>
+      <button id="dinner">Dinnertime</button>
+      <button id="skip">Skip</button>
+    </div>
+    <div id="info"></div>
+    <script type="module" src="./playground.ts"></script>
+  </body>
+</html>
