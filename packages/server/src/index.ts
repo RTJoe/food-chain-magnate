@@ -1,71 +1,63 @@
 /**
- * @fcm/server — serves packages/client/dist over HTTP and accepts WebSocket upgrades on /ws.
- * C0: hello/ping only. Rooms and games arrive in C3 (architecture §4).
+ * @fcm/server CLI entry: serves packages/client/dist over HTTP and accepts WebSocket upgrades on
+ * /ws (architecture §4). Env: PORT (3000), HOST (0.0.0.0), FCM_DATA_DIR (./data),
+ * FCM_PERSIST=0, FCM_CLIENT_DIST, FCM_ENGINE=real|toy (default: real, falling back to the toy
+ * engine while the real one is not implemented).
  */
-import { randomBytes } from 'node:crypto';
-import { createServer } from 'node:http';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer, type WebSocket } from 'ws';
-import { PROTOCOL_VERSION, parseClientMessage, type ServerMessage } from '@fcm/protocol';
-import { lanAddresses } from './lanAddress.js';
-import { staticHandler } from './static.js';
+import { engine as realEngine, NotImplementedError, type EngineApi } from '@fcm/engine';
+import { joinUrls } from './lanAddress.js';
+import { persistenceFromEnv } from './persistence.js';
+import { startServer } from './server.js';
+import { SERVER_VERSION } from './ws.js';
 
-export const SERVER_VERSION = '0.1.0';
+export { startServer, type RunningServer, type ServerOptions } from './server.js';
+export { SERVER_VERSION } from './ws.js';
 
-const PORT = Number(process.env.PORT ?? 3000);
-const HOST = process.env.HOST ?? '0.0.0.0';
-const CLIENT_DIST = process.env.FCM_CLIENT_DIST ?? fileURLToPath(new URL('../../client/dist/', import.meta.url));
-
-const send = (ws: WebSocket, msg: ServerMessage) => ws.send(JSON.stringify(msg));
-
-const http = createServer(staticHandler(CLIENT_DIST));
-const wss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024 });
-
-http.on('upgrade', (req, socket, head) => {
-  const path = new URL(req.url ?? '/', 'http://x').pathname;
-  if (path !== '/ws') {
-    socket.destroy();
-    return;
-  }
-  wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
-});
-
-wss.on('connection', (ws) => {
-  const clientId = randomBytes(8).toString('hex');
-  ws.on('message', (data) => {
-    const msg = parseClientMessage(String(data));
-    if (!msg) return send(ws, { t: 'error', code: 'BAD_MESSAGE', message: 'Invalid message' });
-    switch (msg.t) {
-      case 'hello':
-        if (msg.protocol !== PROTOCOL_VERSION) {
-          return send(ws, { t: 'error', code: 'PROTOCOL_MISMATCH', message: `Server speaks protocol ${PROTOCOL_VERSION}` });
-        }
-        return send(ws, {
-          t: 'welcome',
-          clientId,
-          sessionToken: msg.sessionToken ?? randomBytes(16).toString('hex'),
-          serverVersion: SERVER_VERSION,
-          protocol: PROTOCOL_VERSION,
-          room: null,
-        });
-      case 'ping':
-        return send(ws, { t: 'pong', ts: msg.ts, serverTs: Date.now() });
-      default:
-        return send(ws, { t: 'error', code: 'NOT_IMPLEMENTED', message: `${msg.t} is not implemented yet` });
+/** Engine selection. Swapping engines is this one function; everything else takes `EngineApi`. */
+async function selectEngine(): Promise<EngineApi> {
+  const want = process.env.FCM_ENGINE;
+  if (want !== 'toy') {
+    try {
+      realEngine.listModules();
+      return realEngine;
+    } catch (e) {
+      if (want === 'real' || !(e instanceof NotImplementedError)) throw e;
+      console.warn('Real engine not implemented yet; using the toy engine (set FCM_ENGINE=real to force).');
     }
+  }
+  return (await import('@fcm/engine/testing')).toyEngine;
+}
+
+async function main(): Promise<void> {
+  const port = Number(process.env.PORT ?? 3000);
+  const host = process.env.HOST ?? '0.0.0.0';
+  const server = await startServer({
+    engine: await selectEngine(),
+    port,
+    host,
+    clientDist: process.env.FCM_CLIENT_DIST ?? fileURLToPath(new URL('../../client/dist/', import.meta.url)),
+    persistence: persistenceFromEnv(),
   });
-});
+  console.log(`Food Chain Magnate server ${SERVER_VERSION} listening on ${host}:${server.port}`);
+  for (const line of joinUrls(server.port, host)) console.log(line);
 
-http.listen(PORT, HOST, () => {
-  console.log(`Food Chain Magnate server ${SERVER_VERSION} listening on ${HOST}:${PORT}`);
-  console.log(`  local:   http://localhost:${PORT}`);
-  for (const ip of lanAddresses()) console.log(`  network: http://${ip}:${PORT}`);
-});
+  const shutdown = () => {
+    void server.close().then(() => process.exit(0));
+    setTimeout(() => process.exit(0), 1500).unref();
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
 
-const shutdown = () => {
-  wss.clients.forEach((c) => c.close(1001, 'server shutting down'));
-  http.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 1000).unref();
+const isEntry = (): boolean => {
+  const argv1 = process.argv[1];
+  if (!argv1) return false;
+  try {
+    return realpathSync(argv1) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
 };
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+if (isEntry()) void main();
