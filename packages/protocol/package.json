@@ -1,0 +1,21 @@
+{
+  "name": "@fcm/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "fcm-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@fcm/engine": "0.1.0",
+    "zod": "^4.6.5"
+  }
+}

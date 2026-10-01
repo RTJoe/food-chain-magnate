@@ -1,6 +1,9 @@
 node_modules/
-package-lock.json
-package.json
+dist/
+dist-types/
+*.tsbuildinfo
+data/
 *.png
 !screenshots/*.png
 .DS_Store
+docs/rules/source/

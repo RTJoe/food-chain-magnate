@@ -1,0 +1,3943 @@
+{
+  "version": 1,
+  "config": {
+    "players": [
+      {
+        "id": "p1",
+        "name": "Ada",
+        "chain": "fried_geese_donkey",
+        "color": "#d94f3d"
+      },
+      {
+        "id": "p2",
+        "name": "Bo",
+        "chain": "golden_duck_diner",
+        "color": "#e8b730"
+      },
+      {
+        "id": "p3",
+        "name": "Cy",
+        "chain": "santa_maria_pizza",
+        "color": "#3f8fd2"
+      }
+    ],
+    "modules": [],
+    "options": {},
+    "intro": false,
+    "introMilestones": false,
+    "map": {
+      "kind": "fixed",
+      "layout": [
+        [
+          {
+            "templateId": "A",
+            "rotation": 0
+          },
+          {
+            "templateId": "O",
+            "rotation": 1
+          },
+          {
+            "templateId": "L",
+            "rotation": 0
+          },
+          {
+            "templateId": "E",
+            "rotation": 0
+          }
+        ],
+        [
+          {
+            "templateId": "K",
+            "rotation": 0
+          },
+          {
+            "templateId": "C",
+            "rotation": 0
+          },
+          {
+            "templateId": "N",
+            "rotation": 2
+          },
+          {
+            "templateId": "F",
+            "rotation": 0
+          }
+        ],
+        [
+          {
+            "templateId": "T",
+            "rotation": 0
+          },
+          {
+            "templateId": "D",
+            "rotation": 3
+          },
+          {
+            "templateId": "G",
+            "rotation": 0
+          },
+          {
+            "templateId": "B",
+            "rotation": 1
+          }
+        ]
+      ]
+    }
+  },
+  "seed": 104,
+  "rng": [
+    3113561998,
+    2877047550,
+    680332529,
+    3541261852
+  ],
+  "nextId": 59,
+  "round": 4,
+  "phase": {
+    "kind": "dinnertime",
+    "houses": [
+      "house-58",
+      "house-30",
+      "house-53",
+      "house-41",
+      "house-49",
+      "house-36",
+      "house-45",
+      "house-51",
+      "house-39"
+    ],
+    "idx": 0
+  },
+  "awaiting": {
+    "kind": "none",
+    "players": []
+  },
+  "turnOrder": [
+    "p1",
+    "p2",
+    "p3"
+  ],
+  "players": {
+    "p1": {
+      "id": "p1",
+      "name": "Ada",
+      "chain": "fried_geese_donkey",
+      "color": "#d94f3d",
+      "cash": 62,
+      "employees": {
+        "card-1": {
+          "uid": "card-1",
+          "employeeId": "ceo",
+          "acquiredRound": 0
+        },
+        "p1-mkt": {
+          "uid": "p1-mkt",
+          "employeeId": "marketing_trainee",
+          "acquiredRound": 3
+        },
+        "p1-w": {
+          "uid": "p1-w",
+          "employeeId": "waitress",
+          "acquiredRound": 3
+        },
+        "p1-pm": {
+          "uid": "p1-pm",
+          "employeeId": "pricing_manager",
+          "acquiredRound": 3
+        },
+        "p1-kt": {
+          "uid": "p1-kt",
+          "employeeId": "kitchen_trainee",
+          "acquiredRound": 3
+        },
+        "p1-lm": {
+          "uid": "p1-lm",
+          "employeeId": "local_manager",
+          "acquiredRound": 3
+        }
+      },
+      "structure": {
+        "ceo": "card-1",
+        "ceoSubs": [
+          "p1-w",
+          "p1-pm",
+          "p1-kt"
+        ],
+        "managerSubs": {}
+      },
+      "beach": [
+        "p1-lm"
+      ],
+      "busy": {
+        "p1-mkt": [
+          "cmp-p1-bb11"
+        ]
+      },
+      "inventory": {
+        "burger": 4,
+        "beer": 2
+      },
+      "freezer": {},
+      "milestones": {
+        "first_billboard": {
+          "round": 2,
+          "phase": "working"
+        },
+        "first_burger_marketed": {
+          "round": 2,
+          "phase": "working"
+        },
+        "first_lower_prices": {
+          "round": 3,
+          "phase": "working"
+        }
+      },
+      "restaurantsRemaining": 1,
+      "reserveCard": null,
+      "unusedRecruitActions": 0,
+      "earningsThisRound": 0,
+      "salaryPaidThisRound": 0,
+      "bankrupt": false
+    },
+    "p2": {
+      "id": "p2",
+      "name": "Bo",
+      "chain": "golden_duck_diner",
+      "color": "#e8b730",
+      "cash": 41,
+      "employees": {
+        "card-2": {
+          "uid": "card-2",
+          "employeeId": "ceo",
+          "acquiredRound": 0
+        },
+        "p2-cm": {
+          "uid": "p2-cm",
+          "employeeId": "campaign_manager",
+          "acquiredRound": 3
+        },
+        "p2-bd": {
+          "uid": "p2-bd",
+          "employeeId": "brand_director",
+          "acquiredRound": 3
+        },
+        "p2-w": {
+          "uid": "p2-w",
+          "employeeId": "waitress",
+          "acquiredRound": 3
+        },
+        "p2-kt": {
+          "uid": "p2-kt",
+          "employeeId": "kitchen_trainee",
+          "acquiredRound": 3
+        },
+        "p2-co": {
+          "uid": "p2-co",
+          "employeeId": "cart_operator",
+          "acquiredRound": 3
+        }
+      },
+      "structure": {
+        "ceo": "card-2",
+        "ceoSubs": [
+          "p2-w",
+          "p2-kt",
+          "p2-co"
+        ],
+        "managerSubs": {}
+      },
+      "beach": [],
+      "busy": {
+        "p2-cm": [
+          "cmp-p2-mb7"
+        ],
+        "p2-bd": [
+          "cmp-p2-rd1"
+        ]
+      },
+      "inventory": {
+        "pizza": 3,
+        "lemonade": 3
+      },
+      "freezer": {},
+      "milestones": {
+        "first_pizza_marketed": {
+          "round": 3,
+          "phase": "working"
+        }
+      },
+      "restaurantsRemaining": 2,
+      "reserveCard": null,
+      "unusedRecruitActions": 0,
+      "earningsThisRound": 0,
+      "salaryPaidThisRound": 0,
+      "bankrupt": false
+    },
+    "p3": {
+      "id": "p3",
+      "name": "Cy",
+      "chain": "santa_maria_pizza",
+      "color": "#3f8fd2",
+      "cash": 18,
+      "employees": {
+        "card-3": {
+          "uid": "card-3",
+          "employeeId": "ceo",
+          "acquiredRound": 0
+        },
+        "p3-bm": {
+          "uid": "p3-bm",
+          "employeeId": "brand_manager",
+          "acquiredRound": 3
+        },
+        "p3-eb": {
+          "uid": "p3-eb",
+          "employeeId": "errand_boy",
+          "acquiredRound": 3
+        },
+        "p3-bc": {
+          "uid": "p3-bc",
+          "employeeId": "burger_cook",
+          "acquiredRound": 3
+        }
+      },
+      "structure": {
+        "ceo": "card-3",
+        "ceoSubs": [
+          "p3-eb",
+          "p3-bc"
+        ],
+        "managerSubs": {}
+      },
+      "beach": [],
+      "busy": {
+        "p3-bm": [
+          "cmp-p3-ap4"
+        ]
+      },
+      "inventory": {
+        "burger": 3,
+        "beer": 1,
+        "soft_drink": 1
+      },
+      "freezer": {},
+      "milestones": {
+        "first_airplane": {
+          "round": 3,
+          "phase": "working"
+        },
+        "first_burger_produced": {
+          "round": 4,
+          "phase": "working"
+        }
+      },
+      "restaurantsRemaining": 2,
+      "reserveCard": null,
+      "unusedRecruitActions": 0,
+      "earningsThisRound": 0,
+      "salaryPaidThisRound": 0,
+      "bankrupt": false
+    }
+  },
+  "board": {
+    "rows": 3,
+    "cols": 4,
+    "w": 20,
+    "h": 15,
+    "tileSize": 5,
+    "tiles": [
+      {
+        "id": "tile-29",
+        "row": 0,
+        "col": 0,
+        "templateId": "A",
+        "rotation": 0
+      },
+      {
+        "id": "tile-31",
+        "row": 0,
+        "col": 1,
+        "templateId": "O",
+        "rotation": 1
+      },
+      {
+        "id": "tile-33",
+        "row": 0,
+        "col": 2,
+        "templateId": "L",
+        "rotation": 0
+      },
+      {
+        "id": "tile-35",
+        "row": 0,
+        "col": 3,
+        "templateId": "E",
+        "rotation": 0
+      },
+      {
+        "id": "tile-38",
+        "row": 1,
+        "col": 0,
+        "templateId": "K",
+        "rotation": 0
+      },
+      {
+        "id": "tile-40",
+        "row": 1,
+        "col": 1,
+        "templateId": "C",
+        "rotation": 0
+      },
+      {
+        "id": "tile-42",
+        "row": 1,
+        "col": 2,
+        "templateId": "N",
+        "rotation": 2
+      },
+      {
+        "id": "tile-44",
+        "row": 1,
+        "col": 3,
+        "templateId": "F",
+        "rotation": 0
+      },
+      {
+        "id": "tile-46",
+        "row": 2,
+        "col": 0,
+        "templateId": "T",
+        "rotation": 0
+      },
+      {
+        "id": "tile-48",
+        "row": 2,
+        "col": 1,
+        "templateId": "D",
+        "rotation": 3
+      },
+      {
+        "id": "tile-50",
+        "row": 2,
+        "col": 2,
+        "templateId": "G",
+        "rotation": 0
+      },
+      {
+        "id": "tile-52",
+        "row": 2,
+        "col": 3,
+        "templateId": "B",
+        "rotation": 1
+      }
+    ],
+    "cells": [
+      [
+        {
+          "kind": "empty",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": {
+            "links": [
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": {
+            "links": [
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": {
+            "links": [
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": {
+            "links": [
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": null
+        }
+      ],
+      [
+        {
+          "kind": "empty",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "drink",
+          "tile": "tile-31",
+          "occupant": "source-32",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "drink",
+          "tile": "tile-35",
+          "occupant": "source-37",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": null
+        }
+      ],
+      [
+        {
+          "kind": "road",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E",
+              "S",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E",
+              "S",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-35",
+          "occupant": "house-36",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-35",
+          "occupant": "house-36",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": {
+            "links": [
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        }
+      ],
+      [
+        {
+          "kind": "house",
+          "tile": "tile-29",
+          "occupant": "house-30",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-29",
+          "occupant": "house-30",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-29",
+          "occupant": "restaurant-54",
+          "road": null
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-29",
+          "occupant": "restaurant-54",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-31",
+          "occupant": "restaurant-56",
+          "road": null
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-31",
+          "occupant": "restaurant-56",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-33",
+          "occupant": "house-58",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-33",
+          "occupant": "house-58",
+          "road": null
+        },
+        {
+          "kind": "garden",
+          "tile": "tile-33",
+          "occupant": "house-58",
+          "road": null
+        },
+        {
+          "kind": "drink",
+          "tile": "tile-33",
+          "occupant": "source-34",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-35",
+          "occupant": "house-36",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-35",
+          "occupant": "house-36",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        }
+      ],
+      [
+        {
+          "kind": "house",
+          "tile": "tile-29",
+          "occupant": "house-30",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-29",
+          "occupant": "house-30",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-29",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-29",
+          "occupant": "restaurant-54",
+          "road": null
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-29",
+          "occupant": "restaurant-54",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-31",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-31",
+          "occupant": "restaurant-56",
+          "road": null
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-31",
+          "occupant": "restaurant-56",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-33",
+          "occupant": "house-58",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-33",
+          "occupant": "house-58",
+          "road": null
+        },
+        {
+          "kind": "garden",
+          "tile": "tile-33",
+          "occupant": "house-58",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-33",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-35",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        }
+      ],
+      [
+        {
+          "kind": "road",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": {
+            "links": [
+              "S",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "S",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "campaign",
+          "tile": "tile-42",
+          "occupant": "cmp-p1-bb11",
+          "road": null
+        },
+        {
+          "kind": "campaign",
+          "tile": "tile-42",
+          "occupant": "cmp-p1-bb11",
+          "road": null
+        },
+        {
+          "kind": "campaign",
+          "tile": "tile-42",
+          "occupant": "cmp-p1-bb11",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-44",
+          "occupant": "house-45",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-44",
+          "occupant": "house-45",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        }
+      ],
+      [
+        {
+          "kind": "road",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-38",
+          "occupant": "house-39",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-38",
+          "occupant": "house-39",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-40",
+          "occupant": "house-41",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-40",
+          "occupant": "house-41",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "campaign",
+          "tile": "tile-42",
+          "occupant": "cmp-p1-bb11",
+          "road": null
+        },
+        {
+          "kind": "campaign",
+          "tile": "tile-42",
+          "occupant": "cmp-p1-bb11",
+          "road": null
+        },
+        {
+          "kind": "campaign",
+          "tile": "tile-42",
+          "occupant": "cmp-p1-bb11",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-44",
+          "occupant": "house-45",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-44",
+          "occupant": "house-45",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        }
+      ],
+      [
+        {
+          "kind": "road",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-38",
+          "occupant": "house-39",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-38",
+          "occupant": "house-39",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-40",
+          "occupant": "house-41",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-40",
+          "occupant": "house-41",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "S",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": {
+            "links": [
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        }
+      ],
+      [
+        {
+          "kind": "restaurant",
+          "tile": "tile-38",
+          "occupant": "restaurant-55",
+          "road": null
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-38",
+          "occupant": "restaurant-55",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "campaign",
+          "tile": "tile-38",
+          "occupant": "cmp-p2-mb7",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "garden",
+          "tile": "tile-40",
+          "occupant": "house-41",
+          "road": null
+        },
+        {
+          "kind": "garden",
+          "tile": "tile-40",
+          "occupant": "house-41",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "drink",
+          "tile": "tile-42",
+          "occupant": "source-43",
+          "road": null
+        },
+        {
+          "kind": "campaign",
+          "tile": "tile-42",
+          "occupant": "cmp-p2-rd1",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        }
+      ],
+      [
+        {
+          "kind": "restaurant",
+          "tile": "tile-38",
+          "occupant": "restaurant-55",
+          "road": null
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-38",
+          "occupant": "restaurant-55",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-38",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "S",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-40",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-42",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-44",
+          "occupant": null,
+          "road": null
+        }
+      ],
+      [
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": {
+            "links": [
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-50",
+          "occupant": "house-51",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-50",
+          "occupant": "house-51",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-52",
+          "occupant": "restaurant-57",
+          "road": null
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-52",
+          "occupant": "restaurant-57",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": {
+            "links": [
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": null
+        }
+      ],
+      [
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "drink",
+          "tile": "tile-46",
+          "occupant": "source-47",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-50",
+          "occupant": "house-51",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-50",
+          "occupant": "house-51",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-52",
+          "occupant": "restaurant-57",
+          "road": null
+        },
+        {
+          "kind": "restaurant",
+          "tile": "tile-52",
+          "occupant": "restaurant-57",
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": null
+        }
+      ],
+      [
+        {
+          "kind": "road",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E",
+              "S",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "house",
+          "tile": "tile-48",
+          "occupant": "house-49",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-48",
+          "occupant": "house-49",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E",
+              "S",
+              "W"
+            ],
+            "bridge": true,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E",
+              "S",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": {
+            "links": [
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        }
+      ],
+      [
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "house",
+          "tile": "tile-48",
+          "occupant": "house-49",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-48",
+          "occupant": "house-49",
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "S"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "house",
+          "tile": "tile-52",
+          "occupant": "house-53",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-52",
+          "occupant": "house-53",
+          "road": null
+        }
+      ],
+      [
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-46",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N",
+              "E"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": {
+            "links": [
+              "E",
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "road",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": {
+            "links": [
+              "W"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-48",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-50",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "empty",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": null
+        },
+        {
+          "kind": "road",
+          "tile": "tile-52",
+          "occupant": null,
+          "road": {
+            "links": [
+              "N"
+            ],
+            "bridge": false,
+            "underConstruction": false,
+            "roadworks": 0,
+            "lobbyistRoad": null
+          }
+        },
+        {
+          "kind": "house",
+          "tile": "tile-52",
+          "occupant": "house-53",
+          "road": null
+        },
+        {
+          "kind": "house",
+          "tile": "tile-52",
+          "occupant": "house-53",
+          "road": null
+        }
+      ]
+    ],
+    "houses": {
+      "house-30": {
+        "id": "house-30",
+        "kind": "printed",
+        "order": 2,
+        "label": "2",
+        "cells": [
+          {
+            "x": 0,
+            "y": 3
+          },
+          {
+            "x": 1,
+            "y": 3
+          },
+          {
+            "x": 0,
+            "y": 4
+          },
+          {
+            "x": 1,
+            "y": 4
+          }
+        ],
+        "garden": null,
+        "demand": [
+          {
+            "good": "burger",
+            "by": "p1",
+            "campaign": "cmp-p1-bb11"
+          }
+        ]
+      },
+      "house-36": {
+        "id": "house-36",
+        "kind": "printed",
+        "order": 8,
+        "label": "8",
+        "cells": [
+          {
+            "x": 17,
+            "y": 2
+          },
+          {
+            "x": 18,
+            "y": 2
+          },
+          {
+            "x": 17,
+            "y": 3
+          },
+          {
+            "x": 18,
+            "y": 3
+          }
+        ],
+        "garden": null,
+        "demand": []
+      },
+      "house-39": {
+        "id": "house-39",
+        "kind": "printed",
+        "order": 18,
+        "label": "18",
+        "cells": [
+          {
+            "x": 2,
+            "y": 6
+          },
+          {
+            "x": 3,
+            "y": 6
+          },
+          {
+            "x": 2,
+            "y": 7
+          },
+          {
+            "x": 3,
+            "y": 7
+          }
+        ],
+        "garden": null,
+        "demand": [
+          {
+            "good": "pizza",
+            "by": "p2",
+            "campaign": "cmp-p2-mb7"
+          }
+        ]
+      },
+      "house-41": {
+        "id": "house-41",
+        "kind": "printed",
+        "order": 5,
+        "label": "5",
+        "cells": [
+          {
+            "x": 7,
+            "y": 6
+          },
+          {
+            "x": 8,
+            "y": 6
+          },
+          {
+            "x": 7,
+            "y": 7
+          },
+          {
+            "x": 8,
+            "y": 7
+          }
+        ],
+        "garden": {
+          "cells": [
+            {
+              "x": 7,
+              "y": 8
+            },
+            {
+              "x": 8,
+              "y": 8
+            }
+          ],
+          "source": "gardenTile"
+        },
+        "demand": [
+          {
+            "good": "beer",
+            "by": "p3",
+            "campaign": "cmp-p3-ap4"
+          },
+          {
+            "good": "beer",
+            "by": "p3",
+            "campaign": "cmp-p3-ap4"
+          },
+          {
+            "good": "lemonade",
+            "by": "p3",
+            "campaign": "cmp-p3-ap4"
+          }
+        ]
+      },
+      "house-45": {
+        "id": "house-45",
+        "kind": "printed",
+        "order": 10,
+        "label": "10",
+        "cells": [
+          {
+            "x": 15,
+            "y": 5
+          },
+          {
+            "x": 16,
+            "y": 5
+          },
+          {
+            "x": 15,
+            "y": 6
+          },
+          {
+            "x": 16,
+            "y": 6
+          }
+        ],
+        "garden": null,
+        "demand": []
+      },
+      "house-49": {
+        "id": "house-49",
+        "kind": "printed",
+        "order": 7,
+        "label": "7",
+        "cells": [
+          {
+            "x": 6,
+            "y": 13
+          },
+          {
+            "x": 6,
+            "y": 12
+          },
+          {
+            "x": 7,
+            "y": 13
+          },
+          {
+            "x": 7,
+            "y": 12
+          }
+        ],
+        "garden": null,
+        "demand": []
+      },
+      "house-51": {
+        "id": "house-51",
+        "kind": "printed",
+        "order": 12,
+        "label": "12",
+        "cells": [
+          {
+            "x": 10,
+            "y": 10
+          },
+          {
+            "x": 11,
+            "y": 10
+          },
+          {
+            "x": 10,
+            "y": 11
+          },
+          {
+            "x": 11,
+            "y": 11
+          }
+        ],
+        "garden": null,
+        "demand": [
+          {
+            "good": "lemonade",
+            "by": "p2",
+            "campaign": "cmp-p2-rd1"
+          },
+          {
+            "good": "lemonade",
+            "by": "p2",
+            "campaign": "cmp-p2-rd1"
+          }
+        ]
+      },
+      "house-53": {
+        "id": "house-53",
+        "kind": "printed",
+        "order": 4,
+        "label": "4",
+        "cells": [
+          {
+            "x": 19,
+            "y": 13
+          },
+          {
+            "x": 19,
+            "y": 14
+          },
+          {
+            "x": 18,
+            "y": 13
+          },
+          {
+            "x": 18,
+            "y": 14
+          }
+        ],
+        "garden": null,
+        "demand": []
+      },
+      "house-58": {
+        "id": "house-58",
+        "kind": "placed",
+        "order": 1,
+        "label": "1",
+        "cells": [
+          {
+            "x": 10,
+            "y": 3
+          },
+          {
+            "x": 11,
+            "y": 3
+          },
+          {
+            "x": 10,
+            "y": 4
+          },
+          {
+            "x": 11,
+            "y": 4
+          }
+        ],
+        "garden": {
+          "cells": [
+            {
+              "x": 12,
+              "y": 3
+            },
+            {
+              "x": 12,
+              "y": 4
+            }
+          ],
+          "source": "withHouse"
+        },
+        "demand": [
+          {
+            "good": "burger",
+            "by": "p1",
+            "campaign": "cmp-p1-bb11"
+          },
+          {
+            "good": "burger",
+            "by": "p1",
+            "campaign": "cmp-p1-bb11"
+          }
+        ]
+      }
+    },
+    "restaurants": {
+      "restaurant-54": {
+        "id": "restaurant-54",
+        "owner": "p1",
+        "x": 3,
+        "y": 3,
+        "entrance": "NW",
+        "status": "open",
+        "placedRound": 4
+      },
+      "restaurant-55": {
+        "id": "restaurant-55",
+        "owner": "p1",
+        "x": 0,
+        "y": 8,
+        "entrance": "NW",
+        "status": "comingSoon",
+        "placedRound": 4
+      },
+      "restaurant-56": {
+        "id": "restaurant-56",
+        "owner": "p2",
+        "x": 8,
+        "y": 3,
+        "entrance": "NW",
+        "status": "open",
+        "placedRound": 4
+      },
+      "restaurant-57": {
+        "id": "restaurant-57",
+        "owner": "p3",
+        "x": 15,
+        "y": 10,
+        "entrance": "NE",
+        "status": "open",
+        "placedRound": 4
+      }
+    },
+    "campaigns": {
+      "cmp-p1-bb11": {
+        "id": "cmp-p1-bb11",
+        "owner": "p1",
+        "number": 11,
+        "kind": "billboard",
+        "goods": [
+          "burger"
+        ],
+        "placement": {
+          "kind": "board",
+          "x": 11,
+          "y": 5,
+          "w": 3,
+          "h": 2
+        },
+        "remaining": 1,
+        "eternal": true,
+        "marketeer": "p1-mkt",
+        "source": "marketeer",
+        "linked": [],
+        "placedRound": 3
+      },
+      "cmp-p2-mb7": {
+        "id": "cmp-p2-mb7",
+        "owner": "p2",
+        "number": 7,
+        "kind": "mailbox",
+        "goods": [
+          "pizza"
+        ],
+        "placement": {
+          "kind": "board",
+          "x": 4,
+          "y": 8,
+          "w": 1,
+          "h": 1
+        },
+        "remaining": 2,
+        "eternal": false,
+        "marketeer": "p2-cm",
+        "source": "marketeer",
+        "linked": [],
+        "placedRound": 3
+      },
+      "cmp-p3-ap4": {
+        "id": "cmp-p3-ap4",
+        "owner": "p3",
+        "number": 4,
+        "kind": "airplane",
+        "goods": [
+          "beer"
+        ],
+        "placement": {
+          "kind": "airplane",
+          "side": "S",
+          "offset": 5,
+          "width": 3
+        },
+        "remaining": 3,
+        "eternal": false,
+        "marketeer": "p3-bm",
+        "source": "marketeer",
+        "linked": [],
+        "placedRound": 3
+      },
+      "cmp-p2-rd1": {
+        "id": "cmp-p2-rd1",
+        "owner": "p2",
+        "number": 1,
+        "kind": "radio",
+        "goods": [
+          "lemonade"
+        ],
+        "placement": {
+          "kind": "board",
+          "x": 14,
+          "y": 8,
+          "w": 1,
+          "h": 1
+        },
+        "remaining": 1,
+        "eternal": false,
+        "marketeer": "p2-bd",
+        "source": "marketeer",
+        "linked": [],
+        "placedRound": 3
+      }
+    },
+    "drinkSources": {
+      "source-32": {
+        "id": "source-32",
+        "x": 9,
+        "y": 1,
+        "drink": "beer",
+        "tile": "tile-31"
+      },
+      "source-34": {
+        "id": "source-34",
+        "x": 13,
+        "y": 3,
+        "drink": "lemonade",
+        "tile": "tile-33"
+      },
+      "source-37": {
+        "id": "source-37",
+        "x": 16,
+        "y": 1,
+        "drink": "beer",
+        "tile": "tile-35"
+      },
+      "source-43": {
+        "id": "source-43",
+        "x": 13,
+        "y": 8,
+        "drink": "beer",
+        "tile": "tile-42"
+      },
+      "source-47": {
+        "id": "source-47",
+        "x": 1,
+        "y": 11,
+        "drink": "lemonade",
+        "tile": "tile-46"
+      }
+    },
+    "entities": {}
+  },
+  "supply": {
+    "waitress": 10,
+    "management_trainee": 18,
+    "junior_vp": 12,
+    "vice_president": 6,
+    "senior_vp": 6,
+    "executive_vp": 1,
+    "new_business_developer": 6,
+    "luxuries_manager": 1,
+    "pricing_manager": 11,
+    "discount_manager": 6,
+    "local_manager": 5,
+    "regional_manager": 1,
+    "cfo": 1,
+    "recruiting_girl": 12,
+    "recruiting_manager": 6,
+    "hr_director": 1,
+    "trainer": 12,
+    "coach": 6,
+    "guru": 1,
+    "errand_boy": 11,
+    "cart_operator": 5,
+    "truck_driver": 6,
+    "zeppelin_pilot": 1,
+    "marketing_trainee": 11,
+    "campaign_manager": 5,
+    "brand_manager": 5,
+    "brand_director": 0,
+    "kitchen_trainee": 10,
+    "burger_cook": 5,
+    "burger_chef": 1,
+    "pizza_cook": 6,
+    "pizza_chef": 1
+  },
+  "milestones": {
+    "first_billboard": {
+      "claimedBy": [
+        "p1"
+      ],
+      "claimedRound": 2,
+      "removed": true,
+      "removeAfterRound": null
+    },
+    "first_train": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_hire_3": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_burger_marketed": {
+      "claimedBy": [
+        "p1"
+      ],
+      "claimedRound": 2,
+      "removed": true,
+      "removeAfterRound": null
+    },
+    "first_pizza_marketed": {
+      "claimedBy": [
+        "p2"
+      ],
+      "claimedRound": 3,
+      "removed": true,
+      "removeAfterRound": null
+    },
+    "first_drink_marketed": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_errand_boy": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_20": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_burger_produced": {
+      "claimedBy": [
+        "p3"
+      ],
+      "claimedRound": 4,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_pizza_produced": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_waitress": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_throw_away": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_lower_prices": {
+      "claimedBy": [
+        "p1"
+      ],
+      "claimedRound": 3,
+      "removed": true,
+      "removeAfterRound": null
+    },
+    "first_cart_operator": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_airplane": {
+      "claimedBy": [
+        "p3"
+      ],
+      "claimedRound": 3,
+      "removed": true,
+      "removeAfterRound": null
+    },
+    "first_radio": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_100": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    },
+    "first_pay_20": {
+      "claimedBy": [],
+      "claimedRound": null,
+      "removed": false,
+      "removeAfterRound": null
+    }
+  },
+  "bank": {
+    "cash": 95,
+    "breaks": 0,
+    "reserveOpened": false,
+    "ious": {},
+    "burned": 0
+  },
+  "ceoSlots": 3,
+  "basePrice": 10,
+  "houseTiles": [
+    3,
+    6,
+    9,
+    11,
+    14,
+    17,
+    19
+  ],
+  "gardenTiles": 7,
+  "marketingTiles": [
+    2,
+    3,
+    5,
+    6,
+    8,
+    9,
+    10,
+    12,
+    13,
+    14
+  ],
+  "tilePool": [],
+  "secrets": {
+    "p1": {
+      "reserve": null,
+      "structureDraft": null
+    },
+    "p2": {
+      "reserve": null,
+      "structureDraft": null
+    },
+    "p3": {
+      "reserve": null,
+      "structureDraft": null
+    }
+  },
+  "pending": [],
+  "moduleState": {},
+  "turn": null,
+  "history": {
+    "seq": 0
+  }
+}

@@ -1,0 +1,138 @@
+/**
+ * Fine-grained events emitted by `applyAction` / `runUntilInput` for logs and animation
+ * (architecture §3.4). Events never carry information the viewer may not see after
+ * `redactEvents`: secret payloads are optional and stripped for other viewers.
+ */
+import type { CampaignKind, EmployeeId, FoodId, MilestoneId, Rotation, TileTemplateId } from './content.js';
+import type {
+  Campaign,
+  CampaignId,
+  Cell,
+  ChoiceId,
+  Corner,
+  DemandToken,
+  EntityId,
+  FoodCounts,
+  HouseId,
+  ModuleEntity,
+  PendingChoiceKind,
+  Phase,
+  PhaseKind,
+  PlayerId,
+  ReserveCard,
+  RestaurantId,
+  SourceId,
+  Structure,
+  Uid,
+  WorkStage,
+} from './state.js';
+
+interface E<T extends string> {
+  type: T;
+}
+
+/** One line of a sale's income (base.md §7 "Selling"). */
+export interface SaleLine {
+  good: FoodId;
+  count: number;
+  /** Per-item amount after garden/park multiplier (unit price × multiplier). */
+  each: number;
+}
+
+export interface SaleBonus {
+  /** e.g. `first_burger_marketed`, `ketchup:fry_chef`. */
+  source: string;
+  amount: number;
+}
+
+export type GameEvent =
+  // --- Flow ---------------------------------------------------------------
+  | (E<'gameStarted'> & { players: PlayerId[]; turnOrder: PlayerId[] })
+  | (E<'roundStarted'> & { round: number })
+  | (E<'phaseChanged'> & { from: PhaseKind | null; to: Phase })
+  | (E<'turnStarted'> & { player: PlayerId })
+  | (E<'workStageChanged'> & { player: PlayerId; stage: WorkStage })
+  | (E<'turnEnded'> & { player: PlayerId })
+  | (E<'turnOrderSet'> & { turnOrder: PlayerId[] })
+  | (E<'choicePending'> & { choiceId: ChoiceId; kind: PendingChoiceKind; player: PlayerId })
+  | (E<'choiceResolved'> & { choiceId: ChoiceId; declined: boolean })
+  // --- Setup --------------------------------------------------------------
+  | (E<'setupPassed'> & { player: PlayerId })
+  /** `card` only present for the owner (redacted otherwise). */
+  | (E<'reserveChosen'> & { player: PlayerId; card?: ReserveCard })
+  // --- Restructuring / order ----------------------------------------------
+  /** Draft only for the owner. */
+  | (E<'structureSubmitted'> & { player: PlayerId; structure?: Structure })
+  | (E<'structureRetracted'> & { player: PlayerId })
+  | (E<'structuresRevealed'> & { structures: Record<PlayerId, Structure> })
+  /** base.md §4.5 overfill: everything but the CEO to the beach. */
+  | (E<'structurePenalty'> & { player: PlayerId })
+  | (E<'orderChosen'> & { player: PlayerId; position: number })
+  // --- Employees ----------------------------------------------------------
+  | (E<'employeeHired'> & { player: PlayerId; uid: Uid; employeeId: EmployeeId; by: Uid })
+  /** Milestone rewards and other free cards. */
+  | (E<'employeeGained'> & { player: PlayerId; uid: Uid; employeeId: EmployeeId; reason: string })
+  | (E<'employeeTrained'> & { player: PlayerId; uid: Uid; from: EmployeeId; to: EmployeeId; by: Uid[]; steps: number })
+  | (E<'employeeFired'> & { player: PlayerId; uid: Uid; employeeId: EmployeeId; forced: boolean })
+  | (E<'cardSkipped'> & { player: PlayerId; uid: Uid })
+  | (E<'cardsReturned'> & { player: PlayerId })
+  | (E<'marketeerReturned'> & { player: PlayerId; uid: Uid })
+  // --- Goods --------------------------------------------------------------
+  | (E<'foodProduced'> & { player: PlayerId; uid: Uid | null; food: FoodId; count: number })
+  | (E<'drinksBought'> & {
+      player: PlayerId;
+      uid: Uid;
+      path: Cell[];
+      collected: { sourceId: SourceId | null; drink: FoodId; count: number }[];
+    })
+  | (E<'foodDiscarded'> & { player: PlayerId; goods: FoodCounts })
+  | (E<'foodFrozen'> & { player: PlayerId; goods: FoodCounts })
+  // --- Board --------------------------------------------------------------
+  | (E<'restaurantPlaced'> & { player: PlayerId; restaurantId: RestaurantId; x: number; y: number; entrance: Corner; comingSoon: boolean })
+  | (E<'restaurantMoved'> & { player: PlayerId; restaurantId: RestaurantId; x: number; y: number; entrance: Corner })
+  | (E<'restaurantOpened'> & { restaurantId: RestaurantId })
+  | (E<'houseBuilt'> & { player: PlayerId; houseId: HouseId; cells: Cell[]; garden: Cell[] })
+  | (E<'gardenAdded'> & { player: PlayerId; houseId: HouseId; cells: Cell[] })
+  | (E<'campaignPlaced'> & { player: PlayerId; campaign: Campaign })
+  | (E<'entityPlaced'> & { player: PlayerId | null; entity: ModuleEntity })
+  | (E<'entityRemoved'> & { entityId: EntityId })
+  | (E<'mapTileAdded'> & { player: PlayerId; templateId: TileTemplateId; row: number; col: number; rotation: Rotation })
+  // --- Dinnertime (base.md §7) --------------------------------------------
+  | (E<'houseConsidered'> & { houseId: HouseId; candidates: PlayerId[] })
+  | (E<'houseStayedHome'> & { houseId: HouseId })
+  | (E<'sale'> & {
+      houseId: HouseId;
+      player: PlayerId;
+      restaurantId: RestaurantId;
+      distance: number;
+      unitPrice: number;
+      lines: SaleLine[];
+      bonuses: SaleBonus[];
+      total: number;
+    })
+  /** ketchup.md §4: coffee sold en route. */
+  | (E<'coffeeSold'> & { houseId: HouseId; player: PlayerId; at: RestaurantId | EntityId; amount: number })
+  | (E<'tipsPaid'> & { player: PlayerId; waitresses: number; amount: number })
+  | (E<'cfoBonus'> & { player: PlayerId; amount: number })
+  | (E<'bankBroke'> & { breakNo: 1 | 2; reserves?: Record<PlayerId, ReserveCard>; added: number; ceoSlots: number; basePrice: number })
+  | (E<'iouIssued'> & { player: PlayerId; amount: number })
+  | (E<'bankrupt'> & { player: PlayerId })
+  // --- Payday (base.md §8) ------------------------------------------------
+  | (E<'salaryPaid'> & { player: PlayerId; gross: number; discounts: number; paid: number; tokens?: FoodCounts })
+  | (E<'bankBurned'> & { player: PlayerId; amount: number })
+  // --- Marketing (base.md §9) ---------------------------------------------
+  | (E<'campaignRan'> & { campaignId: CampaignId; pass: number })
+  | (E<'demandPlaced'> & { campaignId: CampaignId | null; houseId: HouseId; tokens: DemandToken[] })
+  | (E<'marketingIncome'> & { player: PlayerId; campaignId: CampaignId; amount: number })
+  | (E<'campaignTicked'> & { campaignId: CampaignId; remaining: number })
+  | (E<'campaignExpired'> & { campaignId: CampaignId; kind: CampaignKind; marketeer: Uid | null })
+  // --- Milestones ---------------------------------------------------------
+  | (E<'milestoneClaimed'> & { player: PlayerId; milestoneId: MilestoneId })
+  | (E<'milestonesRemoved'> & { milestoneIds: MilestoneId[] })
+  // --- Money --------------------------------------------------------------
+  | (E<'cashChanged'> & { player: PlayerId; delta: number; reason: string; bank: number })
+  // --- End ----------------------------------------------------------------
+  | (E<'gameEnded'> & { ranking: PlayerId[]; cash: Record<PlayerId, number> });
+
+export type GameEventType = GameEvent['type'];
+export type EventOf<T extends GameEventType> = Extract<GameEvent, { type: T }>;

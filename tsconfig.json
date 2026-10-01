@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/engine" },
+    { "path": "packages/protocol" },
+    { "path": "packages/session" },
+    { "path": "packages/server" },
+    { "path": "packages/client" }
+  ]
+}

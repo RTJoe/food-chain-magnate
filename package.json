@@ -1,0 +1,35 @@
+{
+  "name": "food-chain-magnate",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Food Chain Magnate: online multiplayer with a 3D board",
+  "type": "module",
+  "workspaces": [
+    "packages/engine",
+    "packages/protocol",
+    "packages/session",
+    "packages/server",
+    "packages/client"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "npm run build && node packages/server/dist/index.js",
+    "dev": "concurrently -k -n server,client -c blue,magenta \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "tsx watch --conditions=fcm-source packages/server/src/index.ts",
+    "dev:client": "npm run dev -w @fcm/client",
+    "build": "tsc -b && npm run build -w @fcm/client",
+    "typecheck": "tsc -b && tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "lint": "node scripts/check-boundaries.mjs && npm run typecheck",
+    "fixtures": "npm run fixtures -w @fcm/engine"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "concurrently": "^10.0.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

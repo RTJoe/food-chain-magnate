@@ -1,0 +1,57 @@
+# Wire protocol
+
+Source of truth: `packages/protocol/src/messages.ts` and `room.ts` (TypeScript types are `z.infer` of the zod schemas). This page lists every message. Architecture context: `docs/architecture.md` §4.
+
+## Transport
+
+- WebSocket at `ws://<host>:<port>/ws` (default port 3000). Same origin as the client.
+- Each frame is one JSON object with a string discriminator `t`.
+- `PROTOCOL_VERSION = 1`. The client sends it in `hello`; a mismatch gets `error PROTOCOL_MISMATCH`.
+- The protocol validates envelopes only. For `game.action` it checks that `action.type` is a known engine action type and `action.playerId` is a string. The server overwrites `playerId` from the seat. The engine validates everything else and answers with `game.rejected`.
+- Max frame size: 256 KB.
+
+## Client → Server
+
+| `t` | Fields | Who | Notes |
+|---|---|---|---|
+| `hello` | `clientVersion: string`, `protocol: number`, `sessionToken?: string`, `name?: string` | anyone | First message. A known `sessionToken` re-attaches the previous seat (§4.3). |
+| `room.create` | `name: string` (1–24), `config?: Partial<RoomConfig>` | anyone | Creates a room; the sender becomes host and joins it. |
+| `room.join` | `roomId: string` (5 chars, `A–Z` minus I/O, `2–9`), `name`, `spectate?: boolean` | anyone | Joins as unseated member, or spectator. |
+| `room.leave` | — | member | Leaves the room (keeps the seat reserved while playing). |
+| `room.sit` | `seat: number` | member | Lobby only. |
+| `room.stand` | — | seated | Lobby only. |
+| `room.ready` | `ready: boolean` | seated | Lobby only. |
+| `room.config` | `config: RoomConfig` | host | Lobby only. |
+| `room.kick` | `seat: number` | host | Frees a seat so another device can take it over. |
+| `room.start` | — | host | Starts the game when all seated players are ready. |
+| `game.action` | `id: string` (≤64, client-generated, idempotent), `expectedSeq: number`, `action: Action` | seated | Rejected if `expectedSeq` ≠ server seq. A repeated `id` is not applied twice. |
+| `game.undo` | `expectedSeq: number` | seated | Undo own last undoable action (architecture §3.6). |
+| `game.resync` | — | member | Server replies with `game.snapshot`. |
+| `chat` | `text: string` (1–500) | member | |
+| `ping` | `ts: number` | anyone | Server replies `pong`. |
+
+## Server → Client
+
+| `t` | Fields | Notes |
+|---|---|---|
+| `welcome` | `clientId`, `sessionToken`, `serverVersion`, `protocol`, `room: RoomInfo \| null` | Reply to `hello`. Store `sessionToken` in `localStorage['fcm.session']`. |
+| `error` | `code: ErrorCode`, `message`, `ref?` | Non-game errors. Codes: `BAD_MESSAGE`, `PROTOCOL_MISMATCH`, `NOT_IN_ROOM`, `ROOM_NOT_FOUND`, `ROOM_FULL`, `SEAT_TAKEN`, `NOT_HOST`, `NOT_SEATED`, `GAME_NOT_STARTED`, `CANNOT_START`, `RATE_LIMITED`, `NOT_IMPLEMENTED`, `INTERNAL`. |
+| `pong` | `ts` (echo), `serverTs` | |
+| `room.update` | `room: RoomInfo` | Any lobby/seat/connection change. |
+| `game.snapshot` | `seq`, `view: GameView`, `manifest: ModuleManifest[]`, `me: PlayerId \| null` | On start, join, reconnect, resync. Full redacted view. |
+| `game.applied` | `seq`, `actionId: string \| null`, `action`, `events: GameEvent[]`, `view` | After every applied action, per viewer (events and view redacted for that viewer). `actionId` is set only for the sender. |
+| `game.rejected` | `id` (the action id), `code` (engine `RejectCode`), `message` | Only to the sender. |
+| `game.undone` | `seq`, `view`, `by: PlayerId` | Game rolled back to `seq`. |
+| `chat` | `from: { clientId, name, seat \| null }`, `text`, `ts` | |
+
+## Shared types
+
+- `RoomInfo { id, status: 'lobby' | 'playing' | 'finished', hostClientId, config: RoomConfig, seats: Seat[], spectators: Spectator[], createdAt }`
+- `RoomConfig { seatCount: 2–6, modules: ModuleId[], options: ModuleOptions, intro, introMilestones }`
+- `Seat { index, playerId, clientId | null, name | null, color, ready, connected }`
+- `Spectator { clientId, name, connected }`
+- `Action`, `GameEvent`, `GameView`, `ModuleManifest`, `RejectCode`: `@fcm/engine` types (`packages/engine/src/types/`).
+
+## Status in C0
+
+The C0 server answers `hello` with `welcome` and `ping` with `pong`. Every other message gets `error NOT_IMPLEMENTED`. Rooms and games arrive in C3.

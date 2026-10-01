@@ -1,0 +1,29 @@
+{
+  "name": "@fcm/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "fcm-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@fcm/engine": "0.1.0",
+    "@fcm/protocol": "0.1.0",
+    "@fcm/session": "0.1.0",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2"
+  }
+}
