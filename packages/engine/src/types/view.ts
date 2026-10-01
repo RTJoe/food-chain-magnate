@@ -2,7 +2,7 @@
  * What a client sees (architecture §3.5) and UI guidance types shared by online and hot-seat
  * play: `GameView`, `Prompt`, `LegalAction`, `PlacementSpec`, `Placement`.
  */
-import type { CampaignKind, Direction, Rotation } from './content.js';
+import type { CampaignKind, Direction, Rotation, TileTemplateId } from './content.js';
 import type { Action, ActionType, BuyerRoute, RouteStart } from './actions.js';
 import type {
   CampaignPlacement,
@@ -49,11 +49,11 @@ export type Placement =
   | { kind: 'garden'; houseId: HouseId; side: Direction; cells: Cell[] }
   | { kind: 'campaign'; campaignKind: CampaignKind; tileNumber: number; placement: CampaignPlacement; from?: RouteStart }
   | { kind: 'buyerRoute'; route: BuyerRoute; collects: { sourceId: SourceId; count: number }[] }
-  | { kind: 'coffeeShop'; x: number; y: number }
+  | { kind: 'coffeeShop'; x: number; y: number; moveFrom?: string }
   | { kind: 'lobbyistRoad'; cells: Cell[]; arrows: { from: Cell; dir: Direction }[]; from: RouteStart }
   | { kind: 'park'; x: number; y: number; w: number; h: number; from: RouteStart }
   | { kind: 'freeway'; side: Direction; offset: number }
-  | { kind: 'mapTile'; row: number; col: number; rotation: Rotation }
+  | { kind: 'mapTile'; row: number; col: number; rotation: Rotation; templateId?: TileTemplateId }
   | { kind: 'pizzaRadio'; x: number; y: number }
   | { kind: 'freeMailbox'; x: number; y: number };
 

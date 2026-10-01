@@ -17,10 +17,13 @@ import { FOODS } from '../content/foods.js';
 import { endGame } from './bank.js';
 import { crossOutMilestones, onMilestoneEvent } from './milestones.js';
 import { hasMilestoneBefore } from './pricing.js';
+import { pipe } from '../modules/registry.js';
+import { readCtx } from '../core/context.js';
 
 /** Freezer capacity this Clean up: 10 with "First to Throw Away" earned in an earlier round. */
 export function freezerCapacity(s: GameState, player: PlayerId): number {
-  return hasMilestoneBefore(s, player, 'first_throw_away') ? 10 : 0;
+  const base = hasMilestoneBefore(s, player, 'first_throw_away') ? 10 : 0;
+  return s.config.modules.length ? pipe(readCtx(s), 'freezerCapacity', base, { player }) : base;
 }
 
 /** inventory + freezer. */

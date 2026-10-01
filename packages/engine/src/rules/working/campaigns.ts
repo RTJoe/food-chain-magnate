@@ -22,7 +22,8 @@ import type { Campaign, CampaignPlacement, Cell, GameState, PlayerId, PlayerStat
 import type { EngineCtx } from '../../core/context.js';
 import { OK, reject, type Check } from '../../core/errors.js';
 import { removeFromStructure } from '../../core/cards.js';
-import { contentFor } from '../../modules/registry.js';
+import { contentFor, pipe } from '../../modules/registry.js';
+import { readCtx } from '../../core/context.js';
 import { FOODS } from '../../content/foods.js';
 import { allEmpty, inBounds, paint, rect, touchesRoad } from '../../map/grid.js';
 import { distanceField, distanceToFootprint, playerRouteStarts, routeStartRoads, type DistanceField } from '../../map/pathfinding.js';
@@ -90,6 +91,21 @@ export function campaignPlacementProblem(
   from?: RouteStart,
   field?: DistanceField,
 ): string | null {
+  const base = baseCampaignPlacementProblem(s, player, def, kind, tileNumber, placement, from, field);
+  if (!s.config.modules.length) return base;
+  return pipe(readCtx(s), 'campaignPlacementProblem', base, { player, def, kind, tileNumber, placement, from });
+}
+
+function baseCampaignPlacementProblem(
+  s: GameState,
+  player: PlayerId,
+  def: EmployeeDef,
+  kind: CampaignKind,
+  tileNumber: number,
+  placement: CampaignPlacement,
+  from?: RouteStart,
+  field?: DistanceField,
+): string | null {
   if (def.ability.kind !== 'marketing') return 'Not a marketeer';
   if (!def.ability.campaigns.includes(kind)) return `${def.name} cannot place a ${kind}`;
   const tile = contentFor(s.config.modules).marketingTiles[tileNumber];
@@ -112,9 +128,15 @@ export function validateCampaign(s: GameState, a: WorkPlaceCampaign): Check {
   if (!c.ok) return c;
   const { def } = c;
   if (def.ability.kind !== 'marketing') return reject('CARD_UNAVAILABLE', 'Not a marketeer');
-  if (!Array.isArray(a.goods) || a.goods.length !== 1) return reject('INVALID_PAYLOAD', 'Advertise exactly one good');
-  const good = FOODS.find((f) => f.id === a.goods[0]);
-  if (!good?.marketable || (good.module !== 'base' && !s.config.modules.includes(good.module))) return reject('ILLEGAL', 'That good cannot be marketed');
+  const maxGoods = s.config.modules.length ? pipe(readCtx(s), 'campaignGoods', 1, { player: a.playerId, def, kind: a.campaignKind }) : 1;
+  if (!Array.isArray(a.goods) || a.goods.length < 1 || a.goods.length > maxGoods) {
+    return reject('INVALID_PAYLOAD', maxGoods > 1 ? `Advertise 1–${maxGoods} goods` : 'Advertise exactly one good');
+  }
+  if (new Set(a.goods).size !== a.goods.length) return reject('ILLEGAL', 'Advertise different goods');
+  for (const g of a.goods) {
+    const good = FOODS.find((f) => f.id === g);
+    if (!good?.marketable || (good.module !== 'base' && !s.config.modules.includes(good.module))) return reject('ILLEGAL', 'That good cannot be marketed');
+  }
   if (!Number.isInteger(a.duration) || a.duration < 1 || a.duration > def.ability.maxDuration) {
     return reject('ILLEGAL', `Duration must be 1–${def.ability.maxDuration}`);
   }
@@ -131,7 +153,10 @@ export function applyCampaign(ctx: EngineCtx, a: WorkPlaceCampaign): void {
   const id = ctx.id('campaign');
   const placement: CampaignPlacement = JSON.parse(JSON.stringify(a.placement)) as CampaignPlacement;
   if (placement.kind === 'board') paint(s.board, rect(placement.x, placement.y, placement.w, placement.h), 'campaign', id);
-  const eternal = launchesEternal(ctx, a.playerId, a.campaignKind);
+  const card = p.employees[a.cardUid];
+  const def = card ? ctx.content.employees[card.employeeId] : undefined;
+  // ketchup.md §12: giant billboards are always eternal (`alwaysEternal`).
+  const eternal = launchesEternal(ctx, a.playerId, a.campaignKind) || (def?.ability.kind === 'marketing' && def.ability.alwaysEternal === true);
   const camp: Campaign = {
     id,
     owner: a.playerId,
@@ -148,8 +173,8 @@ export function applyCampaign(ctx: EngineCtx, a: WorkPlaceCampaign): void {
   };
   s.board.campaigns[id] = camp;
   s.marketingTiles = s.marketingTiles.filter((n) => n !== a.tileNumber);
+  // One use per campaign (a night-shift marketing trainee has two, ketchup.md §11).
   spend(ctx, a.cardUid);
-  turn.uses[a.cardUid] = 0;
   removeFromStructure(p, a.cardUid);
   p.busy[a.cardUid] = [...(p.busy[a.cardUid] ?? []), id];
   turn.campaignsPlaced.push(id);

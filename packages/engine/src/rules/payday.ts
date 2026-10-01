@@ -19,6 +19,8 @@ import type { GameState, Ok, PaydayConfirm, PaydayFire, PlayerId, PlayerState, R
 import { payToBank } from './bank.js';
 import { onMilestoneEvent } from './milestones.js';
 import { cardsAtWork, hasMilestone, runPipeline, staticContent } from './pricing.js';
+import { pipe } from '../modules/registry.js';
+import { readCtx } from '../core/context.js';
 
 /** Base salary per salaried card (base.md §8.2). */
 export const SALARY = 5;
@@ -31,6 +33,12 @@ const BILLBOARD_WAIVED: readonly string[] = ['campaign_manager', 'brand_manager'
 
 /** Does this owned card cost salary this Payday? */
 export function isSalaried(s: GameState, content: ContentIndex, player: PlayerId, uid: Uid): boolean {
+  const base = baseSalaried(s, content, player, uid);
+  if (!s.config.modules.length || !s.players[player]?.employees[uid]) return base;
+  return pipe(readCtx(s), 'cardSalaried', base, { player, uid });
+}
+
+function baseSalaried(s: GameState, content: ContentIndex, player: PlayerId, uid: Uid): boolean {
   const p = s.players[player];
   const card = p?.employees[uid];
   if (!p || !card || card.salaryFree) return false;
@@ -59,7 +67,9 @@ export function salaryBreakdown(s: GameState, content: ContentIndex, player: Pla
   const gross = salaried * SALARY;
   const off = discounts.reduce((a, d) => a + d.amount, 0);
   const bd: SalaryBreakdown = { player, salaried, rate: SALARY, discounts, total: Math.max(0, gross - off) };
-  return ctx ? runPipeline(ctx, 'salaryTotal', bd, { player }) : bd;
+  if (ctx) return runPipeline(ctx, 'salaryTotal', bd, { player });
+  // Validators and prompts have no context: run the module pipeline on a read-only one.
+  return s.config.modules.length ? pipe(readCtx(s), 'salaryTotal', bd, { player }) : bd;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +219,7 @@ function advance(ctx: HookContext): void {
     const player = ph.queue[ph.idx] as PlayerId;
     const p = s.players[player] as PlayerState;
     const bd = salaryBreakdown(s, ctx.content, player, ctx);
-    if (bd.total > p.cash && salariedCards(s, ctx.content, player).length > 0) {
+    if (bd.total > p.cash && salariedCards(s, ctx.content, player).length > 0 && runPipeline(ctx, 'forcedFiring', true, { player })) {
       const id = ctx.id('choice');
       s.pending.unshift({ id, kind: 'forcedFire', player, owed: bd.total, optional: false });
       ctx.emit({ type: 'choicePending', choiceId: id, kind: 'forcedFire', player });

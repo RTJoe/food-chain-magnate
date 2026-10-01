@@ -5,7 +5,7 @@
  * - `resolveModules(ids)`: enabled modules in hook order: `base` first, then each module after
  *   its `requires`, otherwise in `config.modules` order.
  * - `moduleSetProblem(ids)`: unknown ids, missing requirements, conflicts.
- * - `contentFor(ids)`: merged content (memoized): employees (+ overrides), milestones (base
+ * - `contentFor(ids)`: merged content (memoized): employees (+ overrides, + career additions), milestones (base
  *   dropped if a module `replacesBaseMilestones`), foods, tiles, marketing tiles, placeable houses,
  *   extra supply.
  * - `pipe(ctx, name, value, args)`: run a pipeline hook through every enabled module in order.
@@ -27,8 +27,9 @@ import type { ActionHandler, ContentIndex, GameModule, HookContext, Hooks, Modul
 import type { Phase } from '../types/state.js';
 import type { GameView } from '../types/view.js';
 import { BASE_MODULE } from './base.js';
+import { KETCHUP_MODULES } from './ketchup/index.js';
 
-const REGISTRY = new Map<ModuleId, GameModule>([['base', BASE_MODULE]]);
+const REGISTRY = new Map<ModuleId, GameModule>([['base', BASE_MODULE], ...KETCHUP_MODULES.map((m) => [m.id, m] as [ModuleId, GameModule])]);
 const contentCache = new Map<string, EngineContent>();
 const resolveCache = new Map<string, GameModule[]>();
 
@@ -117,6 +118,12 @@ export function contentFor(ids: readonly ModuleId[]): EngineContent {
       if (base) employees[id] = { ...base, ...patch, id };
     }
   }
+  for (const m of mods) {
+    for (const [id, extra] of Object.entries(m.content?.careerAdditions ?? {}) as [EmployeeId, EmployeeId[]][]) {
+      const def = employees[id];
+      if (def) employees[id] = { ...def, trainsInto: [...new Set([...def.trainsInto, ...extra])] };
+    }
+  }
   const out: EngineContent = {
     employees,
     milestones,
@@ -134,7 +141,7 @@ export function contentFor(ids: readonly ModuleId[]): EngineContent {
 // Hooks
 // ---------------------------------------------------------------------------
 
-type LifecycleName = 'onCreateGame' | 'onPhaseEnter' | 'onPhaseExit' | 'onEvent';
+type LifecycleName = 'onCreateGame' | 'onPhaseEnter' | 'onPhaseExit' | 'onEvent' | 'beforeAction' | 'onAction';
 export type PipelineName = Exclude<keyof Hooks, LifecycleName | 'redact'>;
 type PipeValue<K extends PipelineName> = Parameters<Hooks[K]>[0];
 type PipeArgs<K extends PipelineName> = Parameters<Hooks[K]>[2];
@@ -151,7 +158,8 @@ export function pipe<K extends PipelineName>(ctx: HookContext, name: K, value: P
 export function lifecycle(ctx: HookContext, name: 'onCreateGame'): void;
 export function lifecycle(ctx: HookContext, name: 'onPhaseEnter' | 'onPhaseExit', phase: Phase): void;
 export function lifecycle(ctx: HookContext, name: 'onEvent', event: GameEvent): void;
-export function lifecycle(ctx: HookContext, name: LifecycleName, arg?: Phase | GameEvent): void {
+export function lifecycle(ctx: HookContext, name: 'beforeAction' | 'onAction', action: Action): void;
+export function lifecycle(ctx: HookContext, name: LifecycleName, arg?: Phase | GameEvent | Action): void {
   for (const m of resolveModules(ctx.state.config.modules)) {
     const hook = m.hooks?.[name] as ((ctx: HookContext, arg?: unknown) => void) | undefined;
     if (hook) hook(ctx, arg);

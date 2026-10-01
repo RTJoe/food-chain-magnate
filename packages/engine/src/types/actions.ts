@@ -6,7 +6,7 @@
  * (base.md §6.1). Taking an action of a later sub-step closes earlier ones. Mandatory cards
  * (pricing, waitress, CFO, ...) are applied by the engine, never by an action.
  */
-import type { CampaignKind, Direction, DrinkId, EmployeeId, FoodId, Rotation } from './content.js';
+import type { CampaignKind, Direction, DrinkId, EmployeeId, FoodId, Rotation, TileTemplateId } from './content.js';
 import type {
   CampaignPlacement,
   Cell,
@@ -201,9 +201,11 @@ export interface LobbyistPlacePark extends A<'ketchup:lobbyists.placePark'> {
   h: number;
   from: RouteStart;
 }
-/** ketchup.md §2 First lobbyist used: resolves an `extraMapTile` choice. Engine draws the tile. */
+/** ketchup.md §2 First lobbyist used: resolves an `extraMapTile` choice with one of the leftover tiles. */
 export interface LobbyistPlaceMapTile extends A<'ketchup:lobbyists.placeMapTile'> {
   choiceId: ChoiceId;
+  /** Which leftover tile (ketchup.md §2: chosen from the leftovers). Default: the first leftover. */
+  templateId?: TileTemplateId;
   row: number;
   col: number;
   rotation: Rotation;

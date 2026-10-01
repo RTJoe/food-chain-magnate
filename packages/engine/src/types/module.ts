@@ -8,6 +8,7 @@
  *   module order (dependencies first, then `config.modules` order), feeding each the previous output.
  */
 import type {
+  CampaignKind,
   EmployeeDef,
   EmployeeId,
   FoodDef,
@@ -19,10 +20,11 @@ import type {
   TileDef,
   TileTemplateId,
 } from './content.js';
-import type { Action, Ok, Rejected } from './actions.js';
+import type { Action, Ok, Rejected, RouteStart } from './actions.js';
 import type { GameEvent } from './events.js';
 import type {
   Campaign,
+  CampaignPlacement,
   FoodCounts,
   GameState,
   House,
@@ -30,10 +32,12 @@ import type {
   OwnedCard,
   Phase,
   PlayerId,
+  ReserveCard,
   RestaurantId,
+  Uid,
   WorkStage,
 } from './state.js';
-import type { GameView, Placement, PlacementSpec, Viewer } from './view.js';
+import type { GameView, LegalAction, Placement, PlacementSpec, Viewer } from './view.js';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -180,6 +184,38 @@ export interface Hooks {
   legalPlacements: PipelineHook<Placement[], { player: PlayerId; spec: PlacementSpec }>;
   /** Hide module-private info from a viewer. */
   redact: (view: GameView, args: { state: GameState; viewer: Viewer }) => GameView;
+
+  // --- Added by C6 (Ketchup modules; architecture risk #2). All default to base behaviour. ---
+
+  /** A validated action is about to be dispatched. Mutates `ctx.state` (e.g. record a module payload of a base action). */
+  beforeAction(ctx: HookContext, action: Action): void;
+  /** After a validated action was dispatched (before `runUntilInput`). Mutates `ctx.state`. */
+  onAction(ctx: HookContext, action: Action): void;
+  /** Extra rules for base actions: return a problem string to reject (`ILLEGAL`). Runs only when the base accepted. */
+  actionProblem: PipelineHook<string | null, { action: Action }>;
+  /** Legal actions for `player` (module pending choices, module card actions). Ready entries are re-validated. */
+  legalActions: PipelineHook<LegalAction[], { player: PlayerId }>;
+  /** Nearest connected OPEN restaurant of a chain for a house (rural area via freeways, ketchup.md §12). */
+  houseDistance: PipelineHook<{ restaurantId: RestaurantId; distance: number } | null, { player: PlayerId; house: House }>;
+  /** Placement problem for a campaign (null = legal). Modules decide their own campaign kinds (giant billboard, gourmet guide). */
+  campaignPlacementProblem: PipelineHook<
+    string | null,
+    { player: PlayerId; def: EmployeeDef; kind: CampaignKind; tileNumber: number; placement: CampaignPlacement; from?: RouteStart }
+  >;
+  /** How many goods a campaign may advertise (2 for the First-brand-manager airplane, ketchup.md §3). Base 1. */
+  campaignGoods: PipelineHook<number, { player: PlayerId; def: EmployeeDef; kind: CampaignKind }>;
+  /** Waitress tips after the houses (night shift doubles, ketchup.md §11). */
+  tips: PipelineHook<{ waitresses: number; amount: number }, { player: PlayerId }>;
+  /** Reserve cards offered at setup (Reserve Prices variant, ketchup.md §14). */
+  reserveOptions: PipelineHook<ReserveCard[], Record<string, never>>;
+  /** Freezer capacity this Clean up (First soda sold, ketchup.md §3). */
+  freezerCapacity: PipelineHook<number, { player: PlayerId }>;
+  /** Must a player who cannot pay salaries fire employees? (First trainer used: no, ketchup.md §3.) */
+  forcedFiring: PipelineHook<boolean, { player: PlayerId }>;
+  /** Does an owned card cost salary this Payday? (eternal-radio brand director keeps it, ketchup.md §3.) */
+  cardSalaried: PipelineHook<boolean, { player: PlayerId; uid: Uid }>;
+  /** May a card at work be trained (First lemonade sold, ketchup.md §3)? Base: only beach cards. */
+  trainAtWork: PipelineHook<boolean, { player: PlayerId; uid: Uid; toEmployeeId: EmployeeId }>;
 }
 
 export interface ActionHandler<A extends Action = Action> {

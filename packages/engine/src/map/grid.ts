@@ -112,9 +112,16 @@ export function gardenCellsFor(houseCells: Cell[], side: Direction): Cell[] {
 // Occupancy
 // ---------------------------------------------------------------------------
 
+/** Empty map squares. Squares of a grown board (Ketchup extra tile) that lie on no tile are not map squares. */
 export function allEmpty(board: Board, cells: Cell[]): boolean {
-  return cells.every((c) => cellAt(board, c)?.kind === 'empty');
+  return cells.every((c) => {
+    const cell = cellAt(board, c);
+    return cell?.kind === 'empty' && cell.tile !== '';
+  });
 }
+
+/** A square on a placed tile (false off the board and on the empty squares of a grown board). */
+export const onMap = (board: Board, c: Cell): boolean => (cellAt(board, c)?.tile ?? '') !== '';
 
 /** Road squares orthogonally adjacent to `cells` (outside them), deduplicated, reading order. */
 export function adjacentRoadCells(board: Board, cells: Cell[]): Cell[] {
@@ -225,86 +232,160 @@ export function buildBoard(layout: LayoutEntry[][], tiles: Partial<Record<TileTe
   const w = cols * 5;
   const h = rows * 5;
   const board: Board = { rows, cols, w, h, tileSize: 5, tiles: [], cells: [], houses: {}, restaurants: {}, campaigns: {}, drinkSources: {}, entities: {} };
-  board.cells = Array.from({ length: h }, () =>
-    Array.from({ length: w }, (): BoardCell => ({ kind: 'empty', tile: '', occupant: null, road: null })),
-  );
+  board.cells = Array.from({ length: h }, () => Array.from({ length: w }, voidCell));
   layout.forEach((row, tr) =>
     row.forEach(({ templateId, rotation }, tc) => {
       const def = tiles[templateId];
       if (!def) throw new Error(`unknown tile ${templateId}`);
-      const tileId = allocId(ids, 'tile');
-      const placed: PlacedTile = { id: tileId, row: tr, col: tc, templateId, rotation };
-      board.tiles.push(placed);
-      const toBoard = (r: number, c: number): Cell => {
-        const [rr, cc] = rotateTileCell(r, c, rotation);
-        return { x: tc * 5 + cc, y: tr * 5 + rr };
-      };
-      for (let r = 0; r < 5; r++) {
-        for (let c = 0; c < 5; c++) {
-          const p = toBoard(r, c);
-          const cell = board.cells[p.y]?.[p.x] as BoardCell;
-          const g = def.grid[r]?.[c] ?? '.';
-          cell.tile = tileId;
-          cell.kind = GLYPH_KIND[g] ?? 'empty';
-          if (g === '#') cell.road = { links: [], bridge: false, underConstruction: false, roadworks: 0, lobbyistRoad: null } satisfies RoadCell;
-        }
-      }
-      if (def.bridge) {
-        const b = toBoard(def.bridge[0], def.bridge[1]);
-        const road = board.cells[b.y]?.[b.x]?.road;
-        if (road) road.bridge = true;
-      }
-      for (const cap of def.cappedEnds ?? []) {
-        const p = toBoard(cap.cell[0], cap.cell[1]);
-        const road = board.cells[p.y]?.[p.x]?.road;
-        if (road) (road.capped ??= []).push(rotateDir(cap.side, rotation));
-      }
-      for (const hd of def.houses) {
-        const id = allocId(ids, 'house');
-        const cells = hd.cells.map(([r, c]) => toBoard(r, c));
-        const house: House = {
-          id,
-          kind: hd.kind === 'apartment' ? 'apartment' : 'printed',
-          order: hd.order,
-          label: hd.label,
-          cells,
-          garden: hd.garden ? { cells: hd.garden.map(([r, c]) => toBoard(r, c)), source: 'printed' } : null,
-          demand: [],
-        };
-        board.houses[id] = house;
-        for (const c of houseSquares(house)) {
-          const cell = cellAt(board, c);
-          if (cell) cell.occupant = id;
-        }
-      }
-      for (const d of def.drinks) {
-        const p = toBoard(d.cell[0], d.cell[1]);
-        const id = allocId(ids, 'source');
-        board.drinkSources[id] = { id, x: p.x, y: p.y, drink: d.drink, tile: tileId };
-        const cell = cellAt(board, p);
-        if (cell) cell.occupant = id;
-      }
-      for (const park of def.parks ?? []) {
-        const cells = park.map(([r, c]) => toBoard(r, c));
-        const id = allocId(ids, 'entity');
-        const xs = cells.map((p) => p.x);
-        const ys = cells.map((p) => p.y);
-        board.entities[id] = {
-          kind: 'park',
-          id,
-          x: Math.min(...xs),
-          y: Math.min(...ys),
-          w: Math.max(...xs) - Math.min(...xs) + 1,
-          h: Math.max(...ys) - Math.min(...ys) + 1,
-          printed: true,
-        };
-        for (const c of cells) {
-          const cell = cellAt(board, c);
-          if (cell) cell.occupant = id;
-        }
-      }
+      stampTile(board, def, tr, tc, rotation, ids);
     }),
   );
   relinkRoads(board);
   return board;
+}
+
+/** A square that is not (yet) part of any tile. */
+const voidCell = (): BoardCell => ({ kind: 'empty', tile: '', occupant: null, road: null });
+
+/** Paint one tile at grid position (tr, tc) onto the board's cells and add its pieces. Does not relink roads. */
+export function stampTile(board: Board, def: TileDef, tr: number, tc: number, rotation: Rotation, ids: { nextId: number }): PlacedTile {
+  const templateId = def.id;
+  const tileId = allocId(ids, 'tile');
+  const placed: PlacedTile = { id: tileId, row: tr, col: tc, templateId, rotation };
+  board.tiles.push(placed);
+  const toBoard = (r: number, c: number): Cell => {
+    const [rr, cc] = rotateTileCell(r, c, rotation);
+    return { x: tc * 5 + cc, y: tr * 5 + rr };
+  };
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const p = toBoard(r, c);
+      const cell = board.cells[p.y]?.[p.x] as BoardCell;
+      const g = def.grid[r]?.[c] ?? '.';
+      cell.tile = tileId;
+      cell.kind = GLYPH_KIND[g] ?? 'empty';
+      if (g === '#') cell.road = { links: [], bridge: false, underConstruction: false, roadworks: 0, lobbyistRoad: null } satisfies RoadCell;
+    }
+  }
+  if (def.bridge) {
+    const b = toBoard(def.bridge[0], def.bridge[1]);
+    const road = board.cells[b.y]?.[b.x]?.road;
+    if (road) road.bridge = true;
+  }
+  for (const cap of def.cappedEnds ?? []) {
+    const p = toBoard(cap.cell[0], cap.cell[1]);
+    const road = board.cells[p.y]?.[p.x]?.road;
+    if (road) (road.capped ??= []).push(rotateDir(cap.side, rotation));
+  }
+  for (const hd of def.houses) {
+    const id = allocId(ids, 'house');
+    const cells = hd.cells.map(([r, c]) => toBoard(r, c));
+    const house: House = {
+      id,
+      kind: hd.kind === 'apartment' ? 'apartment' : 'printed',
+      order: hd.order,
+      label: hd.label,
+      cells,
+      garden: hd.garden ? { cells: hd.garden.map(([r, c]) => toBoard(r, c)), source: 'printed' } : null,
+      demand: [],
+    };
+    board.houses[id] = house;
+    for (const c of houseSquares(house)) {
+      const cell = cellAt(board, c);
+      if (cell) cell.occupant = id;
+    }
+  }
+  for (const d of def.drinks) {
+    const p = toBoard(d.cell[0], d.cell[1]);
+    const id = allocId(ids, 'source');
+    board.drinkSources[id] = { id, x: p.x, y: p.y, drink: d.drink, tile: tileId };
+    const cell = cellAt(board, p);
+    if (cell) cell.occupant = id;
+  }
+  for (const park of def.parks ?? []) {
+    const cells = park.map(([r, c]) => toBoard(r, c));
+    const id = allocId(ids, 'entity');
+    const xs = cells.map((p) => p.x);
+    const ys = cells.map((p) => p.y);
+    board.entities[id] = {
+      kind: 'park',
+      id,
+      x: Math.min(...xs),
+      y: Math.min(...ys),
+      w: Math.max(...xs) - Math.min(...xs) + 1,
+      h: Math.max(...ys) - Math.min(...ys) + 1,
+      printed: true,
+    };
+    for (const c of cells) {
+      const cell = cellAt(board, c);
+      if (cell) cell.occupant = id;
+    }
+  }
+  return placed;
+}
+
+/**
+ * Ketchup "First Lobbyist Used" (ketchup.md §2): add one tile at grid position (row, col), which
+ * may be one step outside the current grid (row/col −1 or rows/cols). The board grows to the new
+ * bounding box; when it grows north or west every coordinate is shifted so (0,0) stays top-left
+ * (tiles, cells, houses, restaurants, campaigns incl. airplane offsets, sources, entities incl.
+ * freeway offsets). Squares on no tile stay empty with tile '' (not map squares, see `onMap`).
+ * Returns the tile's final grid position.
+ */
+export function growBoard(board: Board, def: TileDef, row: number, col: number, rotation: Rotation, ids: { nextId: number }): { row: number; col: number } {
+  const dr = row < 0 ? -row : 0;
+  const dc = col < 0 ? -col : 0;
+  const rows = Math.max(board.rows, row + 1) + dr;
+  const cols = Math.max(board.cols, col + 1) + dc;
+  const dx = dc * 5;
+  const dy = dr * 5;
+  if (dx || dy) shiftBoard(board, dx, dy, dr, dc);
+  const cells: BoardCell[][] = Array.from({ length: rows * 5 }, () => Array.from({ length: cols * 5 }, voidCell));
+  board.cells.forEach((line, y) => line.forEach((cell, x) => {
+    (cells[y + dy] as BoardCell[])[x + dx] = cell;
+  }));
+  board.cells = cells;
+  board.rows = rows;
+  board.cols = cols;
+  board.w = cols * 5;
+  board.h = rows * 5;
+  stampTile(board, def, row + dr, col + dc, rotation, ids);
+  relinkRoads(board);
+  return { row: row + dr, col: col + dc };
+}
+
+function shiftBoard(board: Board, dx: number, dy: number, dr: number, dc: number): void {
+  const mv = (c: { x: number; y: number }) => {
+    c.x += dx;
+    c.y += dy;
+  };
+  for (const t of board.tiles) {
+    t.row += dr;
+    t.col += dc;
+  }
+  for (const h of Object.values(board.houses)) {
+    h.cells.forEach(mv);
+    h.garden?.cells.forEach(mv);
+  }
+  for (const r of Object.values(board.restaurants)) mv(r);
+  for (const s of Object.values(board.drinkSources)) mv(s);
+  const sideShift = (side: Direction) => (side === 'N' || side === 'S' ? dx : dy);
+  for (const c of Object.values(board.campaigns)) {
+    const p = c.placement;
+    if (p.kind === 'board') mv(p);
+    else if (p.kind === 'airplane') p.offset += sideShift(p.side);
+  }
+  for (const e of Object.values(board.entities)) {
+    switch (e.kind) {
+      case 'lobbyistRoad':
+        e.cells.forEach(mv);
+        e.arrows.forEach((a) => mv(a.from));
+        break;
+      case 'freeway':
+        e.offset += sideShift(e.side);
+        break;
+      default:
+        mv(e);
+    }
+  }
 }

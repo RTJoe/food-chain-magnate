@@ -61,6 +61,21 @@ export function payToBank(ctx: HookContext, playerId: PlayerId, amount: number, 
   }
 }
 
+/**
+ * Remove money from the bank, out of the game (Ketchup "First discount manager used"). Taking the
+ * bank to $0 breaks it like a payment would (base.md §12). Returns the amount removed.
+ */
+export function burnFromBank(ctx: HookContext, playerId: PlayerId, amount: number): number {
+  const s = ctx.state;
+  if (amount <= 0 || isFinalBreak(s)) return 0;
+  const take = Math.min(amount, s.bank.cash);
+  s.bank.cash -= take;
+  s.bank.burned += take;
+  ctx.emit({ type: 'bankBurned', player: playerId, amount: take });
+  if (s.bank.cash <= 0) breakBank(ctx);
+  return take;
+}
+
 /** True once no more money can come out of the bank: second break, or first break in the intro game. */
 export function isFinalBreak(s: GameState): boolean {
   return s.config.intro ? s.bank.breaks >= 1 : s.bank.breaks >= 2;

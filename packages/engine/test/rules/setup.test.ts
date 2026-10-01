@@ -74,7 +74,8 @@ describe('createGame (base.md §2.1–2.5)', () => {
 
   it('rejects bad configs', () => {
     expect(() => createGame(cfg(1), 1)).toThrow(/2–5 players/);
-    expect(() => createGame({ ...cfg(2), modules: ['ketchup:coffee'] }, 1)).toThrow(/module/i);
+    expect(() => createGame({ ...cfg(2), modules: ['ketchup:nope' as never] }, 1)).toThrow(/module/i);
+    expect(() => createGame({ ...cfg(2), modules: ['ketchup:sixPlayers'] }, 1)).toThrow(/requires ketchup:newDistricts/);
   });
 });
 

@@ -18,6 +18,8 @@ import type { EngineCtx } from '../core/context.js';
 import { OK, reject, type Check } from '../core/errors.js';
 import { CORNERS, allEmpty, cellAt, cornerCell, entranceOutside, inBounds, paint, restaurantCells, tileOf } from '../map/grid.js';
 import { roadAt } from '../map/pathfinding.js';
+import { pipe } from '../modules/registry.js';
+import { readCtx } from '../core/context.js';
 
 export const STANDARD_RESERVES: readonly ReserveCard[] = [
   { kind: 'standard', amount: 100, ceoSlots: 2 },
@@ -126,7 +128,8 @@ export function normalizeSetup(ctx: EngineCtx): 'await' | 'done' {
 // ---------------------------------------------------------------------------
 
 export function reserveOptions(s: GameState): ReserveCard[] {
-  return [...STANDARD_RESERVES];
+  const base = [...STANDARD_RESERVES];
+  return s.config.modules.length ? pipe(readCtx(s), 'reserveOptions', base, {}) : base;
 }
 
 export function validateReserve(s: GameState, a: SetupChooseReserve): Check {

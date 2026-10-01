@@ -58,7 +58,7 @@ export function mailboxArea(board: Board, cells: Cell[]): Set<string> {
     for (const d of DIRECTIONS) {
       const n = step(c, d);
       const k = cellKey(n);
-      if (seen.has(k) || !inBounds(board, n) || cellAt(board, n)?.kind === 'road') continue;
+      if (seen.has(k) || !inBounds(board, n) || cellAt(board, n)?.kind === 'road' || cellAt(board, n)?.tile === '') continue;
       seen.add(k);
       stack.push(n);
     }

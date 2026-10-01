@@ -29,7 +29,7 @@ export function legalActions(state: GameState, playerId: PlayerId): LegalAction[
     if (head.player !== playerId) return [];
     if (head.optional) ready('Decline', { type: 'choice.decline', playerId, choiceId: head.id });
     if (head.kind === 'forcedFire') out.push({ kind: 'compose', label: `Fire employees to cover $${head.owed} in salaries`, actionType: 'payday.fire' });
-    return filterReady(s, out);
+    return filterReady(s, moduleLegal(s, playerId, out));
   }
   const ph = s.phase;
   switch (ph.kind) {
@@ -67,7 +67,12 @@ export function legalActions(state: GameState, playerId: PlayerId): LegalAction[
     default:
       break;
   }
-  return filterReady(s, out);
+  return filterReady(s, moduleLegal(s, playerId, out));
+}
+
+/** Module additions (pending module choices, module card actions; C6). */
+function moduleLegal(s: GameState, player: PlayerId, list: LegalAction[]): LegalAction[] {
+  return s.config.modules.length ? pipe(readCtx(s), 'legalActions', list, { player }) : list;
 }
 
 function filterReady(s: GameState, list: LegalAction[]): LegalAction[] {

@@ -18,7 +18,8 @@ import type { GameState, PlayerState, Uid } from '../../types/state.js';
 import type { EngineCtx } from '../../core/context.js';
 import { OK, reject, type Check } from '../../core/errors.js';
 import { cardPlace, hasEffect, ownsUnique } from '../../core/cards.js';
-import { contentFor } from '../../modules/registry.js';
+import { contentFor, pipe } from '../../modules/registry.js';
+import { readCtx } from '../../core/context.js';
 import { advanceTo, cardCheck, phantomTrainable, spend } from './stages.js';
 
 export { reachableTargets, type TrainTarget } from './stages.js';
@@ -38,6 +39,13 @@ function pathProblem(s: GameState, from: EmployeeId, path: EmployeeId[], to: Emp
 /** Steps already put on `target` this turn by `trainer`. */
 const stepsBy = (s: GameState, target: Uid, trainer: Uid): number => (s.turn?.trained[target]?.by ?? []).filter((u) => u === trainer).length;
 
+/** Module exception (Ketchup First lemonade sold): a card at work may be trained. */
+function trainableAtWork(s: GameState, a: WorkTrain): boolean {
+  const p = s.players[a.playerId];
+  if (!s.config.modules.length || !p || cardPlace(p, a.targetUid) !== 'work' || typeof a.toEmployeeId !== 'string') return false;
+  return pipe(readCtx(s), 'trainAtWork', false, { player: a.playerId, uid: a.targetUid, toEmployeeId: a.toEmployeeId });
+}
+
 export function validateTrain(s: GameState, a: WorkTrain): Check {
   const c = cardCheck(s, a.playerId, a.trainerUid, ['train'], 'train');
   if (!c.ok) return c;
@@ -48,7 +56,7 @@ export function validateTrain(s: GameState, a: WorkTrain): Check {
   const target = p.employees[a.targetUid];
   if (!target) return reject('NOT_OWNED', 'Not your card');
   if (a.targetUid === p.structure.ceo) return reject('ILLEGAL', 'The CEO cannot be trained');
-  if (cardPlace(p, a.targetUid) !== 'beach') return reject('CARD_UNAVAILABLE', 'Only cards on the beach can be trained');
+  if (cardPlace(p, a.targetUid) !== 'beach' && !trainableAtWork(s, a)) return reject('CARD_UNAVAILABLE', 'Only cards on the beach can be trained');
   if (!turn.mustTrain.includes(a.targetUid) && turn.mustTrain.some((u) => phantomTrainable(s, turn, u))) {
     return reject('ILLEGAL', 'First train the card hired from an empty pile');
   }

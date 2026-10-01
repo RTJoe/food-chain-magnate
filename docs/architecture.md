@@ -258,8 +258,13 @@ interface Hooks {
   dinnerCandidates; saleRevenue; campaignReach; legalPlacements;
   onEvent;            // milestone triggers live here
   redact; salaryTotal;
+  // added by C6 (risk #2), all defaulting to base behaviour:
+  onAction; actionProblem; legalActions; houseDistance; campaignPlacementProblem;
+  campaignGoods; tips; reserveOptions; freezerCapacity; forcedFiring; cardSalaried; trainAtWork;
 }
 ```
+
+`ModuleContent.careerAdditions` appends career steps across modules (Ketchup replacement cards). Ketchup modules live in `modules/ketchup/` (one file per rules section) and are registered by `modules/registry.ts`.
 
 Content ids are namespaced (`ketchup:...`). Client renders employees/milestones/foods generically from `ModuleManifest`.
 

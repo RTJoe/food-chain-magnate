@@ -197,11 +197,22 @@ export function cardCheck(s: GameState, player: PlayerId, uid: Uid, kinds: Emplo
   const content = contentFor(s.config.modules);
   const def = content.employees[card.employeeId];
   if (!def || !kinds.includes(def.ability.kind)) return reject('CARD_UNAVAILABLE', `${def?.name ?? card.employeeId} cannot do that`);
-  if (cardPlace(p, uid) !== 'work') return reject('CARD_UNAVAILABLE', `${def.name} is not at work`);
+  if (!canAct(p, turn, uid)) return reject('CARD_UNAVAILABLE', `${def.name} is not at work`);
   if ((turn.uses[uid] ?? 0) <= 0) return reject('CARD_UNAVAILABLE', `${def.name} has no action left this turn`);
   const st = stageCheck(s, turn, stage);
   if (!st.ok) return st;
   return { ok: true, def, turn };
+}
+
+/**
+ * A card may act if it is at work, or if it went busy on a campaign placed this turn and still has
+ * a use left (a night-shift marketing trainee's second billboard, ketchup.md §11; never in base,
+ * where a marketeer has one use).
+ */
+export function canAct(p: PlayerState, turn: TurnState, uid: Uid): boolean {
+  const place = cardPlace(p, uid);
+  if (place === 'work') return true;
+  return place === 'busy' && (turn.uses[uid] ?? 0) > 0 && (p.busy[uid] ?? []).every((c) => turn.campaignsPlaced.includes(c));
 }
 
 export function stageCheck(s: GameState, turn: TurnState, stage: WorkStage | 'end'): Check {

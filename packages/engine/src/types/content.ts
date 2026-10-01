@@ -565,6 +565,13 @@ export interface ModuleContent {
   employees?: EmployeeDef[];
   /** Partial replacements of existing defs (Ketchup replacement cards' career paths, ketchup.md §0). */
   employeeOverrides?: Partial<Record<EmployeeId, Partial<Omit<EmployeeDef, 'id'>>>>;
+  /**
+   * Career steps appended to existing cards (merged across modules after all employees and
+   * overrides, deduplicated). E.g. Sushi adds `ketchup:sushi_cook` to the kitchen trainee and Fry
+   * Chefs adds `ketchup:fry_chef` to every cook (ketchup.md §0 replacement cards). Targets that are
+   * not in the game are ignored by training code.
+   */
+  careerAdditions?: Partial<Record<EmployeeId, EmployeeId[]>>;
   /** Extra copies added to the supply (e.g. +1 luxuries manager with sushi/kimchi/noodles/coffee). */
   extraSupply?: Partial<Record<EmployeeId, number>>;
   milestones?: MilestoneDef[];

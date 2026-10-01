@@ -12,7 +12,7 @@
  * earned this Dinnertime, rounded up. Bank breaks are handled as payments happen (bank.ts); the
  * game ends here after the last break.
  *
- * Module pipelines: unitPrice (pricing.ts), dinnerCandidates, saleRevenue.
+ * Module pipelines: unitPrice (pricing.ts), houseDistance, dinnerCandidates, saleRevenue, tips.
  */
 import type { MilestoneDef } from '../types/content.js';
 import type { DinnerCandidate, HookContext, SaleBreakdown } from '../types/module.js';
@@ -103,7 +103,7 @@ export function baseCandidates(ctx: HookContext, house: House): DinnerCandidate[
     const p = s.players[player];
     if (!p || p.bankrupt) continue;
     // Nearest OPEN restaurant connected by road (COMING SOON does not count, base.md §7.2).
-    const best = chainHouseDistance(s.board, player, house);
+    const best = runPipeline(ctx, 'houseDistance', chainHouseDistance(s.board, player, house), { player, house });
     if (!best) continue;
     const price = unitPrice(ctx, player);
     out.push({
@@ -150,8 +150,8 @@ function resolveHouse(ctx: HookContext, house: House): void {
   const p = s.players[winner.player] as PlayerState;
 
   const bd = runPipeline(ctx, 'saleRevenue', baseRevenue(ctx, house, winner), { house, candidate: winner });
-  house.demand = [];
   takeFromStock(p, winner.items);
+  // The demand is removed after the `sale` event so module hooks can see who created it (Ketchup §8).
   ctx.emit({
     type: 'sale',
     houseId: house.id,
@@ -163,6 +163,7 @@ function resolveHouse(ctx: HookContext, house: House): void {
     bonuses: bd.bonuses,
     total: bd.total,
   });
+  house.demand = [];
   p.earningsThisRound += bd.total;
   if (bd.total >= 0) payFromBank(ctx, winner.player, bd.total, `sale to house ${house.label}`);
   else payToBank(ctx, winner.player, -bd.total, `sale to house ${house.label}`);
@@ -219,7 +220,8 @@ function payTips(ctx: HookContext): void {
       waitresses += 1;
       amount += def.ability.tip + extra;
     }
-    if (waitresses === 0) continue;
+    ({ waitresses, amount } = runPipeline(ctx, 'tips', { waitresses, amount }, { player }));
+    if (waitresses === 0 && amount === 0) continue;
     ctx.emit({ type: 'tipsPaid', player, waitresses, amount });
     p.earningsThisRound += amount;
     payFromBank(ctx, player, amount, 'waitress tips');

@@ -15,7 +15,7 @@ import { makeCtx, readCtx } from './context.js';
 import { clone } from './clone.js';
 import { OK, reject } from './errors.js';
 import { runUntilInput } from './phase.js';
-import { actionHandler } from '../modules/registry.js';
+import { actionHandler, lifecycle, pipe } from '../modules/registry.js';
 import { applyReserve, applySetupRestaurant, validateReserve, validateSetupRestaurant } from '../rules/setup.js';
 import { applyRestructure, validateRestructure } from '../rules/restructuring.js';
 import { applyOrder, validateOrder } from '../rules/orderOfBusiness.js';
@@ -56,6 +56,18 @@ export function validateAction(state: GameState, action: Action): Ok | Rejected 
     const ctx = readCtx(state);
     return h.validate(state, action, { content: ctx.content, isEnabled: ctx.isEnabled });
   }
+  const base = validateBaseAction(state, action);
+  if (!base.ok || state.config.modules.length === 0) return base;
+  // Module rules for base actions (C6, architecture risk #2).
+  try {
+    const problem = pipe(readCtx(state), 'actionProblem', null, { action });
+    return problem ? reject('ILLEGAL', problem) : base;
+  } catch (e) {
+    return reject('INVALID_PAYLOAD', e instanceof Error ? e.message : String(e));
+  }
+}
+
+function validateBaseAction(state: GameState, action: Action): Ok | Rejected {
   try {
     switch (action.type) {
       case 'setup.placeRestaurant':
@@ -139,7 +151,9 @@ export function applyAction(state: GameState, action: Action): Applied | Rejecte
   const next = clone(state);
   const ctx = makeCtx(next);
   const before = { phase: state.phase.kind, round: state.round, active: state.phase.kind === 'working' ? state.phase.player : null };
+  if (next.config.modules.length) lifecycle(ctx, 'beforeAction', clone(action));
   let undoable = dispatch(ctx, clone(action));
+  if (next.config.modules.length) lifecycle(ctx, 'onAction', clone(action));
   next.history.seq += 1;
   runUntilInput(ctx);
   dealias(next);

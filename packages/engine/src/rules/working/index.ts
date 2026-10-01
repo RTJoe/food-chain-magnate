@@ -20,7 +20,7 @@ import {
   routeStartRoads,
   tileRCOf,
 } from '../../map/pathfinding.js';
-import { abilityStage, advanceTo, cardCheck, phantomTrainable, stageCheck, stageIndex, stagesFor, turnCheck, unusedDiscountActions } from './stages.js';
+import { abilityStage, advanceTo, canAct, cardCheck, phantomTrainable, stageCheck, stageIndex, stagesFor, turnCheck, unusedDiscountActions } from './stages.js';
 import { applyRecruit, hireProblem, validateRecruit } from './recruit.js';
 import { applyTrain, reachableTargets, validateTrain } from './train.js';
 import { applyProduce, validateProduce } from './produce.js';
@@ -165,7 +165,7 @@ export function workingLegalActions(s: GameState, player: PlayerId): LegalAction
   const cur = stageIndex(stages, turn.stage);
   const out: LegalAction[] = [];
   for (const [uid, left] of Object.entries(turn.uses)) {
-    if (left <= 0 || cardPlace(p, uid) !== 'work') continue;
+    if (left <= 0 || !canAct(p, turn, uid)) continue;
     const def = defOf(content, p, uid);
     const st = abilityStage(def);
     if (!def || !st || stageIndex(stages, st) < cur) continue;
