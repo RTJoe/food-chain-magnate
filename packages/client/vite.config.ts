@@ -19,5 +19,26 @@ export default defineConfig({
     host: true,
     proxy: { '/ws': { target: 'ws://localhost:3000', ws: true } },
   },
-  build: { outDir: 'dist', emptyOutDir: true, sourcemap: true },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    sourcemap: true,
+    // The three.js library is one lazy chunk of ~600 kB minified (~150 kB gzip), loaded only once a
+    // game view exists (main.tsx). Everything on the first screen stays well under this limit.
+    chunkSizeWarningLimit: 700,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            // Lazy: only reachable from the dynamic import of three/index.ts (the scene code itself is split
+            // automatically; a group for it would also pull in the shared state/ modules and make it eager).
+            { name: 'three-vendor', test: /[\\/]node_modules[\\/]three[\\/]/, priority: 40 },
+            // Eager, but cached separately from the app code.
+            { name: 'engine', test: /[\\/]packages[\\/]engine[\\/]src[\\/]/, priority: 20 },
+            { name: 'vendor', test: /[\\/]node_modules[\\/]/, priority: 10 },
+          ],
+        },
+      },
+    },
+  },
 });

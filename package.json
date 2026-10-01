@@ -22,10 +22,12 @@
     "build": "tsc -b && npm run build -w @fcm/client",
     "typecheck": "tsc -b && tsc -p tsconfig.test.json",
     "test": "vitest run",
+    "e2e": "npm run build && playwright test",
     "lint": "node scripts/check-boundaries.mjs && npm run typecheck",
     "fixtures": "npm run fixtures -w @fcm/engine"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.3",
     "concurrently": "^10.0.5",
     "tsx": "^4.23.15",

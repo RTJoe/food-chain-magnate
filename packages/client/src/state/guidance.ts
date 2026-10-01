@@ -283,6 +283,16 @@ function cardActions(view: GameView, me: PlayerId, cardUid: Uid, id: EmployeeId,
   }
 }
 
+/**
+ * Asks the engine whether `action` would be accepted right now (on the view's pseudo-state).
+ * Returns the rejection message, or null when it is fine or cannot be checked locally.
+ */
+export function actionProblem(view: GameView, me: PlayerId | null, action: Action, manifest: readonly ModuleManifest[]): string | null {
+  if (!me || isToyManifest(manifest)) return null;
+  const r = attempt(() => realEngine.validateAction(pseudoState(view, me), action));
+  return r && !r.ok ? r.message : null;
+}
+
 // ---------------------------------------------------------------------------
 // Placements
 // ---------------------------------------------------------------------------

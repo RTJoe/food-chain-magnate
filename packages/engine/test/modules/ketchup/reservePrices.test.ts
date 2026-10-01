@@ -2,7 +2,7 @@
  * Reserve Prices (ketchup.md §14; KX p16; DLX p28).
  */
 import { describe, expect, it } from 'vitest';
-import type { Corner, PlayerId, ReserveCard } from '../../../src/index.js';
+import { derivePrompt, redactFor, type Corner, type PlayerId, type ReserveCard } from '../../../src/index.js';
 import { basePriceFromReserves, PRICE_RESERVES } from '../../../src/modules/ketchup/reservePrices.js';
 import { payFromBank } from '../../../src/rules/bank.js';
 import { runDinnertime } from '../../../src/rules/dinnertime.js';
@@ -40,6 +40,9 @@ describe('Reserve Prices - reserve cards (ketchup.md §14)', () => {
       s = act(s, { type: 'setup.placeRestaurant', playerId: s.awaiting.players[0] as PlayerId, x, y, entrance });
     }
     expect(s.phase.kind).toBe('setup.reserve');
+    // The view-based prompt offers the same cards the engine accepts (C7 fix: it used to show base cards).
+    const who = s.awaiting.players[0] as PlayerId;
+    expect(derivePrompt(redactFor(s, who), who)).toMatchObject({ kind: 'chooseReserve', options: [P(5), P(10), P(20)] });
     expect(rejected(s, { type: 'setup.chooseReserve', playerId: 'p1', card: reserve(100) }).code).toBe('INVALID_PAYLOAD');
     s = act(s, { type: 'setup.chooseReserve', playerId: 'p1', card: P(20) });
     expect(s.secrets.p1?.reserve).toEqual(P(20));

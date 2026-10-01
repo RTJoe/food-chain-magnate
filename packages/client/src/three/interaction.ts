@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { effect } from '@preact/signals';
 import type { Board, Placement } from '@fcm/engine';
 import type { BoardPick, InteractionMode } from '../state/boardBridge.js';
-import { boardHover, confirmRequest, pendingPlacement, pendingVariants, rotateRequest } from '../state/interaction.js';
+import { boardHover, confirmRequest, hoverPlacement, pendingPlacement, pendingVariants, rotateRequest } from '../state/interaction.js';
 import { COLORS } from '../theme.js';
 import type { CameraController, PointerInfo } from './camera.js';
 import { campaignAnchor, freewayAnchor, gardenRect, placementCells, placementHitRect, rectCenter, rectOf, spotKey, type Rect } from './layout.js';
@@ -67,7 +67,7 @@ export class Interaction {
     private readonly cam: CameraController,
     private readonly rec: Reconciler,
   ) {
-    this.hlMat = new THREE.MeshBasicMaterial({ color: COLORS.highlightOk, transparent: true, opacity: 0.34, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    this.hlMat = new THREE.MeshBasicMaterial({ color: COLORS.highlightLegal, transparent: true, opacity: 0.58, toneMapped: false, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
     this.cursorMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: COLORS.highlightBad, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }),
@@ -103,7 +103,7 @@ export class Interaction {
     const pulse = (dt: number) => {
       if (this.mode.kind !== 'place' || !this.cellsMesh) return;
       this.pulseT += dt;
-      this.hlMat.opacity = 0.44 + Math.sin(this.pulseT * 3.2) * 0.1;
+      this.hlMat.opacity = 0.58 + Math.sin(this.pulseT * 3.2) * 0.1;
       this.stage.invalidate();
     };
     stage.onFrame.add(pulse);
@@ -117,6 +117,7 @@ export class Interaction {
     this.staged = null;
     pendingPlacement.value = null;
     pendingVariants.value = 0;
+    hoverPlacement.value = null;
     this.variantIdx.clear();
     this.pinnedVariant.clear();
     this.hoverSpot = null;
@@ -181,11 +182,16 @@ export class Interaction {
 
   // --- Spots & highlights -----------------------------------------------------------
 
+  /** Exposes the number of legal spots on the canvas (`data-legal-spots`) for e2e tests and debugging. */
+  private publishSpots(): void {
+    this.stage.renderer.domElement.dataset.legalSpots = String(this.spots.length);
+  }
+
   private buildSpots(): void {
     this.clearCells();
     this.spots = [];
     const b = this.rec.board;
-    if (this.mode.kind !== 'place' || !b) return;
+    if (this.mode.kind !== 'place' || !b) return this.publishSpots();
     const byKey = new Map<string, Spot>();
     for (const p of this.mode.placements) {
       const rect = placementHitRect(b, p);
@@ -199,6 +205,7 @@ export class Interaction {
       s.variants.push(p);
     }
     this.spots = [...byKey.values()];
+    this.publishSpots();
     // Tint: union of covered squares, plus off-board strips as whole rectangles.
     const quads = new Map<string, Rect>();
     for (const p of this.mode.placements) {
@@ -363,6 +370,8 @@ export class Interaction {
     if (this.staged) {
       this.staged.idx = idx;
       pendingPlacement.value = s.variants[idx] ?? null;
+    } else if (s === this.hoverSpot && s.variants[idx]) {
+      hoverPlacement.value = { placement: s.variants[idx], variants: s.variants.length };
     }
     this.showGhost(s, idx);
     this.stage.invalidate();
@@ -394,6 +403,8 @@ export class Interaction {
 
   private emitHover(h: HoverInfo | null): void {
     boardHover.value = h ? { id: h.id, cell: h.cell } : null;
+    const spot = this.mode.kind === 'place' ? this.hoverSpot : null;
+    hoverPlacement.value = h?.placement && spot ? { placement: h.placement, variants: spot.variants.length } : null;
     for (const l of [...this.hoverListeners]) l(h);
   }
 
@@ -432,7 +443,7 @@ export class Interaction {
     for (const id of this.highlighted) for (const p of this.rec.byId(id)) if (p.kind !== 'demand') rects.push({ r: p.rect, color: COLORS.focus, y: 0.05 });
     if (this.hoverObj && this.mode.kind !== 'place') rects.push({ r: this.hoverObj.rect, color: COLORS.surface, y: 0.055 });
     const s = this.staged?.spot ?? (this.mode.kind === 'place' ? this.hoverSpot : null);
-    if (s) rects.push({ r: s.rect, color: COLORS.highlightOk, y: 0.06 });
+    if (s) rects.push({ r: s.rect, color: COLORS.focus, y: 0.06 });
     for (const { r, color, y } of rects) this.rings.add(ring(r, color, y));
     this.stage.invalidate();
   }

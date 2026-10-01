@@ -445,6 +445,7 @@ body[data-screen='table'] { overflow: hidden; }
 .board-controls-sep { width: 1px; height: 24px; background: var(--c-line); margin: 0 4px; }
 .speed-btn { min-width: 44px; height: 40px; border: 0; border-radius: 999px; background: var(--c-surface-sunk); font-weight: 800; cursor: pointer; font-variant-numeric: tabular-nums; }
 .confirm-bar { pointer-events: auto; position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 6px 8px 6px 14px; max-width: calc(100% - 16px); }
+.confirm-bar.hover-hint { pointer-events: none; padding: 6px 14px; }
 
 /* --- Mobile -------------------------------------------------------------------- */
 @media (max-width: 1180px) {

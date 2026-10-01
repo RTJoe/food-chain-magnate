@@ -1,5 +1,5 @@
 /** Builds engine actions from a placement `LegalAction` plus the board pick and options. */
-import type { Action, ActionType, FoodId, LegalAction, Placement, PlayerId, Uid } from '@fcm/engine';
+import type { Action, ActionType, FoodId, GameView, LegalAction, Placement, PlayerId, Uid } from '@fcm/engine';
 
 export interface PlacementOptions {
   /** Campaign good(s). */
@@ -43,7 +43,7 @@ export function actionFromPlacement(legal: PlacementLegal, p: Placement, me: Pla
     case 'buyerRoute':
       return { type: 'work.buyDrinks', playerId: me, cardUid, route: p.route };
     case 'coffeeShop':
-      return { type: 'ketchup:coffee.placeShop', playerId: me, choiceId, x: p.x, y: p.y };
+      return { type: 'ketchup:coffee.placeShop', playerId: me, choiceId, x: p.x, y: p.y, ...(p.moveFrom ? { moveFrom: p.moveFrom } : {}) };
     case 'lobbyistRoad':
       return { type: 'ketchup:lobbyists.placeRoad', playerId: me, cardUid, cells: p.cells, arrows: p.arrows, from: p.from };
     case 'park':
@@ -51,7 +51,7 @@ export function actionFromPlacement(legal: PlacementLegal, p: Placement, me: Pla
     case 'freeway':
       return { type: 'ketchup:ruralMarketeers.placeFreeway', playerId: me, choiceId, side: p.side, offset: p.offset };
     case 'mapTile':
-      return { type: 'ketchup:lobbyists.placeMapTile', playerId: me, choiceId, row: p.row, col: p.col, rotation: p.rotation };
+      return { type: 'ketchup:lobbyists.placeMapTile', playerId: me, choiceId, row: p.row, col: p.col, rotation: p.rotation, ...(p.templateId ? { templateId: p.templateId } : {}) };
     case 'pizzaRadio':
       return { type: 'ketchup:newMilestones.placePizzaRadio', playerId: me, choiceId, x: p.x, y: p.y };
     case 'freeMailbox':
@@ -65,8 +65,8 @@ export function needsGoods(legal: PlacementLegal): boolean {
   return legal.actionType === 'work.placeCampaign' || legal.actionType === 'ketchup:newMilestones.placeFreeMailbox';
 }
 
-/** Short human description of a placement (list fallback when no board is available). */
-export function describePlacement(p: Placement): string {
+/** Short human description of a placement (list fallback, hover and confirm bars). `view` resolves entity ids. */
+export function describePlacement(p: Placement, view?: GameView | null): string {
   switch (p.kind) {
     case 'restaurant':
       return `Square ${p.x},${p.y} · entrance ${p.entrance}`;
@@ -83,7 +83,11 @@ export function describePlacement(p: Placement): string {
     }
     case 'buyerRoute':
       return p.route.mode === 'errand' ? `Fetch ${p.route.drink.replace('_', ' ')}` : `Route of ${p.route.mode === 'road' ? p.route.path.length : p.route.tiles.length} steps`;
-    case 'coffeeShop':
+    case 'coffeeShop': {
+      if (!p.moveFrom) return `Coffee shop at ${p.x},${p.y}`;
+      const from = view?.board.entities[p.moveFrom];
+      return `Move coffee shop${from && 'x' in from ? ` from ${from.x},${from.y}` : ''} to ${p.x},${p.y}`;
+    }
     case 'pizzaRadio':
     case 'freeMailbox':
       return `Square ${p.x},${p.y}`;
@@ -94,6 +98,6 @@ export function describePlacement(p: Placement): string {
     case 'freeway':
       return `Freeway ${p.side} edge, offset ${p.offset}`;
     case 'mapTile':
-      return `Tile at row ${p.row}, col ${p.col} · rotation ${p.rotation}`;
+      return `${p.templateId ? `Tile ${p.templateId}` : 'Tile'} at row ${p.row}, col ${p.col} · turned ${p.rotation * 90}°`;
   }
 }

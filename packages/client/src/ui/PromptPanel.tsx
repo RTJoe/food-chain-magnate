@@ -3,11 +3,12 @@
  * Every panel works from the prompt and legal actions in the store, so hot-seat == online.
  */
 import { useSignal } from '@preact/signals';
-import type { FoodCounts, FoodId, GameView, LegalAction, PendingChoice, PlayerId, PlayerState, Prompt, ReserveCard, Uid } from '@fcm/engine';
+import type { Action, FoodCounts, FoodId, GameView, LegalAction, PendingChoice, PlayerId, PlayerState, Prompt, ReserveCard, Uid } from '@fcm/engine';
 import { foodName } from '../state/catalog.js';
 import { employeeIdOf, fireable, foodList, phaseLabel, salaryEstimate, standings } from '../state/selectors.js';
-import { catalog, isMyTurn, legal, me, mode, myPlayer, pending, prompt, room, view } from '../state/store.js';
-import { act, undo } from '../net/session.js';
+import { catalog, isMyTurn, legal, manifest, me, mode, myPlayer, pending, prompt, room, view } from '../state/store.js';
+import { actionProblem } from '../state/guidance.js';
+import { act, actChain, undo } from '../net/session.js';
 import { Button, Cash, EmployeeCard, Empty, PlayerBadge, Pill, Stepper } from './common.js';
 import { FoodIcon, Icon } from './icons.js';
 import { OrgChartEditor } from './OrgChart.js';
@@ -259,9 +260,9 @@ function OrderPanel({ view: v, free }: { view: GameView; free: number[] }) {
 // Payday
 // ---------------------------------------------------------------------------
 
-function FirePicker({ player: p, selected, onToggle, locked }: { player: PlayerState; selected: Uid[]; onToggle: (u: Uid) => void; locked?: boolean }) {
+function FirePicker({ player: p, selected, onToggle, locked, canPick }: { player: PlayerState; selected: Uid[]; onToggle: (u: Uid) => void; locked?: boolean; canPick?: (u: Uid) => boolean }) {
   const c = catalog.value;
-  const list = fireable(p);
+  const list = fireable(p).filter((u) => !canPick || selected.includes(u) || canPick(u));
   if (!list.length) return <Empty icon="users">Nobody can be fired (the CEO and busy marketeers stay).</Empty>;
   return (
     <div class="card-grid">
@@ -295,7 +296,14 @@ function PaydayPanel({ player: p, owed, mustFire }: { player: PlayerState; owed:
   const before = owed || salaryEstimate(c, p);
   const after = salaryEstimate(c, p, selected.value);
   const toggle = (u: Uid) => (selected.value = selected.value.includes(u) ? selected.value.filter((x) => x !== u) : [...selected.value, u]);
-  const short = after > p.cash;
+  const n = selected.value.length;
+  const v = view.value;
+  const fireAction = (uids: Uid[]): Action => ({ type: 'payday.fire', playerId: p.id, uids });
+  const problem = v && n ? actionProblem(v, me.value, fireAction(selected.value), manifest.value) : null;
+  const canPick = (u: Uid) => !v || !actionProblem(v, me.value, fireAction([...selected.value, u]), manifest.value);
+  const owedNow = n ? after : before;
+  const pay = after > p.cash ? 'pay what I can' : `pay $${owedNow}`;
+  const payLabel = !canConfirm ? `Fire ${n}` : n ? `Fire ${n} and ${pay}` : pay.charAt(0).toUpperCase() + pay.slice(1);
   return (
     <div class="payday">
       <div class="payday-sum">
@@ -312,27 +320,26 @@ function PaydayPanel({ player: p, owed, mustFire }: { player: PlayerState; owed:
       {mustFire && <p class="org-warn">{Icon.info({ size: 16 })} You cannot pay everyone: fire salaried staff until you can.</p>}
       {canFire && (
         <>
-          <h4>Fire anyone? <span class="muted small">Tap cards to select.</span></h4>
-          <FirePicker player={p} selected={selected.value} onToggle={toggle} />
+          <h4>Fire anyone? <span class="muted small">Tap cards to select, then pay in one step.</span></h4>
+          <FirePicker player={p} selected={selected.value} onToggle={toggle} canPick={canPick} />
         </>
       )}
+      {problem && <p class="org-error" role="alert">{problem}</p>}
       <div class="row gap end">
-        {canFire && selected.value.length > 0 && (
+        {(canConfirm || (canFire && n > 0)) && (
           <Button
-            variant="danger"
-            icon="x"
-            disabled={busyNow()}
+            variant={n > 0 ? 'danger' : 'primary'}
+            icon={n > 0 ? 'x' : 'check'}
+            disabled={busyNow() || Boolean(problem)}
             onClick={() => {
-              act({ type: 'payday.fire', playerId: p.id, uids: selected.value });
+              const steps: Action[] = [];
+              if (n > 0) steps.push(fireAction(selected.value));
+              if (canConfirm) steps.push({ type: 'payday.confirm', playerId: p.id });
+              actChain(steps);
               selected.value = [];
             }}
           >
-            Fire {selected.value.length}
-          </Button>
-        )}
-        {canConfirm && (
-          <Button variant="primary" icon="check" disabled={busyNow() || selected.value.length > 0} title={selected.value.length ? 'Fire the selected staff first' : undefined} onClick={() => act({ type: 'payday.confirm', playerId: p.id })}>
-            {short ? 'Pay what I can' : `Pay $${before}`}
+            {payLabel}
           </Button>
         )}
       </div>
@@ -401,15 +408,21 @@ function ChoicePanel({ player: p, choice }: { player: PlayerState; choice: Pendi
 
   if (choice.kind === 'forcedFire') {
     const after = salaryEstimate(c, p, selected.value);
+    const v = view.value;
+    const fire = (uids: Uid[]): Action => ({ type: 'payday.fire', playerId: p.id, uids });
+    // The engine decides who may go (salaried only, busy marketeers last, no more than needed).
+    const problem = v && selected.value.length ? actionProblem(v, me.value, fire(selected.value), manifest.value) : null;
+    const canPick = (u: Uid) => !v || !actionProblem(v, me.value, fire([...selected.value, u]), manifest.value);
     return (
       <div class="choice">
         <p class="org-warn">
           {Icon.info({ size: 16 })} You owe ${choice.owed} but have ${p.cash}. Fire salaried staff until you can pay.
         </p>
-        <FirePicker player={p} selected={selected.value} onToggle={(u) => (selected.value = selected.value.includes(u) ? selected.value.filter((x) => x !== u) : [...selected.value, u])} />
+        <FirePicker player={p} selected={selected.value} canPick={canPick} onToggle={(u) => (selected.value = selected.value.includes(u) ? selected.value.filter((x) => x !== u) : [...selected.value, u])} />
+        {problem && <p class="org-error" role="alert">{problem}</p>}
         <div class="row gap end">
           <span class="muted small">Salaries after: ${after}</span>
-          <Button variant="danger" icon="x" disabled={busyNow() || !selected.value.length} onClick={() => act({ type: 'payday.fire', playerId: p.id, uids: selected.value })}>
+          <Button variant="danger" icon="x" disabled={busyNow() || !selected.value.length || Boolean(problem)} onClick={() => act(fire(selected.value))}>
             Fire {selected.value.length}
           </Button>
         </div>

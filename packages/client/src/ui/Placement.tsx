@@ -126,7 +126,7 @@ export function PlacementFlow({ legal, onDone, onCancel }: { legal: PlacementLeg
                   <li key={i}>
                     <button type="button" class="placement-btn" onClick={() => pick(p)}>
                       {p.kind === 'buyerRoute' && p.route.mode === 'errand' ? <FoodIcon food={p.route.drink} size={18} /> : Icon.pin({ size: 16 })}
-                      {describePlacement(p)}
+                      {describePlacement(p, v)}
                     </button>
                   </li>
                 ))}

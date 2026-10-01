@@ -31,9 +31,9 @@ npm install          # installs all workspaces
 npm start            # tsc -b && vite build && node packages/server/dist/index.js  → prints http://<lan-ip>:3000
 npm run dev          # concurrently: tsx watch server (port 3000) + vite dev (port 5173, proxies /ws)
 npm test             # vitest run across workspaces
-npm run test:e2e     # playwright (optional, needs built client)
+npm run e2e          # build, then Playwright against the real server (e2e/)
 npm run typecheck    # tsc -b --noEmit
-npm run lint         # eslint + prettier check
+npm run lint         # import-boundary check (scripts/check-boundaries.mjs) + typecheck
 ```
 
 Node engines field: `>=20`. Dependencies kept small: `three`, `preact`, `@preact/signals`, `ws`, `zod`; dev: `vite`, `typescript`, `vitest`, `tsx`, `concurrently`, `@types/*`, `eslint`, `prettier`, `playwright`.
@@ -49,7 +49,6 @@ food-chain-magnate/
     protocol.md                    wire protocol reference
     visual-style.md                palette, scale, mini style guide
     rules/                         rules specs
-  legacy/                          the original vanilla-JS implementation, kept for reference until C7 removes it
   packages/
     engine/                        @fcm/engine  — pure rules. NO imports from other packages, no DOM, no Node APIs.
       src/
@@ -312,7 +311,7 @@ Custom controller: tilted view, yaw, pan/zoom bounds, pinch zoom, "top" toggle. 
 
 ### 5.4 UI overlay (Preact)
 
-Store signals: `connection`, `room`, `view`, `seq`, `me`, `manifest`, `legal`, `prompt`, `draft`, `eventQueue`, `settings`. Components: Lobby, TopBar, PromptPanel, OrgChart, EmployeeMarket, Milestones, PlayerPanels, Log, Chat, Modals, HotseatHandoff. Mobile: bottom sheets, 44 px touch targets.
+Store signals: `connection`, `room`, `view`, `seq`, `me`, `manifest`, `legal`, `prompt`, `draft`, `settings` (game events skip the store: they reach the 3D animator through `boardBridge.setView`, which plays each batch within 1.5 s and fast-forwards the previous one). Components: Lobby, TopBar, PromptPanel, OrgChart, EmployeeMarket, Milestones, PlayerPanels, Log, Chat, Modals, HotseatHandoff. Mobile: bottom sheets, 44 px touch targets.
 
 ### 5.5 Transports
 
@@ -327,7 +326,7 @@ Store signals: `connection`, `room`, `view`, `seq`, `me`, `manifest`, `legal`, `
 - **C4** Client shell + 2D UI. (wave 1)
 - **C5** 3D board, minis, interaction, animation. (wave 1)
 - **C6** Ketchup modules. (wave 2, after C1+C2)
-- **C7** Integration, E2E, polish, README, delete `legacy/`. (waves 2–3)
+- **C7** Integration, E2E, polish, README, delete `legacy/` (done: the vanilla-JS original is gone; see git history). (waves 2–3)
 
 Each chunk owns disjoint files; `npm run typecheck && npm test` must stay green.
 

@@ -32,6 +32,8 @@ export const COLORS = {
   tileEdge: '#cbbd9c',
   shadow: '#1f1d26',
   highlightOk: '#5ad17a',
+  /** Legal-spot tint during board picks: saturated mustard, readable on grass and road alike. */
+  highlightLegal: '#ffc531',
   highlightBad: '#e25b4b',
 } as const;
 

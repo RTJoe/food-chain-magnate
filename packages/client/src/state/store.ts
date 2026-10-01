@@ -1,7 +1,11 @@
 /**
  * Client store (architecture §5.4): signals for connection, room, view, seq, me, manifest, legal,
- * prompt, draft, event queue and settings. `handleServerMessage` is the single reducer for
- * everything the transport delivers; transports never touch signals directly.
+ * prompt, draft and settings. `handleServerMessage` is the single reducer for everything the
+ * transport delivers; transports never touch signals directly.
+ *
+ * Game events are not queued here: each message's events go straight to the board through
+ * `boardBridge.setView(view, me, events)`; the 3D animator (three/animate.ts) plays each batch
+ * within 1.5 s, fast-forwarding the previous one, so nothing accumulates. The overlay consumes events only as log lines and phase summaries.
  */
 import { batch, computed, signal } from '@preact/signals';
 import type { Action, GameEvent, GameView, LegalAction, ModuleManifest, PhaseKind, PlayerId, Prompt } from '@fcm/engine';
@@ -61,8 +65,6 @@ export const me = signal<PlayerId | null>(null);
 export const manifest = signal<ModuleManifest[]>([]);
 /** Restructuring draft (OrgChart editor). Reset when the phase changes. */
 export const draft = signal<OrgDraft | null>(null);
-/** Events not yet consumed by animations (the board bridge receives them directly too). */
-export const eventQueue = signal<GameEvent[]>([]);
 export const log = signal<LogLine[]>([]);
 export const chat = signal<ChatLine[]>([]);
 export const unreadChat = signal(0);
@@ -175,7 +177,6 @@ export function resetStore(): void {
     me.value = null;
     manifest.value = [];
     draft.value = null;
-    eventQueue.value = [];
     log.value = [];
     chat.value = [];
     unreadChat.value = 0;
@@ -221,6 +222,8 @@ export function handleServerMessage(msg: ServerMessage): HandleResult {
     case 'game.snapshot':
       batch(() => {
         manifest.value = msg.manifest;
+        // Hot-seat hands the device to another player: their restructuring draft starts fresh.
+        if (me.value !== msg.me) draft.value = null;
         me.value = msg.me;
         setView(msg.view, msg.seq);
         startPhaseBuffer(msg.view);
@@ -236,7 +239,6 @@ export function handleServerMessage(msg: ServerMessage): HandleResult {
         collectSummaries(prev, msg.events);
         setView(msg.view, msg.seq);
         appendLog(msg.view, msg.seq, msg.events);
-        eventQueue.value = [...eventQueue.value, ...msg.events].slice(-200);
         if (msg.actionId && pending.value[msg.actionId]) {
           const { [msg.actionId]: _done, ...rest } = pending.value;
           pending.value = rest;
@@ -275,11 +277,4 @@ export function handleServerMessage(msg: ServerMessage): HandleResult {
       return {};
     }
   }
-}
-
-/** Removes consumed events (animation layer). */
-export function takeEvents(): GameEvent[] {
-  const out = eventQueue.value;
-  eventQueue.value = [];
-  return out;
 }

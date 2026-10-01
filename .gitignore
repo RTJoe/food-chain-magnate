@@ -7,3 +7,5 @@ data/
 !screenshots/*.png
 .DS_Store
 docs/rules/source/
+test-results/
+playwright-report/

@@ -41,6 +41,9 @@ export const pendingPlacement = signal<Placement | null>(null);
 /** Variants (rotations / entrances / garden sides) available for the staged spot. */
 export const pendingVariants = signal(0);
 
+/** Mouse flow: the legal placement under the pointer and how many variants its spot has (R cycles). */
+export const hoverPlacement = signal<{ placement: Placement; variants: number } | null>(null);
+
 /** Bumped by the overlay's confirm button. */
 export const confirmRequest = signal(0);
 /** Bumped by the overlay's rotate button (also R on the keyboard). */

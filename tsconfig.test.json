@@ -13,5 +13,5 @@
     "jsx": "react-jsx",
     "jsxImportSource": "preact"
   },
-  "include": ["packages/*/test/**/*.ts", "packages/*/scripts/**/*.ts", "vitest.config.ts"]
+  "include": ["packages/*/test/**/*.ts", "packages/*/scripts/**/*.ts", "vitest.config.ts", "e2e/**/*.ts", "playwright.config.ts"]
 }

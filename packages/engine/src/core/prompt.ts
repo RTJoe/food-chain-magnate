@@ -5,7 +5,7 @@
 import type { GameState, PlayerId } from '../types/state.js';
 import type { GameView, Prompt } from '../types/view.js';
 import { contentFor } from '../modules/registry.js';
-import { STANDARD_RESERVES } from '../rules/setup.js';
+import { reserveOptions, STANDARD_RESERVES } from '../rules/setup.js';
 import { salaryBreakdown } from '../rules/payday.js';
 import { freezerCapacity } from '../rules/cleanup.js';
 import { ceoSlotsFor } from './cards.js';
@@ -40,7 +40,8 @@ export function derivePrompt(view: GameView, me: PlayerId | null): Prompt {
       if (mine) return { kind: 'placeFirstRestaurant', title: ph.round === 1 ? 'Place a restaurant or pass' : 'Place your first restaurant', canPass: ph.round === 1 };
       break;
     case 'setup.reserve':
-      if (mine) return { kind: 'chooseReserve', title: 'Choose your reserve card (secret)', options: [...STANDARD_RESERVES] };
+      // Module hooks may replace the cards (ketchup:reservePrices); they read config and public state only.
+      if (mine) return { kind: 'chooseReserve', title: 'Choose your reserve card (secret)', options: viewReserveOptions(asState) };
       break;
     case 'restructuring': {
       const content = contentFor(view.config.modules);
@@ -74,4 +75,12 @@ export function derivePrompt(view: GameView, me: PlayerId | null): Prompt {
       break;
   }
   return { kind: 'waiting', title, waitingFor };
+}
+
+function viewReserveOptions(s: GameState) {
+  try {
+    return reserveOptions(s);
+  } catch {
+    return [...STANDARD_RESERVES];
+  }
 }

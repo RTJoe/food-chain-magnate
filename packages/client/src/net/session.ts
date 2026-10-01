@@ -3,7 +3,7 @@
  * commands. UI components call these functions and never touch a transport directly.
  */
 import { ENGINE_VERSION, type Action, type EngineApi, type GameConfig, type GameState, type PlayerId, type Viewer } from '@fcm/engine';
-import { PROTOCOL_VERSION, type ClientMessage, type RoomConfig } from '@fcm/protocol';
+import { PROTOCOL_VERSION, type ClientMessage, type RoomConfig, type ServerMessage } from '@fcm/protocol';
 import {
   clientId,
   connection,
@@ -74,12 +74,14 @@ function attach(t: Transport, m: Mode): void {
       }
       const r = handleServerMessage(msg);
       if (r.resync) send({ t: 'game.resync' });
+      continueChain(msg);
     }),
   );
   if (t instanceof LocalTransport) unsubs.push(t.onHandoff((to) => (handoff.value = { to })));
 }
 
 function detach(): void {
+  chains.clear();
   for (const u of unsubs) u();
   unsubs = [];
   transport?.close();
@@ -151,6 +153,29 @@ export function act(action: Action): string | null {
   pending.value = { ...pending.value, [id]: a };
   send({ t: 'game.action', id, expectedSeq: seq.value, action: a });
   return id;
+}
+
+/** Follow-up actions keyed by the id of the action they wait for (see `actChain`). */
+const chains = new Map<string, Action[]>();
+
+/**
+ * Sends `actions` one after another: each waits until the previous one is applied (the server
+ * checks `expectedSeq`, so they cannot be sent together). A rejection drops the rest.
+ */
+export function actChain(actions: Action[]): void {
+  const [first, ...rest] = actions;
+  if (!first) return;
+  const id = act(first);
+  if (id && rest.length) chains.set(id, rest);
+}
+
+function continueChain(msg: ServerMessage): void {
+  const id = msg.t === 'game.applied' ? msg.actionId : msg.t === 'game.rejected' ? msg.id : undefined;
+  if (!id) return;
+  const rest = chains.get(id);
+  if (!rest) return;
+  chains.delete(id);
+  if (msg.t === 'game.applied') queueMicrotask(() => actChain(rest));
 }
 
 export const undo = () => send({ t: 'game.undo', expectedSeq: seq.value });

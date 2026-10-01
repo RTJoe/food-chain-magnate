@@ -9,12 +9,14 @@ import {
   cameraCommand,
   confirmPlacement,
   finishAnimations,
+  hoverPlacement,
   pendingPlacement,
   pendingVariants,
   rotatePlacement,
   topView,
 } from '../state/interaction.js';
 import { emitPick } from '../state/boardBridge.js';
+import { view } from '../state/store.js';
 import { Button, IconButton } from './common.js';
 
 const SPEEDS = [0.5, 1, 2] as const;
@@ -23,6 +25,8 @@ export function BoardControls() {
   if (boardRenderer.value !== '3d') return null;
   const staged = pendingPlacement.value;
   const placing = interactionMode.value.kind === 'place';
+  const hovered = placing && !staged ? hoverPlacement.value : null;
+  const v = view.value;
   return (
     <>
       <div class="board-controls glass" role="toolbar" aria-label="Board camera">
@@ -50,9 +54,15 @@ export function BoardControls() {
         </button>
         <IconButton icon="forward" label="Skip animations" onClick={() => finishAnimations()} />
       </div>
+      {hovered && (
+        <div class="confirm-bar glass hover-hint" role="status">
+          <span class="small">{describePlacement(hovered.placement, v)}</span>
+          {hovered.variants > 1 && <span class="small muted">· R or Rotate: {hovered.variants} options here</span>}
+        </div>
+      )}
       {placing && staged && (
         <div class="confirm-bar glass" role="group" aria-label="Confirm placement">
-          <span class="small">{describePlacement(staged)}</span>
+          <span class="small">{describePlacement(staged, v)}</span>
           {pendingVariants.value > 1 && (
             <Button size="sm" variant="secondary" icon="rotateRight" onClick={() => rotatePlacement()}>
               Rotate
