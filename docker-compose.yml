@@ -1,0 +1,12 @@
+services:
+  fcm:
+    build: .
+    image: food-chain-magnate
+    restart: unless-stopped
+    ports:
+      - "${FCM_PORT:-8090}:3000"
+    volumes:
+      - fcm-data:/data
+
+volumes:
+  fcm-data:
