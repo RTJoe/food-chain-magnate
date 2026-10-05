@@ -6,6 +6,7 @@
   "type": "module",
   "workspaces": [
     "packages/engine",
+    "packages/ai",
     "packages/protocol",
     "packages/session",
     "packages/server",

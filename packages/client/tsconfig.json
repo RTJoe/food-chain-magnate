@@ -13,5 +13,5 @@
     "jsxImportSource": "preact"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "references": [{ "path": "../engine" }, { "path": "../protocol" }]
+  "references": [{ "path": "../engine" }, { "path": "../ai" }, { "path": "../protocol" }]
 }

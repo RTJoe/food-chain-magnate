@@ -121,18 +121,24 @@ describe('server (integration, toy engine)', () => {
     expect((await spec.next('error')).code).toBe('NOT_SEATED');
   });
 
-  it('rejects stale seq with game.rejected + snapshot', async () => {
+  it('rejects stale seq with game.rejected + snapshot (simultaneous decisions may race)', async () => {
     const s = await start();
     const { host, guest } = await startedGame(s);
     host.send({ t: 'game.action', id: 'a1', expectedSeq: 0, action: { type: 'setup.chooseReserve', playerId: 'p1', card: CARD } });
     await guest.next('game.applied');
+    // A simultaneous decision sent against seq 0 still applies: only another player acted since.
     guest.send({ t: 'game.action', id: 'b1', expectedSeq: 0, action: { type: 'setup.chooseReserve', playerId: 'p2', card: CARD } });
-    const rej = await guest.next('game.rejected');
-    expect(rej).toMatchObject({ id: 'b1', code: 'STALE' });
-    expect((await guest.next('game.snapshot')).seq).toBe(1);
-    // Engine rejections go only to the sender.
+    expect(await guest.next('game.applied', (m) => m.actionId === 'b1')).toMatchObject({ seq: 2 });
+    // Anything else against an old seq is STALE.
     guest.send({ t: 'game.action', id: 'b2', expectedSeq: 1, action: { type: 'work.endTurn', playerId: 'p2' } });
-    expect(await guest.next('game.rejected')).toMatchObject({ id: 'b2', code: 'WRONG_PHASE' });
+    const rej = await guest.next('game.rejected');
+    expect(rej).toMatchObject({ id: 'b2', code: 'STALE' });
+    expect((await guest.next('game.snapshot')).seq).toBe(2);
+    // Engine rejections go only to the sender.
+    guest.send({ t: 'game.action', id: 'b3', expectedSeq: 2, action: { type: 'setup.chooseReserve', playerId: 'p2', card: CARD } });
+    const engineRej = await guest.next('game.rejected');
+    expect(engineRej.id).toBe('b3');
+    expect(engineRej.code).not.toBe('STALE');
     await host.sync();
     expect(host.inbox.some((m) => m.t === 'game.rejected')).toBe(false);
   });

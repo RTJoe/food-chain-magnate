@@ -30,6 +30,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/`,
     reuseExistingServer: false,
     timeout: 30_000,
-    env: { PORT: String(PORT), HOST: '127.0.0.1', FCM_PERSIST: '0' },
+    env: { PORT: String(PORT), HOST: '127.0.0.1', FCM_PERSIST: '0', FCM_BOT_DELAY_MS: '60-140' },
   },
 });

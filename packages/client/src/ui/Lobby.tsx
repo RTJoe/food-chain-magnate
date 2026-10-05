@@ -1,15 +1,16 @@
 import { useSignal } from '@preact/signals';
 import type { ModuleId, ModuleManifest, OptionField } from '@fcm/engine';
-import type { RoomConfig, RoomInfo, Seat } from '@fcm/protocol';
+import type { BotLevel, RoomConfig, RoomInfo, Seat } from '@fcm/protocol';
 import { availableModules } from '../state/engine.js';
 import { FALLBACK_MODULES } from '../state/fallbackContent.js';
 import { joinUrl, navigate } from '../state/router.js';
 import { amHost, clientId, connection, mySeat, room, roomError, settings, updateSettings } from '../state/store.js';
-import { displayName, joinRoom, kick, leaveRoom, setReady, setRoomConfig, sit, stand, startGame, startOnline } from '../net/session.js';
+import { addBot, displayName, joinRoom, kick, leaveRoom, removeBot, setReady, setRoomConfig, sit, stand, startGame, startOnline } from '../net/session.js';
 import { Button, IconButton, Pill, Section, SeatBadge, Segmented, Toggle } from './common.js';
 import { Icon, Logo } from './icons.js';
 import { QrCode } from './QrCode.js';
 import { ChatBox } from './Chat.js';
+import { BOT_LEVELS, BotBadge } from './bots.js';
 
 /** Modules offered in the lobby: the engine's list when it has expansion modules, else the fallback list. */
 export function lobbyModules(): ModuleManifest[] {
@@ -86,7 +87,7 @@ function JoinRoom({ roomId }: { roomId: string }) {
 function LobbyRoom({ room: r }: { room: RoomInfo }) {
   const host = amHost.value;
   const seat = mySeat.value;
-  const seated = r.seats.filter((s) => s.clientId !== null);
+  const seated = r.seats.filter((s) => s.clientId !== null || s.bot);
   const allReady = seated.length >= 2 && seated.every((s) => s.ready);
   const url = joinUrl(r.id);
   const copied = useSignal(false);
@@ -199,21 +200,54 @@ function LobbyRoom({ room: r }: { room: RoomInfo }) {
   );
 }
 
+/** "Add bot ▾" menu for an empty seat (host only). */
+function AddBotMenu({ seat }: { seat: number }) {
+  const open = useSignal(false);
+  return (
+    <div class="bot-menu">
+      <Button size="sm" variant="ghost" icon="robot" aria-haspopup="menu" aria-expanded={open.value} onClick={() => (open.value = !open.value)}>
+        Add bot {Icon.chevronDown({ size: 14 })}
+      </Button>
+      {open.value && (
+        <div class="bot-menu-list glass" role="menu" aria-label={`Bot level for seat ${seat + 1}`}>
+          {BOT_LEVELS.map((b) => (
+            <button
+              key={b.value}
+              type="button"
+              role="menuitem"
+              class="bot-menu-item"
+              onClick={() => {
+                open.value = false;
+                addBot(seat, b.value);
+              }}
+            >
+              <b>{b.label}</b>
+              <span class="muted small">{b.hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SeatRow({ seat: s, room: r, mine, host }: { seat: Seat; room: RoomInfo; mine: boolean; host: boolean }) {
-  const open = s.clientId === null;
+  const bot = s.bot;
+  const open = s.clientId === null && !bot;
   const isHost = s.clientId !== null && s.clientId === r.hostClientId;
   return (
-    <li class={`seat ${mine ? 'is-mine' : ''} ${open ? 'is-open' : ''}`} style={{ '--pc': s.color }}>
+    <li class={`seat ${mine ? 'is-mine' : ''} ${open ? 'is-open' : ''} ${bot ? 'is-bot' : ''}`} style={{ '--pc': s.color }}>
       <SeatBadge name={s.name ?? String(s.index + 1)} color={s.color} size={36} />
       <div class="seat-text">
         <span class="seat-name">
           {open ? 'Open seat' : s.name}
+          {bot && <BotBadge level={bot} />}
           {isHost && <span title="Host">{Icon.crown({ size: 14 })}</span>}
           {mine && <span class="muted small"> (you)</span>}
         </span>
         <span class="seat-sub">
           {!open && <span class={`dot ${s.connected ? 'is-on' : 'is-off'}`} aria-label={s.connected ? 'Online' : 'Offline'} />}
-          {open ? `Seat ${s.index + 1}` : s.ready ? 'Ready' : 'Not ready'}
+          {open ? `Seat ${s.index + 1}` : bot ? 'Bot · always ready' : s.ready ? 'Ready' : 'Not ready'}
         </span>
       </div>
       {open && (
@@ -221,8 +255,19 @@ function SeatRow({ seat: s, room: r, mine, host }: { seat: Seat; room: RoomInfo;
           Sit here
         </Button>
       )}
+      {open && host && <AddBotMenu seat={s.index} />}
+      {bot && host && (
+        <select class="input input-sm bot-level" aria-label={`Bot level, seat ${s.index + 1}`} value={bot} onChange={(e) => addBot(s.index, (e.currentTarget as HTMLSelectElement).value as BotLevel)}>
+          {BOT_LEVELS.map((b) => (
+            <option key={b.value} value={b.value}>
+              {b.label}
+            </option>
+          ))}
+        </select>
+      )}
       {!open && s.ready && <span class="seat-ready">{Icon.check({ size: 18 })}</span>}
-      {host && !open && s.clientId !== clientId.value && <IconButton icon="x" label={`Free seat ${s.index + 1}`} onClick={() => kick(s.index)} />}
+      {host && bot && <IconButton icon="x" label={`Remove bot from seat ${s.index + 1}`} onClick={() => removeBot(s.index)} />}
+      {host && !open && !bot && s.clientId !== clientId.value && <IconButton icon="x" label={`Free seat ${s.index + 1}`} onClick={() => kick(s.index)} />}
     </li>
   );
 }

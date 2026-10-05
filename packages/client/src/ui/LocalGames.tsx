@@ -3,7 +3,7 @@ import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import type { ChainId, GameConfig, Viewer } from '@fcm/engine';
 import { FIXTURES, type FixtureName } from '@fcm/engine/testing';
-import type { RoomConfig } from '@fcm/protocol';
+import type { BotLevel, RoomConfig } from '@fcm/protocol';
 import { CHAIN_COLORS, PLAYER_COLORS } from '../theme.js';
 import { hotseatEngine, hybridEngine, realEngineReady } from '../state/engine.js';
 import { navigate } from '../state/router.js';
@@ -12,12 +12,15 @@ import { startFixture, startHotseat } from '../net/session.js';
 import { Button, Pill, SeatBadge } from './common.js';
 import { Icon, Logo } from './icons.js';
 import { GameSettings } from './Lobby.js';
+import { BOT_LEVELS } from './bots.js';
 
 const CHAINS = Object.keys(CHAIN_COLORS) as ChainId[];
 
 export function HotseatSetup() {
   const cfg = useSignal<RoomConfig>({ seatCount: 3, modules: [], options: {}, intro: false, introMilestones: false });
   const names = useSignal<string[]>(PLAYER_COLORS.map((c, i) => (i === 0 && settings.value.name.trim()) || c.name));
+  /** Seat index → bot level (absent = human). */
+  const bots = useSignal<Record<number, BotLevel>>({});
   const real = realEngineReady();
   const n = cfg.value.seatCount;
 
@@ -36,8 +39,9 @@ export function HotseatSetup() {
       introMilestones: c.introMilestones,
       map: { kind: 'random' },
     };
+    const botSeats = Object.fromEntries(Object.entries(bots.value).filter(([i]) => Number(i) < c.seatCount).map(([i, level]) => [`p${Number(i) + 1}`, level]));
     try {
-      startHotseat(hotseatEngine(), config);
+      startHotseat(hotseatEngine(), config, undefined, real ? botSeats : {});
     } catch (e) {
       alert(`Could not start: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -64,7 +68,7 @@ export function HotseatSetup() {
         <section class="glass lobby-seats">
           <div class="section-head">
             <h2>Players</h2>
-            <span class="muted small">Seat order = colour order</span>
+            <span class="muted small">Seat order = colour order · bots play on this device</span>
           </div>
           <ul class="seat-list">
             {Array.from({ length: n }, (_, i) => (
@@ -81,6 +85,27 @@ export function HotseatSetup() {
                     names.value = next;
                   }}
                 />
+                {real && (
+                  <select
+                    class="input input-sm bot-level"
+                    aria-label={`Player ${i + 1} is played by`}
+                    value={bots.value[i] ?? 'human'}
+                    onChange={(e) => {
+                      const v = (e.currentTarget as HTMLSelectElement).value;
+                      const next = { ...bots.value };
+                      if (v === 'human') delete next[i];
+                      else next[i] = v as BotLevel;
+                      bots.value = next;
+                    }}
+                  >
+                    <option value="human">Human</option>
+                    {BOT_LEVELS.map((b) => (
+                      <option key={b.value} value={b.value}>
+                        {b.label} bot
+                      </option>
+                    ))}
+                  </select>
+                )}
               </li>
             ))}
           </ul>

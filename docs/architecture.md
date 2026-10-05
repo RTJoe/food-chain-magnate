@@ -92,13 +92,15 @@ food-chain-magnate/
           fixtures/                canned states (lobby, mid-working, dinnertime) as JSON
           toyGame.ts               trivial game implementing the same engine interface (for server/client dev)
       test/                        vitest specs mirror src/ layout
+    ai/                            @fcm/ai — AI opponents (docs/ai.md). Imports engine only; pure TS, no DOM/Node APIs.
+      src/ types.ts registry.ts run.ts viewState.ts heuristics.ts easy.ts
     protocol/                      @fcm/protocol — message types + zod schemas. Imports engine types only.
       src/ messages.ts room.ts index.ts
     session/                       @fcm/session — transport-agnostic room/game session logic (seats, undo, checkpoints,
       src/                         redaction fan-out). Imports engine + protocol.
-        room.ts gameSession.ts undo.ts
+        room.ts gameSession.ts undo.ts bots.ts (BotDriver: plays bot seats)
     server/                        @fcm/server — Node runtime
-      src/ index.ts ws.ts static.ts roomStore.ts sessions.ts persistence.ts lanAddress.ts
+      src/ index.ts ws.ts static.ts roomStore.ts sessions.ts persistence.ts lanAddress.ts botRunner.ts botWorker.ts
     client/                        @fcm/client — Vite app
       index.html
       src/
@@ -115,10 +117,11 @@ food-chain-magnate/
 
 Boundary rules (enforced by eslint `no-restricted-imports` and tsconfig `references`):
 - `engine` imports nothing from other packages. Everything in it is deterministic and synchronous.
+- `ai` imports engine only; pure and synchronous (runs inline, in worker threads and in Web Workers).
 - `protocol` imports engine *types* only.
-- `session` imports engine + protocol; no `ws`, no `fs`.
-- `server` imports engine, protocol, session. Only place `ws`/`fs`/`http` appear.
-- `client` imports engine, protocol. Never imports server/session. `three/` and `ui/` do not import each other; both read the store and call the `interaction` API (section 5.2).
+- `session` imports engine + protocol + ai; no `ws`, no `fs`.
+- `server` imports engine, protocol, session, ai. Only place `ws`/`fs`/`http`/`worker_threads` appear.
+- `client` imports engine, protocol, ai. Never imports server/session. `three/` and `ui/` do not import each other; both read the store and call the `interaction` API (section 5.2).
 
 ## 3. Engine design
 
@@ -284,7 +287,7 @@ Only `createGame` and module setup hooks draw randomness. `(config, seed, action
 
 ### 4.1 Messages (`packages/protocol`), `{ t: string, ... }`, zod-validated
 
-Client → Server: `hello { clientVersion, sessionToken? }`, `room.create`, `room.join`, `room.leave`, `room.sit`, `room.stand`, `room.ready`, `room.config` (host), `room.kick` (host), `room.start` (host), `game.action { id, expectedSeq, action }`, `game.undo`, `game.resync`, `chat`, `ping`.
+Client → Server: `hello { clientVersion, sessionToken? }`, `room.create`, `room.join`, `room.leave`, `room.sit`, `room.stand`, `room.ready`, `room.config` (host), `room.kick` (host), `room.addBot` / `room.removeBot` (host, lobby), `room.start` (host), `game.action { id, expectedSeq, action }`, `game.undo`, `game.resync`, `chat`, `ping`.
 
 Server → Client: `welcome`, `error`, `pong`, `room.update { room }`, `game.snapshot { seq, view, manifest }`, `game.applied { seq, action, events, view }`, `game.rejected { id, code, message }`, `game.undone`, `chat`.
 
@@ -299,6 +302,10 @@ Server issues a 128-bit `sessionToken`, stored in `localStorage['fcm.session']`.
 ### 4.4 Server-authoritative handling
 
 Validate message → set `playerId` from seat → check `expectedSeq` → `applyAction` → log, persist, fan out per-viewer views.
+
+### 4.4b Bot seats
+
+A seat may hold a bot (`Seat.bot: 'easy' | 'medium' | 'hard'`): always ready and connected, persisted with the seats. The session's `BotDriver` applies a bot move whenever the engine awaits a bot seat, after a short delay (`FCM_BOT_DELAY_MS`, default 400–900 ms), computing it in a `worker_threads` pool so slow bots never block the hub. Bots see only their seat's redacted view. Undo drops bot moves made after the undone human move. Details: `docs/ai.md`.
 
 ### 4.5 Persistence
 
@@ -338,7 +345,7 @@ Store signals: `connection`, `room`, `view`, `seq`, `me`, `manifest`, `legal`, `
 
 ### 5.5 Transports
 
-`Transport` interface; `SocketTransport` (auto-reconnect, session token); `LocalTransport` (hot-seat, in-process engine, handoff pseudo-events).
+`Transport` interface; `SocketTransport` (auto-reconnect, session token); `LocalTransport` (hot-seat, in-process engine, handoff pseudo-events; bot seats computed in a Web Worker, `net/botRunner.ts`, and never handed the device).
 
 ## 6. Task breakdown
 

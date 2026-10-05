@@ -23,6 +23,8 @@ Source of truth: `packages/protocol/src/messages.ts` and `room.ts` (TypeScript t
 | `room.ready` | `ready: boolean` | seated | Lobby only. |
 | `room.config` | `config: RoomConfig` | host | Lobby only. |
 | `room.kick` | `seat: number` | host | Frees a seat so another device can take it over. |
+| `room.addBot` | `seat: number`, `level: 'easy' \| 'medium' \| 'hard'` | host | Lobby only. Puts a bot on an empty seat (or changes a bot seat's level). Bot seats are ready and connected. |
+| `room.removeBot` | `seat: number` | host | Lobby only. Empties a bot seat. |
 | `room.start` | — | host | Starts the game when all seated players are ready. |
 | `game.action` | `id: string` (≤64, client-generated, idempotent), `expectedSeq: number`, `action: Action` | seated | Rejected if `expectedSeq` ≠ server seq. A repeated `id` is not applied twice. |
 | `game.undo` | `expectedSeq: number` | seated | Undo own last undoable action (architecture §3.6). |
@@ -48,7 +50,7 @@ Source of truth: `packages/protocol/src/messages.ts` and `room.ts` (TypeScript t
 
 - `RoomInfo { id, status: 'lobby' | 'playing' | 'finished', hostClientId, config: RoomConfig, seats: Seat[], spectators: Spectator[], createdAt }`
 - `RoomConfig { seatCount: 2–6, modules: ModuleId[], options: ModuleOptions, intro, introMilestones }`
-- `Seat { index, playerId, clientId | null, name | null, color, ready, connected }`
+- `Seat { index, playerId, clientId | null, name | null, color, ready, connected, bot: BotLevel | null }`. A bot seat has `clientId: null`, `ready: true`, `connected: true`; the server plays it (docs/ai.md). Clients show "thinking…" while the engine awaits a bot seat.
 - `Spectator { clientId, name, connected }`
 - `Action`, `GameEvent`, `GameView`, `ModuleManifest`, `RejectCode`: `@fcm/engine` types (`packages/engine/src/types/`).
 

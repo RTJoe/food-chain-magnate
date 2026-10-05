@@ -7,6 +7,7 @@ const src = (p: string) => fileURLToPath(new URL(`./packages/${p}`, import.meta.
 export const workspaceAliases = [
   { find: /^@fcm\/engine\/testing$/, replacement: src('engine/src/testing/index.ts') },
   { find: /^@fcm\/engine$/, replacement: src('engine/src/index.ts') },
+  { find: /^@fcm\/ai$/, replacement: src('ai/src/index.ts') },
   { find: /^@fcm\/protocol$/, replacement: src('protocol/src/index.ts') },
   { find: /^@fcm\/session$/, replacement: src('session/src/index.ts') },
 ];

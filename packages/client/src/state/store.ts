@@ -9,7 +9,7 @@
  */
 import { batch, computed, signal } from '@preact/signals';
 import type { Action, GameEvent, GameView, LegalAction, ModuleManifest, PhaseKind, PlayerId, Prompt } from '@fcm/engine';
-import type { RoomInfo, ServerMessage } from '@fcm/protocol';
+import type { BotLevel, RoomInfo, ServerMessage } from '@fcm/protocol';
 import type { ConnectionStatus } from '../net/transport.js';
 import { boardBridge } from './boardBridge.js';
 import { buildCatalog, type Catalog } from './catalog.js';
@@ -74,6 +74,8 @@ export const handoff = signal<{ to: PlayerId } | null>(null);
 /** Sent but unanswered actions, by action id. */
 export const pending = signal<Record<string, Action>>({});
 export const settings = signal<Settings>(loadSettings());
+/** Hot-seat bot seats (online ones come from `room.seats`). */
+export const localBots = signal<Record<PlayerId, BotLevel>>({});
 
 /** Events of one finished automatic/summary phase (Dinnertime, Payday, Marketing), for result cards. */
 export interface PhaseSummary {
@@ -93,6 +95,16 @@ export const myPlayer = computed(() => (view.value && me.value ? view.value.play
 export const isMyTurn = computed(() => Boolean(me.value && view.value?.awaiting.players.includes(me.value)));
 export const amHost = computed(() => Boolean(room.value && clientId.value && room.value.hostClientId === clientId.value));
 export const mySeat = computed(() => room.value?.seats.find((s) => s.clientId !== null && s.clientId === clientId.value) ?? null);
+/** Bot seats of the game in progress, by player id (online: from the room; hot-seat: local). */
+export const botSeats = computed<Record<PlayerId, BotLevel>>(() => {
+  const r = room.value;
+  if (mode.value !== 'online' || !r || r.status === 'lobby') return localBots.value;
+  const out: Record<PlayerId, BotLevel> = {};
+  for (const s of r.seats) if (s.bot) out[s.playerId] = s.bot;
+  return out;
+});
+/** Bots the engine is waiting on right now: shown as "thinking…". */
+export const botsThinking = computed<PlayerId[]>(() => (view.value?.phase.kind === 'gameOver' ? [] : (view.value?.awaiting.players ?? []).filter((p) => botSeats.value[p])));
 
 // --- Helpers -----------------------------------------------------------------
 let nextLogId = 1;
@@ -184,6 +196,7 @@ export function resetStore(): void {
     handoff.value = null;
     pending.value = {};
     summaries.value = [];
+    localBots.value = {};
   });
   phaseBuf = null;
   boardBridge.setView(null, null, []);

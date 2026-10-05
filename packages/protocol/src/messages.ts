@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import type { Action, GameEvent, GameView, ModuleManifest } from '@fcm/engine';
 import { isActionType } from './actionTypes.js';
-import { RoomCode, RoomConfig, RoomInfo } from './room.js';
+import { BotLevel, RoomCode, RoomConfig, RoomInfo } from './room.js';
 
 export const PROTOCOL_VERSION = 1;
 
@@ -39,6 +39,10 @@ export const ClientMessage = z.discriminatedUnion('t', [
   z.object({ t: z.literal('room.config'), config: RoomConfig }),
   /** Host only: frees a seat so another device can take it over. */
   z.object({ t: z.literal('room.kick'), seat: z.number().int().min(0) }),
+  /** Host only, lobby only: put a bot of `level` on an empty seat (or change a bot seat's level). */
+  z.object({ t: z.literal('room.addBot'), seat: z.number().int().min(0), level: BotLevel }),
+  /** Host only, lobby only: empty a bot seat. */
+  z.object({ t: z.literal('room.removeBot'), seat: z.number().int().min(0) }),
   /** Host only. */
   z.object({ t: z.literal('room.start') }),
   /** `id` is client-generated and idempotent; `expectedSeq` must equal the server's seq. */

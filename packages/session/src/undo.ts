@@ -50,11 +50,15 @@ export class UndoTracker {
     return this.undoableIndex(log, by) >= 0;
   }
 
-  /** Remove `by`'s last undoable action and rebuild the state by replay from the checkpoint. */
-  undo(engine: EngineApi, log: LoggedAction[], by: PlayerId): UndoResult {
+  /**
+   * Remove `by`'s last undoable action and rebuild the state by replay from the checkpoint.
+   * Actions of bot seats (`isBot`) taken after it are dropped too: bots decide again from the
+   * rolled-back state, so a quick bot reply never blocks a human's undo.
+   */
+  undo(engine: EngineApi, log: LoggedAction[], by: PlayerId, isBot: (p: PlayerId) => boolean = () => false): UndoResult {
     const idx = this.undoableIndex(log, by);
     if (idx < 0) return { ok: false, code: 'UNDO_UNAVAILABLE', message: 'Nothing of yours to undo' };
-    const kept = log.slice(this.cp.index).filter((_, i) => i + this.cp.index !== idx);
+    const kept = log.slice(this.cp.index).filter((e, i) => i + this.cp.index !== idx && !(i + this.cp.index > idx && isBot(e.action.playerId)));
     let state = this.cp.state;
     const rebuilt: LoggedAction[] = [];
     for (const e of kept) {

@@ -6,7 +6,7 @@ import { useSignal } from '@preact/signals';
 import type { Action, FoodCounts, FoodId, GameView, LegalAction, PendingChoice, PlayerId, PlayerState, Prompt, ReserveCard, Uid } from '@fcm/engine';
 import { foodName } from '../state/catalog.js';
 import { employeeIdOf, fireable, foodList, phaseLabel, salaryEstimate, standings } from '../state/selectors.js';
-import { catalog, isMyTurn, legal, manifest, me, mode, myPlayer, pending, prompt, room, view } from '../state/store.js';
+import { botSeats, catalog, isMyTurn, legal, manifest, me, mode, myPlayer, pending, prompt, room, view } from '../state/store.js';
 import { actionProblem } from '../state/guidance.js';
 import { act, actChain, undo } from '../net/session.js';
 import { Button, Cash, EmployeeCard, Empty, PlayerBadge, Pill, Stepper } from './common.js';
@@ -15,6 +15,7 @@ import { OrgChartEditor } from './OrgChart.js';
 import { PlacementFlow } from './flows/index.js';
 import { LegalButton, WorkPanel } from './Work.js';
 import { SeatControl } from './PlayerPanels.js';
+import { BotBadge } from './bots.js';
 
 type PlacementLegal = Extract<LegalAction, { kind: 'placement' }>;
 
@@ -106,6 +107,7 @@ function WaitingPanel({ view: v, waitingFor, spectating }: { view: GameView; wai
                 <PlayerBadge view={v} id={id} size={28} ring />
                 <span>
                   <b>{v.players[id]?.name ?? id}</b>
+                  {botSeats.value[id] && <BotBadge level={botSeats.value[id]} thinking />}
                   <span class="muted small"> {offline ? (seat.clientId === null ? '· seat released, waiting for someone to take it' : '· offline, waiting for them to reconnect') : v.submitted[id] ? '· done' : '· thinking…'}</span>
                 </span>
                 {offline && <SeatControl playerId={id} />}

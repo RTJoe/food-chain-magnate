@@ -1,5 +1,5 @@
 {
-  "name": "@fcm/server",
+  "name": "@fcm/ai",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,17 +14,7 @@
     "dist",
     "src"
   ],
-  "scripts": {
-    "start": "node dist/index.js"
-  },
   "dependencies": {
-    "@fcm/ai": "0.1.0",
-    "@fcm/engine": "0.1.0",
-    "@fcm/protocol": "0.1.0",
-    "@fcm/session": "0.1.0",
-    "ws": "^8.22.0"
-  },
-  "devDependencies": {
-    "@types/ws": "^8.18.2"
+    "@fcm/engine": "0.1.0"
   }
 }

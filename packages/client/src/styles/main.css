@@ -597,3 +597,17 @@ body[data-screen='table'] { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Bots (docs/ai.md): robot badge, lobby "Add bot" menu, thinking pulse. */
+.bot-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px 1px 5px; border-radius: 999px; background: var(--c-line); color: var(--c-ink); font-size: 0.72rem; font-weight: 700; vertical-align: middle; white-space: nowrap; }
+.bot-badge.is-thinking { background: var(--c-accent); color: var(--c-accent-ink); animation: bot-pulse 1.1s ease-in-out infinite; }
+@keyframes bot-pulse { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .bot-badge.is-thinking { animation: none; } }
+.ppanel-thinking { font-style: italic; }
+.seat.is-bot { background: #fff; }
+.bot-menu { position: relative; }
+.bot-menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: grid; gap: 2px; padding: 6px; min-width: 190px; border-radius: var(--radius-sm); background: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); }
+.bot-menu-item { display: grid; text-align: left; gap: 1px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; min-height: var(--touch); }
+.bot-menu-item:hover, .bot-menu-item:focus-visible { background: var(--c-line); outline: none; }
+.input-sm { min-height: 36px; padding: 4px 8px; width: auto; }
+.bot-level { flex: 0 0 auto; }

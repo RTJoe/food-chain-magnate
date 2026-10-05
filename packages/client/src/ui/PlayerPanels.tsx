@@ -2,12 +2,13 @@ import { useSignal } from '@preact/signals';
 import type { GameView, MilestoneId, PlayerId, ReserveCard } from '@fcm/engine';
 import { milestoneName } from '../state/catalog.js';
 import { busyUids, cardsAtWork, standings } from '../state/selectors.js';
-import { amHost, catalog, clientId, me, mode, mySeat, room, view } from '../state/store.js';
+import { amHost, botSeats, botsThinking, catalog, clientId, me, mode, mySeat, room, view } from '../state/store.js';
 import { cameraCommand, inspectIds } from '../state/interaction.js';
 import { kick, sit } from '../net/session.js';
 import { companyPlayer, dockTab } from './uiState.js';
 import { Button, Cash, FoodChips, PlayerBadge } from './common.js';
 import { Icon } from './icons.js';
+import { BotBadge } from './bots.js';
 
 export function PlayerPanels() {
   const v = view.value;
@@ -40,7 +41,7 @@ export function SeatControl({ playerId }: { playerId: PlayerId }) {
   if (mode.value !== 'online') return null;
   const r = room.value;
   const seat = r?.seats.find((s) => s.playerId === playerId);
-  if (!r || !seat || r.status !== 'playing') return null;
+  if (!r || !seat || r.status !== 'playing' || seat.bot) return null;
   if (seat.clientId === null) {
     if (mySeat.value) return <span class="muted small">Seat open: anyone in the room can take it over.</span>;
     return (
@@ -78,6 +79,8 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
   const active = v.awaiting.players.includes(id);
   const seat = room.value?.seats.find((s) => s.playerId === id);
   const connected = mode.value === 'online' ? (seat?.connected ?? false) : null;
+  const bot = botSeats.value[id] ?? null;
+  const thinking = Boolean(bot) && botsThinking.value.includes(id);
   const rank = standings(v).indexOf(id) + 1;
   const atWork = cardsAtWork(p).length;
   const total = Object.keys(p.employees).length;
@@ -89,7 +92,7 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
 
   return (
     <article
-      class={`ppanel glass ${active ? 'is-active' : ''} ${isMe ? 'is-me' : ''} ${p.bankrupt ? 'is-bankrupt' : ''}`}
+      class={`ppanel glass ${active ? 'is-active' : ''} ${isMe ? 'is-me' : ''} ${p.bankrupt ? 'is-bankrupt' : ''} ${bot ? 'is-bot' : ''}`}
       style={{ '--pc': p.color }}
       onMouseEnter={() => (inspectIds.value = playerPieceIds(v, id))}
       onMouseLeave={() => (inspectIds.value = [])}
@@ -98,10 +101,11 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
         <PlayerBadge view={v} id={id} size={34} ring={active} />
         <span class="ppanel-name">
           <b>{p.name}</b>
+          {bot && <BotBadge level={bot} thinking={thinking} />}
           <span class="ppanel-sub">
             {connected !== null && <span class={`dot ${connected ? 'is-on' : 'is-off'}`} aria-label={connected ? 'Online' : 'Offline'} />}
             {isMe ? 'You' : `#${rank} in cash`}
-            {active && <span class="ppanel-turn"> · {simultaneous ? 'deciding' : 'playing'}</span>}
+            {thinking ? <span class="ppanel-turn ppanel-thinking"> · thinking…</span> : active && <span class="ppanel-turn"> · {simultaneous ? 'deciding' : 'playing'}</span>}
             {simultaneous && submitted && <span class="ppanel-ok"> · {Icon.check({ size: 12 })} done</span>}
           </span>
         </span>

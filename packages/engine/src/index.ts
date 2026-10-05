@@ -30,6 +30,18 @@ export { registerModule } from './modules/registry.js';
 export { createGame, validateAction, applyAction, legalActions, legalPlacements, redactFor, redactEvents, derivePrompt, replay };
 export { campaignReach, houseCellsReach, houseOutlook, placementProblem, rangeOverlay };
 
+/**
+ * Read-only rules helpers for AI players (@fcm/ai) and tools. Pure functions over a state; they
+ * add no rules of their own. Bots call them on a state rebuilt from their redacted view.
+ */
+export { contentFor } from './modules/registry.js';
+export { cardsAtWork, cardsInHand, cardPlace, ceoSlotsFor, defOf, isManager, managerSlots, ownsUnique } from './core/cards.js';
+export { SALARY, salaryBreakdown, salariedCards, voluntarilyFireable } from './rules/payday.js';
+export { submissionProblem, isOverfilled } from './rules/restructuring.js';
+export { freezerCapacity, stockOf } from './rules/cleanup.js';
+export { reserveOptions } from './rules/setup.js';
+export { abilityStage, stageIndex, stagesFor } from './rules/working/stages.js';
+
 export const ENGINE_VERSION = '0.2.0';
 
 /** The whole engine surface as one object, so alternative engines (toy, real) are swappable. */

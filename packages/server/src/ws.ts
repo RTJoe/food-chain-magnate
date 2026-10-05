@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto';
 import type { RawData, WebSocket } from 'ws';
 import type { EngineApi } from '@fcm/engine';
 import { PROTOCOL_VERSION, parseClientMessage, type ClientMessage, type ClientMessageOf, type ErrorCode, type RoomStatus, type ServerMessage } from '@fcm/protocol';
-import { GameSession, Room, type Outbound } from '@fcm/session';
+import { BotDriver, GameSession, inlineBotRunner, isOccupied, Room, type BotDelay, type BotRunner, type Outbound } from '@fcm/session';
 import { LOBBY_RETENTION_MS, ROOM_RETENTION_MS, type Persistence, type PersistedRoom } from './persistence.js';
 import { ROOM_IDLE_TTL_MS, type RoomEntry, type RoomStore } from './roomStore.js';
 import type { ClientSession, SessionRegistry } from './sessions.js';
@@ -49,6 +49,10 @@ export interface HubOptions {
   retentionMs?: number;
   /** Same, for lobbies whose game never started (default 2 days). */
   lobbyRetentionMs?: number;
+  /** Where bot moves are computed (server: a worker-thread pool; default: inline). */
+  botRunner?: BotRunner;
+  /** Delay before a bot moves (default 400–900 ms; 0 in tests). */
+  botDelay?: BotDelay;
 }
 
 export class Hub {
@@ -62,6 +66,8 @@ export class Hub {
   private readonly idleTtlMs: number;
   private readonly retentionMs: number;
   private readonly lobbyRetentionMs: number;
+  private readonly botRunner: BotRunner;
+  private readonly botDelay: BotDelay | undefined;
   private readonly conns = new Set<Conn>();
   private readonly byClient = new Map<string, Conn>();
   /** Every persisted room (in memory or only on disk), by id. */
@@ -79,6 +85,8 @@ export class Hub {
     this.idleTtlMs = opts.idleTtlMs ?? ROOM_IDLE_TTL_MS;
     this.retentionMs = opts.retentionMs ?? ROOM_RETENTION_MS;
     this.lobbyRetentionMs = opts.lobbyRetentionMs ?? LOBBY_RETENTION_MS;
+    this.botRunner = opts.botRunner ?? inlineBotRunner;
+    this.botDelay = opts.botDelay;
     this.lastSweep = this.now();
   }
 
@@ -168,7 +176,26 @@ export class Hub {
   }
 
   closeAll(code = 1001, reason = 'server shutting down'): void {
+    for (const e of this.store.all()) e.bots?.dispose();
     for (const c of this.conns) c.ws.close(code, reason);
+  }
+
+  /** Start playing the game's bot seats (after start or restore). */
+  private attachBots(entry: RoomEntry): void {
+    entry.bots?.dispose();
+    entry.bots = null;
+    const game = entry.game;
+    if (!game || !Object.keys(game.bots).length) return;
+    entry.bots = new BotDriver(game, {
+      runner: this.botRunner,
+      ...(this.botDelay !== undefined ? { delay: this.botDelay } : {}),
+      audience: () => entry.room.audience(),
+      deliver: (out) => this.afterGame(entry, out, true),
+      // Bots wait while nobody is connected (a reconnecting hello pokes them again).
+      active: () => entry.room.connectedCount() > 0,
+      log: this.log,
+    });
+    entry.bots.poke();
   }
 
   get connectionCount(): number {
@@ -235,11 +262,13 @@ export class Hub {
   private load(rec: PersistedRoom): RoomEntry | undefined {
     try {
       const room = Room.restore({ id: rec.id, createdAt: rec.createdAt, status: rec.status, hostClientId: rec.hostClientId, config: rec.config, seats: rec.seats.map(({ tokenHash: _t, ...s }) => s) }, this.now);
-      const game = rec.gameConfig && rec.seed !== null ? new GameSession({ engine: this.engine, config: rec.gameConfig, seed: rec.seed, actions: rec.actions }) : null;
+      const game = rec.gameConfig && rec.seed !== null ? new GameSession({ engine: this.engine, config: rec.gameConfig, seed: rec.seed, actions: rec.actions, bots: room.bots() }) : null;
       if (room.status === 'playing' && !game) throw new Error('playing room without a game');
       this.indexRecord(rec);
       this.adoptSeats(rec);
-      return this.store.add(room, game, rec.updatedAt);
+      const entry = this.store.add(room, game, rec.updatedAt);
+      this.attachBots(entry);
+      return entry;
     } catch (e) {
       this.log(`hub: could not restore room ${rec.id}: ${(e as Error).message}`);
       return undefined;
@@ -308,12 +337,19 @@ export class Hub {
         if (r.ok && kicked && entry.game && room.members.get(kicked)?.connected) this.send(kicked, entry.game.snapshot('spectator'));
         return;
       }
+      case 'room.addBot':
+        return apply(room.addBot(id, msg.seat, msg.level));
+      case 'room.removeBot':
+        return apply(room.removeBot(id, msg.seat));
       case 'room.start': {
-        const r = room.start(id, (config) => new GameSession({ engine: this.engine, config, seed: this.seed() }));
+        // start() compacts the occupied seats to p1..pN in order; bot levels follow their seats.
+        const bots = Object.fromEntries(room.seats.filter(isOccupied).flatMap((x, i) => (x.bot ? [[`p${i + 1}`, x.bot]] : [])));
+        const r = room.start(id, (config) => new GameSession({ engine: this.engine, config, seed: this.seed(), bots }));
         if (!r.ok) return err(r.code, r.message);
         entry.game = r.value;
         this.roomChanged(entry);
         for (const a of room.audience()) this.send(a.clientId, r.value.snapshot(a.viewer));
+        this.attachBots(entry);
         return;
       }
       case 'game.action': {
@@ -366,6 +402,7 @@ export class Hub {
     if (entry) {
       this.roomChanged(entry, false);
       if (entry.game) this.send(session.clientId, entry.game.snapshot(entry.room.viewerOf(session.clientId)));
+      entry.bots?.poke();
     }
   }
 
@@ -388,6 +425,7 @@ export class Hub {
     if (!msg.spectate) this.reclaimOrphanSeat(entry, session);
     this.roomChanged(entry);
     if (entry.game) this.send(session.clientId, entry.game.snapshot(entry.room.viewerOf(session.clientId)));
+    entry.bots?.poke();
   }
 
   /**
@@ -421,9 +459,10 @@ export class Hub {
     for (const m of entry.room.members.values()) if (m.connected) this.send(m.clientId, msg);
   }
 
-  private afterGame(entry: RoomEntry, out: Outbound[]): void {
+  /** Send a game pipeline's messages; persist and wake the bots if the game changed (`applied`: it did). */
+  private afterGame(entry: RoomEntry, out: Outbound[], applied = false): void {
     for (const o of out) this.send(o.to, o.msg);
-    const changed = out.some((o) => o.msg.t === 'game.applied' || o.msg.t === 'game.undone');
+    const changed = applied || out.some((o) => o.msg.t === 'game.applied' || o.msg.t === 'game.undone');
     if (!changed) return;
     if (entry.game?.isOver && entry.room.status === 'playing') {
       entry.room.finish();
@@ -431,6 +470,7 @@ export class Hub {
     }
     this.store.touch(entry);
     this.persist(entry);
+    entry.bots?.poke();
   }
 
   // --- fan-out & persistence ----------------------------------------------------

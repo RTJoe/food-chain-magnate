@@ -3,12 +3,13 @@
  * commands. UI components call these functions and never touch a transport directly.
  */
 import { ENGINE_VERSION, type Action, type EngineApi, type GameConfig, type GameState, type PlayerId, type Viewer } from '@fcm/engine';
-import { PROTOCOL_VERSION, type ClientMessage, type RoomConfig, type ServerMessage } from '@fcm/protocol';
+import { PROTOCOL_VERSION, type BotLevel, type ClientMessage, type RoomConfig, type ServerMessage } from '@fcm/protocol';
 import {
   clientId,
   connection,
   handleServerMessage,
   handoff,
+  localBots,
   me,
   mode,
   pending,
@@ -22,6 +23,7 @@ import {
 } from '../state/store.js';
 import { forgetRoom, rememberRoom } from '../state/recentGames.js';
 import { LocalTransport } from './localTransport.js';
+import { workerBotRunner } from './botRunner.js';
 import { SocketTransport } from './socketTransport.js';
 import type { Transport } from './transport.js';
 
@@ -157,6 +159,8 @@ export const stand = () => send({ t: 'room.stand' });
 export const setReady = (ready: boolean) => send({ t: 'room.ready', ready });
 export const setRoomConfig = (config: RoomConfig) => send({ t: 'room.config', config });
 export const kick = (seat: number) => send({ t: 'room.kick', seat });
+export const addBot = (seat: number, level: BotLevel) => send({ t: 'room.addBot', seat, level });
+export const removeBot = (seat: number) => send({ t: 'room.removeBot', seat });
 export const startGame = () => send({ t: 'room.start' });
 export const sendChat = (text: string) => {
   const trimmed = text.trim();
@@ -207,9 +211,12 @@ export const resync = () => send({ t: 'game.resync' });
 
 // --- Hot-seat and dev -------------------------------------------------------------
 
-export function startHotseat(engine: EngineApi, config: GameConfig, seed?: number): void {
-  const t = new LocalTransport({ engine, config, ...(seed !== undefined ? { seed } : {}), handoff: true });
+/** Hot-seat game; `bots` marks seats played by bots (computed in a Web Worker). */
+export function startHotseat(engine: EngineApi, config: GameConfig, seed?: number, bots: Record<PlayerId, BotLevel> = {}): void {
+  const withBots = Object.keys(bots).length > 0;
+  const t = new LocalTransport({ engine, config, ...(seed !== undefined ? { seed } : {}), handoff: true, ...(withBots ? { bots, botRunner: workerBotRunner() } : {}) });
   attach(t, 'hotseat');
+  localBots.value = { ...bots };
   t.connect();
 }
 

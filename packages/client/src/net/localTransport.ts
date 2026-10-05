@@ -7,8 +7,14 @@
  * engine starts waiting on someone else, the transport switches to a spectator view and fires the
  * `handoff` pseudo-event; the UI shows a pass-the-device screen and calls `acceptHandoff()` once the
  * next player has the device, which sends that player's snapshot.
+ *
+ * Bot seats (docs/ai.md): when the engine awaits a bot, the transport waits a short delay, asks the
+ * bot runner (a Web Worker in the browser) for a move on the bot's redacted view and applies it.
+ * Bots never get the device: handoffs only go to human seats, and while bots think the current
+ * human keeps their view. Undo rewinds past bot moves made after the human's own move.
  */
 import type { Action, EngineApi, GameConfig, GameEvent, GameState, ModuleManifest, PlayerId, Viewer } from '@fcm/engine';
+import { decisionSeed, fallbackAction, type BotLevel, type BotRequest } from '@fcm/ai';
 import type { ClientMessage, ServerMessage } from '@fcm/protocol';
 import { PROTOCOL_VERSION } from '@fcm/protocol';
 import type { ConnectionStatus, Transport, Unsubscribe } from './transport.js';
@@ -24,7 +30,20 @@ export interface LocalTransportOptions {
   viewer?: Viewer;
   /** Pass-the-device screens between players (hot-seat). */
   handoff?: boolean;
+  /** Seats played by bots (hot-seat). */
+  bots?: Record<PlayerId, BotLevel>;
+  /** Where bot moves are computed (default: a Web Worker; see botRunner.ts). Required when `bots` is set. */
+  botRunner?: LocalBotRunner;
+  /** Delay before a bot moves, ms (default 400–900). */
+  botDelay?: number | { min: number; max: number };
 }
+
+export interface LocalBotRunner {
+  run(req: BotRequest): Promise<Action>;
+  dispose?(): void;
+}
+
+export const BOT_BUDGET_MS = 2_000;
 
 interface UndoEntry {
   state: GameState;
@@ -46,8 +65,21 @@ export class LocalTransport implements Transport {
   private handoffListeners = new Set<(to: PlayerId) => void>();
   private outbox: ServerMessage[] = [];
   private flushing = false;
+  /** Bot seat deciding now, and a generation counter that invalidates stale bot answers. */
+  private botThinking: PlayerId | null = null;
+  private botGen = 0;
+  private botTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly opts: LocalTransportOptions) {}
+
+  private isBot(p: PlayerId): boolean {
+    return Boolean(this.opts.bots?.[p]);
+  }
+
+  /** The bot seat deciding right now (null when none). */
+  get thinking(): PlayerId | null {
+    return this.botThinking;
+  }
 
   connect(): void {
     if (this.status === 'open') return;
@@ -63,9 +95,15 @@ export class LocalTransport implements Transport {
       this.viewer = this.opts.viewer;
       this.snapshot();
     } else this.followAwaiting(true);
+    this.scheduleBots();
   }
 
   close(): void {
+    this.botGen++;
+    if (this.botTimer) clearTimeout(this.botTimer);
+    this.botTimer = null;
+    this.botThinking = null;
+    this.opts.botRunner?.dispose?.();
     this.setStatus('closed');
     this.msgListeners.clear();
     this.statusListeners.clear();
@@ -136,6 +174,10 @@ export class LocalTransport implements Transport {
     }
     // Hot-seat: the device holder acts for the current viewer (like the server's seat overwrite).
     const playerId = this.viewer === 'spectator' ? action.playerId : this.viewer;
+    if (this.isBot(playerId)) {
+      this.emit({ t: 'game.rejected', id, code: 'NOT_SEATED', message: 'A bot plays this seat' });
+      return;
+    }
     const a = { ...action, playerId } as Action;
     let result;
     try {
@@ -150,13 +192,91 @@ export class LocalTransport implements Transport {
       this.emit({ t: 'game.rejected', id, code: result.code, message: result.message });
       return;
     }
-    if (result.undoable) this.undo.push({ state: s, by: playerId, seq: this.seq });
+    this.commit(s, a, result, id);
+  }
+
+  private commit(prev: GameState, a: Action, result: { state: GameState; events: GameEvent[]; undoable: boolean }, id: string | null): void {
+    if (result.undoable) this.undo.push({ state: prev, by: a.playerId, seq: this.seq });
     else this.undo = [];
     this.state = result.state;
     // Events are redacted for spectators: in hot-seat several people read the same log.
     const events = this.redactEvents(result.events, this.opts.handoff ? 'spectator' : this.viewer);
     this.emit({ t: 'game.applied', seq: this.seq, actionId: id, action: a, events, view: this.opts.engine.redactFor(this.state, this.viewer) });
     if (!this.opts.viewer) this.followAwaiting(false);
+    this.scheduleBots();
+  }
+
+  // --- bots -------------------------------------------------------------------
+
+  private botDelayMs(): number {
+    const d = this.opts.botDelay ?? { min: 400, max: 900 };
+    return typeof d === 'number' ? Math.max(0, d) : Math.round(d.min + Math.random() * Math.max(0, d.max - d.min));
+  }
+
+  /** Start a bot move if the engine awaits a bot seat and none is thinking. */
+  private scheduleBots(): void {
+    const s = this.state;
+    const runner = this.opts.botRunner;
+    if (!s || !runner || this.botThinking || this.status === 'closed' || s.phase.kind === 'gameOver') return;
+    const player = s.awaiting.players.find((p) => this.isBot(p));
+    if (!player) return;
+    const gen = ++this.botGen;
+    const seq = this.seq;
+    this.botThinking = player;
+    const go = () => {
+      this.botTimer = null;
+      if (gen !== this.botGen || !this.state) return;
+      const req: BotRequest = {
+        level: this.opts.bots?.[player] ?? 'easy',
+        view: this.opts.engine.redactFor(this.state, player),
+        playerId: player,
+        seed: decisionSeed(this.state.seed, seq, player),
+        budgetMs: BOT_BUDGET_MS,
+      };
+      let pending: Promise<Action>;
+      try {
+        pending = runner.run(req);
+      } catch (e) {
+        pending = Promise.reject(e);
+      }
+      pending.then(
+        (a) => this.botMove(gen, seq, player, a),
+        () => this.botMove(gen, seq, player, null),
+      );
+    };
+    const delay = this.botDelayMs();
+    if (delay > 0) this.botTimer = setTimeout(go, delay);
+    else go();
+  }
+
+  private botMove(gen: number, seq: number, player: PlayerId, action: Action | null): void {
+    if (gen !== this.botGen) return; // cancelled (undo, close)
+    this.botThinking = null;
+    const s = this.state;
+    if (!s) return;
+    if (seq !== this.seq || !s.awaiting.players.includes(player)) return this.scheduleBots();
+    const apply = (a: Action) => {
+      try {
+        return this.opts.engine.applyAction(s, { ...a, playerId: player } as Action);
+      } catch {
+        return null;
+      }
+    };
+    let a = action ? ({ ...action, playerId: player } as Action) : null;
+    let r = a ? apply(a) : null;
+    if (!r || !r.ok) {
+      try {
+        a = fallbackAction(s, player, this.opts.engine);
+        r = apply(a);
+      } catch {
+        r = null;
+      }
+    }
+    if (!a || !r || !r.ok) {
+      this.emit({ t: 'error', code: 'INTERNAL', message: `Bot ${player} could not move` });
+      return;
+    }
+    this.commit(s, a, r, null);
   }
 
   private redactEvents(events: GameEvent[], viewer: Viewer): GameEvent[] {
@@ -168,30 +288,43 @@ export class LocalTransport implements Transport {
   }
 
   private undoLast(expectedSeq: number): void {
-    const top = this.undo[this.undo.length - 1];
+    // Bot moves made after the viewer's last move are rewound with it; the bots decide again.
+    let i = this.undo.length - 1;
+    while (i >= 0 && this.isBot((this.undo[i] as UndoEntry).by) && (this.undo[i] as UndoEntry).by !== this.viewer) i--;
+    const top = this.undo[i];
     if (!top || expectedSeq !== this.seq || (this.viewer !== 'spectator' && top.by !== this.viewer)) {
       this.emit({ t: 'error', code: 'BAD_MESSAGE', message: 'Nothing to undo' });
       return;
     }
-    this.undo.pop();
+    this.undo = this.undo.slice(0, i);
     this.state = top.state;
+    this.botGen++;
+    if (this.botTimer) clearTimeout(this.botTimer);
+    this.botTimer = null;
+    this.botThinking = null;
     this.emit({ t: 'game.undone', seq: this.seq, view: this.opts.engine.redactFor(this.state, this.viewer), by: top.by });
+    if (!this.opts.viewer) this.followAwaiting(false);
+    this.scheduleBots();
   }
 
-  /** Hot-seat: keep the viewer while they are still awaited; otherwise hand off to the next awaited player. */
+  /**
+   * Hot-seat: keep the viewer while they are still awaited; otherwise hand off to the next awaited
+   * human. While only bots are awaited the current human keeps their view.
+   */
   private followAwaiting(initial: boolean): void {
     const s = this.state;
     if (!s) return;
-    const awaited = s.awaiting.players;
+    const awaited = s.awaiting.players.filter((p) => !this.isBot(p));
     if (this.viewer !== 'spectator' && awaited.includes(this.viewer) && !initial) return;
     const next = awaited[0];
     if (!next || s.phase.kind === 'gameOver') {
       if (initial) {
-        this.viewer = s.turnOrder[0] ?? 'spectator';
+        this.viewer = s.turnOrder.find((p) => !this.isBot(p)) ?? 'spectator';
         this.snapshot();
       }
       return;
     }
+    if (next === this.viewer) return;
     if (!this.opts.handoff) {
       this.viewer = next;
       this.snapshot();

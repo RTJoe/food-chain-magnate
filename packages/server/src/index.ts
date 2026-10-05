@@ -2,13 +2,15 @@
  * @fcm/server CLI entry: serves packages/client/dist over HTTP and accepts WebSocket upgrades on
  * /ws (architecture §4). Env: PORT (3000), HOST (0.0.0.0), FCM_DATA_DIR (./data),
  * FCM_PERSIST=0, FCM_ROOM_RETENTION_DAYS (30), FCM_LOBBY_RETENTION_DAYS (2), FCM_CLIENT_DIST, FCM_ENGINE=real|toy (default: real, falling back to the toy
- * engine while the real one is not implemented).
+ * engine while the real one is not implemented), FCM_BOT_DELAY_MS ("400-900" or a single number),
+ * FCM_BOT_WORKERS (bot worker threads; default half the cores, 1–4).
  */
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { engine as realEngine, NotImplementedError, type EngineApi } from '@fcm/engine';
 import { joinUrls } from './lanAddress.js';
 import { persistenceFromEnv, retentionFromEnv } from './persistence.js';
+import { botDelayFromEnv } from './botRunner.js';
 import { installShutdown, startServer } from './server.js';
 import { SERVER_VERSION } from './ws.js';
 
@@ -42,6 +44,9 @@ async function main(): Promise<void> {
     persistence: persistenceFromEnv(),
     retentionMs: retention.roomMs,
     lobbyRetentionMs: retention.lobbyMs,
+    botRunner: 'worker',
+    ...(Number(process.env.FCM_BOT_WORKERS) > 0 ? { botWorkers: Number(process.env.FCM_BOT_WORKERS) } : {}),
+    ...botDelayFromEnv(),
   });
   console.log(`Food Chain Magnate server ${SERVER_VERSION} listening on ${host}:${server.port}`);
   for (const line of joinUrls(server.port, host)) console.log(line);

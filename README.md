@@ -42,12 +42,16 @@ Server settings (environment variables):
 | `FCM_PERSIST` | on | `0` disables saving; rooms then live only in memory |
 | `FCM_ROOM_RETENTION_DAYS` | 30 | Delete a room's file after this many days without activity |
 | `FCM_LOBBY_RETENTION_DAYS` | 2 | Same, for lobbies whose game never started |
+| `FCM_BOT_DELAY_MS` | `400-900` | How long a bot waits before moving (a range or one number) |
+| `FCM_BOT_WORKERS` | half the cores (1–4) | Worker threads that compute bot moves |
 
 Rooms are saved as `{config, seed, actions}` and replayed when the server restarts, so games survive a restart.
 
 ### Hot-seat (one device)
 
-Start the app (`npm start`, or `npm run dev` below), choose **Hot-seat** on the home screen, pick the player count and modules, and start. The app shows a "pass the device" screen between players so private choices (reserve card, structure) stay hidden. Hot-seat games run entirely in the browser; the server only serves the files.
+Start the app (`npm start`, or `npm run dev` below), choose **Hot-seat** on the home screen, pick the player count and modules, and start. The app shows a "pass the device" screen between players so private choices (reserve card, structure) stay hidden. Hot-seat games run entirely in the browser; the server only serves the files. Any seat can be a bot (Easy, Medium or Hard); bots think in a Web Worker and never get the device.
+
+In an online lobby the host can put a bot on an empty seat (**Add bot ▾**). Bot seats are always ready, keep playing after a restart, and show a robot badge and "thinking…" while they decide.
 
 ### Development
 
@@ -105,6 +109,7 @@ TypeScript monorepo (npm workspaces):
 | Package | Role |
 | --- | --- |
 | `packages/engine` | The rules: a pure, deterministic reducer with seeded randomness, per-player redaction and a module system (base game + 17 Ketchup modules). No dependencies. |
+| `packages/ai` | AI opponents (Easy now; Medium/Hard fall back to Easy). Pure TS on the engine; see `docs/ai.md`. |
 | `packages/protocol` | WebSocket message types and zod schemas. |
 | `packages/session` | Rooms, seats, undo and per-viewer fan-out, independent of the transport. |
 | `packages/server` | Node HTTP + WebSocket server, static files, persistence. |
@@ -114,6 +119,7 @@ Design and rules documents:
 
 - `docs/architecture.md`: structure, engine API, protocol, client layers.
 - `docs/protocol.md`: every wire message.
+- `docs/ai.md`: AI opponents: the bot interface, where bots run, and how to add Medium/Hard.
 - `docs/rules/`: the rules specs the engine follows (base game, employees, milestones, map, Ketchup).
 - `docs/visual-style.md`: palette and 3D style guide.
 

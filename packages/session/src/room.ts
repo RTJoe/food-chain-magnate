@@ -3,7 +3,7 @@
  * Transport-agnostic: the server maps sockets to `clientId`s and calls these methods.
  */
 import { clone, type ChainId, type GameConfig, type PlayerId, type PlayerSeatConfig } from '@fcm/engine';
-import { RoomConfig, type ErrorCode, type RoomInfo, type RoomStatus, type Seat } from '@fcm/protocol';
+import { RoomConfig, type BotLevel, type ErrorCode, type RoomInfo, type RoomStatus, type Seat } from '@fcm/protocol';
 
 export type Result = { ok: true } | Failure;
 export type ValueResult<T> = { ok: true; value: T } | Failure;
@@ -64,9 +64,16 @@ export interface RoomSnapshot {
 
 const playerIdFor = (index: number): PlayerId => `p${index + 1}`;
 
+/** Names for bot seats (the first one not already used in the room). */
+export const BOT_NAMES = ['Robo Ada', 'Robo Alan', 'Robo Grace', 'Robo Kit', 'Robo Max', 'Robo Zoe'] as const;
+export const BOT_LEVEL_LABEL: Record<BotLevel, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+
 function makeSeat(index: number): Seat {
-  return { index, playerId: playerIdFor(index), clientId: null, name: null, color: SEAT_COLORS[index] ?? '#888888', ready: false, connected: false };
+  return { index, playerId: playerIdFor(index), clientId: null, name: null, color: SEAT_COLORS[index] ?? '#888888', ready: false, connected: false, bot: null };
 }
+
+/** A seat that takes part in the game: a member or a bot. */
+export const isOccupied = (s: Seat): boolean => s.clientId !== null || s.bot !== null;
 
 export class Room {
   readonly id: string;
@@ -92,7 +99,7 @@ export class Room {
   static restore(snap: RoomSnapshot, now: () => number = Date.now): Room {
     const room = new Room({ id: snap.id, hostClientId: snap.hostClientId, config: snap.config, createdAt: snap.createdAt, now });
     room.status = snap.status;
-    room.seats = snap.seats.map((s) => ({ ...s, connected: false }));
+    room.seats = snap.seats.map((s) => ({ ...s, bot: s.bot ?? null, connected: Boolean(s.bot) }));
     const t = now();
     for (const s of room.seats) {
       if (s.clientId) room.members.set(s.clientId, { clientId: s.clientId, name: s.name ?? 'Player', connected: false, disconnectedAt: t, spectate: false });
@@ -115,7 +122,7 @@ export class Room {
       status: this.status,
       hostClientId: this.hostClientId,
       config: clone(this.config),
-      seats: this.seats.map((s) => ({ ...s, connected: s.clientId ? (this.members.get(s.clientId)?.connected ?? false) : false })),
+      seats: this.seats.map((s) => ({ ...s, connected: s.bot ? true : s.clientId ? (this.members.get(s.clientId)?.connected ?? false) : false })),
       spectators: [...this.members.values()]
         .filter((m) => !seatedIds.has(m.clientId))
         .map((m) => ({ clientId: m.clientId, name: m.name, connected: m.connected })),
@@ -208,7 +215,7 @@ export class Room {
     const seat = this.seats[index];
     if (!seat) return fail('BAD_MESSAGE', `No seat ${index}`);
     if (seat.clientId === clientId) return OK;
-    if (seat.clientId !== null) return fail('SEAT_TAKEN', 'Seat is taken');
+    if (seat.clientId !== null || seat.bot) return fail('SEAT_TAKEN', seat.bot ? 'A bot plays this seat' : 'Seat is taken');
     if (this.status === 'playing') {
       // Takeover of a vacated (kicked) seat. The seat keeps its in-game name.
       if (this.seatOf(clientId)) return fail('SEAT_TAKEN', 'Already seated');
@@ -267,6 +274,7 @@ export class Room {
     if (this.status !== 'playing') return fail('CANNOT_START', 'Only seats of a game in progress can be reassigned');
     const seat = this.seats[index];
     if (!seat) return fail('BAD_MESSAGE', `No seat ${index}`);
+    if (seat.bot) return fail('SEAT_TAKEN', 'A bot plays this seat');
     const m = this.members.get(clientId);
     if (!m) return fail('NOT_IN_ROOM', 'Not in this room');
     if (seat.clientId === clientId) return OK;
@@ -284,6 +292,7 @@ export class Room {
     if (!this.isHost(clientId)) return fail('NOT_HOST', 'Only the host can kick');
     const seat = this.seats[index];
     if (!seat) return fail('BAD_MESSAGE', `No seat ${index}`);
+    if (seat.bot) return this.status === 'lobby' ? this.removeBot(clientId, index) : fail('CANNOT_START', 'Bots keep their seat during a game');
     if (seat.clientId === null) return OK;
     if (this.status === 'lobby') this.clearSeat(seat);
     else {
@@ -297,7 +306,7 @@ export class Room {
   startProblem(clientId: string): Failure | null {
     if (!this.isHost(clientId)) return fail('NOT_HOST', 'Only the host can start');
     if (this.status !== 'lobby') return fail('CANNOT_START', 'Already started');
-    const seated = this.seats.filter((s) => s.clientId);
+    const seated = this.seats.filter(isOccupied);
     if (seated.length < MIN_PLAYERS || seated.length > MAX_PLAYERS) return fail('CANNOT_START', `Need ${MIN_PLAYERS}–${MAX_PLAYERS} seated players`);
     if (seated.some((s) => !s.ready)) return fail('CANNOT_START', 'Not everyone is ready');
     return null;
@@ -311,7 +320,7 @@ export class Room {
     const problem = this.startProblem(clientId);
     if (problem) return problem;
     const seats = this.seats
-      .filter((s) => s.clientId)
+      .filter(isOccupied)
       .map((s, i) => ({ ...s, index: i, playerId: playerIdFor(i), color: SEAT_COLORS[i] ?? s.color, ready: true }));
     const players: PlayerSeatConfig[] = seats.map((s, i) => ({ id: s.playerId, name: s.name ?? `Player ${i + 1}`, chain: SEAT_CHAINS[i] as ChainId, color: s.color }));
     const config: GameConfig = {
@@ -338,9 +347,46 @@ export class Room {
     this.status = 'finished';
   }
 
+  // --- bots -------------------------------------------------------------------
+
+  /** Host only, lobby only: a bot of `level` takes an empty seat (or a bot seat changes level). */
+  addBot(clientId: string, index: number, level: BotLevel): Result {
+    if (!this.isHost(clientId)) return fail('NOT_HOST', 'Only the host can add bots');
+    if (this.status !== 'lobby') return fail('CANNOT_START', 'Bots can only be added in the lobby');
+    const seat = this.seats[index];
+    if (!seat) return fail('BAD_MESSAGE', `No seat ${index}`);
+    if (seat.clientId !== null) return fail('SEAT_TAKEN', 'Seat is taken');
+    if (!seat.bot) {
+      const used = new Set(this.seats.map((s) => s.name));
+      seat.name = BOT_NAMES.find((n) => !used.has(n)) ?? `Robo ${index + 1}`;
+    }
+    seat.bot = level;
+    seat.ready = true;
+    return OK;
+  }
+
+  /** Host only, lobby only: empty a bot seat. */
+  removeBot(clientId: string, index: number): Result {
+    if (!this.isHost(clientId)) return fail('NOT_HOST', 'Only the host can remove bots');
+    if (this.status !== 'lobby') return fail('CANNOT_START', 'Bots keep their seat during a game');
+    const seat = this.seats[index];
+    if (!seat) return fail('BAD_MESSAGE', `No seat ${index}`);
+    if (!seat.bot) return fail('BAD_MESSAGE', 'No bot on that seat');
+    this.clearSeat(seat);
+    return OK;
+  }
+
+  /** Bot seats by engine player id (meaningful once the game has started). */
+  bots(): Record<PlayerId, BotLevel> {
+    const out: Record<PlayerId, BotLevel> = {};
+    for (const s of this.seats) if (s.bot) out[s.playerId] = s.bot;
+    return out;
+  }
+
   private clearSeat(seat: Seat): void {
     seat.clientId = null;
     seat.name = null;
     seat.ready = false;
+    seat.bot = null;
   }
 }

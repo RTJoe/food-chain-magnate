@@ -19,6 +19,10 @@ export const RoomConfig = z.object({
 });
 export type RoomConfig = z.infer<typeof RoomConfig>;
 
+/** AI opponent strength (packages/ai `BotLevel`). */
+export const BotLevel = z.enum(['easy', 'medium', 'hard']);
+export type BotLevel = z.infer<typeof BotLevel>;
+
 export const Seat = z.object({
   index: z.number().int().min(0),
   /** Engine player id once the game starts (`p1`...). */
@@ -28,6 +32,8 @@ export const Seat = z.object({
   color: z.string(),
   ready: z.boolean(),
   connected: z.boolean(),
+  /** Bot seat: played by the server at this level (always ready and connected; `clientId` is null). */
+  bot: BotLevel.nullable().default(null),
 });
 export type Seat = z.infer<typeof Seat>;
 

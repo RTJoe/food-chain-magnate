@@ -38,6 +38,7 @@ export const Icon = {
   check: (p: P = {}) => svg(<path d="M5 12.5l4.5 4.5L19 7.5" />, p),
   x: (p: P = {}) => svg(<path d="M6 6l12 12M18 6L6 18" />, p),
   plus: (p: P = {}) => svg(<path d="M12 5v14M5 12h14" />, p),
+  robot: (p: P = {}) => svg(<><rect x="4.5" y="8" width="15" height="11" rx="3" /><path d="M12 8V4.5M10 4.5h4M2.5 12.5v3M21.5 12.5v3M9.5 16h5" /><circle cx="9.5" cy="12.5" r="1" /><circle cx="14.5" cy="12.5" r="1" /></>, p),
   minus: (p: P = {}) => svg(<path d="M5 12h14" />, p),
   undo: (p: P = {}) => svg(<><path d="M9 14L4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></>, p),
   chat: (p: P = {}) => svg(<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4.3A2.5 2.5 0 0 1 4 13.5z" />, p),

@@ -6,6 +6,8 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer } from 'ws';
 import type { EngineApi } from '@fcm/engine';
+import { inlineBotRunner, type BotDelay, type BotRunner } from '@fcm/session';
+import { WorkerBotRunner } from './botRunner.js';
 import { FilePersistence, NullPersistence, type Persistence } from './persistence.js';
 import { ROOM_IDLE_TTL_MS, RoomStore } from './roomStore.js';
 import { SessionRegistry } from './sessions.js';
@@ -34,6 +36,12 @@ export interface ServerOptions {
   /** Same, for lobbies whose game never started (default 2 days). */
   lobbyRetentionMs?: number;
   gzip?: boolean;
+  /** Where bot moves are computed: a worker-thread pool (default), inline, or a custom runner. */
+  botRunner?: 'worker' | 'inline' | BotRunner;
+  /** Worker pool size for `botRunner: 'worker'`. */
+  botWorkers?: number;
+  /** Delay before a bot moves (default 400–900 ms; 0 in tests). */
+  botDelay?: BotDelay;
   now?: () => number;
   log?: (msg: string) => void;
 }
@@ -51,7 +59,11 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const log = opts.log ?? ((m: string) => console.log(m));
   const persistence =
     opts.persistence ?? (opts.dataDir ? new FilePersistence(opts.dataDir, opts.persistDebounceMs, log) : new NullPersistence());
+  const workers = (opts.botRunner ?? 'worker') === 'worker' ? new WorkerBotRunner({ log, ...(opts.botWorkers ? { size: opts.botWorkers } : {}) }) : null;
+  const botRunner: BotRunner = workers ? workers.run : opts.botRunner === 'inline' || opts.botRunner === undefined ? inlineBotRunner : (opts.botRunner as BotRunner);
   const hub = new Hub({
+    botRunner,
+    ...(opts.botDelay !== undefined ? { botDelay: opts.botDelay } : {}),
     engine: opts.engine,
     store: new RoomStore(now),
     sessions: new SessionRegistry(now),
@@ -104,7 +116,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       http.closeAllConnections?.();
       http.close(() => {
         persistence.flush();
-        res();
+        void (workers?.close() ?? Promise.resolve()).finally(res);
       });
     }));
 

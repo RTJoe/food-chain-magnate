@@ -1,7 +1,7 @@
 /** In-memory rooms (architecture §4.2): unique 5-char codes, activity tracking, idle GC. */
 import { randomInt } from 'node:crypto';
 import { ROOM_CODE_ALPHABET, type RoomConfig } from '@fcm/protocol';
-import { Room, type GameSession } from '@fcm/session';
+import { Room, type BotDriver, type GameSession } from '@fcm/session';
 
 export const ROOM_CODE_LENGTH = 5;
 /** Idle rooms are dropped from memory after 6 h; their file is kept and loaded again on demand. */
@@ -10,6 +10,8 @@ export const ROOM_IDLE_TTL_MS = 6 * 60 * 60 * 1000;
 export interface RoomEntry {
   room: Room;
   game: GameSession | null;
+  /** Plays the game's bot seats (null without a game). */
+  bots: BotDriver | null;
   /** Last activity seen by this process (memory GC). */
   lastActivity: number;
   /** Last real room activity (persisted as `updatedAt`; drives file retention). */
@@ -34,7 +36,7 @@ export class RoomStore {
   }
 
   add(room: Room, game: GameSession | null, updatedAt = this.now()): RoomEntry {
-    const entry: RoomEntry = { room, game, lastActivity: this.now(), updatedAt };
+    const entry: RoomEntry = { room, game, bots: null, lastActivity: this.now(), updatedAt };
     this.rooms.set(room.id, entry);
     return entry;
   }
@@ -48,6 +50,7 @@ export class RoomStore {
   }
 
   remove(id: string): boolean {
+    this.rooms.get(id)?.bots?.dispose();
     return this.rooms.delete(id);
   }
 
@@ -68,6 +71,7 @@ export class RoomStore {
     for (const [id, e] of this.rooms) {
       if (e.room.connectedCount() === 0 && this.now() - e.lastActivity > ttlMs) {
         beforeRemove(e);
+        e.bots?.dispose();
         this.rooms.delete(id);
         removed.push(id);
       }

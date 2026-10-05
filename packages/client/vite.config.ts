@@ -11,9 +11,12 @@ export default defineConfig({
     alias: [
       { find: /^@fcm\/engine\/testing$/, replacement: pkg('engine/src/testing/index.ts') },
       { find: /^@fcm\/engine$/, replacement: pkg('engine/src/index.ts') },
+      { find: /^@fcm\/ai$/, replacement: pkg('ai/src/index.ts') },
       { find: /^@fcm\/protocol$/, replacement: pkg('protocol/src/index.ts') },
     ],
   },
+  // Hot-seat bots run in a module Web Worker that imports the engine (code-split chunks).
+  worker: { format: 'es' },
   server: {
     port: 5173,
     host: true,

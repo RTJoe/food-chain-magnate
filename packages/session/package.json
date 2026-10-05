@@ -15,6 +15,7 @@
     "src"
   ],
   "dependencies": {
+    "@fcm/ai": "0.1.0",
     "@fcm/engine": "0.1.0",
     "@fcm/protocol": "0.1.0"
   }

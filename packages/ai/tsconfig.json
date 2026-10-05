@@ -4,8 +4,8 @@
     "rootDir": "src",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
-    "types": ["node"]
+    "types": []
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../engine" }, { "path": "../ai" }, { "path": "../protocol" }, { "path": "../session" }]
+  "references": [{ "path": "../engine" }]
 }

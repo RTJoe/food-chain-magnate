@@ -6,3 +6,4 @@ export const SESSION_PACKAGE = '@fcm/session';
 export * from './room.js';
 export * from './gameSession.js';
 export * from './undo.js';
+export * from './bots.js';

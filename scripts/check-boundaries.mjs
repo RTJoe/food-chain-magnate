@@ -2,9 +2,10 @@
 /**
  * Enforces package import boundaries (docs/architecture.md §2) until eslint is added:
  * - engine: no imports from other packages, no bare specifiers, no node: builtins.
+ * - ai: engine only; pure TS (no DOM, no node: builtins).
  * - protocol: engine types only (+ zod).
- * - session: engine + protocol; no ws/fs/node builtins.
- * - client: engine + protocol (+ its own deps); never server/session.
+ * - session: engine + protocol + ai; no ws/fs/node builtins.
+ * - client: engine + protocol + ai (+ its own deps); never server/session.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -12,10 +13,11 @@ import { join, relative } from 'node:path';
 const root = new URL('..', import.meta.url).pathname;
 const rules = {
   engine: { allow: [], typeOnly: [] },
+  ai: { allow: ['@fcm/engine'], typeOnly: [] },
   protocol: { allow: ['zod'], typeOnly: ['@fcm/engine'] },
-  session: { allow: ['@fcm/engine', '@fcm/protocol'], typeOnly: [] },
-  server: { allow: ['@fcm/engine', '@fcm/protocol', '@fcm/session', 'ws', 'node:*'], typeOnly: [] },
-  client: { allow: ['@fcm/engine', '@fcm/engine/*', '@fcm/protocol', 'uqr', 'preact', 'preact/*', '@preact/*', 'three', 'three/*'], typeOnly: [] },
+  session: { allow: ['@fcm/engine', '@fcm/protocol', '@fcm/ai'], typeOnly: [] },
+  server: { allow: ['@fcm/engine', '@fcm/protocol', '@fcm/session', '@fcm/ai', 'ws', 'node:*'], typeOnly: [] },
+  client: { allow: ['@fcm/engine', '@fcm/engine/*', '@fcm/protocol', '@fcm/ai', 'uqr', 'preact', 'preact/*', '@preact/*', 'three', 'three/*'], typeOnly: [] },
 };
 
 const files = (dir) =>
