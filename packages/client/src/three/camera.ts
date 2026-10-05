@@ -218,15 +218,21 @@ export class CameraController {
 
   // --- Internals --------------------------------------------------------------
 
-  /** Smallest distance at which the board (plus rim) fits the viewport at the home pose. */
-  /** Home pose: north up, or turned a quarter on portrait screens so the long side runs down. */
+  /**
+   * Home pose: north up, or turned a quarter on genuinely portrait screens (phones, portrait
+   * tablets) so the long side runs down. The canvas itself must be portrait: a landscape desktop
+   * whose free area is tall only because of side panels (1280×860 with rail + dock) keeps north up,
+   * so the board reads the same way as the printed map and the fallback list coordinates.
+   */
   private homePose(r: { x0: number; z0: number; x1: number; z1: number }): Pose {
-    const portrait = this.visibleAspect() < 0.85 && r.x1 - r.x0 > r.z1 - r.z0;
+    const { w, h } = this.viewport();
+    const portrait = w / h < 0.85 && this.visibleAspect() < 1 && r.x1 - r.x0 > r.z1 - r.z0;
     const yaw = portrait ? Math.PI / 2 : 0;
     const target = new THREE.Vector3((r.x0 + r.x1) / 2 + Math.sin(yaw) * 0.6, 0, (r.z0 + r.z1) / 2 + Math.cos(yaw) * 0.6);
     return { target, dist: this.fitDistance(r, yaw, target), yaw, tilt: DEFAULT_TILT };
   }
 
+  /** Smallest distance at which the board (plus rim) fits the viewport at the home pose. */
   private fitDistance(r: { x0: number; z0: number; x1: number; z1: number }, yaw: number, target: THREE.Vector3): number {
     const cam = this.camera.clone();
     const corners = [

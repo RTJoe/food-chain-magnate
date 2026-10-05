@@ -11,9 +11,15 @@ import { engine as realEngine } from '@fcm/engine';
 import { toyEngine } from '@fcm/engine/testing';
 import type {
   Action,
+  CampaignOrientation,
+  CampaignReachPreview,
+  Cell,
   DrinkId,
   EmployeeId,
+  FoodId,
   GameView,
+  HouseId,
+  HouseOutlook,
   LegalAction,
   ModuleManifest,
   PendingChoice,
@@ -25,6 +31,8 @@ import type {
   ReserveCard,
   Uid,
 } from '@fcm/engine';
+import type { InteractionMode } from './boardBridge.js';
+import type { HouseBoardInfo, RangeOverlayData, ReachOverlayData } from './boardOverlays.js';
 import type { Catalog } from './catalog.js';
 import { employeeName } from './catalog.js';
 import { isToyManifest, pseudoState } from './engine.js';
@@ -317,4 +325,174 @@ export function fallbackPlacements(view: GameView, me: PlayerId, spec: Placement
     return [{ kind: 'campaign', campaignKind: 'gourmetGuide', tileNumber: n, placement: { kind: 'offBoard' } }];
   }
   return [];
+}
+
+// ---------------------------------------------------------------------------
+// Board modes and previews (ux-plan §3.1–3.3, WP3)
+// ---------------------------------------------------------------------------
+
+type PlacementLegal = Extract<LegalAction, { kind: 'placement' }>;
+export type CampaignPlacementT = Extract<Placement, { kind: 'campaign' }>;
+export type RoutePlacementT = Extract<Placement, { kind: 'buyerRoute' }>;
+
+/** Road / air buyer routes (drawn as ribbons); errand-boy fetches are not board picks. */
+export const isBoardRoute = (p: Placement): p is RoutePlacementT => p.kind === 'buyerRoute' && p.route.mode !== 'errand';
+
+/** On-board orientation of a campaign placement (engine field, else from w × h). */
+export function orientationOf(p: Placement): CampaignOrientation | null {
+  if (p.kind !== 'campaign') return null;
+  if (p.orientation) return p.orientation;
+  const pl = p.placement;
+  if (pl.kind !== 'board') return null;
+  return pl.w === pl.h ? 'square' : pl.w > pl.h ? 'landscape' : 'portrait';
+}
+
+/** Legal campaign placements grouped by tile number (token picker counts). */
+export function placementsByToken(placements: readonly Placement[]): Map<number, CampaignPlacementT[]> {
+  const out = new Map<number, CampaignPlacementT[]>();
+  for (const p of placements) {
+    if (p.kind !== 'campaign') continue;
+    const list = out.get(p.tileNumber) ?? [];
+    list.push(p);
+    out.set(p.tileNumber, list);
+  }
+  return out;
+}
+
+/**
+ * The board mode for a placement `LegalAction` and its legal placements:
+ * - buyer routes (road / air) → `route` (ribbons; hover / [ ] to choose, Enter / Confirm commits);
+ * - campaigns → `campaign` (spots keyed by anchor + tile number, R flips orientation), narrowed to
+ *   `tileNumber` when given (the token picked in the panel);
+ * - everything else → `place`.
+ * `spec` is carried so the board controller can draw the range overlay and explain illegal squares.
+ */
+export function boardModeFor(legal: PlacementLegal, placements: readonly Placement[], opts: { color: string; label?: string; tileNumber?: number | null }): InteractionMode {
+  const label = opts.label ?? legal.label;
+  const spec: PlacementSpec = { ...legal.spec, ...(legal.cardUid && !legal.spec.cardUid ? { cardUid: legal.cardUid } : {}) };
+  if (legal.spec.kind === 'buyerRoute') {
+    const routes = placements.filter(isBoardRoute);
+    if (routes.length) return { kind: 'route', placements: routes, label, color: opts.color, spec };
+  }
+  if (legal.spec.kind === 'campaign') {
+    const t = opts.tileNumber ?? null;
+    const camps = placements.filter((p): p is CampaignPlacementT => p.kind === 'campaign' && (t === null || p.tileNumber === t));
+    return { kind: 'campaign', tileNumber: t, placements: camps, label, color: opts.color, spec: t === null ? spec : { ...spec, tileNumber: t } };
+  }
+  return { kind: 'place', placementKind: legal.spec.kind, placements: [...placements], label, color: opts.color, spec };
+}
+
+/** Engine range overlay for a placement spec (road-range cards, coffee shop choice). Null = unlimited / not applicable. */
+export function rangeFor(view: GameView, me: PlayerId | null, spec: PlacementSpec, color?: string): RangeOverlayData | null {
+  if (!me) return null;
+  const ranged: PlacementSpec['kind'][] = ['campaign', 'restaurant', 'lobbyistRoad', 'park', 'coffeeShop'];
+  if (!ranged.includes(spec.kind)) return null;
+  if (!spec.cardUid && spec.kind !== 'coffeeShop') return null;
+  const r = attempt(() => realEngine.rangeOverlay(pseudoState(view, me), me, spec.cardUid));
+  if (!r || r.range === null || !r.roads.length) return null;
+  return { roads: r.roads, starts: r.starts, range: r.range, ...(color ? { color } : {}) };
+}
+
+/** Campaign-like preview query for a placement (campaign, pizza radio, free mailbox). */
+function reachQuery(p: Placement, me: PlayerId, good: FoodId | null) {
+  const goods = good ? [good] : undefined;
+  if (p.kind === 'campaign') return { kind: p.campaignKind, placement: p.placement, owner: me, tileNumber: p.tileNumber, ...(goods ? { goods } : {}) };
+  if (p.kind === 'pizzaRadio') return { kind: 'radio' as const, placement: { kind: 'board' as const, x: p.x, y: p.y, w: 1, h: 1 }, owner: me, goods: ['pizza' as FoodId] };
+  if (p.kind === 'freeMailbox') return { kind: 'mailbox' as const, placement: { kind: 'board' as const, x: p.x, y: p.y, w: 1, h: 1 }, owner: me, ...(goods ? { goods } : {}) };
+  return null;
+}
+
+/** Engine reach preview (`campaignReach`) for a hypothetical campaign placement. */
+export function reachPreview(view: GameView, me: PlayerId | null, p: Placement, good: FoodId | null): CampaignReachPreview | null {
+  if (!me) return null;
+  const q = reachQuery(p, me, good);
+  if (!q) return null;
+  return attempt(() => realEngine.campaignReach(pseudoState(view, me), q)) ?? null;
+}
+
+/** Reach overlay data for a hypothetical placement: rings + chips, mailbox / radio cells, airplane band. */
+export function reachFor(view: GameView, me: PlayerId | null, p: Placement, good: FoodId | null, color?: string): ReachOverlayData | null {
+  const r = reachPreview(view, me, p, good);
+  if (!r) return null;
+  const shown: FoodId = good ?? (p.kind === 'pizzaRadio' ? 'pizza' : 'burger');
+  const base: ReachOverlayData = {
+    houseIds: r.houses.map((h) => h.houseId),
+    good: shown,
+    full: r.houses.filter((h) => h.full).map((h) => h.houseId),
+    ...(color ? { color } : {}),
+  };
+  const pl = p.kind === 'campaign' ? p.placement : null;
+  if (pl?.kind === 'airplane') {
+    // N / S planes fly over columns, E / W over rows.
+    const axis = pl.side === 'N' || pl.side === 'S' ? 'col' : 'row';
+    return { ...base, band: { axis, from: pl.offset, to: pl.offset + pl.width - 1 } };
+  }
+  return r.area.length ? { ...base, cells: r.area } : base;
+}
+
+/** Why `candidate` is illegal for `spec` (engine message), or null when legal / unknown. */
+export function problemAt(view: GameView, me: PlayerId | null, spec: PlacementSpec, candidate: Placement): string | null {
+  if (!me) return null;
+  return attempt(() => realEngine.placementProblem(pseudoState(view, me), me, spec, candidate)) ?? null;
+}
+
+/**
+ * A would-be placement anchored at `cell`, shaped like the mode's legal placements, so the engine
+ * can explain why that square is not legal. Null for kinds with no square-anchored shape.
+ */
+export function candidateAt(mode: InteractionMode, cell: Cell, orientation: CampaignOrientation | null): Placement | null {
+  if (mode.kind !== 'place' && mode.kind !== 'campaign') return null;
+  const ps: readonly Placement[] = mode.placements;
+  const kind = mode.kind === 'campaign' ? 'campaign' : mode.placementKind;
+  const { x, y } = cell;
+  switch (kind) {
+    case 'campaign': {
+      const board = ps.filter((p): p is CampaignPlacementT => p.kind === 'campaign' && p.placement.kind === 'board');
+      const like = board.find((p) => orientationOf(p) === orientation) ?? board[0];
+      if (!like || like.placement.kind !== 'board') return null;
+      const { w, h } = like.placement;
+      return { kind: 'campaign', campaignKind: like.campaignKind, tileNumber: like.tileNumber, placement: { kind: 'board', x, y, w, h }, ...(like.orientation ? { orientation: like.orientation } : {}) };
+    }
+    case 'restaurant':
+      return { kind: 'restaurant', x, y, entrance: 'NW' };
+    case 'house': {
+      const first = ps.find((p) => p.kind === 'house');
+      return first && first.kind === 'house' ? { kind: 'house', houseOrder: first.houseOrder, x, y, gardenSide: 'S' } : null;
+    }
+    case 'coffeeShop':
+      return { kind: 'coffeeShop', x, y };
+    case 'pizzaRadio':
+      return { kind: 'pizzaRadio', x, y };
+    case 'freeMailbox':
+      return { kind: 'freeMailbox', x, y };
+    default:
+      return null;
+  }
+}
+
+/** Engine outlook for a house (null when unknown or the engine cannot run on this view). */
+export function outlookFor(view: GameView, me: PlayerId | null, houseId: HouseId): HouseOutlook | null {
+  return attempt(() => realEngine.houseOutlook(pseudoState(view, me), houseId)) ?? null;
+}
+
+/** Houses an existing campaign reaches now. */
+export function campaignReachIds(view: GameView, me: PlayerId | null, campaignId: string): HouseId[] {
+  const c = view.board.campaigns[campaignId];
+  if (!c) return [];
+  const q = { kind: c.kind, placement: c.placement, owner: c.owner, goods: c.goods, ...(c.number !== null ? { tileNumber: c.number } : {}) };
+  return attempt(() => realEngine.campaignReach(pseudoState(view, me), q).houses.map((h) => h.houseId)) ?? [];
+}
+
+/** Roof plaque data for every house: capacity from the engine (`houseOutlook`), "no seller" from the last dinnertime. */
+export function houseInfoFor(view: GameView, me: PlayerId | null, noSeller: ReadonlySet<HouseId>): Record<HouseId, HouseBoardInfo> {
+  const out: Record<HouseId, HouseBoardInfo> = {};
+  const state = attempt(() => pseudoState(view, me));
+  for (const id of Object.keys(view.board.houses)) {
+    const o = state ? attempt(() => realEngine.houseOutlook(state, id)) : undefined;
+    const info: HouseBoardInfo = {};
+    if (o) info.capacity = o.capacity;
+    if (noSeller.has(id)) info.noSeller = true;
+    if (Object.keys(info).length) out[id] = info;
+  }
+  return out;
 }

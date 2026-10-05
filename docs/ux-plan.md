@@ -275,3 +275,66 @@ Screenshots used for this audit (not committed): `scratchpad/shots/` — `desk-*
 - Pending freeway choice: 28 edge strips tinted as long translucent bands that run across the whole board; no link to the rural area.
 - Extra map tile choice: "104 options" (13 spots), the surround is tinted as a sea of 5×5 orange squares with no template preview, no rotation cue, and no indication of the airplane/freeway adjacency rule; one spot has `variants: 8` (2 leftover templates × 4 rotations) cycled blind with `R` on a featureless slab ghost.
 - Idle click on house `house-30` in the working state: no panel, no ring, no camera move (screenshot `w-61-idle-click-house`).
+
+---
+
+## 7. Signals for WP4
+
+Built by WP3. The UI uses only these (ui/ never imports three/). Files: `state/boardBridge.ts` (B), `state/interaction.ts` (I), `state/guidance.ts` (G), `state/actions.ts` (A), `state/boardOverlays.ts` (O).
+
+### Entering a board mode
+
+| Name | Type | Use |
+| --- | --- | --- |
+| `boardModeFor` (G) | `(legal: PlacementLegal, placements: Placement[], opts: { color: string; label?: string; tileNumber?: number \| null }) => InteractionMode` | Build the mode for a placement action: buyer routes (road/air) → `route`; campaigns → `campaign` (narrowed to `tileNumber`, the token picked); else `place`. Carries `spec`, which turns on the range overlay and illegal-square reasons. Pass the result to `boardBridge.setInteractionMode`. |
+| `InteractionMode` (B) | `idle` \| `place { placementKind, placements, label, color, spec? }` \| `campaign { tileNumber: number \| null, placements, label, color, spec? }` \| `route { placements, label, color, spec? }` \| `inspect { ids }` | `setInteractionMode({ kind: 'idle' })` ends picking. Entering place/campaign/route clears `selection`. |
+| `isPickMode` (B) | `(m: InteractionMode) => boolean` | True for place / campaign / route (show the strip, collapse the sheet). |
+| `interactionMode` (B) | `Signal<InteractionMode>` | Current mode (BoardControls today checks `kind === 'place'`; widen to `isPickMode`). |
+| `boardBridge.onPick` (B) | `(l: (p: BoardPick) => void) => () => void` | `BoardPick = { kind: 'placement'; placement } \| { kind: 'cancel' } \| { kind: 'object'; id; objectKind? }`. The placement is the exact object from `mode.placements`; build the action with `actionFromPlacement`. |
+| `placementsFor` (G) | `(view, me, spec, manifest, catalog) => Placement[]` | Legal placements (unchanged). |
+| `placementsByToken` (G) | `(placements: Placement[]) => Map<number, CampaignPlacementT[]>` | Token picker: legal spot count per tile number (0 / missing = dim the token). |
+| `orientationOf` (G) | `(p: Placement) => 'landscape' \| 'portrait' \| 'square' \| null` | Fallback list rows and the strip text. |
+| `isBoardRoute` (G) | `(p: Placement) => p is RoutePlacementT` | Errand fetches stay chips; road/air routes go to route mode. |
+
+### Candidate, staging and confirm
+
+| Name | Type | Use |
+| --- | --- | --- |
+| `activeCandidate` (I) | `Signal<number>` | Index into `mode.placements` shown as active: route = the solid ribbon (starts at 0), campaign = the ghost (-1 = none). The board writes it on hover and `[` / `]`. Highlight the matching haul / list row. |
+| `setActiveCandidate(i)` (I) | `(i: number) => void` | Row hover / tap: the board shows that ribbon or ghost (and moves the staged pick if one is staged). |
+| `cycleCandidate(by)` (I) | `(by: -1 \| 1) => void` | ◀ ▶ on the phone strip ("Haul 2 of 5"). Same as `[` / `]`. |
+| `pendingPlacement` (I) | `Signal<Placement \| null>` | Staged pick (click in route/campaign mode, tap anywhere). Show the confirm strip while non-null. |
+| `pendingVariants` (I) | `Signal<number>` | Variants at the staged spot (> 1: show Rotate). |
+| `hoverPlacement` (I) | `Signal<{ placement; variants } \| null>` | Placement under the pointer (route: the active candidate). Hint text. |
+| `confirmPlacement()` (I) | `() => void` | Confirm button. Commits the staged pick; in route mode the active candidate if nothing is staged. |
+| `rotatePlacement()` (I) | `() => void` | Rotate button. Campaign: flips orientation only (sticky across spots). |
+| `ghostOrientation` (I) | `Signal<'landscape' \| 'portrait' \| 'square' \| null>` | Campaign mode orientation ("3×1 landscape"); null outside campaign modes. |
+| `previewGood` (I) | `Signal<FoodId \| null>` | Set when the player picks the campaign good; reach chips show it. Changeable while staged. |
+| `placementReason` (I) | `Signal<string \| null>` | Engine `placementProblem` for the square under the pointer when it is not a legal spot (place / campaign modes with `spec`). Show next to the pointer / in the strip. |
+| `emitPick({ kind: 'cancel' })` (B) | | Cancel button (as today). Esc on the board does the same when nothing is staged. |
+
+Keyboard (handled by the board): `[` / `]` cycle, `R` rotate, Enter commit, Esc unstage → cancel; Esc in idle clears the selection.
+
+### Selection and inspect
+
+| Name | Type | Use |
+| --- | --- | --- |
+| `selection` (I) | `Signal<{ kind: 'house' \| 'restaurant' \| 'campaign' \| 'source' \| 'entity'; id: string } \| null>` | Set by idle-mode board clicks (gardens select their house); cleared by pick modes, Esc, a click on empty ground, or the piece disappearing. Drives the Inspect card. Log ids / summary rows call `select(...)`. |
+| `select(s)` (I) | `(s: Selection \| null) => void` | Set or clear the selection from the UI. |
+| `selectedOutlook` (I) | `Signal<HouseOutlook \| null>` | For a selected house: capacity, demand, sellers ranked as dinnertime (`unitPrice`, `distance`, `score`, `canSupply`), `winner`, reaching `campaigns`. |
+| `selectionRelated` (I) | `Signal<readonly string[]>` | Pieces ringed faintly with the selection (house: sellers' restaurants + reaching campaigns; campaign: reached houses). |
+| `inspectIds` (I) | `Signal<readonly string[]>` | Transient rings (rail panel hover = the player's pieces). Does not touch `selection`. |
+| `cameraCommand` (I) | `Signal<CameraCommand \| null>` | `{ kind: 'focus', ids }` for the Inspect card's Focus button and log links. |
+| `outlookFor`, `campaignReachIds`, `reachPreview` (G) | `(view, me, id) => …` | Extra Inspect data (restaurant / campaign cards). |
+
+### Descriptions and overlays
+
+| Name | Type | Use |
+| --- | --- | --- |
+| `describePlacement(p, view)` (A) | `string` | Rows: "Tile #13 · 3×1 at 10,3 (landscape)", routes "6 beer, 3 lemonade · 2/2 borders". |
+| `haulDrinks(p, view)` / `describeHaul(p, view)` (A) | `{ drink; count }[]` / `string` | Haul rows: drink chips sorted by count, `bordersUsed/range`. |
+| `rangeOverlay`, `reachOverlay`, `routeOverlay` (O) | signals | Written by the board controller (boardBridge.ts) from the mode; the UI does not need to write them. |
+| `houseBoardInfo` (O) | `Signal<Record<HouseId, { capacity?; noSeller? }>>` | Fed from `houseOutlook` on every view and from the last dinnertime's `houseStayedHome`. Read-only for the UI. |
+| `LegalAction.disabledReason` (engine) | `string?` | "No action" reason on a card's `work.skip` entry. |
+
+Test hook: `window.__fcmBoard` (the scene handle) has `project(x, z, y?) → { x, y }` client px and `routeAt(clientX, clientY)`, so e2e (WP6) can hover and click ribbons, ghosts and houses.

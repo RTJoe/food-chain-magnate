@@ -34,14 +34,17 @@ export function hotseatEngine(): EngineApi {
 export function hybridEngine(): EngineApi {
   const toyOk = new Set<keyof EngineApi>(['redactFor', 'redactEvents']);
   const out = {} as Record<keyof EngineApi, unknown>;
-  for (const key of Object.keys(toyEngine) as (keyof EngineApi)[]) {
+  // Every function either engine has (the real engine's board previews included), so new
+  // EngineApi members pass through even before the toy engine stubs them.
+  const keys = new Set([...Object.keys(realEngine), ...Object.keys(toyEngine)] as (keyof EngineApi)[]);
+  for (const key of keys) {
     out[key] = (...args: unknown[]) => {
       try {
         return (realEngine[key] as (...a: unknown[]) => unknown)(...args);
       } catch (e) {
         if (!isNotImplemented(e)) throw e;
         if (key === 'listModules') return [];
-        if (!toyOk.has(key)) throw e;
+        if (!toyOk.has(key) || typeof toyEngine[key] !== 'function') throw e;
         return (toyEngine[key] as (...a: unknown[]) => unknown)(...args);
       }
     };

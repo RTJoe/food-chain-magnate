@@ -3,6 +3,7 @@
  * registers itself as the board renderer through state/boardBridge.ts, and returns an unmount
  * function. The overlay talks to it only through the bridge and state/interaction.ts signals.
  */
+import * as THREE from 'three';
 import { effect, type ReadonlySignal } from '@preact/signals';
 import type { GameEvent, GameView, PlayerId } from '@fcm/engine';
 import { registerBoardBridge, type BoardBridge, type BoardPick, type InteractionMode } from '../state/boardBridge.js';
@@ -51,6 +52,8 @@ export interface SceneHandle extends BoardBridge {
   clearOverlays(kind?: OverlayKind | 'all'): void;
   /** Route candidate under a client-space point (nearest ribbon), or null. */
   routeAt(clientX: number, clientY: number): number | null;
+  /** Client-space position (CSS px) of a world point (board x, height y, board z). For tests and tooltips. */
+  project(x: number, z: number, y?: number): { x: number; y: number };
   dispose(): void;
   /** Dev/test access to internals (playground, e2e). */
   readonly internals: { stage: Stage; rec: Reconciler; cam: CameraController; inter: Interaction; overlays: OverlayLayer };
@@ -64,6 +67,7 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
   const anim = new Animator(stage, rec);
   const inter = new Interaction(stage, cam, rec);
   const overlays = new OverlayLayer(stage, rec);
+  inter.routeAt = (p) => overlays.pickRoute(cam.rayAt(p.x, p.y));
   let boardKey = '';
   let lastView: GameView | null = null;
   let inset: BoardInset = boardInset.peek() ?? { left: 0, right: 0, top: 0, bottom: 0 };
@@ -205,6 +209,11 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
     drawRouteRibbons: (c, i, o) => overlays.drawRouteRibbons(c, i, o),
     clearOverlays: (k) => overlays.clearOverlays(k),
     routeAt: (x, y) => overlays.pickRoute(cam.rayAt(x, y)),
+    project(x, z, y = 0) {
+      const v = new THREE.Vector3(x, y, z).project(stage.camera);
+      const r = stage.renderer.domElement.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    },
     internals: { stage, rec, cam, inter, overlays },
     dispose() {
       for (const d of disposers) d();
@@ -241,8 +250,12 @@ export function mountScene(el: HTMLElement, store?: SceneStore): () => void {
   const v = store?.view?.value;
   if (v) handle.setView(v, store?.me?.value ?? null, []);
   const stopInset = watchTableInset(el, (i) => handle.setInset(i));
+  // Test hook (e2e, Playwright checks): board pieces → screen points, route hit tests, internals.
+  const w = window as unknown as { __fcmBoard?: SceneHandle };
+  w.__fcmBoard = handle;
   return () => {
     stopInset();
+    if (w.__fcmBoard === handle) delete w.__fcmBoard;
     handle.dispose();
   };
 }

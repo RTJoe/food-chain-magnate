@@ -78,11 +78,15 @@ export function describePlacement(p: Placement, view?: GameView | null): string 
       return `Garden on side ${p.side}`;
     case 'campaign': {
       const pl = p.placement;
-      const where = pl.kind === 'board' ? `at ${pl.x},${pl.y}` : pl.kind === 'airplane' ? `${pl.side} edge, offset ${pl.offset}` : pl.kind === 'rural' ? `rural ${pl.side}` : 'beside the board';
+      if (pl.kind === 'board') {
+        const o = p.orientation ?? (pl.w === pl.h ? 'square' : pl.w > pl.h ? 'landscape' : 'portrait');
+        return `Tile #${p.tileNumber} · ${pl.w}×${pl.h} at ${pl.x},${pl.y}${o === 'square' ? '' : ` (${o})`}`;
+      }
+      const where = pl.kind === 'airplane' ? `${pl.side} edge, offset ${pl.offset}` : pl.kind === 'rural' ? `rural ${pl.side}` : 'beside the board';
       return `Tile #${p.tileNumber} ${where}`;
     }
     case 'buyerRoute':
-      return p.route.mode === 'errand' ? `Fetch ${p.route.drink.replace('_', ' ')}` : `Route of ${p.route.mode === 'road' ? p.route.path.length : p.route.tiles.length} steps`;
+      return p.route.mode === 'errand' ? `Fetch ${p.route.drink.replace('_', ' ')}` : describeHaul(p, view);
     case 'coffeeShop': {
       if (!p.moveFrom) return `Coffee shop at ${p.x},${p.y}`;
       const from = view?.board.entities[p.moveFrom];
@@ -100,4 +104,23 @@ export function describePlacement(p: Placement, view?: GameView | null): string 
     case 'mapTile':
       return `${p.templateId ? `Tile ${p.templateId}` : 'Tile'} at row ${p.row}, col ${p.col} · turned ${p.rotation * 90}°`;
   }
+}
+
+/** Drinks a buyer route collects, summed by drink ("2 beer, 2 lemonade"), most first. */
+export function haulDrinks(p: Extract<Placement, { kind: 'buyerRoute' }>, view?: GameView | null): { drink: string; count: number }[] {
+  const by = new Map<string, number>();
+  for (const c of p.collects) {
+    const drink = view?.board.drinkSources[c.sourceId]?.drink ?? c.sourceId;
+    by.set(drink, (by.get(drink) ?? 0) + c.count);
+  }
+  return [...by].map(([drink, count]) => ({ drink, count })).sort((a, b) => b.count - a.count || a.drink.localeCompare(b.drink));
+}
+
+/** One haul row: "2 beer, 2 lemonade · 1/2 borders" (air: tiles). */
+export function describeHaul(p: Extract<Placement, { kind: 'buyerRoute' }>, view?: GameView | null): string {
+  const drinks = haulDrinks(p, view);
+  const what = drinks.length ? drinks.map((d) => `${d.count} ${d.drink.replace('_', ' ')}`).join(', ') : 'No drinks';
+  const unit = p.route.mode === 'air' ? 'tiles' : 'borders';
+  const used = p.bordersUsed !== undefined && p.range !== undefined ? ` · ${p.bordersUsed}/${p.range} ${unit}` : '';
+  return `${what}${used}`;
 }
