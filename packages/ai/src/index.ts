@@ -9,5 +9,7 @@ export { viewState, sampleState } from './viewState.js';
 export { createEasyBot } from './easy.js';
 export * as medium from './medium/index.js';
 export { createMediumBot } from './medium/index.js';
+export * as hard from './hard/index.js';
+export { createHardBot, type HardOptions } from './hard/index.js';
 export * as heuristics from './heuristics.js';
 export { fallbackAction, actionFromPlacement, simpleStructure } from './heuristics.js';

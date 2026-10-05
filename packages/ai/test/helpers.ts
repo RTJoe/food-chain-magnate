@@ -45,7 +45,7 @@ export interface BotGame {
 }
 
 /** Play until game over or `maxRounds` completed rounds. Each seat's level comes from `levels`. */
-export function playBots(config: GameConfig, seed: number, levels: Record<PlayerId, BotLevel>, maxRounds = 30, maxSteps = 6000): BotGame {
+export function playBots(config: GameConfig, seed: number, levels: Record<PlayerId, BotLevel>, maxRounds = 30, maxSteps = 6000, budgetMs = 1000): BotGame {
   let state = createGame(config, seed);
   const actions: Action[] = [];
   const rejected: string[] = [];
@@ -55,7 +55,7 @@ export function playBots(config: GameConfig, seed: number, levels: Record<Player
   while (state.phase.kind !== 'gameOver' && state.round <= maxRounds && steps < maxSteps) {
     const who = state.awaiting.players[0];
     if (!who) throw new Error(`nobody awaited in ${state.phase.kind}`);
-    const r = runBotDetailed({ level: levels[who] ?? 'easy', view: redactFor(state, who), playerId: who, seed: decisionSeed(seed, state.history.seq, who), budgetMs: 1000 }, engine);
+    const r = runBotDetailed({ level: levels[who] ?? 'easy', view: redactFor(state, who), playerId: who, seed: decisionSeed(seed, state.history.seq, who), budgetMs }, engine);
     maxMs = Math.max(maxMs, r.ms);
     if (r.fellBack) fellBack.push(`step ${steps} r${state.round} ${state.phase.kind} ${who}: ${r.error ?? 'bot answer invalid'} -> ${r.action.type}`);
     const applied = applyAction(state, r.action);

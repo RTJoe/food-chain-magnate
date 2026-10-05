@@ -1,6 +1,6 @@
 # Food Chain Magnate — Game AI Design (Medium and Hard bots)
 
-Status: design, pre-implementation. Companion to `architecture.md` (engine API) and `docs/rules/*` (rules). The Easy bot and the `Bot` interface are being built in `packages/ai` in parallel; this document designs Medium and Hard against that interface and specifies the tuning harness.
+Status: Medium and Hard implemented (measured results: §4.7). Companion to `architecture.md` (engine API) and `docs/rules/*` (rules). The Easy bot and the `Bot` interface are being built in `packages/ai` in parallel; this document designs Medium and Hard against that interface and specifies the tuning harness.
 
 Numbers in this document that are measured (engine call costs) come from the throwaway script `timing.ts` described in §7; everything else (weights, thresholds) is an initial guess to be tuned with the harness in §8.
 
@@ -544,6 +544,29 @@ Deadline checks happen between rollouts only (a rollout is ≤ 60 ms), so worst-
 **Working.** One search at the first call (≈ 15–25 plans × 3 samples ≈ 45–75 rollouts ≈ 1.5–2 s at 3p; fewer at 4–5p since rival turns are more expensive); the remaining calls of the turn are instant. A rejected step mid-turn (should not happen; the executor validates with `placementProblem`/`validateAction` on the pseudo-state before sending) makes the executor fall back to Medium for the rest of the turn and logs a trace warning.
 
 **Payday.** ≤ 4 fire sets × 2 samples × a cheaper rollout (from Payday to next round's Restructuring: ≈ 5 ms) — negligible.
+
+---
+
+### 4.7 As built and measured
+
+Implemented in `packages/ai/src/hard/` (summary in `docs/ai.md`). Bench, seed 1, budget 2000 ms, seat-rotated, 4 workers, Apple Silicon:
+
+| Setting | Games | Hard win | 95 % CI | Hard p95 / max ms | Capped at 60 rounds |
+|---|---|---|---|---|---|
+| 2p base, Hard vs Medium | 200 | 97.5 % | 94.3–98.9 | 475 / 1900 | 0 (mean 14.4 rounds; Medium self-play 15.6) |
+| 3p base, Hard vs 2 Medium | 99 | 97.0 % | 91.5–99.0 | 1597 / 1896 | 0 |
+| 2p all Ketchup modules | 200 | 83.0 % | 77.2–87.6 | 1288 / 1893 | 1 (Medium self-play: 2 / 100) |
+| 3p all Ketchup modules | 99 | 85.9 % | 77.7–91.4 | 1744 / 1915 | 0 |
+
+Zero rejections, invalid answers or fallbacks in all runs.
+
+What the tuning showed (ablations at 200 games, 2p base):
+- The gain is in Working: searching only Working gives 84.5 % (budget 300, horizon 1); only Restructuring 51 %, only Order of business 50 %.
+- Horizon 2 (rollouts to the Restructuring two rounds on) lifts 86 % → 96–97.5 %: hires and training only pay off in the second round. Default horizon 2; 1 above 4 players or under a 1 s budget.
+- Payday search alone was harmful (34 %): the evaluation subtracted salaries both in the income term and in the card values, so firing a working cook looked profitable. Card values are now pre-salary (income already nets salaries): Payday alone is neutral (51.5 %).
+- The search hoarded free trainees each round (+$21 card value for a card never put to work): card values now count only as many non-managers as the managers can seat.
+- Weight sweeps (×0.5 / ×2 per weight, 200 games, all modules, budget 300) stayed within noise (65–71.5 % vs 67 % for the initial weights): weights are not the bottleneck, so the initial table is kept.
+- The evaluation tracks outcomes: at Restructuring, the base candidate's evaluation separates eventual wins from losses with AUC 0.82–0.94 by round bucket.
 
 ---
 

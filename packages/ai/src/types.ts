@@ -12,6 +12,16 @@ export const BOT_LEVELS: readonly BotLevel[] = ['easy', 'medium', 'hard'];
 
 export const isBotLevel = (v: unknown): v is BotLevel => v === 'easy' || v === 'medium' || v === 'hard';
 
+/**
+ * Thinking budget per level (ms). Easy and Medium answer in a few ms whatever they get; Hard
+ * searches until the budget (minus a safety margin) is spent. `hotSeat`: the browser host, where
+ * every bot move holds up the table, gets a shorter Hard budget.
+ */
+export function botBudgetMs(level: BotLevel, host: 'server' | 'hotSeat' = 'server'): number {
+  if (level !== 'hard') return 500;
+  return host === 'hotSeat' ? 1_500 : 2_000;
+}
+
 export interface BotInput {
   /** The game as the bot's seat sees it (`engine.redactFor(state, playerId)`). */
   view: GameView;

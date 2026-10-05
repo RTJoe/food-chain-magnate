@@ -14,7 +14,7 @@
  * human keeps their view. Undo rewinds past bot moves made after the human's own move.
  */
 import type { Action, EngineApi, GameConfig, GameEvent, GameState, ModuleManifest, PlayerId, Viewer } from '@fcm/engine';
-import { decisionSeed, fallbackAction, type BotLevel, type BotRequest } from '@fcm/ai';
+import { botBudgetMs, decisionSeed, fallbackAction, type BotLevel, type BotRequest } from '@fcm/ai';
 import type { ClientMessage, ServerMessage } from '@fcm/protocol';
 import { PROTOCOL_VERSION } from '@fcm/protocol';
 import type { ConnectionStatus, Transport, Unsubscribe } from './transport.js';
@@ -43,7 +43,8 @@ export interface LocalBotRunner {
   dispose?(): void;
 }
 
-export const BOT_BUDGET_MS = 2_000;
+/** Hot-seat thinking budget for a level (shorter Hard search: every bot move holds up the table). */
+export const botBudgetFor = (level: BotLevel): number => botBudgetMs(level, 'hotSeat');
 
 interface UndoEntry {
   state: GameState;
@@ -223,30 +224,45 @@ export class LocalTransport implements Transport {
     const gen = ++this.botGen;
     const seq = this.seq;
     this.botThinking = player;
-    const go = () => {
-      this.botTimer = null;
-      if (gen !== this.botGen || !this.state) return;
-      const req: BotRequest = {
-        level: this.opts.bots?.[player] ?? 'easy',
-        view: this.opts.engine.redactFor(this.state, player),
-        playerId: player,
-        seed: decisionSeed(this.state.seed, seq, player),
-        budgetMs: BOT_BUDGET_MS,
-      };
-      let pending: Promise<Action>;
-      try {
-        pending = runner.run(req);
-      } catch (e) {
-        pending = Promise.reject(e);
-      }
-      pending.then(
-        (a) => this.botMove(gen, seq, player, a),
-        () => this.botMove(gen, seq, player, null),
-      );
-    };
+    // Thinking starts at once and overlaps the human-feeling delay: the move lands after
+    // whichever takes longer.
     const delay = this.botDelayMs();
-    if (delay > 0) this.botTimer = setTimeout(go, delay);
-    else go();
+    let waited = delay <= 0;
+    let result: { action: Action | null } | null = null;
+    const land = () => {
+      if (gen !== this.botGen || !waited || !result) return;
+      this.botMove(gen, seq, player, result.action);
+    };
+    if (!waited)
+      this.botTimer = setTimeout(() => {
+        this.botTimer = null;
+        waited = true;
+        land();
+      }, delay);
+    const level = this.opts.bots?.[player] ?? 'easy';
+    const req: BotRequest = {
+      level,
+      view: this.opts.engine.redactFor(s, player),
+      playerId: player,
+      seed: decisionSeed(s.seed, seq, player),
+      budgetMs: botBudgetFor(level),
+    };
+    let pending: Promise<Action>;
+    try {
+      pending = runner.run(req);
+    } catch (e) {
+      pending = Promise.reject(e);
+    }
+    pending.then(
+      (a) => {
+        result = { action: a };
+        land();
+      },
+      () => {
+        result = { action: null };
+        land();
+      },
+    );
   }
 
   private botMove(gen: number, seq: number, player: PlayerId, action: Action | null): void {

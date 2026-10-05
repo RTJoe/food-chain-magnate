@@ -9,7 +9,7 @@
  * `deliver`, so the server (and tests) decide how to send and persist them.
  */
 import type { Action, PlayerId } from '@fcm/engine';
-import { runBot, type BotRequest } from '@fcm/ai';
+import { botBudgetMs, runBot, type BotRequest } from '@fcm/ai';
 import type { AudienceMember, GameSession, Outbound } from './gameSession.js';
 
 /** Computes a bot move somewhere (inline, worker thread, Web Worker). May reject; the driver then falls back. */
@@ -28,7 +28,6 @@ export const inlineBotRunner: BotRunner = (req) =>
 /** Delay before a bot moves: a fixed number or a random range (ms). */
 export type BotDelay = number | { min: number; max: number };
 export const DEFAULT_BOT_DELAY: BotDelay = { min: 400, max: 900 };
-export const DEFAULT_BOT_BUDGET_MS = 2_000;
 
 export interface Timers {
   set(fn: () => void, ms: number): unknown;
@@ -47,6 +46,7 @@ export interface BotDriverOptions {
   /** Who receives the fan-out (connected members and their viewers). */
   audience: () => AudienceMember[];
   delay?: BotDelay;
+  /** Thinking budget for every bot (default: per level, `botBudgetMs`). */
   budgetMs?: number;
   /** Bots pause while this is false (e.g. nobody connected); call `poke()` when it changes. */
   active?: () => boolean;
@@ -83,27 +83,39 @@ export class BotDriver {
     if (!player || (this.opts.active && !this.opts.active())) return this.settle();
     const seq = this.game.seq;
     this.setThinking(player);
+    // Thinking starts now and overlaps the human-feeling delay: the move lands after whichever
+    // takes longer (a 2 s Hard search is not followed by another 0.4-0.9 s wait).
     const delay = this.delayMs();
-    const go = () => {
-      this.timer = null;
-      if (this.disposed) return;
-      if (this.game.seq !== seq || !this.game.rawState.awaiting.players.includes(player)) return this.restart();
-      let pending: Promise<Action>;
-      try {
-        pending = (this.opts.runner ?? inlineBotRunner)(this.game.botRequest(player, this.opts.budgetMs ?? DEFAULT_BOT_BUDGET_MS));
-      } catch (e) {
-        pending = Promise.reject(e);
-      }
-      pending.then(
-        (action) => this.finish(player, seq, action),
-        (e: unknown) => {
-          this.opts.log?.(`bots: ${player} failed to decide: ${e instanceof Error ? e.message : String(e)}`);
-          this.finish(player, seq, null);
-        },
-      );
+    let waited = delay <= 0;
+    let result: { action: Action | null } | null = null;
+    const land = () => {
+      if (this.disposed || !waited || !result) return;
+      this.finish(player, seq, result.action);
     };
-    if (delay > 0) this.timer = this.timers.set(go, delay);
-    else go();
+    if (!waited)
+      this.timer = this.timers.set(() => {
+        this.timer = null;
+        waited = true;
+        land();
+      }, delay);
+    let pending: Promise<Action>;
+    try {
+      const level = this.game.bots[player] ?? 'easy';
+      pending = (this.opts.runner ?? inlineBotRunner)(this.game.botRequest(player, this.opts.budgetMs ?? botBudgetMs(level)));
+    } catch (e) {
+      pending = Promise.reject(e);
+    }
+    pending.then(
+      (action) => {
+        result = { action };
+        land();
+      },
+      (e: unknown) => {
+        this.opts.log?.(`bots: ${player} failed to decide: ${e instanceof Error ? e.message : String(e)}`);
+        result = { action: null };
+        land();
+      },
+    );
   }
 
   /** Resolves once no bot is thinking and the game is not waiting on a (running) bot. For tests. */

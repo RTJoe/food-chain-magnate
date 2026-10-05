@@ -173,6 +173,37 @@ describe('BotDriver', () => {
     driver.dispose();
   });
 
+  it('thinks during the delay: the move lands after whichever of the two takes longer', async () => {
+    const pending: { fn: () => void; ms: number }[] = [];
+    const timers: Timers = { set: (fn, ms) => pending.push({ fn, ms }), clear: () => {} };
+    let seed = 1;
+    while (new GameSession({ engine, config: config(), seed }).rawState.awaiting.players[0] === 'p1') seed++;
+    const requests: { budgetMs: number; level: BotLevel }[] = [];
+    let release: (() => void) | null = null;
+    const runner: BotRunner = (req) => {
+      requests.push({ budgetMs: req.budgetMs, level: req.level });
+      const a = runBot(req);
+      return requests.length === 1 ? new Promise((res) => (release = () => res(a))) : Promise.resolve(a);
+    };
+    const { game, driver } = setup({ seed, delay: 650, timers, runner, bots: { p2: 'hard', p3: 'hard' } });
+    driver.poke();
+    // Asked at once, with the per-level budget, while the delay runs.
+    expect(requests).toEqual([{ budgetMs: 2000, level: 'hard' }]);
+    pending.shift()?.fn();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(game.seq).toBe(0); // delay over, still thinking
+    (release as (() => void) | null)?.();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(game.seq).toBe(1); // lands as soon as the answer arrives, no second wait
+    // Next move: the answer is instant, so it waits for the delay.
+    expect(requests.length).toBe(2);
+    expect(game.seq).toBe(1);
+    pending.shift()?.fn();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(game.seq).toBe(2);
+    driver.dispose();
+  });
+
   it('a failing or illegal bot is replaced by the safe fallback; the game never stalls', async () => {
     let calls = 0;
     const runner: BotRunner = async (req) => {

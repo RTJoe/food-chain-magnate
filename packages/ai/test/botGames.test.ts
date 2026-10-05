@@ -12,13 +12,13 @@ const ROUNDS = 25;
 const seats = (n: number, level: BotLevel | ((i: number) => BotLevel)): Record<PlayerId, BotLevel> =>
   Object.fromEntries(Array.from({ length: n }, (_, i) => [`p${i + 1}`, typeof level === 'function' ? level(i) : level]));
 
-function expectClean(g: ReturnType<typeof playBots>): void {
+function expectClean(g: ReturnType<typeof playBots>, rounds = ROUNDS): void {
   expect(g.rejected).toEqual([]);
   expect(g.fellBack).toEqual([]);
-  expect(g.state.phase.kind === 'gameOver' || g.state.round > ROUNDS).toBe(true);
+  expect(g.state.phase.kind === 'gameOver' || g.state.round > rounds).toBe(true);
 }
 
-describe.each(BOT_LEVELS)('%s bots (Hard falls back to Easy for now)', (level) => {
+describe.each(['easy', 'medium'] as const)('%s bots', (level) => {
   it.each([1, 2, 3, 4, 5, 6])('base game, 3 players, seed %i', (seed) => {
     expectClean(playBots(gameConfig(3), seed, seats(3, level), ROUNDS));
   }, 30_000);
@@ -28,13 +28,25 @@ describe.each(BOT_LEVELS)('%s bots (Hard falls back to Easy for now)', (level) =
   }, 30_000);
 });
 
+// Hard searches every decision: a short budget and fewer games keep the default run quick (the
+// bench covers strength and latency at the real budget).
+describe('hard bots (short budget)', () => {
+  it('base game, 3 players', () => {
+    expectClean(playBots(gameConfig(3), 1, seats(3, 'hard'), ROUNDS, 6000, 200));
+  }, 60_000);
+
+  it('all Ketchup modules, 3 players', () => {
+    expectClean(playBots(gameConfig(3, { modules: ALL_KETCHUP }), 11, seats(3, 'hard'), ROUNDS, 6000, 200));
+  }, 60_000);
+});
+
 describe('player counts and variants', () => {
   it.each([2, 4, 5])('base game with %i players', (n) => {
     expectClean(playBots(gameConfig(n), 100 + n, seats(n, 'easy'), ROUNDS));
   });
 
   it('6 players with every Ketchup module (mixed levels)', () => {
-    expectClean(playBots(gameConfig(6, { modules: [...ALL_KETCHUP, 'ketchup:sixPlayers'] }), 66, seats(6, (i) => BOT_LEVELS[i % 3] as BotLevel), ROUNDS));
+    expectClean(playBots(gameConfig(6, { modules: [...ALL_KETCHUP, 'ketchup:sixPlayers'] }), 66, seats(6, (i) => BOT_LEVELS[i % 3] as BotLevel), 12, 6000, 200), 12);
   }, 60_000);
 
   it('Hard Choices (conflicts with New Milestones)', () => {

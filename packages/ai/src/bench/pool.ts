@@ -7,6 +7,19 @@ import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { playGame, type GameResult, type GameSpec, type TraceLine } from './game.js';
+import { WEIGHTS } from '../hard/evaluate.js';
+import { createHardBot, type HardOptions } from '../hard/index.js';
+import { registerBot } from '../registry.js';
+
+/**
+ * Tuning hook: `FCM_HARD_WEIGHTS='{"inc":1.2}'` overrides Hard's evaluation weights in this process
+ * and its workers (they inherit the environment), so weight sweeps need no code edits.
+ */
+const tuning = process.env.FCM_HARD_WEIGHTS;
+if (tuning) Object.assign(WEIGHTS, JSON.parse(tuning) as Partial<typeof WEIGHTS>);
+/** Ablation hook: `FCM_HARD_OPTS='{"phases":["working"]}'` (any `HardOptions` field). */
+const hardOpts = process.env.FCM_HARD_OPTS;
+if (hardOpts) registerBot('hard', () => createHardBot(JSON.parse(hardOpts) as HardOptions));
 
 /** Default pool size: half the cores (the machine is shared), at least 1. */
 export function defaultWorkers(): number {

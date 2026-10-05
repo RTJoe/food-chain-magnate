@@ -1,6 +1,6 @@
 # AI opponents
 
-Bots fill seats online (host: **Add bot ▾** in the lobby) and in hot-seat (setup: "played by"). Levels: Easy, Medium, Hard. Easy and Medium exist; Hard falls back to Easy until it is registered (see "Interface for Medium/Hard").
+Bots fill seats online (host: **Add bot ▾** in the lobby) and in hot-seat (setup: "played by"). Levels: Easy, Medium, Hard, all registered (a level without a factory would fall back to Easy; see "Interface for Medium/Hard").
 
 ## Package
 
@@ -15,7 +15,7 @@ interface BotInput {
   legal: LegalAction[];  // engine.legalActions(viewState(view), playerId)
   engine: EngineApi;     // pure; call it on states you build (viewState / sampleState)
   rng: RngState;         // seeded per decision (mutated in place by the engine rng helpers)
-  budgetMs: number;      // soft thinking budget (server default 2000)
+  budgetMs: number;      // soft thinking budget (botBudgetMs(level): Hard 2000 server / 1500 hot-seat, others 500)
 }
 
 interface Bot {
@@ -31,6 +31,7 @@ runBotDetailed(req) → { action, fellBack, error?, ms }
 viewState(view): GameState            // deterministic pseudo-state (own secrets, blanks elsewhere)
 sampleState(view, rng): GameState     // determinization hook (below)
 decisionSeed(gameSeed, seq, playerId) // reproducible per-decision seed
+botBudgetMs(level, host?)             // default thinking budget per level ('server' | 'hotSeat')
 fallbackAction(state, playerId, engine, legal?) // legal "move the game on" action
 heuristics.*                          // shared helpers: simpleStructure, firingPlan, actionFromPlacement, distances, demand…
 ```
@@ -71,17 +72,30 @@ Every candidate is checked with `engine.validateAction` before it is returned; t
 - For Hard: `medium.structureCandidates`, `medium.planAlternatives` (base plan, ranked options per card and dimension, single-substitution neighbours), `executePlan`, `medium.fireCandidates`, `medium.orderValue`.
 - `explain(input)` reports the archetype and the scored structures or plan steps.
 
+## Hard bot
+
+`packages/ai/src/hard/`, design in `docs/ai-strategy.md` §4. Medium proposes, rollouts decide.
+
+- Determinization (`determinize.ts`): `sampleState`, then hidden reserves from a prior (100/200/300 at 0.2/0.4/0.4) and rivals' submitted-but-hidden structures drawn from Medium's `structureCandidates` for their seat (softmax, T = $8; sample 0 = the best). Samples per decision: 4 while rival drafts are hidden, 3 near the bank break (reserves matter), else 1 (the engine draws no randomness in play and the opponent model is deterministic, so more samples would repeat the same rollout).
+- Candidates (`candidates.ts`), Medium's choice always first: Restructuring = Medium's top 8 structures; Order of business = every free position; Working = substitutions into Medium's turn plan (one card × dimension swapped for one of Medium's ranked alternatives, a half-length campaign, or an idle marketeer), plus pairwise combinations (and one triple) of the best three after the first pass; Payday = Medium's firing sets plus "fire nothing". Setup, Clean up and pending choices play Medium.
+- Rollouts (`rollout.ts`): JSON clone of the sample, my candidate for the decision window, then Medium for every seat (rivals and my continuation) through Dinnertime, Payday, Marketing and Clean up to the Restructuring two rounds on (horizon 2; 1 with more than 4 players or a budget under 1 s), or game over. A rejected action fails the rollout (scored as a loss of $1e6 for that sample; never surfaced). Working substitutions run through `overrideWork`: Medium's fresh plan each step with the substitutions swapped in once each, so "no substitution" is exactly Medium.
+- Evaluation (`evaluate.ts`, weights in `WEIGHTS`): game over ±10 000 (+ cash lead); otherwise cash, cash lead (weighted up as the game shortens), net next-round income (shadow Dinnertime minus salaries) × rounds left for me and the best rival, card values (before salary, only as many non-managers as the managers can seat), milestone values, spare seats, board position (campaign demand still to come × win chance × price), bank-drain term for the leader, reserve slot term.
+- Search (`search.ts`): every candidate on sample 0, then the base gets every sample, then UCB-lite (paired advantage over the base + 10/√n). The base is kept unless a fully sampled candidate beats it by $2 on the same samples. Deadline = start + `budgetMs` − 80 ms; a rollout starts only if 1.5 × the mean (and the slowest) rollout still fits, and a running rollout aborts at the deadline (discarded). `budgetMs ≤ 150` plays Medium's choice. `createHardBot({ maxRollouts })` caps rollouts (tests, determinism).
+- Stateless: the Working substitutions and the "fired, now confirm" Payday step are cached per (game fingerprint, seat, round) and checked against `history.seq`; a missing or stale entry (other worker, restart, undo) searches the rest of the turn again from the view.
+- `explain(input)`: candidates, rollouts, samples, horizon, the top candidates (paired advantage, mean evaluation, n, eval terms) and the chosen candidate's eval terms.
+- Measured results and what the ablations showed: `docs/ai-strategy.md` §4.7. `createHardBot({ phases, horizon })` exists for ablations (bench: `FCM_HARD_OPTS`).
+
 ## Where bots run
 
 | Host | Runner | Notes |
 |---|---|---|
 | Server (online) | `WorkerBotRunner` (`packages/server/src/botRunner.ts`): `worker_threads` pool, lazy, FIFO, size `FCM_BOT_WORKERS` (default half the cores, 1–4). Worker entry `botWorker.ts`. | A job that overruns `budgetMs + 10 s` or crashes is rejected and its worker replaced; the session plays the fallback. Running from source (tsx, vitest) the worker loads `botWorker.ts` through tsx. |
 | Session (tests, tools) | `inlineBotRunner` | Same thread. |
-| Client (hot-seat) | `workerBotRunner()` (`packages/client/src/net/botRunner.ts`): one module Web Worker per game (`botWorker.ts`), inline fallback. | Vite builds it as `assets/botWorker-*.js` (`worker.format: 'es'`). |
+| Client (hot-seat) | `workerBotRunner()` (`packages/client/src/net/botRunner.ts`): one module Web Worker per game (`botWorker.ts`), inline fallback. | Vite builds it as `assets/botWorker-*.js` (`worker.format: 'es'`). `LocalTransport` asks with `botBudgetMs(level, 'hotSeat')` (Hard 1.5 s) and, like the driver, overlaps thinking with the delay. |
 
 ### Session: `BotDriver` (`packages/session/src/bots.ts`)
 
-- Watches one `GameSession`. Whenever the engine awaits a bot seat (`game.awaitedBot()`), it waits the delay (`BotDelay`: default 400–900 ms random; `FCM_BOT_DELAY_MS`; 0 in tests), asks the runner with `game.botRequest(player, budgetMs)` and applies the move with `game.submitBotAction`, which replaces a missing or rejected move with `fallbackAction` on the real state. One bot thinks at a time per room; simultaneous phases take turns.
+- Watches one `GameSession`. Whenever the engine awaits a bot seat (`game.awaitedBot()`), it asks the runner at once with `game.botRequest(player, budgetMs)` (`budgetMs` = the driver option, else `botBudgetMs(level)`) and starts the delay (`BotDelay`: default 400–900 ms random; `FCM_BOT_DELAY_MS`; 0 in tests) at the same time; the move lands when both are done, so thinking overlaps the human-feeling delay instead of adding to it. It is applied with `game.submitBotAction`, which replaces a missing or rejected move with `fallbackAction` on the real state. One bot thinks at a time per room; simultaneous phases take turns.
 - A move computed for an older seq (someone acted or undid meanwhile) is discarded and the bot thinks again.
 - Bots pause while nobody in the room is connected (`active`); a reconnect, join, action or undo pokes them again.
 - Undo: `UndoTracker.undo(…, isBot)` drops bot moves made after the undone human move instead of replaying them, so a quick bot reply never blocks a human's undo; the bots then decide again. Hot-seat (`LocalTransport`) does the same.
@@ -117,7 +131,7 @@ Contract and tips:
 5. Reuse `heuristics` (structure, firing, placements → actions, demand and distance scores) and the Easy bot's per-phase coverage: every awaited situation needs an answer (pending choices first, then the phase: setup restaurant/reserve, restructuring, order, working card by card, payday, freezer, Ketchup choices).
 6. Keep `choose` stateless, or treat any memory as a cache that may be missing: the server runs bots in a pool of worker threads, so consecutive decisions of one seat may land in different workers (and a restart or undo can happen between them). A per-turn plan should be keyed by something in the view (round, `view.turn`, `history.seq`) and rebuilt from the view when absent or stale.
 7. The seat is `input.playerId` (not `me`); `input.legal` is computed on `viewState(view)`, which equals the legal actions on the real state.
-8. Add the level to `packages/ai/test/botGames.test.ts` (it already loops over `BOT_LEVELS`) and keep `fellBack` at zero; add a test that Medium beats Easy more often than not over a few seeds.
+8. Add the level to `packages/ai/test/botGames.test.ts` and keep `fellBack` at zero (Hard plays there with a 200 ms budget to keep the default run short; `hard.test.ts` holds its smoke tests). Strength is measured with the bench, not in unit tests.
 
 ## Tuning harness (`packages/ai/src/bench/`)
 
@@ -136,4 +150,5 @@ npm run ai:gate [-- --profile ci|full] [--only name] [--set name.field=value] [-
 - Report: win rate with Wilson 95 % CI (capped games count as no win), expected share, multiplayer Elo (K 16, 2 passes, mean ± sd of 10 shuffles), head-to-head (seat pairs; draws ½), mean final cash and place, fallbacks/invalid/threw/rejected, p50/p95/max decision ms per level (`--phases` per phase), completion, game length, wins by seat.
 - Output (default `packages/ai/runs/<stamp>-<label>/`, git-ignored): `summary.json`, `elo.json`, `games.jsonl`, and with `--trace` `traces/game-NNNN.jsonl` (a header line with config and seed, then one line per decision: phase, stage, player, bot, ms, applied action, summary, up to 40 legal alternatives, fallback/error, and the bot's `explain()` fields). With `--trace` the harness calls `explain` instead of `choose` when a bot has it.
 - `ai:inspect` rebuilds the exact state before any traced decision by replaying the actions from the header's config and seed, prints players, legal actions and the traced explanation, and with `--rerun` asks the bot again (same decision seed) and says whether it reproduces the traced action.
+- `FCM_HARD_WEIGHTS='{"inc":1.2}'` overrides Hard's evaluation weights for a bench run, `FCM_HARD_OPTS='{"phases":["working"],"horizon":1}'` any `HardOptions` (workers inherit both), for sweeps and ablations without code edits.
 - `ai:gate` checks the §8.5 success criteria of `docs/ai-strategy.md` (`ci`: legality, completion, Medium ≥ 60 % vs Easy; `full`: the whole table plus a determinism replay). Thresholds and sizes are overridable; checks needing an unregistered level are skipped (failed with `--strict`); exit code 1 on failure.

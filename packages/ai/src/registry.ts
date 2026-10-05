@@ -1,17 +1,19 @@
 /**
- * Bot registry: one factory per level. Medium and Hard fall back to Easy until they are
- * registered (docs/ai.md). Registering replaces the fallback everywhere bots run (server worker,
- * session inline runner, client Web Worker), because they all call `createBot`.
+ * Bot registry: one factory per level (docs/ai.md). A level without a factory falls back to Easy.
+ * Registering replaces the factory everywhere bots run (server worker, session inline runner,
+ * client Web Worker), because they all call `createBot`.
  */
 import type { Bot, BotLevel } from './types.js';
 import { createEasyBot } from './easy.js';
 import { createMediumBot } from './medium/index.js';
+import { createHardBot } from './hard/index.js';
 
 export type BotFactory = () => Bot;
 
 const factories = new Map<BotLevel, BotFactory>([
   ['easy', createEasyBot],
   ['medium', createMediumBot],
+  ['hard', () => createHardBot()],
 ]);
 
 /** Register (or replace) the factory for a level. */
