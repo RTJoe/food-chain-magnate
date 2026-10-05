@@ -35,6 +35,15 @@ export class Stage {
   readonly board = new THREE.Group();
   readonly entities = new THREE.Group();
   readonly overlay = new THREE.Group();
+  /** Overlay sub-groups (ux-plan WP2): range below reach below routes; ghosts/rings stay in `overlay`. */
+  readonly overlays = { range: new THREE.Group(), reach: new THREE.Group(), routes: new THREE.Group() };
+  /**
+   * Labels with a minimum on-screen size (sprites with `userData.minPx` = minimum css px per world
+   * unit). Scaled before each render so plaques stay readable on phones at the default zoom.
+   */
+  readonly sized = new Set<THREE.Sprite>();
+  /** Objects kept "behind" their group origin on screen (`userData.screenBehind` = distance). */
+  readonly behind = new Set<THREE.Object3D>();
   readonly inst = new Instancer();
   readonly tweens = new Tweens();
   readonly sun: THREE.DirectionalLight;
@@ -81,6 +90,10 @@ export class Stage {
     this.entities.name = 'entities';
     this.overlay.name = 'overlay';
     this.scene.add(this.board, this.entities, this.overlay, this.inst.root);
+    for (const [k, g] of Object.entries(this.overlays)) {
+      g.name = `overlay:${k}`;
+      this.overlay.add(g);
+    }
 
     this.hemi = new THREE.HemisphereLight('#fff3dc', '#b49b78', 1.25);
     this.scene.add(this.hemi);
@@ -165,6 +178,59 @@ export class Stage {
     this.invalidate();
   }
 
+  /** Register / unregister screen-sized sprites under `root`. */
+  trackSized(root: THREE.Object3D): void {
+    root.traverse((o) => {
+      if ((o as THREE.Sprite).isSprite && o.userData.minPx) this.sized.add(o as THREE.Sprite);
+      if (o.userData.screenBehind) this.behind.add(o);
+    });
+  }
+
+  untrackSized(root: THREE.Object3D): void {
+    root.traverse((o) => {
+      if ((o as THREE.Sprite).isSprite) this.sized.delete(o as THREE.Sprite);
+      this.behind.delete(o);
+    });
+  }
+
+  private v = new THREE.Vector3();
+  private updateSized(): void {
+    const cam = this.camera;
+    if (this.behind.size) {
+      // Screen "up" projected on the ground: away from the viewer when tilted, north-up from above.
+      const e = cam.matrixWorld.elements;
+      let ux = e[4]!;
+      let uz = e[6]!;
+      const l = Math.hypot(ux, uz) || 1;
+      ux /= l;
+      uz /= l;
+      for (const o of this.behind) {
+        const d = o.userData.screenBehind as number;
+        o.position.x = ux * d;
+        o.position.z = uz * d;
+      }
+    }
+    if (!this.sized.size) return;
+    const hPx = Math.max(1, this.el.clientHeight);
+    const k0 = (2 * Math.tan((cam.fov * Math.PI) / 360)) / hPx / cam.zoom;
+    for (const s of this.sized) {
+      const base = s.userData.baseH as number;
+      s.getWorldPosition(this.v).applyMatrix4(cam.matrixWorldInverse);
+      const depth = Math.max(0.1, -this.v.z);
+      const wpp = depth * k0;
+      // Parent scale (pop-in tweens) multiplies through; only the minimum is screen-based.
+      const k = Math.min(s.userData.maxK ?? 3, Math.max(1, (s.userData.minPx as number) * wpp));
+      const h = base * k;
+      s.scale.set(h * (s.userData.aspect as number), h, 1);
+      // Stacked above another screen-sized label at the same anchor (plaque over number badge).
+      const above = s.userData.above as { baseH: number; minPx: number; gap: number } | undefined;
+      if (above) {
+        const kb = Math.min(3, Math.max(1, above.minPx * wpp));
+        s.center.y = -((above.baseH * kb) / 2 + above.gap * k) / h;
+      }
+    }
+  }
+
   invalidate(): void {
     this.dirty = true;
   }
@@ -188,6 +254,7 @@ export class Stage {
     }
     if (!(this.dirty || tweening || ambientDue)) return;
     this.dirty = false;
+    this.updateSized();
     const t0 = performance.now();
     this.renderer.render(this.scene, this.camera);
     this.watchPerf(performance.now() - t0, dt);

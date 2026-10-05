@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import type { DemandToken, FoodId } from '@fcm/engine';
 import { COLORS, FOOD_COLORS } from '../../theme.js';
-import { makeBadge } from '../labels.js';
+import { BADGE_MIN_PX, LABEL_MIN_PX, makeSprite, plaqueTexture } from '../labels.js';
 import { solid, type MiniCtx } from './ctx.js';
 import { P, Shape, ball, box, cyl, extrude, lathe, miniGeo, puck, shade } from './kit.js';
 
@@ -93,38 +93,71 @@ export function buildToken(ctx: MiniCtx, food: FoodId): THREE.Group {
   return g;
 }
 
+/** World height of the demand plaque at close zoom. */
+export const PLAQUE_H = 0.74;
+const STACK_SCALE = 0.7;
+
+export interface DemandParams {
+  /** Capacity; null = unlimited (apartment, rural). */
+  capacity: number | null;
+  noSeller?: boolean;
+  /** Height of the plaque anchor above the stack origin's ground (the house number badge). */
+  badgeH?: number;
+}
+
+/** Goods grouped and ordered for display (food order, then count). */
+export function demandGoods(demand: readonly DemandToken[]): { good: FoodId; count: number }[] {
+  const order = Object.keys(FOOD_COLORS);
+  const counts = new Map<FoodId, number>();
+  for (const d of demand) counts.set(d.good, (counts.get(d.good) ?? 0) + 1);
+  return [...counts].map(([good, count]) => ({ good, count })).sort((a, b) => order.indexOf(a.good) - order.indexOf(b.good));
+}
+
 /**
- * Demand stack floating above a house: up to MAX_STACK tokens, then a "×N" badge. Each token is
- * its own child (name `token:i`) so animations can pop or fly single tokens.
+ * Demand on a house (ux-plan §3.3): a roof plaque (good glyphs with counts, capacity pips) drawn
+ * just above the house number badge, plus the token stack, scaled down and set behind the plaque
+ * as the "stock" the animations drop into and take from. The group origin is the badge anchor;
+ * each token is its own child (`token:i`) so animations can pop or fly single tokens.
  */
-export function buildDemandStack(ctx: MiniCtx, demand: DemandToken[]): THREE.Group {
+export function buildDemandStack(ctx: MiniCtx, demand: DemandToken[], p: DemandParams = { capacity: 3 }): THREE.Group {
   const g = new THREE.Group();
   g.name = 'demand';
   const n = demand.length;
   const shown = Math.min(n, MAX_STACK);
-  // Plinth disc so the stack reads as one floating piece.
+  const badgeH = p.badgeH ?? 0.46;
   if (n > 0) {
+    const plaque = makeSprite(plaqueTexture({ goods: demandGoods(demand), count: n, capacity: p.capacity, noSeller: p.noSeller }), PLAQUE_H);
+    // Bottom edge just above the number badge; Stage.updateSized keeps it there as both scale.
+    plaque.center.set(0.5, -((badgeH / 2 + 0.04) / PLAQUE_H));
+    plaque.userData.minPx = LABEL_MIN_PX;
+    plaque.userData.above = { baseH: badgeH, minPx: BADGE_MIN_PX, gap: 0.04 };
+    plaque.name = 'plaque';
+    g.add(plaque);
+    // Plinth disc so the stack reads as one floating piece.
     const plinth = new THREE.Group();
     plinth.name = 'plinth';
+    plinth.position.set(0, STACK_DY, -STACK_BEHIND);
+    plinth.userData.screenBehind = STACK_BEHIND;
+    plinth.scale.setScalar(STACK_SCALE);
     g.add(plinth);
     solid(ctx, plinth, miniGeo('stackPlinth', () => new Shape().add(puck(0.2, 0.03, 14, 0.01), shade(COLORS.ink, 0.15), { jitter: 0 })), { castShadow: true });
   }
   for (let i = 0; i < shown; i++) {
     const t = buildToken(ctx, demand[i]!.good);
     t.name = `token:${i}`;
-    t.position.y = 0.03 + i * TOKEN_H;
+    t.scale.setScalar(STACK_SCALE);
+    t.position.set(0, STACK_DY + (0.03 + i * TOKEN_H) * STACK_SCALE, -STACK_BEHIND);
+    t.userData.screenBehind = STACK_BEHIND;
     t.rotation.y = (i * 0.9) % (Math.PI * 2);
     g.add(t);
-  }
-  if (n > MAX_STACK) {
-    const b = makeBadge(`×${n}`, { bg: COLORS.ink, fg: '#fffaf0', ring: '#fffaf0', pill: true }, 0.3);
-    b.position.set(0.32, 0.03 + shown * TOKEN_H, 0);
-    b.name = 'count';
-    g.add(b);
   }
   g.userData.count = n;
   return g;
 }
+
+/** Stack offset from the badge anchor: a little lower, and behind the plaque on screen (Stage.behind). */
+const STACK_DY = -0.28;
+const STACK_BEHIND = 0.6;
 
 export function demandKey(demand: DemandToken[]): string {
   return demand.map((d) => d.good).join(',');

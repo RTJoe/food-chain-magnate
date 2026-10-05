@@ -121,3 +121,40 @@ export function campaignReach(board: Board, campaign: Pick<Campaign, 'kind' | 'p
       return [];
   }
 }
+
+/** Squares that make up a base-kind campaign's reach, for overlays (module kinds → []). */
+export function campaignArea(board: Board, campaign: Pick<Campaign, 'kind' | 'placement'>): Cell[] {
+  const p = campaign.placement;
+  const all: Cell[] = [];
+  const keep = (pred: (c: Cell) => boolean) => {
+    for (let y = 0; y < board.h; y++) for (let x = 0; x < board.w; x++) if (pred({ x, y })) all.push({ x, y });
+    return all;
+  };
+  switch (campaign.kind) {
+    case 'billboard': {
+      const cells = campaignCells(p);
+      const own = new Set(cells.map(cellKey));
+      const near = new Set<string>();
+      for (const c of cells) for (const d of DIRECTIONS) near.add(cellKey(step(c, d)));
+      return keep((c) => near.has(cellKey(c)) && !own.has(cellKey(c)));
+    }
+    case 'mailbox': {
+      const area = mailboxArea(board, campaignCells(p));
+      return keep((c) => area.has(cellKey(c)));
+    }
+    case 'airplane': {
+      if (p.kind !== 'airplane') return [];
+      const { axis, from, to } = airplaneLines(p);
+      return keep((c) => (axis === 'col' ? c.x : c.y) >= from && (axis === 'col' ? c.x : c.y) <= to);
+    }
+    case 'radio': {
+      const r = campaignCells(p)[0];
+      if (!r) return [];
+      const tr = Math.floor(r.y / 5);
+      const tc = Math.floor(r.x / 5);
+      return keep((c) => Math.abs(Math.floor(c.y / 5) - tr) <= 1 && Math.abs(Math.floor(c.x / 5) - tc) <= 1);
+    }
+    default:
+      return [];
+  }
+}

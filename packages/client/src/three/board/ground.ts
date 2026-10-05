@@ -1,16 +1,26 @@
 /**
- * Static board: table, rim with edge markers, one grass slab per 5x5 tile (thin seams between
- * tiles), per-square colour variation, optional square grid and small grass tufts on empty squares.
+ * Static board: table, rim with edge markers and tile coordinates, one grass slab per 5x5 tile
+ * (groove + light lip + shader seam line between tiles, ux-plan §3.4), per-square colour
+ * variation, optional square grid and small grass tufts on empty squares.
  */
 import * as THREE from 'three';
 import type { Board } from '@fcm/engine';
 import { COLORS } from '../../theme.js';
 import { RIM, hash2 } from '../coords.js';
 import { Shape, box, color, cone, mats, shade } from '../minis/kit.js';
+import { buildRimLabels, buildSeams, type SeamLayer } from './seams.js';
+
+/** Groove between tile slabs (world units). */
+export const TILE_GAP = 0.12;
+/** Raised light lip around each tile's top edge. */
+const LIP_W = 0.07;
+const LIP_H = 0.014;
 
 export interface GroundLayer {
   group: THREE.Group;
   grid: THREE.LineSegments;
+  seams: SeamLayer;
+  setLabelYaw(yaw: number): void;
   dispose(): void;
 }
 
@@ -40,7 +50,7 @@ export function buildGround(b: Board): GroundLayer {
   const OW = W + RIM * 2;
   const OH = H + RIM * 2;
   s.add(box(OW, 0.36, OH, 0.14), shade(COLORS.lot, -0.18), { at: [W / 2, -0.42, H / 2], jitter: 0 });
-  s.add(box(W + 0.3, 0.08, H + 0.3, 0.02), COLORS.tileEdge, { at: [W / 2, -0.13, H / 2], jitter: 0 });
+  s.add(box(W + 0.3, 0.08, H + 0.3, 0.02), shade(COLORS.tileEdge, -0.42), { at: [W / 2, -0.15, H / 2], jitter: 0 });
   const rimC = COLORS.lot;
   const rw = RIM - 0.1;
   // Four frame pieces (top at y = 0.06).
@@ -66,28 +76,46 @@ export function buildGround(b: Board): GroundLayer {
   for (let x = 0; x <= W; x += b.tileSize) for (const z of [-0.45, H + 0.45]) s.add(box(0.12, 0.05, 0.12, 0.02), peg, { at: [x, 0.06, z], jitter: 0 });
   for (let y = 0; y <= H; y += b.tileSize) for (const x of [-0.45, W + 0.45]) s.add(box(0.12, 0.05, 0.12, 0.02), peg, { at: [x, 0.06, y], jitter: 0 });
 
-  // Tiles: slab + per-square tops.
+  // Tiles (ux-plan §3.4): each 5x5 tile is a separate slab with a 0.12 groove between tiles
+  // (gap floor in tileEdge), a light raised lip around its top edge, and per-square grass tops.
+  const ts = b.tileSize;
   const grass = color(COLORS.grass);
   const side = shade(COLORS.grass, -0.25);
+  const lipC = color(COLORS.tileEdge);
+  const half = TILE_GAP / 2;
+  const inner = half + LIP_W;
   for (const t of b.tiles) {
-    const x0 = t.col * b.tileSize;
-    const y0 = t.row * b.tileSize;
-    s.add(box(b.tileSize - 0.05, 0.11, b.tileSize - 0.05, 0.035), side, { at: [x0 + 2.5, -0.12, y0 + 2.5], jitter: 0 });
-    for (let dy = 0; dy < b.tileSize; dy++)
-      for (let dx = 0; dx < b.tileSize; dx++) {
+    const x0 = t.col * ts;
+    const y0 = t.row * ts;
+    const cx = x0 + ts / 2;
+    const cz = y0 + ts / 2;
+    s.add(box(ts - TILE_GAP, 0.09, ts - TILE_GAP, 0.03), side, { at: [cx, -0.1, cz], jitter: 0 });
+    // Lip: four chamfered strips standing LIP_H above the grass.
+    const L = ts - TILE_GAP;
+    s.add(box(L, LIP_H + 0.02, LIP_W, 0.012), lipC, { at: [cx, -0.02, y0 + half + LIP_W / 2], jitter: 0 });
+    s.add(box(L, LIP_H + 0.02, LIP_W, 0.012), lipC, { at: [cx, -0.02, y0 + ts - half - LIP_W / 2], jitter: 0 });
+    s.add(box(LIP_W, LIP_H + 0.02, L - LIP_W * 2, 0.012), lipC, { at: [x0 + half + LIP_W / 2, -0.02, cz], jitter: 0 });
+    s.add(box(LIP_W, LIP_H + 0.02, L - LIP_W * 2, 0.012), lipC, { at: [x0 + ts - half - LIP_W / 2, -0.02, cz], jitter: 0 });
+    for (let dy = 0; dy < ts; dy++)
+      for (let dx = 0; dx < ts; dx++) {
         const x = x0 + dx;
         const y = y0 + dy;
         const j = (hash2(x, y, 7) - 0.5) * 0.07 + ((x + y) % 2 ? 0.012 : -0.012);
         const c = grass.clone().multiplyScalar(1 + j);
-        const inset = (edge: boolean) => (edge ? 0.025 : 0);
-        const wx = 1 - inset(dx === 0) - inset(dx === b.tileSize - 1);
-        const wz = 1 - inset(dy === 0) - inset(dy === b.tileSize - 1);
+        const inset = (edge: boolean) => (edge ? inner : 0);
+        const wx = 1 - inset(dx === 0) - inset(dx === ts - 1);
+        const wz = 1 - inset(dy === 0) - inset(dy === ts - 1);
         s.add(box(wx, 0.02, wz, 0), c, {
-          at: [x + 0.5 + (inset(dx === 0) - inset(dx === b.tileSize - 1)) / 2, -0.02, y + 0.5 + (inset(dy === 0) - inset(dy === b.tileSize - 1)) / 2],
+          at: [x + 0.5 + (inset(dx === 0) - inset(dx === ts - 1)) / 2, -0.02, y + 0.5 + (inset(dy === 0) - inset(dy === ts - 1)) / 2],
           jitter: 0,
         });
       }
   }
+  // Tile coordinates on the rim (columns A, B, ... north and south; rows 1, 2, ... west and east).
+  const labels = buildRimLabels(b);
+  group.add(labels.group);
+  disposables.push(labels);
+
   const geo = s.build();
   disposables.push(geo);
   const mesh = new THREE.Mesh(geo, mats().body);
@@ -110,9 +138,16 @@ export function buildGround(b: Board): GroundLayer {
   group.add(grid);
   disposables.push(gridGeo, gridMat);
 
+  // Seam lines (shader, always on): readable at any zoom, independent of the geometry above.
+  const seams = buildSeams(b);
+  group.add(seams.mesh);
+  disposables.push(seams);
+
   return {
     group,
     grid,
+    seams,
+    setLabelYaw: (yaw) => labels.setYaw(yaw),
     dispose() {
       for (const d of disposables) d.dispose();
     },

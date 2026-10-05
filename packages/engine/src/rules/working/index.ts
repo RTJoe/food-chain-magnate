@@ -247,7 +247,7 @@ export function workingPlacements(s: GameState, player: PlayerId, spec: Placemen
   switch (spec.kind) {
     case 'buyerRoute': {
       if (a.kind !== 'buyDrinks' || a.mode === 'errand') return [];
-      const { range } = buyerStats(s, player, def);
+      const { range, perSource } = buyerStats(s, player, def);
       const seen = new Set<string>();
       for (const from of playerRouteStarts(s.board, player)) {
         if (a.mode === 'road') {
@@ -255,7 +255,13 @@ export function workingPlacements(s: GameState, player: PlayerId, spec: Placemen
             const key = r.sources.join(',');
             if (seen.has(key)) continue;
             seen.add(key);
-            out.push({ kind: 'buyerRoute', route: { mode: 'road', from, path: r.path }, collects: r.sources.map((sourceId) => ({ sourceId, count: buyerStats(s, player, def).perSource })) });
+            out.push({
+              kind: 'buyerRoute',
+              route: { mode: 'road', from, path: r.path },
+              collects: r.sources.map((sourceId) => ({ sourceId, count: perSource })),
+              range,
+              bordersUsed: r.borders,
+            });
           }
         } else {
           const origin = routeStartOrigin(s.board, from);
@@ -264,7 +270,13 @@ export function workingPlacements(s: GameState, player: PlayerId, spec: Placemen
             const key = r.sources.join(',');
             if (seen.has(key)) continue;
             seen.add(key);
-            out.push({ kind: 'buyerRoute', route: { mode: 'air', from, tiles: r.tiles }, collects: r.sources.map((sourceId) => ({ sourceId, count: buyerStats(s, player, def).perSource })) });
+            out.push({
+              kind: 'buyerRoute',
+              route: { mode: 'air', from, tiles: r.tiles },
+              collects: r.sources.map((sourceId) => ({ sourceId, count: perSource })),
+              range,
+              bordersUsed: r.tiles.length - 1,
+            });
           }
         }
       }
@@ -291,13 +303,16 @@ export function workingPlacements(s: GameState, player: PlayerId, spec: Placemen
             }
             continue;
           }
+          // Module kinds with no on-board footprint (giant billboard, gourmet guide) come from module hooks.
+          if (tile.w <= 0 || tile.h <= 0) continue;
           const sizes = tile.w === tile.h ? [[tile.w, tile.h]] : [[tile.w, tile.h], [tile.h, tile.w]];
           for (const [w, h] of sizes as [number, number][]) {
             for (let y = 0; y + h <= H; y++) {
               for (let x = 0; x + w <= W; x++) {
                 if (!allEmpty(s.board, rect(x, y, w, h))) continue;
                 const placement = { kind: 'board' as const, x, y, w, h };
-                if (!campaignPlacementProblem(s, player, def, kind, n, placement, undefined, field)) out.push({ kind: 'campaign', campaignKind: kind, tileNumber: n, placement });
+                const orientation = w === h ? 'square' : w === tile.w ? 'landscape' : 'portrait';
+                if (!campaignPlacementProblem(s, player, def, kind, n, placement, undefined, field)) out.push({ kind: 'campaign', campaignKind: kind, tileNumber: n, placement, orientation });
               }
             }
           }
@@ -366,3 +381,80 @@ export function workingPlacements(s: GameState, player: PlayerId, spec: Placemen
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// "Why can't this card act?" (UI guidance, ux-plan.md §2.2)
+// ---------------------------------------------------------------------------
+
+const KIND_NAMES: Partial<Record<CampaignKind, string>> = { giantBillboard: 'giant billboard', gourmetGuide: 'gourmet guide' };
+
+/** One-line reason a card at work with uses left has nothing legal but skipping (cheap checks only). */
+export function noActionReason(s: GameState, player: PlayerId, uid: string): string {
+  const p = s.players[player];
+  const content = contentFor(s.config.modules);
+  const def = p ? defOf(content, p, uid) : undefined;
+  if (!p || !def) return 'Nothing this card can do now';
+  const a = def.ability;
+  switch (a.kind) {
+    case 'ceo':
+    case 'recruit': {
+      const problems = Object.values(content.employees)
+        .filter((e) => e?.entry)
+        .map((e) => (e ? hireProblem(s, p, e.id) : null));
+      return problems.every(Boolean) ? 'No entry-level card can be hired (piles empty or 1x cards owned)' : 'Nothing can be hired now';
+    }
+    case 'train': {
+      const turn = s.turn;
+      const left = turn?.uses[uid] ?? 0;
+      const targets = p.beach.filter((t) => t !== p.structure.ceo && p.employees[t]);
+      if (!targets.length) return 'No card on the beach to train';
+      const reasons: string[] = [];
+      for (const target of targets) {
+        const card = p.employees[target];
+        if (!card) continue;
+        const options = reachableTargets(s, p, card.employeeId, Math.min(left, a.maxStepsSameCard));
+        if (!options.length) {
+          reasons.push(`${content.employees[card.employeeId]?.name ?? card.employeeId} cannot be trained further`);
+          continue;
+        }
+        for (const o of options) {
+          const v = validateTrain(s, { type: 'work.train', playerId: player, trainerUid: uid, targetUid: target, toEmployeeId: o.to as EmployeeId });
+          if (!v.ok) reasons.push(v.message);
+        }
+      }
+      const unique = [...new Set(reasons)];
+      return unique.length ? unique.slice(0, 2).join('; ') : 'No card on the beach can be trained';
+    }
+    case 'marketing': {
+      const missing = a.campaigns.filter((k) => !s.marketingTiles.some((n) => content.marketingTiles[n]?.kind === k));
+      if (missing.length === a.campaigns.length) return `No ${missing.map((k) => KIND_NAMES[k] ?? k).join(' / ')} campaign tiles left`;
+      return 'No legal campaign placement';
+    }
+    case 'newBusiness':
+      return 'No house or garden tiles left';
+    case 'restaurant':
+      return p.restaurantsRemaining <= 0 ? 'All your restaurants are on the map' : 'No legal restaurant placement';
+    default:
+      return 'Nothing this card can do now';
+  }
+}
+
+/**
+ * Annotate each card's `work.skip` entry with `disabledReason` when skipping is the only thing it
+ * can do (run after `ready` entries are re-validated).
+ */
+export function annotateNoAction(s: GameState, player: PlayerId, list: LegalAction[]): LegalAction[] {
+  if (s.phase.kind !== 'working' || s.pending.length) return list;
+  const cardOf = (l: LegalAction): string | undefined => {
+    if (l.kind === 'ready') {
+      const act = l.action as { cardUid?: string; trainerUid?: string };
+      return act.cardUid ?? act.trainerUid;
+    }
+    return l.cardUid ?? (l.kind === 'placement' ? l.spec.cardUid : undefined);
+  };
+  const acting = new Set(list.filter((l) => !(l.kind === 'ready' && (l.action.type === 'work.skip' || l.action.type === 'work.endTurn'))).map(cardOf));
+  return list.map((l) => {
+    if (l.kind !== 'ready' || l.action.type !== 'work.skip' || acting.has(l.action.cardUid)) return l;
+    return { ...l, disabledReason: noActionReason(s, player, l.action.cardUid) };
+  });
+}

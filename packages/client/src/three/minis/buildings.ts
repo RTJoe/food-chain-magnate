@@ -3,13 +3,20 @@ import * as THREE from 'three';
 import type { Direction } from '@fcm/engine';
 import { COLORS } from '../../theme.js';
 import { dirAngle } from '../coords.js';
-import { makeBadge } from '../labels.js';
+import { BADGE_MIN_PX, makeBadge } from '../labels.js';
 import { blob, solid, type MiniCtx } from './ctx.js';
 import { P, Shape, ball, box, cone, cyl, gable, hip, lathe, miniGeo, shade } from './kit.js';
 
 const WALLS = [COLORS.houseWall, '#efdcbc', '#f5ecdc'];
 const ROOFS = [COLORS.houseRoof, '#b65a3c', '#d9824f'];
 const NEW_ROOF = '#4f8a9a';
+
+/** Number badge anchors (the demand plaque sits just above them, see minis/tokens.ts). */
+export const HOUSE_BADGE_Y = 1.62;
+export const APARTMENT_BADGE_Y = 3.0;
+export const RURAL_BADGE_Y = 2.2;
+/** Number badge world heights. */
+export const BADGE_SIZE = { house: 0.46, apartment: 0.52, rural: 0.5 } as const;
 
 // ---------------------------------------------------------------------------
 // Small reusable bits
@@ -99,9 +106,10 @@ export function buildHouse(ctx: MiniCtx, p: HouseParams): THREE.Group {
   g.add(body);
   blob(ctx, body, 2.2, 2.0, true, 0.7);
   solid(ctx, body, miniGeo(`house:${p.variant % 6}:${p.placed}`, () => houseShape(p.variant % 6, p.placed)));
-  const badge = makeBadge(p.label, { bg: COLORS.surface, ring: p.placed ? NEW_ROOF : COLORS.ink }, 0.46);
-  badge.position.set(0, 1.62, 0);
+  const badge = makeBadge(p.label, { bg: COLORS.surface, ring: p.placed ? NEW_ROOF : COLORS.ink }, BADGE_SIZE.house);
+  badge.position.set(0, HOUSE_BADGE_Y, 0);
   badge.name = 'badge';
+  badge.userData.minPx = BADGE_MIN_PX;
   g.add(badge);
   g.userData.stackY = 1.95;
   return g;
@@ -152,9 +160,10 @@ export function buildApartment(ctx: MiniCtx, p: { label: string; facing: Directi
   g.add(body);
   blob(ctx, body, 3.2, 3.0, true, 0.8);
   solid(ctx, body, miniGeo('apartment', apartmentShape));
-  const badge = makeBadge(p.label, { bg: COLORS.surface, ring: '#6b5f8a' }, 0.52);
-  badge.position.set(0, 3.0, 0);
+  const badge = makeBadge(p.label, { bg: COLORS.surface, ring: '#6b5f8a' }, BADGE_SIZE.apartment);
+  badge.position.set(0, APARTMENT_BADGE_Y, 0);
   badge.name = 'badge';
+  badge.userData.minPx = BADGE_MIN_PX;
   g.add(badge);
   g.userData.stackY = 3.35;
   return g;
@@ -250,9 +259,10 @@ export function buildRural(ctx: MiniCtx): THREE.Group {
   const g = new THREE.Group();
   blob(ctx, g, 6.2, 6.2, true, 0.7);
   solid(ctx, g, miniGeo('rural', ruralShape));
-  const badge = makeBadge('Rural', { bg: COLORS.surface, ring: '#7a5a46', pill: true }, 0.5);
-  badge.position.set(0, 2.2, 0);
+  const badge = makeBadge('Rural', { bg: COLORS.surface, ring: '#7a5a46', pill: true }, BADGE_SIZE.rural);
+  badge.position.set(0, RURAL_BADGE_Y, 0);
   badge.name = 'badge';
+  badge.userData.minPx = BADGE_MIN_PX;
   g.add(badge);
   g.userData.stackY = 2.6;
   return g;

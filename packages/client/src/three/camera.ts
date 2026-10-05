@@ -24,6 +24,16 @@ export interface PointerInfo {
   type: string;
 }
 
+/** Parts of the canvas covered by UI panels, in CSS px. */
+export interface ContentInset {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+const NO_INSET: ContentInset = { left: 0, right: 0, top: 0, bottom: 0 };
+
 interface Pose {
   target: THREE.Vector3;
   dist: number;
@@ -39,6 +49,7 @@ export class CameraController {
   private top = false;
   private content: { x0: number; z0: number; x1: number; z1: number } | null = null;
   private tiltBeforeTop = DEFAULT_TILT;
+  private inset: ContentInset = { ...NO_INSET };
 
   private pointers = new Map<number, { x: number; y: number; sx: number; sy: number; t: number; type: string; button: number; mods: boolean }>();
   private panAnchor: THREE.Vector3 | null = null;
@@ -80,15 +91,44 @@ export class CameraController {
 
   /**
    * Set pan bounds and the home framing from the world rectangle the content covers (board plus
-   * rim and any off-board pieces); optionally jump there.
+   * rim and any off-board pieces); optionally jump there. `inset` (CSS px) is the part of the
+   * canvas covered by panels: the home framing fits the content into the rest, and the camera's
+   * optical centre moves to the middle of the visible area (lens shift), so orbit and zoom pivot
+   * where the player looks.
    */
-  setContent(r: { x0: number; z0: number; x1: number; z1: number }, frame: boolean): void {
+  setContent(r: { x0: number; z0: number; x1: number; z1: number }, frame: boolean, inset?: ContentInset): void {
+    if (inset) this.inset = sanitizeInset(inset);
+    this.applyViewOffset();
     const size = Math.max(r.x1 - r.x0, r.z1 - r.z0);
     this.bounds = { x0: r.x0 - 1.5, z0: r.z0 - 1.5, x1: r.x1 + 1.5, z1: r.z1 + 1.5, minD: 5, maxD: Math.max(25, size * 2) };
     this.content = { ...r };
     this.home = this.homePose(r);
     this.bounds.maxD = Math.max(this.bounds.maxD, this.home.dist * 1.5);
     if (frame) this.reset(true);
+  }
+
+  /** Change the covered-canvas inset; re-frames when the camera is at home. */
+  setInset(inset: ContentInset): void {
+    const next = sanitizeInset(inset);
+    const cur = this.inset;
+    if (next.left === cur.left && next.right === cur.right && next.top === cur.top && next.bottom === cur.bottom) return;
+    this.inset = next;
+    this.refit();
+    this.onChange();
+  }
+
+  get contentInset(): ContentInset {
+    return { ...this.inset };
+  }
+
+  /** Current yaw in radians (0 = north up). */
+  get yaw(): number {
+    return this.cur.yaw;
+  }
+
+  /** Current tilt in radians (for tilt-dependent styling, e.g. seam width in top view). */
+  get tilt(): number {
+    return this.cur.tilt;
   }
 
   reset(instant = false): void {
@@ -181,7 +221,7 @@ export class CameraController {
   /** Smallest distance at which the board (plus rim) fits the viewport at the home pose. */
   /** Home pose: north up, or turned a quarter on portrait screens so the long side runs down. */
   private homePose(r: { x0: number; z0: number; x1: number; z1: number }): Pose {
-    const portrait = (this.camera.aspect || 1) < 0.85 && r.x1 - r.x0 > r.z1 - r.z0;
+    const portrait = this.visibleAspect() < 0.85 && r.x1 - r.x0 > r.z1 - r.z0;
     const yaw = portrait ? Math.PI / 2 : 0;
     const target = new THREE.Vector3((r.x0 + r.x1) / 2 + Math.sin(yaw) * 0.6, 0, (r.z0 + r.z1) / 2 + Math.cos(yaw) * 0.6);
     return { target, dist: this.fitDistance(r, yaw, target), yaw, tilt: DEFAULT_TILT };
@@ -197,6 +237,13 @@ export class CameraController {
       new THREE.Vector3(r.x0, 1.5, r.z0),
       new THREE.Vector3(r.x1, 1.5, r.z0),
     ];
+    // Visible region in NDC (the target projects to its centre thanks to the lens shift).
+    const { w: W, h: H } = this.viewport();
+    const ins = this.effectiveInset();
+    const hx = (W - ins.left - ins.right) / W;
+    const hy = (H - ins.top - ins.bottom) / H;
+    const cx = (ins.left - ins.right) / W;
+    const cy = (ins.bottom - ins.top) / H;
     const fits = (dist: number) => {
       const hd = Math.cos(DEFAULT_TILT) * dist;
       cam.position.set(target.x + Math.sin(yaw) * hd, Math.sin(DEFAULT_TILT) * dist, target.z + Math.cos(yaw) * hd);
@@ -205,7 +252,7 @@ export class CameraController {
       cam.updateMatrixWorld();
       return corners.every((c) => {
         const p = c.clone().project(cam);
-        return Math.abs(p.x) <= 0.97 && Math.abs(p.y) <= 0.9 && p.z < 1;
+        return Math.abs(p.x - cx) <= 0.97 * hx && Math.abs(p.y - cy) <= 0.9 * hy && p.z < 1;
       });
     };
     let lo = 4;
@@ -220,6 +267,7 @@ export class CameraController {
 
   /** Re-frame after the viewport changes shape (keeps the user's pose unless at home). */
   refit(): void {
+    this.applyViewOffset();
     if (!this.content) return;
     const w = this.want;
     const h = this.home;
@@ -227,6 +275,38 @@ export class CameraController {
     this.home = this.homePose(this.content);
     this.bounds.maxD = Math.max(this.bounds.maxD, this.home.dist * 1.5);
     if (atHome) this.reset(true);
+  }
+
+  private viewport(): { w: number; h: number } {
+    return { w: Math.max(1, this.dom.clientWidth), h: Math.max(1, this.dom.clientHeight) };
+  }
+
+  /** The inset, shrunk so at least 40% of each axis stays visible (tiny screens, huge panels). */
+  private effectiveInset(): ContentInset {
+    const { w, h } = this.viewport();
+    const i = this.inset;
+    const fx = Math.min(1, (w * 0.6) / Math.max(1, i.left + i.right));
+    const fy = Math.min(1, (h * 0.6) / Math.max(1, i.top + i.bottom));
+    return { left: i.left * fx, right: i.right * fx, top: i.top * fy, bottom: i.bottom * fy };
+  }
+
+  private visibleAspect(): number {
+    const { w, h } = this.viewport();
+    const i = this.effectiveInset();
+    return Math.max(1, w - i.left - i.right) / Math.max(1, h - i.top - i.bottom);
+  }
+
+  /** Lens shift: put the optical centre in the middle of the uncovered part of the canvas. */
+  private applyViewOffset(): void {
+    const { w, h } = this.viewport();
+    const i = this.effectiveInset();
+    const sx = (i.left - i.right) / 2;
+    const sy = (i.top - i.bottom) / 2;
+    if (Math.abs(sx) < 0.5 && Math.abs(sy) < 0.5) {
+      if (this.camera.view?.enabled) this.camera.clearViewOffset();
+      return;
+    }
+    this.camera.setViewOffset(w, h, -sx, -sy, w, h);
   }
 
   private apply(p: Pose): void {
@@ -418,6 +498,11 @@ export class CameraController {
     this.clampWant();
     this.onChange();
   }
+}
+
+function sanitizeInset(i: ContentInset): ContentInset {
+  const f = (v: number) => (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+  return { left: f(i.left), right: f(i.right), top: f(i.top), bottom: f(i.bottom) };
 }
 
 function clonePose(p: Pose): Pose {

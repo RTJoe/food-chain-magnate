@@ -3,10 +3,14 @@
  * interactions and event batches to exercise picking and animations.
  * Open http://localhost:5173/dev/three-playground.html?fixture=dinnertime
  */
-import type { Corner, FoodId, GameEvent, GameState, GameView, Placement } from '@fcm/engine';
+import type { Cell, Corner, FoodId, GameEvent, GameState, GameView, HouseId, Placement, RouteStart, SourceId } from '@fcm/engine';
 import { FIXTURES, type FixtureName } from '@fcm/engine/testing';
-import { createScene, type Tier } from '../src/three/index.js';
+import { createScene, localCampaignReach, localRangeField, playerStarts, type Tier } from '../src/three/index.js';
 import { topView } from '../src/state/interaction.js';
+import { highContrastTiles, type RouteRibbon } from '../src/state/boardOverlays.js';
+import { houseCapacity } from '../src/three/reconcile.js';
+import { playerColor } from '../src/three/layout.js';
+import { startRoads } from '../src/three/overlays/fallback.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -29,6 +33,7 @@ const clone = <T>(x: T): T => structuredClone(x);
 
 function load(name: FixtureName): void {
   view = toView(FIXTURES[name]());
+  scene.clearOverlays('all');
   scene.setInteractionMode({ kind: 'idle' });
   scene.setView(view, null, []);
   const b = view.board;
@@ -160,6 +165,129 @@ $('dinner').onclick = () => {
   view = next;
   scene.setView(view, null, events);
   say(`dinnertime: ${events.length} sales`);
+};
+
+// --- Overlay primitives (ux-plan WP2) ---------------------------------------------------
+
+/** First player with an open restaurant (overlay demos start there). */
+function demoPlayer(v: GameView): string | null {
+  for (const p of v.turnOrder) if (Object.values(v.board.restaurants).some((r) => r.owner === p && r.status === 'open')) return p;
+  return Object.values(v.board.restaurants)[0]?.owner ?? null;
+}
+
+$('range').onclick = () => {
+  const p = demoPlayer(view);
+  if (!p) return say('no restaurant to range from');
+  const starts = playerStarts(view.board, p);
+  const roads = localRangeField(view.board, starts, 3);
+  scene.drawRangeOverlay({ roads, starts, range: 3, color: playerColor(view, p) });
+  say(`range 3 from ${p}: ${roads.length} road squares, ${starts.length} starts`);
+};
+
+$('reach').onclick = () => {
+  const b = view.board;
+  const camp = Object.values(b.campaigns).find((c) => c.placement.kind === 'board' || c.placement.kind === 'airplane');
+  const kind = camp?.kind ?? 'billboard';
+  const placement = camp?.placement ?? { kind: 'board' as const, x: 9, y: 6, w: 2, h: 1 };
+  const reach = localCampaignReach(b, kind, placement);
+  const good = (camp?.goods[0] ?? 'burger') as FoodId;
+  // Make the demo show both kinds of chip: every house in reach, full ones grey.
+  const ids = reach.houseIds.length ? reach.houseIds : (Object.keys(b.houses).slice(0, 3) as HouseId[]);
+  const full = ids.filter((id) => {
+    const h = b.houses[id];
+    const cap = h ? houseCapacity(h) : null;
+    return !!h && cap !== null && h.demand.length >= cap;
+  });
+  scene.drawReach(ids, good, full, { color: camp ? playerColor(view, camp.owner) : undefined, cells: reach.cells, band: reach.band });
+  say(`reach of ${camp ? `#${camp.number} ${kind}` : 'demo billboard'}: ${ids.length} houses (${full.length} full)`);
+};
+
+/** Fake buyer routes: depth-first walks from the player's start roads, distinct by sources collected. */
+function demoRoutes(v: GameView, player: string, steps = 9): RouteRibbon[] {
+  const b = v.board;
+  const isRoad = (c: Cell) => !!b.cells[c.y]?.[c.x]?.road;
+  const sourceAt = new Map<string, SourceId>();
+  for (const s of Object.values(b.drinkSources)) sourceAt.set(`${s.x},${s.y}`, s.id);
+  const near = (c: Cell) =>
+    ([
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const)
+      .map(([dx, dy]) => sourceAt.get(`${c.x + dx},${c.y + dy}`))
+      .filter((x): x is SourceId => !!x);
+  const out = new Map<string, RouteRibbon>();
+  const walk = (from: RouteStart, path: Cell[]) => {
+    const last = path[path.length - 1]!;
+    if (path.length >= steps) {
+      const got = [...new Set(path.flatMap(near))];
+      const key = got.sort().join(',') || `none:${out.size}`;
+      if (!out.has(key) && (got.length || out.size < 2)) out.set(key, { route: { mode: 'road', from, path: [...path] }, collects: got.map((sourceId) => ({ sourceId, count: 2 })) });
+      return;
+    }
+    for (const [dx, dy] of [
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+      [0, -1],
+    ] as const) {
+      const n = { x: last.x + dx, y: last.y + dy };
+      if (!isRoad(n) || path.some((c) => c.x === n.x && c.y === n.y)) continue;
+      path.push(n);
+      walk(from, path);
+      path.pop();
+      if (out.size >= 6) return;
+    }
+  };
+  for (const from of playerStarts(b, player)) for (const c of startRoads(b, from)) walk(from, [c]);
+  return [...out.values()].sort((a, c) => c.collects.length - a.collects.length).slice(0, 5);
+}
+
+let routeIdx = 0;
+let routes: RouteRibbon[] = [];
+$('routes').onclick = () => {
+  const p = demoPlayer(view);
+  if (!p) return say('no restaurant to route from');
+  if (!routes.length || $('routes').dataset.fixture !== sel.value) {
+    routes = demoRoutes(view, p);
+    routeIdx = 0;
+    $('routes').dataset.fixture = sel.value;
+  } else routeIdx = (routeIdx + 1) % Math.max(1, routes.length);
+  scene.drawRouteRibbons(routes, routeIdx, { color: playerColor(view, p) });
+  const r = routes[routeIdx];
+  say(r ? `route ${routeIdx + 1} of ${routes.length}: ${r.collects.length} sources (click again to cycle)` : 'no routes');
+};
+
+$('clear').onclick = () => {
+  scene.clearOverlays('all');
+  routes = [];
+  say('overlays cleared');
+};
+
+$('hc').onclick = () => {
+  highContrastTiles.value = !highContrastTiles.value;
+  $('hc').classList.toggle('on', highContrastTiles.value);
+};
+
+/** Fake table panels: the camera fits the board into the uncovered area. */
+let panels = false;
+$('panels').onclick = () => {
+  panels = !panels;
+  $('panels').classList.toggle('on', panels);
+  const phone = innerWidth < 700;
+  const inset = !panels ? { left: 0, right: 0, top: 0, bottom: 0 } : phone ? { left: 0, right: 0, top: 120, bottom: 104 } : { left: 236, right: 392, top: 64, bottom: 0 };
+  for (const [id, on, css] of [
+    ['fake-rail', panels && !phone, `left:0;top:${inset.top}px;bottom:0;width:${inset.left}px`],
+    ['fake-dock', panels && !phone, `right:0;top:${inset.top}px;bottom:0;width:${inset.right}px`],
+    ['fake-sheet', panels && phone, `left:0;right:0;bottom:0;height:${inset.bottom}px`],
+  ] as const) {
+    const el = $(id);
+    el.style.cssText = css;
+    el.hidden = !on;
+  }
+  scene.setInset(inset);
+  scene.internals.cam.reset();
 };
 
 load(sel.value as FixtureName);

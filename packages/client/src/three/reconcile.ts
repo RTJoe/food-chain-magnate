@@ -8,7 +8,8 @@ import type { Board, GameView, House } from '@fcm/engine';
 import { cellsRect, hashStr } from './coords.js';
 import { buildGround, buildTufts, groundSignature, type GroundLayer } from './board/ground.js';
 import { buildRoads, roadSignature, type RoadLayer } from './board/roads.js';
-import { buildApartment, buildGarden, buildHouse, buildRural } from './minis/buildings.js';
+import { APARTMENT_BADGE_Y, BADGE_SIZE, HOUSE_BADGE_Y, RURAL_BADGE_Y, buildApartment, buildGarden, buildHouse, buildRural } from './minis/buildings.js';
+import type { HouseBoardInfo } from '../state/boardOverlays.js';
 import { releaseTree, type MiniCtx } from './minis/ctx.js';
 import { buildDrinkSource } from './minis/drinks.js';
 import { buildFreeway, buildGeneric, buildLobbyistRoad, buildPark, buildRoadworks } from './minis/ketchup.js';
@@ -55,7 +56,16 @@ interface Item {
   build: (ctx: MiniCtx) => THREE.Group;
 }
 
-const STACK_Y: Record<House['kind'], number> = { printed: 1.95, placed: 1.95, apartment: 3.35, rural: 2.6 };
+/** Demand group anchor = the number badge (the plaque sits just above it). */
+const STACK_Y: Record<House['kind'], number> = { printed: HOUSE_BADGE_Y, placed: HOUSE_BADGE_Y, apartment: APARTMENT_BADGE_Y, rural: RURAL_BADGE_Y };
+const BADGE_H: Record<House['kind'], number> = { printed: BADGE_SIZE.house, placed: BADGE_SIZE.house, apartment: BADGE_SIZE.apartment, rural: BADGE_SIZE.rural };
+
+/** Demand capacity: engine `houseOutlook` when given, else base.md §9 (3, 5 with a garden, ∞). */
+export function houseCapacity(h: House, info?: HouseBoardInfo): number | null {
+  if (info && info.capacity !== undefined) return info.capacity;
+  if (h.kind === 'apartment' || h.kind === 'rural') return null;
+  return h.garden ? 5 : 3;
+}
 
 export class Reconciler {
   readonly live = new Map<string, Placed>();
@@ -68,6 +78,10 @@ export class Reconciler {
   private ctx: MiniCtx;
   board: Board | null = null;
   showGrid = false;
+  private houseInfo: Record<string, HouseBoardInfo> = {};
+  private seamTop = 0;
+  private highContrast = false;
+  private labelYaw = 0;
 
   constructor(private readonly stage: Stage) {
     this.ctx = { inst: stage.inst };
@@ -84,7 +98,7 @@ export class Reconciler {
     const b = view?.board ?? null;
     this.board = b;
     const boardChanged = this.syncStatic(b);
-    const items = view && b ? collect(view, b) : [];
+    const items = view && b ? collect(view, b, this.houseInfo) : [];
     const want = new Map(items.map((i) => [i.key, i]));
     const added: string[] = [];
     const removed: string[] = [];
@@ -110,6 +124,7 @@ export class Reconciler {
       if (it.rotY) obj.rotation.y = it.rotY;
       obj.userData.key = it.key;
       this.stage.entities.add(obj);
+      this.stage.trackSized(obj);
       this.watchAmbient(obj);
       this.live.set(it.key, { key: it.key, id: it.id, kind: it.kind, obj, rect: it.rect, height: it.height, sig: it.sig });
       if (animate && !boardChanged && !before.has(it.key)) added.push(it.key);
@@ -133,6 +148,23 @@ export class Reconciler {
       },
       { delay, ease: ease.outBack, group: 'anim' },
     );
+  }
+
+  /** Engine/house data for plaques (capacity, no-seller). Takes effect on the next `sync`. */
+  setHouseInfo(info: Record<string, HouseBoardInfo>): void {
+    this.houseInfo = info ?? {};
+  }
+
+  /** Tile seam style: `top` 0..1 (tilted → straight down), high contrast, camera yaw for rim labels. */
+  setTileStyle(top: number, highContrast: boolean, yaw = this.labelYaw): void {
+    if (Math.abs(top - this.seamTop) < 0.01 && highContrast === this.highContrast && Math.abs(yaw - this.labelYaw) < 0.01) return;
+    this.seamTop = top;
+    this.highContrast = highContrast;
+    this.labelYaw = yaw;
+    this.ground?.seams.setTop(top);
+    this.ground?.seams.setHighContrast(highContrast);
+    this.ground?.setLabelYaw(yaw);
+    this.stage.invalidate();
   }
 
   setGrid(on: boolean): void {
@@ -172,6 +204,9 @@ export class Reconciler {
       if (b) {
         this.ground = buildGround(b);
         this.ground.grid.visible = this.showGrid;
+        this.ground.seams.setTop(this.seamTop);
+        this.ground.seams.setHighContrast(this.highContrast);
+        this.ground.setLabelYaw(this.labelYaw);
         this.stage.board.add(this.ground.group);
         this.stage.fitLight(b.w, b.h, hasOffBoard(b) ? RURAL_SIZE + 2 : 0);
       }
@@ -219,6 +254,7 @@ export class Reconciler {
 
   private drop(p: Placed, animate: boolean): void {
     const o = p.obj;
+    this.stage.untrackSized(o);
     const finish = () => {
       o.traverse((c) => this.stage.ambient.delete(c));
       releaseTree(o);
@@ -245,7 +281,7 @@ function occupancySignature(b: Board): string {
 // View → items
 // ---------------------------------------------------------------------------
 
-function collect(view: GameView, b: Board): Item[] {
+function collect(view: GameView, b: Board, info: Record<string, HouseBoardInfo>): Item[] {
   const items: Item[] = [];
 
   // Houses, apartments, rural area; demand stacks; gardens.
@@ -287,9 +323,12 @@ function collect(view: GameView, b: Board): Item[] {
       }
     }
     if (h.demand.length) {
-      const sig = demandKey(h.demand);
+      const capacity = houseCapacity(h, info[h.id]);
+      const noSeller = !!info[h.id]?.noSeller;
+      const sig = `${demandKey(h.demand)}|${capacity ?? 'inf'}|${noSeller}`;
       const demand = h.demand;
-      items.push({ key: `demand:${h.id}`, id: h.id, kind: 'demand', sig, rect, height: 0, x, z, y: STACK_Y[h.kind], build: (c) => buildDemandStack(c, demand) });
+      const badgeH = BADGE_H[h.kind];
+      items.push({ key: `demand:${h.id}`, id: h.id, kind: 'demand', sig, rect, height: 0, x, z, y: STACK_Y[h.kind], build: (c) => buildDemandStack(c, demand, { capacity, noSeller, badgeH }) });
     }
   }
 

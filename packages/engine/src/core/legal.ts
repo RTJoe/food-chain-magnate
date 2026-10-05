@@ -16,7 +16,7 @@ import { legalInitialPlacements, reserveOptions } from '../rules/setup.js';
 import { freePositions, currentChooser } from '../rules/orderOfBusiness.js';
 import { voluntarilyFireable } from '../rules/payday.js';
 import { freezerCapacity } from '../rules/cleanup.js';
-import { workingLegalActions, workingPlacements } from '../rules/working/index.js';
+import { annotateNoAction, workingLegalActions, workingPlacements } from '../rules/working/index.js';
 
 export function legalActions(state: GameState, playerId: PlayerId): LegalAction[] {
   const s = state;
@@ -67,7 +67,7 @@ export function legalActions(state: GameState, playerId: PlayerId): LegalAction[
     default:
       break;
   }
-  return filterReady(s, moduleLegal(s, playerId, out));
+  return annotateNoAction(s, playerId, filterReady(s, moduleLegal(s, playerId, out)));
 }
 
 /** Module additions (pending module choices, module card actions; C6). */

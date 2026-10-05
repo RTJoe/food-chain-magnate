@@ -16,6 +16,7 @@
  */
 import type { MilestoneDef } from '../types/content.js';
 import type { DinnerCandidate, HookContext, SaleBreakdown } from '../types/module.js';
+import type { SaleCandidate } from '../types/events.js';
 import type { FoodCounts, FoodId, GameState, House, PlayerId, PlayerState } from '../types/index.js';
 import { FOODS } from '../content/foods.js';
 import { BASE_MILESTONES } from '../content/milestones.js';
@@ -69,7 +70,7 @@ function stock(p: PlayerState): FoodCounts {
   return out;
 }
 
-function canDeliver(p: PlayerState, items: FoodCounts): boolean {
+export function canDeliver(p: PlayerState, items: FoodCounts): boolean {
   const st = stock(p);
   return (Object.entries(items) as [FoodId, number][]).every(([g, n]) => (st[g] ?? 0) >= n);
 }
@@ -132,21 +133,42 @@ export function compareCandidates(s: GameState, a: DinnerCandidate, b: DinnerCan
   );
 }
 
+/** Every candidate for a house (module pipeline applied), ranked as Dinnertime ranks them, with `canSupply`. */
+export function rankedCandidates(ctx: HookContext, house: House): { candidate: DinnerCandidate; canSupply: boolean; index: number }[] {
+  const s = ctx.state;
+  const candidates = runPipeline(ctx, 'dinnerCandidates', baseCandidates(ctx, house), { house });
+  return candidates
+    .map((candidate, index) => {
+      const p = s.players[candidate.player];
+      // Full-order rule: only chains that can deliver everything (base.md §7.2b).
+      return { candidate, canSupply: Boolean(p && !p.bankrupt && canDeliver(p, candidate.items)), index };
+    })
+    .sort((a, b) => compareCandidates(s, a.candidate, b.candidate) || a.index - b.index);
+}
+
+const saleCandidate = ({ candidate: c, canSupply }: { candidate: DinnerCandidate; canSupply: boolean }): SaleCandidate => ({
+  player: c.player,
+  restaurantId: c.restaurantId,
+  unitPrice: c.unitPrice,
+  distance: c.distance,
+  score: c.score,
+  tier: c.tier,
+  canSupply,
+});
+
 function resolveHouse(ctx: HookContext, house: House): void {
   const s = ctx.state;
   if (house.demand.length === 0) return;
-  const candidates = runPipeline(ctx, 'dinnerCandidates', baseCandidates(ctx, house), { house });
-  // Full-order rule: only chains that can deliver everything (base.md §7.2b).
-  const eligible = candidates.filter((c) => {
-    const p = s.players[c.player];
-    return p && !p.bankrupt && canDeliver(p, c.items);
-  });
-  ctx.emit({ type: 'houseConsidered', houseId: house.id, candidates: eligible.map((c) => c.player) });
+  const ranked = rankedCandidates(ctx, house);
+  const eligible = ranked.filter((r) => r.canSupply);
+  const offers = ranked.map(saleCandidate);
+  const inPipelineOrder = [...eligible].sort((a, b) => a.index - b.index);
+  ctx.emit({ type: 'houseConsidered', houseId: house.id, candidates: inPipelineOrder.map((r) => r.candidate.player), offers });
   if (eligible.length === 0) {
     ctx.emit({ type: 'houseStayedHome', houseId: house.id });
     return;
   }
-  const winner = [...eligible].sort((a, b) => compareCandidates(s, a, b))[0] as DinnerCandidate;
+  const winner = (eligible[0] as { candidate: DinnerCandidate }).candidate;
   const p = s.players[winner.player] as PlayerState;
 
   const bd = runPipeline(ctx, 'saleRevenue', baseRevenue(ctx, house, winner), { house, candidate: winner });
@@ -162,6 +184,7 @@ function resolveHouse(ctx: HookContext, house: House): void {
     lines: bd.lines,
     bonuses: bd.bonuses,
     total: bd.total,
+    candidates: offers.filter((o) => o.canSupply),
   });
   house.demand = [];
   p.earningsThisRound += bd.total;

@@ -50,6 +50,11 @@ export function buildRoads(b: Board): RoadLayer {
   const corners: Inst[] = [];
   const dashes: Inst[] = [];
   const zebras: Inst[] = [];
+  const seamBands: Inst[] = [];
+  const ts = b.tileSize;
+  const tileOf = (x: number, y: number) => `${Math.floor(x / ts)},${Math.floor(y / ts)}`;
+  /** The link from (x, y) towards `d` crosses a map tile border. */
+  const crossesSeam = (x: number, y: number, d: Direction) => tileOf(x, y) !== tileOf(x + DELTA[d][0], y + DELTA[d][1]);
   const bridges = new Shape();
   let bridgeCount = 0;
 
@@ -79,10 +84,15 @@ export function buildRoads(b: Board): RoadLayer {
       ];
       for (const [a, c, sx, sz] of pairs)
         if (links.includes(a) && links.includes(c) && !isRoad(x + sx, y + sz)) corners.push({ x: cx + sx * 0.45, z: cz + sz * 0.45, ang: 0 });
+      // Tile border crossings: a lighter band across the asphalt, centred on the seam (counted once).
+      for (const d of links)
+        if ((d === 'E' || d === 'S') && isRoad(x + DELTA[d][0], y + DELTA[d][1]) && crossesSeam(x, y, d))
+          seamBands.push({ x: cx + DELTA[d][0] * 0.5, z: cz + DELTA[d][1] * 0.5, ang: ANG[d] });
       if (r.underConstruction) continue;
       const shape = roadShape(links);
       if (shape === 'end' || shape === 'straight' || shape === 'corner') {
-        for (const d of links) dashes.push({ x: cx + DELTA[d][0] * 0.25, z: cz + DELTA[d][1] * 0.25, ang: ANG[d] });
+        // The centre dash is interrupted where the road crosses a tile border.
+        for (const d of links) if (!crossesSeam(x, y, d)) dashes.push({ x: cx + DELTA[d][0] * 0.25, z: cz + DELTA[d][1] * 0.25, ang: ANG[d] });
       } else if (shape === 'tee' || shape === 'cross') {
         for (const d of links) {
           const nx = x + DELTA[d][0];
@@ -133,6 +143,16 @@ export function buildRoads(b: Board): RoadLayer {
   const dashGeo = new THREE.BoxGeometry(0.06, 0.006, 0.26);
   disposables.push(dashGeo);
   addInst('dashes', dashGeo, lineMat, dashes, ROAD_TOP + 0.002);
+
+  const bandMat = new THREE.MeshStandardMaterial({ color: shade(COLORS.road, 0.2), roughness: 0.85, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  const bandGeo = new THREE.BoxGeometry(0.84, 0.006, 0.3);
+  disposables.push(bandMat, bandGeo);
+  addInst('seamBands', bandGeo, bandMat, seamBands, ROAD_TOP + 0.001);
+  // Thin seam line through the band so the border reads like the one on the grass.
+  const seamLineMat = new THREE.MeshBasicMaterial({ color: shade(COLORS.tileEdge, -0.58), toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+  const seamLineGeo = new THREE.BoxGeometry(0.84, 0.006, 0.07);
+  disposables.push(seamLineMat, seamLineGeo);
+  addInst('seamLines', seamLineGeo, seamLineMat, seamBands, ROAD_TOP + 0.005);
 
   const zebraGeo = new THREE.BufferGeometry();
   {

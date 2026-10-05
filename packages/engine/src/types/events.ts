@@ -45,6 +45,19 @@ export interface SaleBonus {
   amount: number;
 }
 
+/** A chain that competed for a house at Dinnertime, as ranked (base.md §7.5–7.7). */
+export interface SaleCandidate {
+  player: PlayerId;
+  restaurantId: RestaurantId;
+  unitPrice: number;
+  distance: number;
+  /** unitPrice + distance + module modifiers; lower wins (after `tier`). */
+  score: number;
+  tier: number;
+  /** Could deliver the whole order. */
+  canSupply: boolean;
+}
+
 export type GameEvent =
   // --- Flow ---------------------------------------------------------------
   | (E<'gameStarted'> & { players: PlayerId[]; turnOrder: PlayerId[] })
@@ -100,7 +113,8 @@ export type GameEvent =
   | (E<'entityRemoved'> & { entityId: EntityId })
   | (E<'mapTileAdded'> & { player: PlayerId; templateId: TileTemplateId; row: number; col: number; rotation: Rotation })
   // --- Dinnertime (base.md §7) --------------------------------------------
-  | (E<'houseConsidered'> & { houseId: HouseId; candidates: PlayerId[] })
+  /** `candidates`: chains that can deliver. `offers`: every connected chain, ranked, with `canSupply`. */
+  | (E<'houseConsidered'> & { houseId: HouseId; candidates: PlayerId[]; offers?: SaleCandidate[] })
   | (E<'houseStayedHome'> & { houseId: HouseId })
   | (E<'sale'> & {
       houseId: HouseId;
@@ -111,6 +125,8 @@ export type GameEvent =
       lines: SaleLine[];
       bonuses: SaleBonus[];
       total: number;
+      /** Every chain that could deliver, ranked best first (the winner is first). */
+      candidates?: SaleCandidate[];
     })
   /** ketchup.md §4: coffee sold en route. */
   | (E<'coffeeSold'> & { houseId: HouseId; player: PlayerId; at: RestaurantId | EntityId; amount: number })

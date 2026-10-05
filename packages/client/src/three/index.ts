@@ -7,6 +7,9 @@ import { effect, type ReadonlySignal } from '@preact/signals';
 import type { GameEvent, GameView, PlayerId } from '@fcm/engine';
 import { registerBoardBridge, type BoardBridge, type BoardPick, type InteractionMode } from '../state/boardBridge.js';
 import { animationSpeed, cameraCommand, skipAnimations, topView } from '../state/interaction.js';
+import { boardInset, highContrastTiles, houseBoardInfo, rangeOverlay, reachOverlay, routeOverlay, type BoardInset, type RouteRibbon } from '../state/boardOverlays.js';
+import type { FoodId, HouseId } from '@fcm/engine';
+import { OverlayLayer, type OverlayKind, type ReachOptions } from './overlays/index.js';
 import { Animator, reducedMotion } from './animate.js';
 import { CameraController } from './camera.js';
 import { Interaction, type HoverInfo } from './interaction.js';
@@ -39,9 +42,18 @@ export interface SceneHandle extends BoardBridge {
   readonly tier: Tier;
   skipAnimations(): void;
   stats(): { pools: number; instances: number; pieces: number; calls: number; triangles: number };
+  /** Canvas area covered by panels (CSS px); the home framing fits the board into the rest. */
+  setInset(inset: BoardInset): void;
+  /** Overlay primitives (ux-plan WP2). Each kind replaces its previous drawing. */
+  drawRangeOverlay(data: Parameters<OverlayLayer['drawRangeOverlay']>[0]): void;
+  drawReach(houseIds: readonly HouseId[], good: FoodId, full?: readonly HouseId[], opts?: ReachOptions): void;
+  drawRouteRibbons(candidates: readonly RouteRibbon[], activeIdx: number, opts?: { color?: string }): void;
+  clearOverlays(kind?: OverlayKind | 'all'): void;
+  /** Route candidate under a client-space point (nearest ribbon), or null. */
+  routeAt(clientX: number, clientY: number): number | null;
   dispose(): void;
   /** Dev/test access to internals (playground, e2e). */
-  readonly internals: { stage: Stage; rec: Reconciler; cam: CameraController; inter: Interaction };
+  readonly internals: { stage: Stage; rec: Reconciler; cam: CameraController; inter: Interaction; overlays: OverlayLayer };
 }
 
 export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHandle {
@@ -51,20 +63,66 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
   if (opts.grid) rec.setGrid(true);
   const anim = new Animator(stage, rec);
   const inter = new Interaction(stage, cam, rec);
+  const overlays = new OverlayLayer(stage, rec);
   let boardKey = '';
+  let lastView: GameView | null = null;
+  let inset: BoardInset = boardInset.peek() ?? { left: 0, right: 0, top: 0, bottom: 0 };
+  const TOP_FROM = 70 * (Math.PI / 180);
+  const seamStyle = () => {
+    const t = Math.min(1, Math.max(0, (cam.tilt - TOP_FROM) / (Math.PI / 2 - TOP_FROM)));
+    rec.setTileStyle(t, highContrastTiles.peek(), cam.yaw);
+  };
 
   cam.onChange = () => stage.invalidate();
   cam.onTopChange = (on) => {
     topView.value = on;
   };
   const camTick = (dt: number) => {
-    if (cam.update(dt)) stage.invalidate();
+    if (cam.update(dt)) {
+      seamStyle();
+      stage.invalidate();
+    }
   };
   stage.onFrame.add(camTick);
   const refit = () => cam.refit();
   stage.onResize.add(refit);
 
   const disposers: (() => void)[] = [];
+  // Overlay signals (state/boardOverlays.ts).
+  disposers.push(
+    effect(() => {
+      void highContrastTiles.value;
+      seamStyle();
+    }),
+    effect(() => {
+      rec.setHouseInfo(houseBoardInfo.value);
+      if (lastView) {
+        rec.sync(lastView, false);
+        inter.refresh();
+      }
+    }),
+    effect(() => {
+      const i = boardInset.value;
+      if (!i) return;
+      inset = { ...i };
+      cam.setInset(i);
+    }),
+    effect(() => {
+      const d = rangeOverlay.value;
+      if (d) overlays.drawRangeOverlay(d);
+      else overlays.clearOverlays('range');
+    }),
+    effect(() => {
+      const d = reachOverlay.value;
+      if (d) overlays.drawReach(d.houseIds, d.good, d.full, { color: d.color, cells: d.cells, band: d.band });
+      else overlays.clearOverlays('reach');
+    }),
+    effect(() => {
+      const d = routeOverlay.value;
+      if (d) overlays.drawRouteRibbons(d.candidates, d.active, { color: d.color });
+      else overlays.clearOverlays('routes');
+    }),
+  );
   disposers.push(
     effect(() => {
       stage.tweens.speed = reducedMotion() ? 0 : Math.max(0, animationSpeed.value);
@@ -106,12 +164,14 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
   const handle: SceneHandle = {
     setView(view: GameView | null, _me: PlayerId | null, events: readonly GameEvent[]) {
       const b = view?.board;
+      lastView = view;
       const key = b ? `${b.w}x${b.h}:${b.tiles.map((t) => t.id).join(',')}:${hasRural(b)}` : '';
       const res = rec.sync(view, events.length > 0);
       if (key !== boardKey) {
         const first = boardKey === '';
         boardKey = key;
-        if (b) cam.setContent(contentRect(b), first || res.boardChanged);
+        if (b) cam.setContent(contentRect(b), first || res.boardChanged, inset);
+        seamStyle();
       }
       if (events.length) anim.play(events, res.added, res.prevDemand);
       inter.refresh();
@@ -136,9 +196,19 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
       const info = stage.renderer.info.render;
       return { ...stage.inst.stats(), pieces: rec.live.size, calls: info.calls, triangles: info.triangles };
     },
-    internals: { stage, rec, cam, inter },
+    setInset(i: BoardInset) {
+      inset = { ...i };
+      cam.setInset(i);
+    },
+    drawRangeOverlay: (d) => overlays.drawRangeOverlay(d),
+    drawReach: (ids, good, full, opts) => overlays.drawReach(ids, good, full, opts),
+    drawRouteRibbons: (c, i, o) => overlays.drawRouteRibbons(c, i, o),
+    clearOverlays: (k) => overlays.clearOverlays(k),
+    routeAt: (x, y) => overlays.pickRoute(cam.rayAt(x, y)),
+    internals: { stage, rec, cam, inter, overlays },
     dispose() {
       for (const d of disposers) d();
+      overlays.dispose();
       stage.onFrame.delete(camTick);
       stage.onResize.delete(refit);
       inter.dispose();
@@ -170,8 +240,53 @@ export function mountScene(el: HTMLElement, store?: SceneStore): () => void {
   }
   const v = store?.view?.value;
   if (v) handle.setView(v, store?.me?.value ?? null, []);
-  return () => handle.dispose();
+  const stopInset = watchTableInset(el, (i) => handle.setInset(i));
+  return () => {
+    stopInset();
+    handle.dispose();
+  };
+}
+
+/**
+ * Measure the canvas area the table layout leaves free for the board: `.table-board` (the grid
+ * cell between rail, dock and top bar) and, on phones, the collapsed bottom sheet (`.dock` when it
+ * is `position: fixed`; while the sheet is open the last value is kept so the camera does not jump).
+ * Skipped while `boardInset` holds an explicit value.
+ */
+export function measureTableInset(el: HTMLElement, prev: BoardInset): BoardInset | null {
+  const area = document.querySelector<HTMLElement>('.table-board');
+  if (!area) return null;
+  const e = el.getBoundingClientRect();
+  const a = area.getBoundingClientRect();
+  if (a.width < 1 || a.height < 1) return null;
+  const out: BoardInset = { left: a.left - e.left, right: e.right - a.right, top: a.top - e.top, bottom: e.bottom - a.bottom };
+  const dock = document.querySelector<HTMLElement>('.dock');
+  if (dock && getComputedStyle(dock).position === 'fixed') {
+    if (dock.classList.contains('is-open')) out.bottom = prev.bottom;
+    else out.bottom = Math.max(out.bottom, e.bottom - dock.getBoundingClientRect().top);
+  }
+  return out;
+}
+
+function watchTableInset(el: HTMLElement, apply: (i: BoardInset) => void): () => void {
+  let last: BoardInset = { left: 0, right: 0, top: 0, bottom: 0 };
+  const tick = () => {
+    if (boardInset.peek()) return;
+    const i = measureTableInset(el, last);
+    if (!i) return;
+    last = i;
+    apply(i);
+  };
+  tick();
+  const id = window.setInterval(tick, 400);
+  window.addEventListener('resize', tick);
+  return () => {
+    window.clearInterval(id);
+    window.removeEventListener('resize', tick);
+  };
 }
 
 export type { HoverInfo } from './interaction.js';
+export type { OverlayKind, ReachOptions } from './overlays/index.js';
+export { localCampaignReach, localRangeField, playerStarts } from './overlays/fallback.js';
 export type { Tier } from './scene.js';

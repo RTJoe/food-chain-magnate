@@ -6,6 +6,11 @@ import * as THREE from 'three';
 import type { FoodId } from '@fcm/engine';
 import { COLORS, FOOD_COLORS } from '../theme.js';
 
+/** Minimum on-screen size of house labels and plaques (css px per world unit; see Stage.sized). */
+export const LABEL_MIN_PX = 58;
+/** Minimum on-screen size of house number badges (smaller than plaques, so they stay secondary). */
+export const BADGE_MIN_PX = 40;
+
 const FONT = 'ui-rounded, "SF Pro Rounded", "Nunito", "Segoe UI", system-ui, sans-serif';
 const texCache = new Map<string, THREE.Texture>();
 
@@ -81,6 +86,8 @@ export function makeBadge(text: string, style: BadgeStyle = {}, size = 0.42): TH
   const s = new THREE.Sprite(mat);
   s.scale.set(size * aspect, size, 1);
   s.renderOrder = 10;
+  s.userData.aspect = aspect;
+  s.userData.baseH = size;
   return s;
 }
 
@@ -433,9 +440,161 @@ export function signTexture(text: string, bg: string, fg: string): THREE.Texture
   });
 }
 
+// ---------------------------------------------------------------------------
+// Demand plaque (ux-plan §3.3): good glyphs with counts, capacity pips underneath
+// ---------------------------------------------------------------------------
+
+export interface PlaqueContent {
+  /** Goods with counts, in display order. */
+  goods: readonly { good: FoodId; count: number }[];
+  /** Demand tokens on the house. */
+  count: number;
+  /** Capacity; null = unlimited (bar instead of pips). */
+  capacity: number | null;
+  /** Grey "no seller" dot (no road-connected seller last dinnertime). */
+  noSeller?: boolean;
+}
+
+const PQ = { pad: 14, cell: 92, countW: 50, gap: 4, row: 92, rail: 30, railGap: 6 };
+
+export function plaqueKey(c: PlaqueContent): string {
+  return `${c.goods.map((g) => `${g.good}${g.count}`).join('+')}|${c.count}/${c.capacity ?? 'inf'}|${c.noSeller ? 'ns' : ''}`;
+}
+
+/** Plaque texture; the canvas width depends on how many goods it shows. */
+export function plaqueTexture(c: PlaqueContent): THREE.Texture {
+  const cellW = (n: number) => PQ.cell + (n > 1 ? PQ.countW : 0);
+  const inner = c.goods.reduce((s, g, i) => s + cellW(g.count) + (i ? PQ.gap : 0), 0);
+  const pipsW = c.capacity === null ? 120 : c.capacity * 30;
+  const W = Math.ceil(Math.max(inner, pipsW, PQ.cell) + PQ.pad * 2 + 8);
+  const H = PQ.pad * 2 + PQ.row + PQ.railGap + PQ.rail + 8;
+  const full = c.capacity !== null && c.count >= c.capacity;
+  return canvasTex(`plaque:${plaqueKey(c)}`, W, H, (ctx) => {
+    // Shadow, border (warn when full), body.
+    ctx.fillStyle = 'rgba(31,29,38,0.3)';
+    roundRect(ctx, 6, 10, W - 10, H - 12, 26);
+    ctx.fill();
+    ctx.fillStyle = full ? COLORS.warn : COLORS.ink;
+    roundRect(ctx, 2, 2, W - 8, H - 10, 26);
+    ctx.fill();
+    ctx.fillStyle = COLORS.surface;
+    const bw = full ? 9 : 5;
+    roundRect(ctx, 2 + bw, 2 + bw, W - 8 - bw * 2, H - 10 - bw * 2, 22);
+    ctx.fill();
+    // Goods row.
+    let x = (W - 4 - inner) / 2;
+    const cy = PQ.pad + 4 + PQ.row / 2;
+    for (const g of c.goods) {
+      drawFood(ctx, g.good, x + PQ.cell / 2, cy + 2, PQ.cell * 0.98);
+      if (g.count > 1) {
+        ctx.fillStyle = COLORS.ink;
+        ctx.font = `900 46px ${FONT}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(g.count), x + PQ.cell - 4, cy + 14);
+      }
+      x += cellW(g.count) + PQ.gap;
+    }
+    // Capacity rail.
+    const ry = PQ.pad + 4 + PQ.row + PQ.railGap + PQ.rail / 2;
+    if (c.capacity === null) {
+      const bw2 = 96;
+      const bx = (W - 4) / 2 - bw2 / 2 - 14;
+      ctx.fillStyle = COLORS.ink;
+      roundRect(ctx, bx, ry - 7, bw2, 14, 7);
+      ctx.fill();
+      ctx.font = `900 34px ${FONT}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('∞', bx + bw2 + 6, ry + 1);
+    } else {
+      const n = c.capacity;
+      const step = 30;
+      const x0 = (W - 4) / 2 - ((n - 1) * step) / 2;
+      for (let i = 0; i < n; i++) {
+        ctx.beginPath();
+        ctx.arc(x0 + i * step, ry, 10.5, 0, Math.PI * 2);
+        if (i < c.count) {
+          ctx.fillStyle = full ? '#b9781a' : COLORS.ink;
+          ctx.fill();
+        } else {
+          ctx.fillStyle = COLORS.surfaceSunk;
+          ctx.fill();
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = COLORS.line;
+          ctx.stroke();
+        }
+      }
+    }
+    if (c.noSeller) {
+      ctx.beginPath();
+      ctx.arc(W - 30, 28, 14, 0, Math.PI * 2);
+      ctx.fillStyle = '#8f8b88';
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = COLORS.surface;
+      ctx.stroke();
+    }
+  });
+}
+
+/** Small chip for overlays: optional food glyph plus text ("+1", "+2", "full"), in a colour. */
+export function chipTexture(text: string, good: FoodId | null, bg: string, fg = '#fffaf0'): THREE.Texture {
+  const W = (good ? 120 : 30) + Math.max(1, text.length) * 40 + 30;
+  return canvasTex(`chip:${text}:${good}:${bg}:${fg}`, W, 128, (ctx) => {
+    ctx.fillStyle = 'rgba(31,29,38,0.3)';
+    roundRect(ctx, 6, 14, W - 10, 108, 54);
+    ctx.fill();
+    ctx.fillStyle = fg;
+    roundRect(ctx, 2, 4, W - 8, 112, 56);
+    ctx.fill();
+    ctx.fillStyle = bg;
+    roundRect(ctx, 10, 12, W - 24, 96, 48);
+    ctx.fill();
+    let x = 30;
+    if (good) {
+      ctx.fillStyle = COLORS.surface;
+      ctx.beginPath();
+      ctx.arc(x + 40, 60, 42, 0, Math.PI * 2);
+      ctx.fill();
+      drawFood(ctx, good, x + 40, 62, 72);
+      x += 92;
+    }
+    ctx.fillStyle = fg;
+    ctx.font = `900 62px ${FONT}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, 64);
+  });
+}
+
+/** Camera-facing sprite from any cached texture; `size` = world height. Drawn on top of the board. */
+export function makeSprite(tex: THREE.Texture, size: number, onTop = true): THREE.Sprite {
+  const img = tex.image as HTMLCanvasElement;
+  const mat = onTop ? topSpriteMat(tex) : spriteMat(tex);
+  const s = new THREE.Sprite(mat);
+  s.scale.set((size * img.width) / img.height, size, 1);
+  s.renderOrder = onTop ? 20 : 10;
+  s.userData.aspect = img.width / img.height;
+  s.userData.baseH = size;
+  return s;
+}
+
+const topMats = new Map<string, THREE.SpriteMaterial>();
+function topSpriteMat(tex: THREE.Texture): THREE.SpriteMaterial {
+  let m = topMats.get(tex.uuid);
+  if (!m) {
+    m = new THREE.SpriteMaterial({ map: tex, depthWrite: false, depthTest: false, transparent: true, toneMapped: false });
+    topMats.set(tex.uuid, m);
+  }
+  return m;
+}
+
 export function disposeTextures(): void {
   for (const t of texCache.values()) t.dispose();
   texCache.clear();
   for (const m of spriteMats.values()) m.dispose();
   spriteMats.clear();
+  for (const m of topMats.values()) m.dispose();
+  topMats.clear();
 }

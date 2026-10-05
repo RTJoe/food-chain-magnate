@@ -42,6 +42,7 @@ import type {
 import { allocId } from '../core/ids.js';
 import { clone } from '../core/clone.js';
 import { createRng } from '../core/rng.js';
+import { contentFor } from '../modules/registry.js';
 import { buildBoard, paint, parseLayout, rect, touchesRoad } from './board.js';
 import { assertValidState } from './validate.js';
 
@@ -209,6 +210,28 @@ export class StateBuilder {
       history: { seq: 0 },
     };
     this.s.nextId = ids.nextId;
+    if (opts.modules?.length) this.addModuleSupply([], opts.modules);
+  }
+
+  /**
+   * Module cards and campaign tiles enter the supply as in `createGame` (box counts, 1x copies by
+   * player count, `minPlayers`). Only ids not yet tracked are added, so calling `modules()` again
+   * or after taking cards never double counts.
+   */
+  private addModuleSupply(before: readonly ModuleId[], mods: readonly ModuleId[]): void {
+    const n = this.s.turnOrder.length;
+    const content = contentFor(mods);
+    const old = contentFor(before);
+    for (const def of Object.values(content.employees)) {
+      if (!def || def.id === 'ceo' || def.availability !== 'supply' || old.employees[def.id] || this.s.supply[def.id] !== undefined) continue;
+      this.s.supply[def.id] = def.unique ? uniqueCopies(n) : def.count;
+    }
+    const onBoard = new Set(Object.values(this.s.board.campaigns).map((c) => c.number));
+    for (const t of Object.values(content.marketingTiles)) {
+      if (!t || old.marketingTiles[t.number] || (t.minPlayers ?? 0) > n || onBoard.has(t.number) || this.s.marketingTiles.includes(t.number)) continue;
+      this.s.marketingTiles.push(t.number);
+    }
+    this.s.marketingTiles.sort((a, b) => a - b);
   }
 
   /** Replace the map. Codes like 'A' or 'O1' (rotation). Must be done before adding board pieces. */
@@ -243,7 +266,9 @@ export class StateBuilder {
   }
 
   modules(mods: ModuleId[]): this {
+    const before = this.s.config.modules;
     this.s.config.modules = mods;
+    this.addModuleSupply(before, mods);
     return this;
   }
 

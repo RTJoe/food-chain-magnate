@@ -45,6 +45,12 @@
         background: #3f8fd2;
         color: #fff;
       }
+      .fake {
+        position: fixed;
+        background: rgba(255, 250, 240, 0.86);
+        border: 1px solid #d4c6a8;
+        pointer-events: none;
+      }
       #info {
         position: fixed;
         left: 8px;
@@ -73,8 +79,17 @@
       <button id="market">Marketing</button>
       <button id="dinner">Dinnertime</button>
       <button id="skip">Skip</button>
+      <button id="range">Range</button>
+      <button id="reach">Reach</button>
+      <button id="routes">Routes</button>
+      <button id="clear">Clear overlays</button>
+      <button id="hc">Hi-contrast</button>
+      <button id="panels">Panels</button>
     </div>
     <div id="info"></div>
+    <div id="fake-rail" class="fake" hidden></div>
+    <div id="fake-dock" class="fake" hidden></div>
+    <div id="fake-sheet" class="fake" hidden></div>
     <script type="module" src="./playground.ts"></script>
   </body>
 </html>

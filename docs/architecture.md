@@ -135,7 +135,16 @@ redactEvents(events: GameEvent[], viewer): GameEvent[]
 derivePrompt(view: GameView, me: PlayerId | null): Prompt           // UI guidance; shared so hot-seat == online
 replay(config, seed, actions: Action[]): { state, events[] }
 listModules(): ModuleManifest[]
+
+// Board previews (UI guidance, rules/outlook.ts; ux-plan.md §4). Pure; the client runs them on a pseudo-state from its view.
+campaignReach(state, query: CampaignReachQuery): CampaignReachPreview  // houses {houseId, demand, capacity, adds, full}[] + area squares; module reach via the campaignReach pipeline
+houseCellsReach(state, cells: Cell[], garden?: Cell[]): CampaignId[]    // campaigns that would reach a house placed there
+rangeOverlay(state, playerId, cardUid?, from?: RouteStart): RangeOverlay // { roads: {x,y,distance}[], starts, range | null }; starts = open entrances + coffee shops; no card = pending coffee shop choice
+houseOutlook(state, houseId): HouseOutlook | null                     // capacity, demand, sellers ranked as Dinnertime, winner, campaigns
+placementProblem(state, playerId, spec, candidate: Placement): string | null // reason from validating the action the placement becomes
 ```
+
+Guidance data on existing types (additive): `buyerRoute` placements carry `range` and `bordersUsed`; on-board `campaign` placements carry `orientation` (`landscape` / `portrait` / `square`; filter a token with `spec.tileNumber`); a card's `work.skip` legal action carries `disabledReason` when skipping is all it can do; `sale` events carry `candidates` (chains that could deliver, winner first) and `houseConsidered` carries `offers` (every connected chain, ranked, with `canSupply`).
 
 All functions are pure. `applyAction` never mutates its input (it `structuredClone`s then mutates the clone).
 

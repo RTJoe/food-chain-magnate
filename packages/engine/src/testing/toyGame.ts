@@ -230,4 +230,10 @@ export const toyEngine: EngineApi = {
   derivePrompt,
   replay,
   listModules: () => [clone(TOY_MANIFEST)],
+  // The toy game has no board rules: empty previews.
+  campaignReach: () => ({ houses: [], area: [] }),
+  houseCellsReach: () => [],
+  rangeOverlay: () => ({ roads: [], starts: [], range: null }),
+  houseOutlook: () => null,
+  placementProblem: () => 'The toy game has no board placements',
 };
