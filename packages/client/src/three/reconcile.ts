@@ -26,7 +26,9 @@ import {
 } from './minis/marketing.js';
 import { buildCoffeeShop, buildRestaurant } from './minis/restaurant.js';
 import { buildDemandStack, demandKey } from './minis/tokens.js';
-import { campaignAnchor, cellsToRect, chainMark, freewayAnchor, houseFacing, playerColor, rectCenter, rectOf, ruralCenter, RURAL_SIZE, type Rect } from './layout.js';
+import { campaignAnchor, cellsToRect, chainMark, freewayAnchor, houseFacing, parkMultiplier, playerColor, rectCenter, rectOf, ruralCenter, RURAL_SIZE, type Rect } from './layout.js';
+import { makeChip } from './overlays/badges.js';
+import { COLORS } from '../theme.js';
 import type { Stage } from './scene.js';
 import { ease } from './tween.js';
 
@@ -322,6 +324,12 @@ function collect(view: GameView, b: Board, info: Record<string, HouseBoardInfo>)
         items.push({ key: `garden:${h.id}`, id: h.id, kind: 'garden', sig: `garden:${vertical}`, rect: gr, height: 0.5, x: gx, z: gz, build: (c) => buildGarden(c, { vertical }) });
       }
     }
+    // Price badge for houses next to a park (×2, ×3 with a garden): left of the number badge.
+    const mult = parkMultiplier(b, h);
+    if (mult > 1) {
+      const badgeY = h.kind === 'apartment' ? APARTMENT_BADGE_Y : HOUSE_BADGE_Y;
+      items.push({ key: `price:${h.id}`, id: null, kind: 'price', sig: `x${mult}`, rect, height: 0, x, z, y: badgeY, build: () => buildPriceBadge(mult) });
+    }
     if (h.demand.length) {
       const capacity = houseCapacity(h, info[h.id]);
       const noSeller = !!info[h.id]?.noSeller;
@@ -437,4 +445,16 @@ function collect(view: GameView, b: Board, info: Record<string, HouseBoardInfo>)
     }
   }
   return items;
+}
+
+/** "×2" price chip beside a house number badge (houses next to a park). */
+export function buildPriceBadge(mult: number): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'price';
+  const chip = makeChip(`×${mult}`, null, COLORS.ok, 0.34);
+  // Left of the number badge on screen.
+  chip.center.set(1.25, 0.5);
+  chip.userData.maxK = 2.2;
+  g.add(chip);
+  return g;
 }

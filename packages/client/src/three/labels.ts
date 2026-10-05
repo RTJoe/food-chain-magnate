@@ -538,6 +538,91 @@ export function plaqueTexture(c: PlaqueContent): THREE.Texture {
   });
 }
 
+/**
+ * Compact plaque (zoomed out): one row of good glyphs with small counts and a thin capacity bar
+ * along the bottom (warn colour when full). About a third of the full plaque's height.
+ */
+export function compactPlaqueTexture(c: PlaqueContent): THREE.Texture {
+  const G = 64;
+  const cnt = 26;
+  const cellW = (n: number) => G + (n > 1 ? cnt : 0);
+  const inner = c.goods.reduce((sum, g, i) => sum + cellW(g.count) + (i ? 2 : 0), 0);
+  const W = Math.ceil(inner + 24);
+  const H = 92;
+  const full = c.capacity !== null && c.count >= c.capacity;
+  return canvasTex(`plaqueC:${plaqueKey(c)}`, W, H, (ctx) => {
+    ctx.fillStyle = 'rgba(31,29,38,0.28)';
+    roundRect(ctx, 3, 7, W - 4, H - 8, 20);
+    ctx.fill();
+    ctx.fillStyle = full ? COLORS.warn : COLORS.ink;
+    roundRect(ctx, 1, 1, W - 4, H - 6, 20);
+    ctx.fill();
+    ctx.fillStyle = COLORS.surface;
+    roundRect(ctx, 5, 5, W - 12, H - 14, 16);
+    ctx.fill();
+    let x = (W - 2 - inner) / 2;
+    const cy = 40;
+    for (const g of c.goods) {
+      drawFood(ctx, g.good, x + G / 2, cy, G * 0.96);
+      if (g.count > 1) {
+        ctx.fillStyle = COLORS.ink;
+        ctx.font = `900 34px ${FONT}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(g.count), x + G - 4, cy + 12);
+      }
+      x += cellW(g.count) + 2;
+    }
+    // Capacity: filled share of a thin bar (apartments / rural: a full ink bar).
+    const bx = 16;
+    const bw = W - 2 - 32;
+    const by = H - 22;
+    ctx.fillStyle = COLORS.surfaceSunk;
+    roundRect(ctx, bx, by, bw, 7, 3.5);
+    ctx.fill();
+    const share = c.capacity === null ? 1 : Math.min(1, c.count / Math.max(1, c.capacity));
+    ctx.fillStyle = full ? '#b9781a' : c.capacity === null ? COLORS.inkMuted : COLORS.ink;
+    roundRect(ctx, bx, by, Math.max(7, bw * share), 7, 3.5);
+    ctx.fill();
+    if (c.noSeller) {
+      ctx.beginPath();
+      ctx.arc(W - 16, 14, 9, 0, Math.PI * 2);
+      ctx.fillStyle = '#8f8b88';
+      ctx.fill();
+    }
+  });
+}
+
+/** Smallest plaque (crowded): the most-wanted good and the total demand count. */
+export function miniPlaqueTexture(c: PlaqueContent): THREE.Texture {
+  const top = [...c.goods].sort((a, b) => b.count - a.count)[0];
+  const W = 128;
+  const H = 76;
+  const full = c.capacity !== null && c.count >= c.capacity;
+  return canvasTex(`plaqueM:${top?.good}:${c.count}:${full}`, W, H, (ctx) => {
+    ctx.fillStyle = full ? COLORS.warn : COLORS.ink;
+    roundRect(ctx, 1, 1, W - 2, H - 2, 36);
+    ctx.fill();
+    ctx.fillStyle = COLORS.surface;
+    roundRect(ctx, 5, 5, W - 10, H - 10, 32);
+    ctx.fill();
+    if (top) drawFood(ctx, top.good, 38, H / 2, 54);
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = `900 44px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(c.count), 92, H / 2 + 2);
+  });
+}
+
+/** Swap a sprite made by `makeSprite` to another cached texture (keeps its world height). */
+export function setSpriteTexture(s: THREE.Sprite, tex: THREE.Texture): void {
+  if (s.material.map === tex) return;
+  const img = tex.image as HTMLCanvasElement;
+  s.material = topSpriteMat(tex);
+  s.userData.aspect = img.width / img.height;
+}
+
 /** Small chip for overlays: optional food glyph plus text ("+1", "+2", "full"), in a colour. */
 export function chipTexture(text: string, good: FoodId | null, bg: string, fg = '#fffaf0'): THREE.Texture {
   const W = (good ? 120 : 30) + Math.max(1, text.length) * 40 + 30;

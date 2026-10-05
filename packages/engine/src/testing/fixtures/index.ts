@@ -85,6 +85,7 @@ export function workingFixture(): GameState {
     .card('p2', 'management_trainee', 'work', 'p2-mt')
     .card('p2', 'recruiting_girl', 'work', 'p2-rg')
     .card('p2', 'errand_boy', 'work', 'p2-eb')
+    .card('p2', 'cart_operator', 'work', 'p2-co')
     .card('p2', 'kitchen_trainee', { under: 'p2-mt' }, 'p2-kt')
     .card('p2', 'marketing_trainee', { under: 'p2-mt' }, 'p2-mkt')
     .card('p2', 'waitress', 'beach', 'p2-w')
@@ -101,7 +102,7 @@ export function workingFixture(): GameState {
     .turn({
       player: 'p2',
       stage: 'marketing',
-      uses: { [ceo]: 0, 'p2-rg': 0, 'p2-mkt': 1, 'p2-kt': 1, 'p2-eb': 1 },
+      uses: { [ceo]: 0, 'p2-rg': 0, 'p2-mkt': 1, 'p2-kt': 1, 'p2-eb': 1, 'p2-co': 1 },
       hired: ['p2-w', 'p2-tr'],
       used: [ceo, 'p2-rg'],
     })

@@ -13,9 +13,13 @@ import { ROAD_TOP } from '../coords.js';
 import { flatMat, makeChip, makeCount, quads, startMarker } from './badges.js';
 import { startOrigin } from './fallback.js';
 
-const FAINT_W = 0.18;
-const ACTIVE_W = 0.36;
+const FAINT_W = 0.24;
+const ACTIVE_W = 0.56;
+/** Faint candidates sit just above the asphalt; the active haul is raised above the kerbs (0.07). */
 const Y = ROAD_TOP + 0.02;
+const YA = 0.11;
+/** Hit strips: as wide as the asphalt; never drawn (material.visible = false), still raycast. */
+const HIT_W = 0.78;
 
 type P2 = [number, number];
 
@@ -91,6 +95,8 @@ function chevrons(): THREE.CanvasTexture {
   ctx.stroke();
   chevronTex = new THREE.CanvasTexture(c);
   chevronTex.wrapS = THREE.RepeatWrapping;
+  // One chevron per ~1.3 ribbon widths.
+  chevronTex.repeat.set(0.75, 1);
   chevronTex.wrapT = THREE.ClampToEdgeWrapping;
   chevronTex.colorSpace = THREE.SRGBColorSpace;
   chevronTex.anisotropy = 4;
@@ -120,28 +126,55 @@ export function buildRoutes(b: Board, data: RouteOverlayData): RouteLayer {
     }
     const pts = routePolyline(b, r);
     if (pts.length < 2) continue;
-    const base = new THREE.Mesh(ribbonGeometry(pts, isActive ? ACTIVE_W : FAINT_W, Y + (isActive ? 0.004 : 0)), flatMat(color, isActive ? 0.95 : 0.3));
-    base.renderOrder = isActive ? 8 : 7;
-    base.userData.candidate = i;
-    base.name = `route:${i}`;
-    g.add(base);
-    if (!isActive) continue;
-    // Light outline under the active ribbon so it reads on dark asphalt and on top of faint ones.
-    const edge = new THREE.Mesh(ribbonGeometry(pts, ACTIVE_W + 0.1, Y + 0.002), flatMat(COLORS.surface, 0.9));
-    edge.renderOrder = 7;
-    edge.userData.candidate = i;
-    g.add(edge);
+    if (!isActive) {
+      // Dim but visible: a thin player-colour line with a dark hairline so it reads on asphalt.
+      const under = new THREE.Mesh(ribbonGeometry(pts, FAINT_W + 0.06, Y), flatMat(COLORS.ink, 0.28));
+      under.renderOrder = 6;
+      under.userData.candidate = i;
+      const base = new THREE.Mesh(ribbonGeometry(pts, FAINT_W, Y + 0.002), flatMat(color, 0.5));
+      base.renderOrder = 7;
+      base.userData.candidate = i;
+      base.name = `route:${i}`;
+      // Invisible, road-wide hit strip so hovering a dim candidate is easy (pickRoute).
+      const hit = new THREE.Mesh(ribbonGeometry(pts, HIT_W, Y), new THREE.MeshBasicMaterial({ visible: false }));
+      hit.userData.candidate = i;
+      g.add(under, base, hit);
+      continue;
+    }
+    // Active haul: ink outline, light edge, solid player colour, raised above roads and kerbs.
+    const layers: [number, string, number, number][] = [
+      [ACTIVE_W + 0.22, COLORS.ink, 0.92, 0],
+      [ACTIVE_W + 0.12, COLORS.surface, 0.98, 0.003],
+      [ACTIVE_W, color, 0.99, 0.006],
+    ];
+    // Drawn without depth test so buildings in front of the road never hide the active haul.
+    const xray = (m: THREE.Material) => ((m.depthTest = false), m);
+    layers.forEach(([w, c, o, dy], k) => {
+      const m = new THREE.Mesh(ribbonGeometry(pts, w, YA + dy), xray(flatMat(c, o)));
+      m.renderOrder = 11 + k;
+      m.userData.candidate = i;
+      if (k === 2) m.name = `route:${i}`;
+      g.add(m);
+    });
     const tex = chevrons();
-    chevronMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-    const chev = new THREE.Mesh(ribbonGeometry(pts, ACTIVE_W * 0.8, Y + 0.008), chevronMat);
-    chev.renderOrder = 9;
+    const chevColor = luminance(color) > 0.45 ? COLORS.ink : COLORS.surface;
+    chevronMat = new THREE.MeshBasicMaterial({ map: tex, color: chevColor, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false, toneMapped: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const chev = new THREE.Mesh(ribbonGeometry(pts, ACTIVE_W * 0.85, YA + 0.01), chevronMat);
+    chev.renderOrder = 14;
     g.add(chev);
     const first = r.route.path[0];
     if (first) {
-      const mk = startMarker(color, 0.3);
-      mk.position.set(first.x + 0.5, Y + 0.012, first.y + 0.5);
+      const mk = startMarker(color, 0.46);
+      mk.traverse((o) => {
+        o.renderOrder = 15;
+        const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (mat) mat.depthTest = false;
+      });
+      const o = pts[0]!;
+      mk.position.set(o[0], YA + 0.014, o[1]);
       g.add(mk);
     }
+    endCap(g, pts, color);
     seamTicks(g, b, r.route.path, color);
     sourceChips(g, b, r, color);
   }
@@ -153,6 +186,42 @@ export function buildRoutes(b: Board, data: RouteOverlayData): RouteLayer {
       return true;
     },
   };
+}
+
+/** Relative luminance of a CSS hex colour (0 dark … 1 light). */
+function luminance(css: string): number {
+  const c = new THREE.Color(css);
+  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+}
+
+/** Arrow head at the end of the active haul, in the player colour with an ink outline. */
+function endCap(g: THREE.Group, pts: readonly P2[], color: string): void {
+  const a = pts[pts.length - 2];
+  const b = pts[pts.length - 1];
+  if (!a || !b) return;
+  const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+  const tri = (s: number) => {
+    const sh = new THREE.Shape();
+    sh.moveTo(0.42 * s, 0);
+    sh.lineTo(-0.24 * s, 0.38 * s);
+    sh.lineTo(-0.24 * s, -0.38 * s);
+    sh.closePath();
+    return new THREE.ShapeGeometry(sh).rotateX(Math.PI / 2);
+  };
+  const out = new THREE.Mesh(tri(1.35), flatMat(COLORS.ink, 0.95));
+  const fill = new THREE.Mesh(tri(1), flatMat(color, 0.99));
+  (out.material as THREE.Material).depthTest = false;
+  (fill.material as THREE.Material).depthTest = false;
+  out.renderOrder = 15;
+  fill.renderOrder = 16;
+  for (const [m, dy] of [
+    [out, 0.016],
+    [fill, 0.02],
+  ] as const) {
+    m.position.set(b[0], YA + dy, b[1]);
+    m.rotation.y = -ang;
+    g.add(m);
+  }
 }
 
 /** Tick across the ribbon on every tile border the path crosses, with the running count. */
@@ -168,9 +237,11 @@ function seamTicks(g: THREE.Group, b: Board, path: readonly Cell[], color: strin
     const x = (a.x + c.x) / 2 + 0.5;
     const z = (a.y + c.y) / 2 + 0.5;
     const horiz = a.y === c.y;
-    const bar = quads([horiz ? { x0: x - 0.05, z0: z - 0.36, x1: x + 0.05, z1: z + 0.36 } : { x0: x - 0.36, z0: z - 0.05, x1: x + 0.36, z1: z + 0.05 }], flatMat(COLORS.ink, 1), Y + 0.014);
+    const tickMat = flatMat(COLORS.ink, 0.99);
+    tickMat.depthTest = false;
+    const bar = quads([horiz ? { x0: x - 0.05, z0: z - 0.42, x1: x + 0.05, z1: z + 0.42 } : { x0: x - 0.42, z0: z - 0.05, x1: x + 0.42, z1: z + 0.05 }], tickMat, YA + 0.012);
     if (bar) {
-      bar.renderOrder = 10;
+      bar.renderOrder = 15;
       g.add(bar);
     }
     const count = makeCount(n, COLORS.ink, 0.3);
@@ -186,7 +257,7 @@ function sourceChips(g: THREE.Group, b: Board, r: RouteRibbon, color: string): v
   for (const c of r.collects) {
     const s = b.drinkSources[c.sourceId];
     if (!s) continue;
-    const chip = makeChip(`+${c.count}`, s.drink as DrinkId as FoodId, color, 0.44);
+    const chip = makeChip(`+${c.count}`, s.drink as DrinkId as FoodId, color, 0.5);
     chip.position.set(s.x + 0.5, 1.15, s.y + 0.5);
     chip.center.set(0.5, 0);
     g.add(chip);

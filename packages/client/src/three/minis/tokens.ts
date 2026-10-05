@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import type { DemandToken, FoodId } from '@fcm/engine';
 import { COLORS, FOOD_COLORS } from '../../theme.js';
-import { BADGE_MIN_PX, LABEL_MIN_PX, makeSprite, plaqueTexture } from '../labels.js';
+import { BADGE_MIN_PX, LABEL_MIN_PX, compactPlaqueTexture, makeSprite, miniPlaqueTexture, plaqueTexture } from '../labels.js';
 import { solid, type MiniCtx } from './ctx.js';
 import { P, Shape, ball, box, cyl, extrude, lathe, miniGeo, puck, shade } from './kit.js';
 
@@ -126,11 +126,14 @@ export function buildDemandStack(ctx: MiniCtx, demand: DemandToken[], p: DemandP
   const shown = Math.min(n, MAX_STACK);
   const badgeH = p.badgeH ?? 0.46;
   if (n > 0) {
-    const plaque = makeSprite(plaqueTexture({ goods: demandGoods(demand), count: n, capacity: p.capacity, noSeller: p.noSeller }), PLAQUE_H);
-    // Bottom edge just above the number badge; Stage.updateSized keeps it there as both scale.
+    const content = { goods: demandGoods(demand), count: n, capacity: p.capacity, noSeller: p.noSeller };
+    const plaque = makeSprite(plaqueTexture(content), PLAQUE_H);
+    // Bottom edge just above the number badge; Stage.updateSized keeps it there as both scale,
+    // switches to the compact / mini form when zoomed out and nudges plaques apart (no overlap).
     plaque.center.set(0.5, -((badgeH / 2 + 0.04) / PLAQUE_H));
     plaque.userData.minPx = LABEL_MIN_PX;
     plaque.userData.above = { baseH: badgeH, minPx: BADGE_MIN_PX, gap: 0.04 };
+    plaque.userData.plaque = { full: plaqueTexture(content), compact: compactPlaqueTexture(content), mini: miniPlaqueTexture(content), count: n };
     plaque.name = 'plaque';
     g.add(plaque);
     // Plinth disc so the stack reads as one floating piece.

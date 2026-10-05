@@ -173,8 +173,9 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
   const boardSpots = useMemo(() => (boardRenderer.value === '3d' ? spots.filter((p) => !listOnly(p)) : []), [spots]);
   const offBoard = spots.filter((p) => listOnly(p));
   const mode = useMemo(
-    () => (chosen && boardSpots.length && !held.value ? boardModeFor(legal, boardSpots, { color: playerColor(), tileNumber: chosen.number, label: `#${chosen.number} ${KIND_LABEL[chosen.kind].toLowerCase()} ${tokenSize(chosen)}` }) : null),
-    [chosen?.number, boardSpots, held.value],
+    // The board opens once the good is chosen too, so the phone sheet never collapses over the good chips.
+    () => (chosen && boardSpots.length && !held.value && (!wantsGoods || good.value) ? boardModeFor(legal, boardSpots, { color: playerColor(), tileNumber: chosen.number, label: `#${chosen.number} ${KIND_LABEL[chosen.kind].toLowerCase()} ${tokenSize(chosen)}` }) : null),
+    [chosen?.number, boardSpots, held.value, good.value],
   );
 
   const opts = () => ({ ...(good.value ? { goods: [good.value] } : {}), duration: duration.value });

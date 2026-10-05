@@ -312,7 +312,21 @@ One cell = 1 unit; tile = 5 units. Flat-shaded low-poly, soft shadows. Scene: Li
 
 ### 5.2 Interaction / picking
 
-`three/interaction.ts`: `setMode`, `onHover`, `onPick`, `highlight`, `focus`. Raycast to ground → snap to engine-provided legal placements. Ghost mesh shows validity; rotate with R/button; touch uses tap + confirm.
+`three/interaction.ts`: `setMode`, `onHover`, `onPick`, `highlight`, `focus`. Raycast to ground → snap to engine-provided legal placements. Ghost mesh shows validity; rotate with R/button; touch uses tap + confirm. The UI never imports `three/`; both sides meet in `state/boardBridge.ts` (modes, picks), `state/interaction.ts` (staging, selection) and `state/guidance.ts` (modes from legal actions). Full signal tables: `docs/ux-plan.md` §7.
+
+Modes (`InteractionMode`, set with `boardBridge.setInteractionMode`; `isPickMode` is true for the first three):
+
+- `place`: one ghost per legal spot (restaurants, houses, gardens, Ketchup pieces). Hover shows the ghost and, on an illegal square, the engine's reason (`placementReason`); click stages it.
+- `campaign`: like `place`, narrowed to the token picked in the panel (`tileNumber`). Orientation is sticky across spots; R flips it (`ghostOrientation`, "3×1 landscape"), a reach preview (`previewGood`) and the road-range overlay show what it would do.
+- `route`: buyer routes (cart, truck, zeppelin). Every haul is a ribbon on the roads (`activeCandidate` is the solid one); hover or click a ribbon, `[` / `]` or the list rows change it, Confirm buys it.
+- `inspect { ids }`: transient rings (player rail hover).
+- `idle`: clicks select a piece (`selection`: house, restaurant, campaign, source, entity). The Inspect card shows capacity, demand, ranked sellers (`selectedOutlook`) and reaching campaigns; related pieces are ringed (`selectionRelated`), the Focus button and log links fire `cameraCommand`. Esc or a click on empty ground clears it. Entering a pick mode clears it.
+
+Staging and confirm: in `campaign` and `route` mode (and on touch) a click or tap stages the pick (`pendingPlacement`, `pendingVariants`) instead of committing; `confirmPlacement()` / Enter commits, `rotatePlacement()` / R rotates, Esc unstages and then cancels. The panel writes the same signals (`setActiveCandidate`, `cycleCandidate`), so list rows and board hover stay in step. Keys: `[` `]` cycle, R rotate, Enter confirm, Esc back.
+
+Phone: entering a pick mode collapses the bottom sheet to the pick strip (instruction, ◀ ▶ for hauls, Rotate, Place / Buy, Cancel, panel toggle) so the board stays tappable; anything the strip cannot say (the good to advertise) reopens the sheet after the placement.
+
+Overlays (`three/overlays/`, one layer per kind: range, reach, routes) are fed from the mode by the board controller; their styles are in `docs/visual-style.md`. Demand plaques and capacity come from `houseBoardInfo`. Test hook: `window.__fcmBoard` exposes `project(x, z, y?)` (board point → client px), `routeAt(clientX, clientY)` (ribbon index) and `internals`; the canvas carries `data-legal-spots`. `e2e/board.spec.ts` drives all of the above through real pointer input.
 
 ### 5.3 Camera and animation
 

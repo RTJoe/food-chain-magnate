@@ -16,7 +16,7 @@ import { CameraController } from './camera.js';
 import { Interaction, type HoverInfo } from './interaction.js';
 import { Reconciler } from './reconcile.js';
 import { guessTier, Stage, type Tier } from './scene.js';
-import { contentRect, hasRural } from './layout.js';
+import { contentRect, frameRect, hasRural } from './layout.js';
 
 /** The parts of the client store the scene reads. The store module satisfies this. */
 export interface SceneStore {
@@ -169,12 +169,13 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
     setView(view: GameView | null, _me: PlayerId | null, events: readonly GameEvent[]) {
       const b = view?.board;
       lastView = view;
-      const key = b ? `${b.w}x${b.h}:${b.tiles.map((t) => t.id).join(',')}:${hasRural(b)}` : '';
+      const air = b ? [...new Set(Object.values(b.campaigns).flatMap((c) => (c.placement.kind === 'airplane' ? [c.placement.side] : [])))].sort().join('') : '';
+      const key = b ? `${b.w}x${b.h}:${b.tiles.map((t) => t.id).join(',')}:${hasRural(b)}:${air}` : '';
       const res = rec.sync(view, events.length > 0);
       if (key !== boardKey) {
         const first = boardKey === '';
         boardKey = key;
-        if (b) cam.setContent(contentRect(b), first || res.boardChanged, inset);
+        if (b) cam.setContent(contentRect(b), first || res.boardChanged, inset, frameRect(b));
         seamStyle();
       }
       if (events.length) anim.play(events, res.added, res.prevDemand);
@@ -250,7 +251,7 @@ export function mountScene(el: HTMLElement, store?: SceneStore): () => void {
   }
   const v = store?.view?.value;
   if (v) handle.setView(v, store?.me?.value ?? null, []);
-  const stopInset = watchTableInset(el, (i) => handle.setInset(i));
+  const stopInset = watchTableInset(el, (i) => handle.setInset(i), () => handle.internals.cam.homeAspect());
   // Test hook (e2e, Playwright checks): board pieces → screen points, route hit tests, internals.
   const w = window as unknown as { __fcmBoard?: SceneHandle };
   w.__fcmBoard = handle;
@@ -261,40 +262,76 @@ export function mountScene(el: HTMLElement, store?: SceneStore): () => void {
   };
 }
 
+/** Panels floating over the board area that the home framing keeps clear of (camera bar, pick strip, results strip, Inspect card). */
+const FLOATING = ['.board-controls', '.pick-strip', '.summary-strip', '.inspect'];
+
 /**
  * Measure the canvas area the table layout leaves free for the board: `.table-board` (the grid
- * cell between rail, dock and top bar) and, on phones, the collapsed bottom sheet (`.dock` when it
- * is `position: fixed`; while the sheet is open the last value is kept so the camera does not jump).
- * Skipped while `boardInset` holds an explicit value.
+ * cell between rail, dock and top bar), on phones the collapsed bottom sheet (`.dock` when it is
+ * `position: fixed`; while the sheet is open the last value is kept so the camera does not jump),
+ * then every visible floating panel over that area (FLOATING). Each panel is carved off the side
+ * that leaves the board the most room: a bottom strip trims the bottom, a tall side card the side;
+ * a panel that would cost more than 65% of the board's size is left floating over it.
+ * `aspect` is the board's on-screen width / height at the home pose. Skipped while `boardInset`
+ * holds an explicit value.
  */
-export function measureTableInset(el: HTMLElement, prev: BoardInset): BoardInset | null {
+export function measureTableInset(el: HTMLElement, prev: BoardInset, aspect = 1.6): BoardInset | null {
   const area = document.querySelector<HTMLElement>('.table-board');
   if (!area) return null;
   const e = el.getBoundingClientRect();
   const a = area.getBoundingClientRect();
   if (a.width < 1 || a.height < 1) return null;
-  const out: BoardInset = { left: a.left - e.left, right: e.right - a.right, top: a.top - e.top, bottom: e.bottom - a.bottom };
   const dock = document.querySelector<HTMLElement>('.dock');
-  if (dock && getComputedStyle(dock).position === 'fixed') {
-    if (dock.classList.contains('is-open')) out.bottom = prev.bottom;
-    else out.bottom = Math.max(out.bottom, e.bottom - dock.getBoundingClientRect().top);
-  }
-  return out;
+  const fixedDock = !!dock && getComputedStyle(dock).position === 'fixed';
+  if (fixedDock && dock!.classList.contains('is-open')) return prev;
+  // Free rectangle in client px.
+  const f = { l: Math.max(e.left, a.left), r: Math.min(e.right, a.right), t: Math.max(e.top, a.top), b: Math.min(e.bottom, a.bottom) };
+  if (fixedDock) f.b = Math.min(f.b, dock!.getBoundingClientRect().top);
+  const score = (x: typeof f) => Math.min(Math.max(0, x.r - x.l) / aspect, Math.max(0, x.b - x.t));
+  for (const sel of FLOATING)
+    for (const p of document.querySelectorAll<HTMLElement>(sel)) {
+      const r = p.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1 || getComputedStyle(p).visibility === 'hidden') continue;
+      if (r.right <= f.l || r.left >= f.r || r.bottom <= f.t || r.top >= f.b) continue;
+      const options = [
+        { ...f, b: Math.min(f.b, r.top) },
+        { ...f, t: Math.max(f.t, r.bottom) },
+        { ...f, l: Math.max(f.l, r.right) },
+        { ...f, r: Math.min(f.r, r.left) },
+      ];
+      let best = options[0]!;
+      for (const o of options) if (score(o) > score(best)) best = o;
+      // A panel that would leave the board too little room (an Inspect card beside the results
+      // strip) floats over the board instead.
+      if (score(best) >= 0.35 * score(f)) Object.assign(f, best);
+    }
+  return { left: f.l - e.left, right: e.right - f.r, top: f.t - e.top, bottom: e.bottom - f.b };
 }
 
-function watchTableInset(el: HTMLElement, apply: (i: BoardInset) => void): () => void {
+function watchTableInset(el: HTMLElement, apply: (i: BoardInset) => void, aspect: () => number): () => void {
   let last: BoardInset = { left: 0, right: 0, top: 0, bottom: 0 };
   const tick = () => {
     if (boardInset.peek()) return;
-    const i = measureTableInset(el, last);
+    const i = measureTableInset(el, last, aspect());
     if (!i) return;
     last = i;
     apply(i);
   };
   tick();
-  const id = window.setInterval(tick, 400);
+  // Panels appear / disappear through DOM changes: measure on the next frame so the camera starts
+  // moving at once; the interval catches CSS transitions and anything the observer misses.
+  let raf = 0;
+  const soon = () => {
+    if (!raf) raf = requestAnimationFrame(() => ((raf = 0), tick()));
+  };
+  const mo = new MutationObserver(soon);
+  const root = document.querySelector('#app') ?? document.body;
+  mo.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+  const id = window.setInterval(tick, 250);
   window.addEventListener('resize', tick);
   return () => {
+    mo.disconnect();
+    cancelAnimationFrame(raf);
     window.clearInterval(id);
     window.removeEventListener('resize', tick);
   };

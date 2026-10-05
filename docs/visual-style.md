@@ -31,8 +31,10 @@ Board
 | houseWall / houseRoof | `#f2e6cf` / `#c8693f` | houses |
 | apartment | `#b8b2c8` | Ketchup apartments |
 | garden / park | `#5f9e4a` / `#6fb35a` | hedges, trees, lawns |
-| tileEdge | `#cbbd9c` | thin seam between map tiles |
+| tileEdge | `#cbbd9c` | groove floor and raised lip between map tiles (the seam line is a darker shade, below) |
 | highlightOk / highlightBad | `#5ad17a` / `#e25b4b` | legal / illegal ghost placement |
+| highlightLegal | `#ffc531` | tint on every legal spot during a board pick (mustard: reads on grass and asphalt) |
+| shadow | `#1f1d26` | dimming of tiles outside the road range |
 
 Players (seat order; six for Ketchup)
 
@@ -84,6 +86,42 @@ Pieces
 | Freeway | Raised ramp coming in from the board edge. |
 | Demand tokens | Stacked discs above the house, one colour and shape per good: burger (bun-shaped disc), pizza (wedge), beer (mug), lemonade (glass with straw), soft drink (can), coffee (cup), kimchi (jar), sushi (roll), noodles (bowl). Up to 5 per house, then a "x N" label. |
 | Campaign duration | Small pips on the campaign tile, one per remaining token; eternal campaigns show an infinity badge. |
+
+## Tile seams
+
+Map tiles are separate 5 x 5 slabs so the tile boundary (which the rules count, e.g. "2 borders") is visible in both the tilted and the top view. Three layers, from `three/board/ground.ts` and `three/board/seams.ts`:
+
+| Layer | Value |
+|---|---|
+| Groove | 0.12 units between slabs (`TILE_GAP`); the gap floor is `tileEdge` darkened 42%. |
+| Lip | Light raised strip around each tile's top edge: 0.07 wide, 0.014 high, `tileEdge`. |
+| Seam line | Shader line on every tile edge at y 0.016, colour `tileEdge` darkened 58% (at least 3:1 against grass), alpha 0.92. Half-width 0.03 tilted, 0.05 in top view (blended by tilt). Never thinner than 1.25 px, so it survives zoom-out and phones. Roads and minis cover it. |
+| High contrast | Seam width doubles and every other tile (checkerboard by row + col) is tinted 6% in ink. Follows the high-contrast setting. |
+| Rim | Frame around the board with a tick per square and a peg (`tileEdge` darkened 30%) at each tile boundary; column letters A, B, ... and row numbers on the rim, turned with the camera yaw. |
+
+## Roof plaques (house demand)
+
+Each house with demand carries a plaque above its number badge (`three/labels.ts` `plaqueTexture`, `three/minis/tokens.ts`). It is a sprite, so it always faces the camera.
+
+- Body `surface` with a 5 px `ink` border and a soft shadow; one cell per good (food glyph, count beside it when more than 1), ordered by food order.
+- Capacity rail underneath: one dot per slot, filled `ink` for a demand token, hollow (`surfaceSunk` fill, `line` outline) for free capacity. Unlimited houses (apartments, rural) show a bar and an infinity sign.
+- Full house: border turns `warn` (9 px) and filled dots turn `#b9781a`.
+- No seller: a grey dot (`#8f8b88`, `surface` rim) in the top-right corner, set from the last dinnertime (`houseStayedHome`).
+- World height 0.74 at close zoom, never smaller than 58 css px per world unit (badge: 40), so it stays readable on phones. The token stack stays as scaled-down (0.7) "stock" behind the plaque.
+
+## Board overlays
+
+Drawn flat just above the ground by `three/overlays/`, one layer per kind (range, reach, routes) so they can be shown together and cleared separately. Colours are the acting player's colour unless noted.
+
+| Overlay | Style |
+|---|---|
+| Legal spots | `highlightLegal`, opacity 0.32 pulsing by +-0.08. Illegal square under the pointer: `highlightBad` at 0.45 and a reason in the pointer hint. A staged spot gets a `focus` ring; the hovered piece in idle gets a `surface` ring. |
+| Road range | Road squares within range tinted by distance in tile borders: 0 = alpha 0.62, 1 = 0.42, 2 or more = 0.24. Start markers (disc with `surface` ring and centre pip, radius 0.26) on the roads a range begins on. Tiles with no road in range dimmed with `shadow` at 0.15. |
+| Reach (campaigns) | Ring 0.14 thick around each reached house, radius 0.62 of its footprint, alpha 0.9, pulsing scale +8% and alpha 0.55-0.95; a "+1" chip with the good. Houses already at capacity: grey ring and a "full" chip. Airplane / band reach: whole band tinted at 0.14. |
+| Route candidates | Faint: 0.24 wide, 0.5 alpha, on an ink hairline (0.30 wide, 0.28 alpha). Active: 0.56 wide, solid colour at 0.99 on a `surface` edge (+0.12, 0.98) and an `ink` outline (+0.22, 0.92), raised to y 0.11, with animated chevrons (ink or `surface`, whichever contrasts), a start marker, a tick with a running count on each tile border crossed, and a drink chip on each source collected. |
+| Selection | Inspected piece: `focus` ring. Related pieces (sellers, reaching campaigns, reached houses): `focus` at 0.45. Rail-panel hover (`inspectIds`): `ink` at 0.6. Candidate footprints of a staged campaign / pick: fill 0.6 with an `ink` (0.9) and `surface` outline. |
+
+Rules: every overlay is drawn with `toneMapped: false`, `depthWrite: false` and a render order above the board, so colours match the tokens above. Overlays never replace a cue with colour alone: ranges also carry numbers on tile borders, reach chips carry text, ribbons carry chevrons.
 
 ## Motion
 

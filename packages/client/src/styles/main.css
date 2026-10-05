@@ -568,8 +568,11 @@ body[data-screen='table'] { overflow: hidden; }
   .dock:not(.is-open) .dock-body { visibility: hidden; }
   .dock:not(.is-open) .dock-tabs { order: 0; border-top: 0; }
   .summary-card { top: auto; bottom: 116px; left: 50%; }
-  .board-controls { left: 50%; transform: translateX(-50%); bottom: 4px; }
-  .board-controls .icon-btn { width: 38px; height: 38px; }
+  /* One row at 390 px: shrink-to-fit would stop at half the width (left: 50%), so size to content. */
+  .board-controls { left: 50%; transform: translateX(-50%); bottom: 4px; width: max-content; max-width: calc(100% - 8px); flex-wrap: nowrap; gap: 0; padding: 3px; }
+  .board-controls .icon-btn { width: 36px; height: 40px; flex: none; }
+  .board-controls .speed-btn { min-width: 38px; height: 36px; flex: none; }
+  .board-controls-sep { margin: 0 2px; }
   .confirm-bar { bottom: 56px; }
   /* Picking: the sheet hides behind a 56 px strip with the instruction and Rotate / Confirm / Cancel. */
   .table.is-picking .dock:not(.is-open) { transform: translateY(100%); }

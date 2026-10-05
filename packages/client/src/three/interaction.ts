@@ -43,8 +43,9 @@ import {
 import { COLORS } from '../theme.js';
 import type { CameraController, PointerInfo } from './camera.js';
 import { DELTA, DIRS } from './coords.js';
-import { campaignAnchor, freewayAnchor, gardenRect, placementCells, placementHitRect, rectCenter, rectOf, type Rect } from './layout.js';
-import { buildGarden, buildHouse } from './minis/buildings.js';
+import { campaignAnchor, cellsToRect, freewayAnchor, gardenRect, parkMultiplier, placementCells, placementHitRect, rectCenter, rectOf, type Rect } from './layout.js';
+import { makeChip } from './overlays/badges.js';
+import { APARTMENT_BADGE_Y, HOUSE_BADGE_Y, buildGarden, buildHouse } from './minis/buildings.js';
 import { owned, releaseTree, type MiniCtx } from './minis/ctx.js';
 import { buildFreeway, buildLobbyistRoad, buildPark } from './minis/ketchup.js';
 import { buildTileGhost, freewayLink, roadworksPreview, ruralTargets, tileDef } from './ketchupGhosts.js';
@@ -62,6 +63,9 @@ export interface HoverInfo {
 }
 
 const HL_Y = 0.045;
+/** Legal-spot dots: radius and height (above the tile slabs and lots). */
+const DOT_R = 0.15;
+const DOT_Y = 0.075;
 /** Ground distance from the rotate handle centre that counts as a click on it. */
 const HANDLE_R = 0.5;
 
@@ -88,7 +92,8 @@ export class Interaction {
   /** Route candidate under a pointer (wired by the scene to the overlay layer). */
   routeAt: ((p: PointerInfo) => number | null) | null = null;
 
-  private cellsMesh: THREE.InstancedMesh | null = null;
+  /** Legal-spot layer: anchor dots, dimmed squares, off-board / map-tile areas. */
+  private cellsMesh: THREE.Group | null = null;
   /** Extra spot markers (rural giant billboard side targets). */
   private extras: THREE.Group | null = null;
   private cursorMesh: THREE.Mesh;
@@ -111,7 +116,7 @@ export class Interaction {
     private readonly cam: CameraController,
     private readonly rec: Reconciler,
   ) {
-    this.hlMat = new THREE.MeshBasicMaterial({ color: COLORS.highlightLegal, transparent: true, opacity: 0.58, toneMapped: false, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    this.hlMat = new THREE.MeshBasicMaterial({ color: COLORS.highlightLegal, transparent: true, opacity: 0.32, toneMapped: false, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
     this.cursorMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: COLORS.highlightBad, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }),
@@ -153,7 +158,7 @@ export class Interaction {
     const pulse = (dt: number) => {
       if (!isSpotMode(this.mode) || !this.cellsMesh) return;
       this.pulseT += dt;
-      this.hlMat.opacity = 0.58 + Math.sin(this.pulseT * 3.2) * 0.1;
+      this.hlMat.opacity = 0.32 + Math.sin(this.pulseT * 3.2) * 0.08;
       this.stage.invalidate();
     };
     stage.onFrame.add(pulse);
@@ -290,37 +295,78 @@ export class Interaction {
       }
     }
     this.publishSpots();
-    // Tint: union of covered squares (campaigns with a range overlay: only squares touching an
-    // in-range road), plus off-board strips as whole rectangles.
+    // Legal spots stay subtle (ux-plan §1.4): a small dot on each spot's anchor, squares no legal
+    // placement can cover (and that are not road) dimmed, off-board strips / whole map tiles as a
+    // light tint. Campaigns with a range overlay: only squares touching an in-range road count.
     const near = this.inRangeRoadNeighbours(b, placements);
-    const quads = new Map<string, Rect>();
+    const covered = new Set<string>();
+    const areas = new Map<string, Rect>();
     for (const p of placements) {
+      if (p.kind === 'mapTile') {
+        const r = placementHitRect(b, p);
+        if (r) areas.set(`r:${r.x0},${r.z0},${r.x1},${r.z1}`, r);
+        continue;
+      }
       const cells = placementCells(p);
       if (cells.length) {
-        for (const c of cells) if (!near || near.has(`${c.x},${c.y}`)) quads.set(`${c.x},${c.y}`, rectOf(c.x, c.y, 1, 1));
+        for (const c of cells) if (!near || near.has(`${c.x},${c.y}`)) covered.add(`${c.x},${c.y}`);
       } else {
         const r = placementHitRect(b, p);
-        if (r) quads.set(`r:${r.x0},${r.z0},${r.x1},${r.z1}`, r);
+        if (r) areas.set(`r:${r.x0},${r.z0},${r.x1},${r.z1}`, r);
       }
     }
-    if (!quads.size) return;
-    // With a range overlay (player colour) the legal tint switches to a neutral light wash so the
-    // two layers stay distinct whatever the player's colour.
-    this.hlMat.color.set(near ? COLORS.surface : COLORS.highlightLegal);
-    const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-    const mesh = new THREE.InstancedMesh(geo, this.hlMat, quads.size);
-    const m = new THREE.Matrix4();
-    let i = 0;
-    for (const r of quads.values()) {
-      const w = r.x1 - r.x0;
-      const d = r.z1 - r.z0;
-      m.makeScale(w - 0.08, 1, d - 0.08).setPosition((r.x0 + r.x1) / 2, HL_Y, (r.z0 + r.z1) / 2);
-      mesh.setMatrixAt(i++, m);
+    const dots: [number, number][] = [];
+    const seenDot = new Set<string>();
+    for (const sp of this.spots) {
+      const a = spotAnchor(sp);
+      if (!a || a[0] < 0 || a[1] < 0 || a[0] > b.w || a[1] > b.h) continue;
+      const k = `${a[0]},${a[1]}`;
+      if (seenDot.has(k)) continue;
+      seenDot.add(k);
+      dots.push(a);
     }
-    mesh.renderOrder = 2;
-    mesh.name = 'legal';
-    this.cellsMesh = mesh;
-    this.stage.overlay.add(mesh);
+    const g = new THREE.Group();
+    g.name = 'legal';
+    const color = this.mode.color || COLORS.focus;
+    if (dots.length) {
+      const outer = owned(new THREE.CircleGeometry(DOT_R, 20).rotateX(-Math.PI / 2));
+      const inner = owned(new THREE.CircleGeometry(DOT_R * 0.55, 16).rotateX(-Math.PI / 2));
+      // Ink ring, player-colour centre: reads on grass and lots whatever the colour.
+      const om = new THREE.InstancedMesh(outer, owned(new THREE.MeshBasicMaterial({ color: COLORS.ink, toneMapped: false, depthWrite: false, transparent: true, opacity: 0.7 })), dots.length);
+      const im = new THREE.InstancedMesh(inner, owned(new THREE.MeshBasicMaterial({ color, toneMapped: false, depthWrite: false, transparent: true, opacity: 0.98 })), dots.length);
+      const m = new THREE.Matrix4();
+      dots.forEach(([x, z], i) => {
+        om.setMatrixAt(i, m.makeTranslation(x, DOT_Y, z));
+        im.setMatrixAt(i, m.makeTranslation(x, DOT_Y + 0.002, z));
+      });
+      om.renderOrder = 3;
+      im.renderOrder = 4;
+      om.name = 'legal:dots';
+      g.add(om, im);
+    }
+    // Dim what cannot take the piece.
+    const dim: Rect[] = [];
+    for (let y = 0; y < b.h; y++)
+      for (let x = 0; x < b.w; x++) {
+        if (covered.has(`${x},${y}`) || b.cells[y]?.[x]?.road) continue;
+        dim.push(rectOf(x, y, 1, 1));
+      }
+    if (dim.length && (covered.size || dots.length)) {
+      const dm = instancedQuads(dim, owned(new THREE.MeshBasicMaterial({ color: COLORS.shadow, transparent: true, opacity: 0.2, toneMapped: false, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })), HL_Y, 0);
+      dm.renderOrder = 2;
+      dm.name = 'legal:dim';
+      g.add(dm);
+    }
+    if (areas.size) {
+      this.hlMat.color.set(COLORS.highlightLegal);
+      const am = instancedQuads([...areas.values()], this.hlMat, HL_Y, 0.04);
+      am.renderOrder = 2;
+      am.name = 'legal:areas';
+      g.add(am);
+    }
+    if (!g.children.length) return;
+    this.cellsMesh = g;
+    this.stage.overlay.add(g);
   }
 
   /** Squares orthogonally next to an in-range road (campaign tint filter), or null when no range overlay applies. */
@@ -348,8 +394,10 @@ export class Interaction {
     }
     if (!this.cellsMesh) return;
     this.cellsMesh.removeFromParent();
-    this.cellsMesh.geometry.dispose();
-    this.cellsMesh.dispose();
+    releaseTree(this.cellsMesh);
+    this.cellsMesh.traverse((o) => {
+      if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose();
+    });
     this.cellsMesh = null;
   }
 
@@ -728,7 +776,8 @@ export class Interaction {
       for (const id of inspectIds.peek()) add(id, COLORS.ink, 0.078, 0.6);
     }
     if (this.hoverObj && !pickMode && this.hoverObj.id !== selection.peek()?.id) rects.push({ r: this.hoverObj.rect, color: COLORS.surface, y: 0.088 });
-    const s = this.staged?.spot ?? (isSpotMode(this.mode) ? this.hoverSpot : null);
+    // The hovered spot is outlined by the ghost's footprint; a staged one also gets the focus ring.
+    const s = this.staged?.spot ?? null;
     if (s) rects.push({ r: this.rectFor(s, this.staged?.idx), color: COLORS.focus, y: 0.09 });
     for (const { r, color, y, opacity } of rects) this.rings.add(ring(r, color, y, opacity));
     this.stage.invalidate();
@@ -767,15 +816,19 @@ export class Interaction {
     if (p.kind === 'campaign' && p.placement.kind === 'board') {
       const pl = p.placement;
       wrap.add(buildFootprint(b, pl.x, pl.y, pl.w, pl.h, color, this.inRangeRoads()));
+    } else if (p.kind !== 'mapTile') {
+      const cells = placementCells(p);
+      if (cells.length) wrap.add(cellFootprint(cells, color));
     }
     // Ketchup previews (WP5): roadworks on the squares the arrows point at; the rural link.
     if (p.kind === 'lobbyistRoad') wrap.add(roadworksPreview({ inst: this.stage.inst }, b, p.arrows));
     if (p.kind === 'freeway') wrap.add(freewayLink(b, p.side, p.offset, color));
+    if (p.kind === 'park') wrap.add(parkPricePreview(b, p));
     if (p.kind === 'campaign' && p.placement.kind === 'offBoard') {
       const r = this.rectFor(s, idx);
       g.position.set((r.x0 + r.x1) / 2, g.position.y, (r.z0 + r.z1) / 2);
     }
-    if (s.variants.length > 1 && (p.kind === 'campaign' || p.kind === 'lobbyistRoad' || p.kind === 'park' || p.kind === 'mapTile')) {
+    if (s.variants.length > 1 && p.kind !== 'buyerRoute') {
       const r = this.rectFor(s, idx);
       const hx = r.x1 + 0.45;
       const hz = r.z0 - 0.45;
@@ -812,7 +865,7 @@ export class Interaction {
   private ghostMat(color: string): THREE.Material {
     let m = this.ghostMats.get(color);
     if (!m) {
-      m = new THREE.MeshStandardMaterial({ color: shade(color, 0.35), emissive: shade(color, -0.2), emissiveIntensity: 0.35, transparent: true, opacity: 0.55, depthWrite: false, roughness: 0.6, flatShading: true });
+      m = new THREE.MeshStandardMaterial({ color, emissive: shade(color, -0.3), emissiveIntensity: 0.3, transparent: true, opacity: 0.9, depthWrite: false, roughness: 0.6, flatShading: true });
       this.ghostMats.set(color, m);
     }
     return m;
@@ -820,43 +873,16 @@ export class Interaction {
 }
 
 /**
- * Campaign footprint on the ground: one outlined square per covered square, and a bright bar on
- * every footprint edge that touches a road (an in-range road when `inRange` is given and any edge
- * touches one). World coordinates; the caller adds it beside the ghost mini.
+ * Campaign footprint on the ground: a solid fill in the player colour over the w × h squares with
+ * a light-and-ink outline, and a bright bar on every footprint edge that touches a road (an
+ * in-range road when `inRange` is given and any edge touches one). World coordinates; the caller
+ * adds it beside the ghost mini.
  */
 export function buildFootprint(b: Board, x: number, y: number, w: number, h: number, color: string, inRange: Set<string> | null): THREE.Group {
-  const g = new THREE.Group();
-  g.name = 'footprint';
-  const frameMat = owned(new THREE.MeshBasicMaterial({ color: COLORS.surface, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
-  const fillMat = owned(new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
-  const frame = new THREE.Shape();
-  const t = 0.05;
-  const s = 0.92;
-  frame.moveTo(-s / 2, -s / 2);
-  frame.lineTo(s / 2, -s / 2);
-  frame.lineTo(s / 2, s / 2);
-  frame.lineTo(-s / 2, s / 2);
-  frame.closePath();
-  const hole = new THREE.Path();
-  hole.moveTo(-s / 2 + t, -s / 2 + t);
-  hole.lineTo(-s / 2 + t, s / 2 - t);
-  hole.lineTo(s / 2 - t, s / 2 - t);
-  hole.lineTo(s / 2 - t, -s / 2 + t);
-  hole.closePath();
-  frame.holes.push(hole);
-  const frameGeo = owned(new THREE.ShapeGeometry(frame).rotateX(Math.PI / 2));
-  const fillGeo = owned(new THREE.PlaneGeometry(s - t * 2, s - t * 2).rotateX(-Math.PI / 2));
-  const Y = 0.07;
-  for (let j = 0; j < h; j++)
-    for (let i = 0; i < w; i++) {
-      const f = new THREE.Mesh(frameGeo, frameMat);
-      f.position.set(x + i + 0.5, Y, y + j + 0.5);
-      f.renderOrder = 6;
-      const fill = new THREE.Mesh(fillGeo, fillMat);
-      fill.position.set(x + i + 0.5, Y - 0.002, y + j + 0.5);
-      fill.renderOrder = 5;
-      g.add(fill, f);
-    }
+  const cells: { x: number; y: number }[] = [];
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) cells.push({ x: x + i, y: y + j });
+  const g = cellFootprint(cells, color);
+  const Y = FOOT_Y;
   // Road edges.
   const edges: { cx: number; cz: number; horiz: boolean; inRange: boolean }[] = [];
   for (let j = 0; j < h; j++)
@@ -868,7 +894,7 @@ export function buildFootprint(b: Board, x: number, y: number, w: number, h: num
         const ny = cy + DELTA[d][1];
         if (nx >= x && nx < x + w && ny >= y && ny < y + h) continue;
         if (!b.cells[ny]?.[nx]?.road) continue;
-        edges.push({ cx: cx + 0.5 + DELTA[d][0] * 0.5, cz: cy + 0.5 + DELTA[d][1] * 0.5, horiz: d === 'N' || d === 'S', inRange: !inRange || inRange.has(`${nx},${ny}`) });
+        edges.push({ cx: cx + 0.5 + DELTA[d][0] * 0.66, cz: cy + 0.5 + DELTA[d][1] * 0.66, horiz: d === 'N' || d === 'S', inRange: !inRange || inRange.has(`${nx},${ny}`) });
       }
     }
   const anyIn = edges.some((e) => e.inRange);
@@ -878,10 +904,33 @@ export function buildFootprint(b: Board, x: number, y: number, w: number, h: num
   for (const e of edges) {
     if (anyIn && !e.inRange) continue;
     const bar = new THREE.Mesh(e.horiz ? barGeoH : barGeoV, barMat);
-    bar.position.set(e.cx, Y + 0.03, e.cz);
+    bar.position.set(e.cx, Y + 0.035, e.cz);
     bar.renderOrder = 7;
     g.add(bar);
   }
+  return g;
+}
+
+const FOOT_Y = 0.08;
+
+/** Solid footprint for any placement: the covered squares filled in the player colour, outlined light and ink. */
+export function cellFootprint(cells: readonly { x: number; y: number }[], color: string): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'footprint';
+  const fillMat = owned(new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+  const fillGeo = owned(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2));
+  for (const c of cells) {
+    const f = new THREE.Mesh(fillGeo, fillMat);
+    f.position.set(c.x + 0.5, FOOT_Y, c.y + 0.5);
+    f.renderOrder = 5;
+    g.add(f);
+  }
+  const r = cellsToRect(cells);
+  const outer = ring(r, COLORS.ink, FOOT_Y + 0.004, 0.9, 0.1, 0.13);
+  const inner = ring(r, COLORS.surface, FOOT_Y + 0.008, 1, 0.02, 0.08);
+  outer.renderOrder = 6;
+  inner.renderOrder = 7;
+  g.add(outer, inner);
   return g;
 }
 
@@ -914,11 +963,9 @@ export function buildRotateHandle(): THREE.Group {
 }
 
 /** Rounded outline ring around a rectangle. */
-function ring(r: Rect, color: string, y: number, opacity = 0.95): THREE.Mesh {
-  const pad = 0.06;
+function ring(r: Rect, color: string, y: number, opacity = 0.95, pad = 0.06, t = 0.09): THREE.Mesh {
   const w = r.x1 - r.x0 + pad * 2;
   const d = r.z1 - r.z0 + pad * 2;
-  const t = 0.09;
   const rad = 0.22;
   const outer = roundedRect(-w / 2, -d / 2, w, d, rad);
   const inner = roundedRect(-w / 2 + t, -d / 2 + t, w - t * 2, d - t * 2, Math.max(0.02, rad - t));
@@ -1005,4 +1052,45 @@ export function buildGhost(ctx: MiniCtx, b: Board, p: Placement, color: string):
     case 'buyerRoute':
       return null;
   }
+}
+
+/** Where a spot's legal dot goes: the campaign anchor square, the house body, else the spot's centre. */
+function spotAnchor(s: Spot): [number, number] | null {
+  const p = s.variants[0];
+  if (!p) return null;
+  if (p.kind === 'campaign') return p.placement.kind === 'board' ? [p.placement.x + 0.5, p.placement.y + 0.5] : null;
+  if (p.kind === 'house') return [p.x + 1, p.y + 1];
+  if (p.kind === 'freeway' || p.kind === 'mapTile' || p.kind === 'buyerRoute') return null;
+  const r = s.rects[0] ?? s.hit;
+  return rectCenter(r);
+}
+
+/** One instanced flat quad per rectangle at height y, shrunk by `inset`. */
+function instancedQuads(rects: readonly Rect[], mat: THREE.Material, y: number, inset: number): THREE.InstancedMesh {
+  const geo = owned(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2));
+  const mesh = new THREE.InstancedMesh(geo, mat, rects.length);
+  const m = new THREE.Matrix4();
+  rects.forEach((r, i) => {
+    m.makeScale(Math.max(0.01, r.x1 - r.x0 - inset * 2), 1, Math.max(0.01, r.z1 - r.z0 - inset * 2)).setPosition((r.x0 + r.x1) / 2, y, (r.z0 + r.z1) / 2);
+    mesh.setMatrixAt(i, m);
+  });
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+/** Park ghost: "×2" / "×3" price chips over the houses the park would make pricier (ketchup.md §2). */
+function parkPricePreview(b: Board, p: Extract<Placement, { kind: 'park' }>): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'park-prices';
+  const parks = [...Object.values(b.entities).flatMap((e) => (e.kind === 'park' ? [{ x: e.x, y: e.y, w: e.w, h: e.h }] : [])), { x: p.x, y: p.y, w: p.w, h: p.h }];
+  for (const h of Object.values(b.houses)) {
+    const next = parkMultiplier(b, h, parks);
+    if (next <= parkMultiplier(b, h)) continue;
+    const [x, z] = rectCenter(cellsToRect(h.cells));
+    const chip = makeChip(`×${next}`, null, COLORS.ok, 0.44);
+    chip.center.set(0.5, 0);
+    chip.position.set(x, (h.kind === 'apartment' ? APARTMENT_BADGE_Y : HOUSE_BADGE_Y) + 0.35, z);
+    g.add(chip);
+  }
+  return g;
 }

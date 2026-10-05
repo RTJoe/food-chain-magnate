@@ -212,6 +212,11 @@
           "employeeId": "errand_boy",
           "acquiredRound": 2
         },
+        "p2-co": {
+          "uid": "p2-co",
+          "employeeId": "cart_operator",
+          "acquiredRound": 2
+        },
         "p2-kt": {
           "uid": "p2-kt",
           "employeeId": "kitchen_trainee",
@@ -238,7 +243,8 @@
         "ceoSubs": [
           "p2-mt",
           "p2-rg",
-          "p2-eb"
+          "p2-eb",
+          "p2-co"
         ],
         "managerSubs": {
           "p2-mt": [
@@ -3554,7 +3560,7 @@
     "coach": 6,
     "guru": 1,
     "errand_boy": 10,
-    "cart_operator": 6,
+    "cart_operator": 5,
     "truck_driver": 6,
     "zeppelin_pilot": 1,
     "marketing_trainee": 10,
@@ -3746,7 +3752,8 @@
       "p2-rg": 0,
       "p2-mkt": 1,
       "p2-kt": 1,
-      "p2-eb": 1
+      "p2-eb": 1,
+      "p2-co": 1
     },
     "hired": [
       "p2-w",

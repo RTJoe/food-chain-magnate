@@ -223,6 +223,55 @@ export function chainMark(chain: string | undefined, fallback: string): string {
 }
 
 /** World rectangle covering the board, a slice of its rim, and off-board pieces (rural area). */
+/**
+ * What the default camera frames: the board squares with a slim margin (the rim may run off the
+ * free area), plus the airplane strips in use and the rural area when there is one.
+ */
+export function frameRect(b: Board): Rect {
+  const m = 0.45;
+  const r = { x0: -m, z0: -m, x1: b.w + m, z1: b.h + m };
+  // Airplanes fly beside the board: keep their strip in view.
+  const air = AIR_STRIP + 0.9;
+  for (const c of Object.values(b.campaigns)) {
+    if (c.placement.kind !== 'airplane') continue;
+    const side = c.placement.side;
+    if (side === 'N') r.z0 = Math.min(r.z0, -air);
+    else if (side === 'S') r.z1 = Math.max(r.z1, b.h + air);
+    else if (side === 'W') r.x0 = Math.min(r.x0, -air);
+    else r.x1 = Math.max(r.x1, b.w + air);
+  }
+  if (hasRural(b)) {
+    const [cx, cz] = ruralCenter(b);
+    const h = RURAL_SIZE / 2 + 0.6;
+    r.x0 = Math.min(r.x0, cx - h);
+    r.x1 = Math.max(r.x1, cx + h);
+    r.z0 = Math.min(r.z0, cz - h);
+    r.z1 = Math.max(r.z1, cz + h);
+  }
+  return r;
+}
+
+/**
+ * Price multiplier a park gives a house (ketchup.md §2 Parks): ×2, or ×3 with a garden, when a
+ * park square touches a house or garden square orthogonally; 1 otherwise. `parks` defaults to the
+ * board's parks; pass extra rectangles to preview a park being placed.
+ */
+export function parkMultiplier(b: Board, h: Board['houses'][string], parks?: readonly { x: number; y: number; w: number; h: number }[]): number {
+  if (h.kind === 'rural' || !h.cells.length) return 1;
+  const list = parks ?? Object.values(b.entities).flatMap((e) => (e.kind === 'park' ? [{ x: e.x, y: e.y, w: e.w, h: e.h }] : []));
+  if (!list.length) return 1;
+  const own = [...h.cells, ...(h.garden?.cells ?? [])];
+  const ownSet = new Set(own.map((c) => `${c.x},${c.y}`));
+  const near = new Set<string>();
+  for (const c of own)
+    for (const [dx, dy] of Object.values(DELTA)) {
+      const k = `${c.x + dx},${c.y + dy}`;
+      if (!ownSet.has(k)) near.add(k);
+    }
+  for (const p of list) for (let y = p.y; y < p.y + p.h; y++) for (let x = p.x; x < p.x + p.w; x++) if (near.has(`${x},${y}`)) return h.garden ? 3 : 2;
+  return 1;
+}
+
 export function contentRect(b: Board): Rect {
   const m = RIM * 0.6;
   const r = { x0: -m, z0: -m, x1: b.w + m, z1: b.h + m };

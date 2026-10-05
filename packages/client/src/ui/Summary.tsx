@@ -158,18 +158,14 @@ function useStepSelection(): (sel: { kind: 'house' | 'campaign'; id: string } | 
     },
     [],
   );
-  const framed = useSignal(false);
   return (sel, focus) => {
     mine.value = sel?.id ?? null;
     select(sel);
     // Phone: lower the bottom sheet so the board shows what the step points at.
     sheetOpen.value = false;
-    // Frame the whole board once: routes can cross it and the chips keep a readable size at any
-    // zoom. A close-up (`focus`) would hide competitors and sit under the panels.
-    if (!framed.value) {
-      framed.value = true;
-      cameraCommand.value = focus.length ? { kind: 'reset' } : null;
-    }
+    // Frame the step's pieces (house + seller, campaign + reached houses) with their neighbours,
+    // inside the area the panels leave free (the board's focus keeps context, never a close-up).
+    if (focus.length) cameraCommand.value = { kind: 'focus', ids: focus };
   };
 }
 

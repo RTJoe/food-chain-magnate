@@ -110,6 +110,7 @@ export function buildHouse(ctx: MiniCtx, p: HouseParams): THREE.Group {
   badge.position.set(0, HOUSE_BADGE_Y, 0);
   badge.name = 'badge';
   badge.userData.minPx = BADGE_MIN_PX;
+  badge.userData.obstacle = true;
   g.add(badge);
   g.userData.stackY = 1.95;
   return g;
@@ -164,6 +165,7 @@ export function buildApartment(ctx: MiniCtx, p: { label: string; facing: Directi
   badge.position.set(0, APARTMENT_BADGE_Y, 0);
   badge.name = 'badge';
   badge.userData.minPx = BADGE_MIN_PX;
+  badge.userData.obstacle = true;
   g.add(badge);
   g.userData.stackY = 3.35;
   return g;
@@ -263,6 +265,7 @@ export function buildRural(ctx: MiniCtx): THREE.Group {
   badge.position.set(0, RURAL_BADGE_Y, 0);
   badge.name = 'badge';
   badge.userData.minPx = BADGE_MIN_PX;
+  badge.userData.obstacle = true;
   g.add(badge);
   g.userData.stackY = 2.6;
   return g;

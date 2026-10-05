@@ -12,6 +12,18 @@ import { COLORS } from '../theme.js';
 import { Instancer } from './instancer.js';
 import { RIM } from './coords.js';
 import { Tweens } from './tween.js';
+import { setSpriteTexture } from './labels.js';
+
+/** Screen box in canvas px. */
+interface Box {
+  l: number;
+  r: number;
+  t: number;
+  b: number;
+}
+
+/** Css px per square from which demand plaques show their full form (goods + capacity pips). */
+const PLAQUE_FULL_PPU = 50;
 
 export type Tier = 'high' | 'medium' | 'low';
 
@@ -213,11 +225,17 @@ export class Stage {
     if (!this.sized.size) return;
     const hPx = Math.max(1, this.el.clientHeight);
     const k0 = (2 * Math.tan((cam.fov * Math.PI) / 360)) / hPx / cam.zoom;
+    const plaques: { s: THREE.Sprite; wpp: number }[] = [];
+    const obstacles: Box[] = [];
     for (const s of this.sized) {
       const base = s.userData.baseH as number;
       s.getWorldPosition(this.v).applyMatrix4(cam.matrixWorldInverse);
       const depth = Math.max(0.1, -this.v.z);
       const wpp = depth * k0;
+      if (s.userData.plaque) {
+        if (s.visible && s.parent?.visible !== false) plaques.push({ s, wpp });
+        continue;
+      }
       // Parent scale (pop-in tweens) multiplies through; only the minimum is screen-based.
       const k = Math.min(s.userData.maxK ?? 3, Math.max(1, (s.userData.minPx as number) * wpp));
       const h = base * k;
@@ -228,6 +246,72 @@ export class Stage {
         const kb = Math.min(3, Math.max(1, above.minPx * wpp));
         s.center.y = -((above.baseH * kb) / 2 + above.gap * k) / h;
       }
+      if (s.userData.obstacle && s.visible) {
+        const p = this.toScreen(s);
+        if (p) obstacles.push({ l: p.x - (h * (s.userData.aspect as number)) / wpp / 2, r: p.x + (h * (s.userData.aspect as number)) / wpp / 2, t: p.y - h / wpp / 2, b: p.y + h / wpp / 2 });
+      }
+    }
+    if (plaques.length) this.layoutPlaques(plaques, obstacles);
+  }
+
+  /** Client px (canvas space) of a sprite's anchor, or null when behind the camera. */
+  private toScreen(o: THREE.Object3D): { x: number; y: number } | null {
+    const p = o.getWorldPosition(this.v).project(this.camera);
+    if (p.z > 1) return null;
+    return { x: ((p.x + 1) / 2) * this.el.clientWidth, y: ((1 - p.y) / 2) * this.el.clientHeight };
+  }
+
+  /**
+   * Demand plaques (ux-plan §3.3): full plaque when zoomed in (>= PLAQUE_FULL_PPU css px per
+   * square), else the compact one-row form sized to ~22-28 px. Then a greedy pass keeps them
+   * apart: busiest houses first, each takes the nearest free slot (in place, beside, above);
+   * a plaque with no free slot shrinks to the mini form ("🍔 5") and tries again.
+   */
+  private layoutPlaques(list: { s: THREE.Sprite; wpp: number }[], obstacles: Box[]): void {
+    type Item = { s: THREE.Sprite; wpp: number; x: number; y: number; cy: number; count: number };
+    const items: Item[] = [];
+    for (const { s, wpp } of list) {
+      const pq = s.userData.plaque as { full: THREE.Texture; compact: THREE.Texture; mini: THREE.Texture; count: number };
+      const ppu = 1 / wpp;
+      const full = ppu >= PLAQUE_FULL_PPU;
+      setSpriteTexture(s, full ? pq.full : pq.compact);
+      const h = full ? (s.userData.baseH as number) * Math.min(s.userData.maxK ?? 3, Math.max(1, (s.userData.minPx as number) * wpp)) : Math.min(28, Math.max(22, ppu * 1.0)) * wpp;
+      s.scale.set(h * (s.userData.aspect as number), h, 1);
+      const above = s.userData.above as { baseH: number; minPx: number; gap: number } | undefined;
+      const kb = above ? Math.min(3, Math.max(1, above.minPx * wpp)) : 1;
+      const cy = above ? -((above.baseH * kb) / 2 + 3 * wpp) / h : s.center.y;
+      const p = this.toScreen(s);
+      if (!p) continue;
+      items.push({ s, wpp, x: p.x, y: p.y, cy, count: pq.count });
+    }
+    items.sort((a, b) => b.count - a.count || b.y - a.y);
+    const placed: Box[] = [...obstacles];
+    const hits = (bx: Box) => placed.some((o) => bx.l < o.r + 2 && bx.r > o.l - 2 && bx.t < o.b + 2 && bx.b > o.t - 2);
+    for (const it of items) {
+      const tryPlace = (): boolean => {
+        const s = it.s;
+        const hPx = s.scale.y / it.wpp;
+        const wPx = hPx * (s.userData.aspect as number);
+        const bottom0 = it.y + it.cy * hPx;
+        for (const up of [0, hPx * 0.6, hPx * 1.15])
+          for (const ox of [0, -wPx * 0.55, wPx * 0.55, -wPx * 1.05, wPx * 1.05]) {
+            const bx = { l: it.x + ox - wPx / 2, r: it.x + ox + wPx / 2, b: bottom0 - up, t: bottom0 - up - hPx };
+            if (hits(bx)) continue;
+            s.center.set(0.5 - ox / wPx, it.cy - up / hPx);
+            placed.push(bx);
+            return true;
+          }
+        return false;
+      };
+      if (tryPlace()) continue;
+      const pq = it.s.userData.plaque as { mini: THREE.Texture };
+      const h0 = it.s.scale.y;
+      setSpriteTexture(it.s, pq.mini);
+      const h = Math.min(h0, 20 * it.wpp);
+      it.cy *= h0 / h;
+      it.s.scale.set(h * (it.s.userData.aspect as number), h, 1);
+      if (tryPlace()) continue;
+      it.s.center.set(0.5, it.cy);
     }
   }
 
