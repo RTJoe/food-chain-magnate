@@ -1,0 +1,94 @@
+/* Phase feedback (ux-plan §2.3, WP5): results strip, step-through, live caption; Ketchup flows. */
+
+/* Results strip: along the bottom of the board area, above the board controls. */
+.summary-card.summary-strip {
+  top: auto;
+  bottom: calc(var(--gap, 12px) + 58px);
+  left: calc(var(--rail-w) + 24px);
+  right: calc(var(--dock-w) + 24px);
+  width: auto;
+  max-width: 600px;
+  margin: 0 auto;
+  transform: none;
+  max-height: min(36vh, 300px);
+}
+.summary-strip .sx-head { display: flex; align-items: center; padding: 4px 4px 0 14px; }
+.summary-strip .sx-head h3 { flex: 1; font-size: 0.98rem; margin: 0; display: flex; align-items: baseline; gap: 8px; }
+.summary-strip .sx-head .icon-btn { width: 34px; height: 34px; }
+.summary-strip .summary-body { padding: 0 14px; display: grid; gap: 5px; align-content: start; font-size: 0.86rem; }
+.summary-strip .summary-body > p { margin: 0; }
+.summary-strip .sx-foot { padding: 4px 10px 8px; }
+
+.sx-totals { display: flex !important; flex-wrap: wrap; gap: 6px 14px !important; margin: 2px 0 !important; }
+.sx-totals li > span { flex: none !important; }
+
+.sx-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.sx-nav { display: flex; align-items: center; gap: 2px; flex: 1 1 260px; }
+.sx-nav .icon-btn { width: 32px; height: 32px; flex: none; }
+.sx-pos { flex: 1; text-align: center; font-weight: 800; }
+.sx-start { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; border: 1px dashed var(--c-line); border-radius: 999px; background: none; font: inherit; font-weight: 700; cursor: pointer; color: inherit; }
+.sx-start:hover { background: var(--c-surface-sunk, rgba(0, 0, 0, 0.04)); }
+.sx-chips { display: flex; flex-wrap: wrap; gap: 4px; flex: 0 1 auto; }
+.sx-chip {
+  --sx-c: #8f8b88;
+  min-width: 34px; height: 28px; padding: 0 8px; border-radius: 999px;
+  border: 2px solid var(--sx-c); background: var(--c-surface, #fffaf0); color: inherit;
+  font: inherit; font-weight: 800; font-size: 0.8rem; cursor: pointer;
+}
+.sx-chip.is-home { border-style: dashed; color: #77736f; }
+.sx-chip.is-on { background: var(--sx-c); color: #fffaf0; }
+.sx-chip.is-home.is-on { background: #8f8b88; }
+
+.sx-detail { display: grid; gap: 4px; padding: 6px 8px; border-radius: var(--radius-sm, 8px); background: var(--c-surface-sunk, rgba(0, 0, 0, 0.04)); }
+.sx-line { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 0.88rem; }
+.sx-line > span:nth-child(2) { flex: 1; }
+.sx-dot { width: 14px; height: 14px; border-radius: 50%; background: #8f8b88; margin-top: 2px; flex: none; }
+.sx-offers { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.sx-offers li {
+  --sx-c: #8f8b88;
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 4px;
+  border-radius: 999px; background: var(--c-surface, #fffaf0); border: 1px solid var(--c-line, #ddd); font-size: 0.8rem;
+}
+.sx-offers li.is-won { border: 2px solid var(--sx-c); font-weight: 700; }
+.sx-offers li.is-out { opacity: 0.6; }
+.sx-swatch { width: 12px; height: 12px; border-radius: 50%; background: var(--sx-c); }
+.sx-math { font-variant-numeric: tabular-nums; }
+.sx-tag { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; color: var(--sx-c); }
+.sx-offers li.is-out .sx-tag { color: #77736f; }
+
+/* Live caption at the top of the board while Dinnertime / Marketing animate. Never blocks input. */
+.phase-caption {
+  --sx-c: var(--c-ink, #1f1d26);
+  position: fixed; z-index: 39; pointer-events: none;
+  top: 76px; left: calc(var(--rail-w) + (100vw - var(--rail-w) - var(--dock-w)) / 2); transform: translateX(-50%);
+  max-width: min(640px, calc(100vw - var(--rail-w) - var(--dock-w) - 32px));
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 10px; border-radius: 999px;
+  border-left: 5px solid var(--sx-c); font-weight: 700; font-size: 0.9rem; box-shadow: var(--shadow-lg);
+  animation: phase-caption-in 0.18s ease-out;
+}
+.phase-caption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phase-caption.is-done { border-left-color: var(--c-ink, #1f1d26); }
+.phase-caption.is-stayedHome { border-left-color: #8f8b88; }
+@keyframes phase-caption-in { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+@media (max-width: 860px) {
+  .summary-card.summary-strip { left: 8px; right: 8px; bottom: 112px; max-height: 38vh; }
+  .phase-caption { top: 62px; left: 50%; max-width: calc(100vw - 24px); font-size: 0.82rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phase-caption { animation: none; }
+}
+
+/* Ketchup placement flows: piece chips (road length, park shape, coffee shop to move). */
+.kf-step { display: grid; gap: 6px; }
+.kf-pieces { display: flex; flex-wrap: wrap; gap: 6px; }
+.kf-piece {
+  display: grid; justify-items: center; gap: 2px; min-width: 88px; min-height: 44px; padding: 6px 10px;
+  border: 2px solid var(--c-line, #ddd); border-radius: var(--radius-sm, 8px); background: var(--c-surface, #fffaf0);
+  font: inherit; color: inherit; cursor: pointer;
+}
+.kf-piece.is-on { border-color: var(--c-ink, #1f1d26); box-shadow: 0 0 0 2px var(--c-focus, #3f8fd2) inset; }
+.kf-piece-label { font-weight: 800; font-size: 0.85rem; }
+.kf-glyph rect { fill: #5b5866; }
+.kf-glyph.is-park rect { fill: #6fae54; }
+.kf-glyph .kf-arrow { fill: none; stroke: #f0a530; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

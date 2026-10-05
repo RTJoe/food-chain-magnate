@@ -50,6 +50,7 @@ export const Icon = {
   chevronDown: (p: P = {}) => svg(<path d="M6 9l6 6 6-6" />, p),
   chevronUp: (p: P = {}) => svg(<path d="M6 15l6-6 6 6" />, p),
   chevronRight: (p: P = {}) => svg(<path d="M9 6l6 6-6 6" />, p),
+  chevronLeft: (p: P = {}) => svg(<path d="M15 6l-6 6 6 6" />, p),
   arrowRight: (p: P = {}) => svg(<path d="M5 12h14M13 6l6 6-6 6" />, p),
   star: (p: P = {}) => svg(<path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.9l-5.3 2.7 1-5.8-4.2-4.1 5.9-.9z" />, p),
   trophy: (p: P = {}) => svg(<><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H4.5v1A3.5 3.5 0 0 0 8 10.5M16 6h3.5v1a3.5 3.5 0 0 1-3.5 3.5M12 13v4M8 21h8M9.5 17h5v4h-5z" /></>, p),

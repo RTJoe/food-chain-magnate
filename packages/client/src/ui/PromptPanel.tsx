@@ -12,8 +12,9 @@ import { act, actChain, undo } from '../net/session.js';
 import { Button, Cash, EmployeeCard, Empty, PlayerBadge, Pill, Stepper } from './common.js';
 import { FoodIcon, Icon } from './icons.js';
 import { OrgChartEditor } from './OrgChart.js';
-import { PlacementFlow } from './Placement.js';
+import { PlacementFlow } from './flows/index.js';
 import { LegalButton, WorkPanel } from './Work.js';
+import { SeatControl } from './PlayerPanels.js';
 
 type PlacementLegal = Extract<LegalAction, { kind: 'placement' }>;
 
@@ -105,8 +106,9 @@ function WaitingPanel({ view: v, waitingFor, spectating }: { view: GameView; wai
                 <PlayerBadge view={v} id={id} size={28} ring />
                 <span>
                   <b>{v.players[id]?.name ?? id}</b>
-                  <span class="muted small"> {offline ? '· offline, waiting for them to reconnect' : v.submitted[id] ? '· done' : '· thinking…'}</span>
+                  <span class="muted small"> {offline ? (seat.clientId === null ? '· seat released, waiting for someone to take it' : '· offline, waiting for them to reconnect') : v.submitted[id] ? '· done' : '· thinking…'}</span>
                 </span>
+                {offline && <SeatControl playerId={id} />}
               </li>
             );
           })}

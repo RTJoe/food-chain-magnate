@@ -47,6 +47,7 @@ import { campaignAnchor, freewayAnchor, gardenRect, placementCells, placementHit
 import { buildGarden, buildHouse } from './minis/buildings.js';
 import { owned, releaseTree, type MiniCtx } from './minis/ctx.js';
 import { buildFreeway, buildLobbyistRoad, buildPark } from './minis/ketchup.js';
+import { buildTileGhost, freewayLink, roadworksPreview, ruralTargets, tileDef } from './ketchupGhosts.js';
 import { shade } from './minis/kit.js';
 import { buildAirplane, buildBillboard, buildGiantBillboard, buildGourmetGuide, buildMailbox, buildRadio, type CampaignVisual } from './minis/marketing.js';
 import { buildCoffeeShop, buildRestaurant } from './minis/restaurant.js';
@@ -67,6 +68,9 @@ const HANDLE_R = 0.5;
 type SpotMode = Extract<InteractionMode, { kind: 'place' | 'campaign' }>;
 const isSpotMode = (m: InteractionMode): m is SpotMode => m.kind === 'place' || m.kind === 'campaign';
 const isCampaignSpot = (s: Spot | null | undefined) => s?.variants[0]?.kind === 'campaign';
+/** Spots whose variants are orientations of one piece (R turns it in place; sticky preference). */
+const ORIENTED = new Set<Placement['kind']>(['campaign', 'lobbyistRoad', 'park']);
+const isOrientedSpot = (s: Spot | null | undefined) => !!s?.variants[0] && ORIENTED.has(s.variants[0].kind);
 
 export class Interaction {
   private mode: InteractionMode = { kind: 'idle' };
@@ -85,6 +89,8 @@ export class Interaction {
   routeAt: ((p: PointerInfo) => number | null) | null = null;
 
   private cellsMesh: THREE.InstancedMesh | null = null;
+  /** Extra spot markers (rural giant billboard side targets). */
+  private extras: THREE.Group | null = null;
   private cursorMesh: THREE.Mesh;
   private rings = new THREE.Group();
   private ghost: THREE.Group | null = null;
@@ -172,7 +178,15 @@ export class Interaction {
     this.highlighted = mode.kind === 'inspect' ? mode.ids : [];
     this.refreshRings();
     if (this.lastPointer) this.hover(this.lastPointer);
+    this.autoStage();
     this.stage.invalidate();
+  }
+
+  /** A single off-board spot (gourmet guide) has nothing to aim at: stage it so Confirm is all that is left. */
+  private autoStage(): void {
+    const only = this.spots.length === 1 ? this.spots[0]! : null;
+    const p = only?.variants[0];
+    if (only && p?.kind === 'campaign' && p.placement.kind === 'offBoard') this.stageSpot(only, 0);
   }
 
   /** Re-run after the board changes (view update) so spots and rings follow. */
@@ -249,6 +263,22 @@ export class Interaction {
     const idx = groupSpots(b, placements);
     this.spots = idx.spots;
     this.spotOf = idx.of;
+    // Gourmet guides go beside the ones already out (layout.guideSpot order), not on top of them.
+    const guides = Object.values(b.campaigns).filter((c) => c.placement.kind === 'offBoard').length;
+    for (const sp of this.spots) {
+      const v = sp.variants[0];
+      if (v?.kind !== 'campaign' || v.placement.kind !== 'offBoard') continue;
+      const r = campaignAnchor(b, v.placement, guides).rect;
+      sp.rects = sp.rects.map(() => r);
+      sp.hit = { ...r };
+    }
+    // Rural giant billboards: all four sides as targets (taken / out-of-reach sides grey).
+    const ruralSides = new Set(placements.flatMap((p) => (p.kind === 'campaign' && p.placement.kind === 'rural' ? [p.placement.side] : [])));
+    if (ruralSides.size) {
+      this.extras = ruralTargets(b, ruralSides, this.mode.color || COLORS.focus);
+      this.stage.overlay.add(this.extras);
+      this.stage.trackSized(this.extras);
+    }
     // Keep hover / staged spots pointing at the rebuilt objects.
     if (this.hoverSpot) this.hoverSpot = this.spots.find((s) => s.key === this.hoverSpot!.key) ?? null;
     if (this.staged) {
@@ -310,6 +340,12 @@ export class Interaction {
   }
 
   private clearCells(): void {
+    if (this.extras) {
+      this.stage.untrackSized(this.extras);
+      this.extras.removeFromParent();
+      releaseTree(this.extras);
+      this.extras = null;
+    }
     if (!this.cellsMesh) return;
     this.cellsMesh.removeFromParent();
     this.cellsMesh.geometry.dispose();
@@ -348,7 +384,7 @@ export class Interaction {
   private variantFor(s: Spot, ground: THREE.Vector3 | null): number {
     if (this.pinnedVariant.has(s.key)) return this.variantIdx.get(s.key) ?? 0;
     const first = s.variants[0];
-    if (first?.kind === 'campaign' && s.variants.length > 1) {
+    if (first && ORIENTED.has(first.kind) && s.variants.length > 1) {
       const i = s.variants.findIndex((v) => orientationOf(v) === this.orient);
       if (i >= 0) return i;
       if (ground) {
@@ -492,9 +528,9 @@ export class Interaction {
   private rotate(): void {
     if (!isSpotMode(this.mode)) return;
     const s = this.staged?.spot ?? this.hoverSpot;
-    const campaignMode = this.mode.kind === 'campaign' || this.mode.placementKind === 'campaign';
+    const campaignMode = this.mode.kind === 'campaign' || ORIENTED.has(this.mode.placementKind);
     if (!s || s.variants.length < 2) {
-      if (campaignMode && (!s || isCampaignSpot(s))) {
+      if (campaignMode && (!s || isOrientedSpot(s))) {
         // No second orientation here: flip the preference for the next spot.
         this.orient = this.orient === 'landscape' ? 'portrait' : 'landscape';
         ghostOrientation.value = this.orient;
@@ -732,7 +768,14 @@ export class Interaction {
       const pl = p.placement;
       wrap.add(buildFootprint(b, pl.x, pl.y, pl.w, pl.h, color, this.inRangeRoads()));
     }
-    if (s.variants.length > 1 && p.kind === 'campaign') {
+    // Ketchup previews (WP5): roadworks on the squares the arrows point at; the rural link.
+    if (p.kind === 'lobbyistRoad') wrap.add(roadworksPreview({ inst: this.stage.inst }, b, p.arrows));
+    if (p.kind === 'freeway') wrap.add(freewayLink(b, p.side, p.offset, color));
+    if (p.kind === 'campaign' && p.placement.kind === 'offBoard') {
+      const r = this.rectFor(s, idx);
+      g.position.set((r.x0 + r.x1) / 2, g.position.y, (r.z0 + r.z1) / 2);
+    }
+    if (s.variants.length > 1 && (p.kind === 'campaign' || p.kind === 'lobbyistRoad' || p.kind === 'park' || p.kind === 'mapTile')) {
       const r = this.rectFor(s, idx);
       const hx = r.x1 + 0.45;
       const hz = r.z0 - 0.45;
@@ -743,6 +786,7 @@ export class Interaction {
     }
     this.ghost = wrap;
     this.stage.overlay.add(wrap);
+    this.stage.trackSized(wrap);
     this.stage.invalidate();
   }
 
@@ -758,6 +802,7 @@ export class Interaction {
     this.ghostPlacement = null;
     this.handleAt = null;
     if (!this.ghost) return;
+    this.stage.untrackSized(this.ghost);
     this.ghost.removeFromParent();
     releaseTree(this.ghost);
     this.ghost = null;
@@ -954,11 +999,8 @@ export function buildGhost(ctx: MiniCtx, b: Board, p: Placement, color: string):
       return at(buildFreeway(ctx, { color, side: p.side }), a.x, a.z);
     }
     case 'mapTile': {
-      const g = new THREE.Group();
-      const slab = new THREE.Mesh(owned(new THREE.BoxGeometry(4.9, 0.1, 4.9)), ctx.ghost);
-      slab.position.y = 0.05;
-      g.add(slab);
-      return at(g, p.col * 5 + 2.5, p.row * 5 + 2.5);
+      // The real tile (roads, houses, drinks) turned as it will be placed (WP5).
+      return at(buildTileGhost(ctx, tileDef(p.templateId), p.rotation, color), p.col * 5 + 2.5, p.row * 5 + 2.5, 0);
     }
     case 'buyerRoute':
       return null;

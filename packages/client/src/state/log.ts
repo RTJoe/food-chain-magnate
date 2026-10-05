@@ -15,6 +15,11 @@ export interface LogLine {
   player: PlayerId | null;
   /** Section headers (round / phase) render differently. */
   header?: boolean;
+  /**
+   * Board pieces the line is about (house / restaurant / campaign / entity ids), so the log can
+   * frame and select them (`cameraCommand` focus, `select`). Ids may have left the board since.
+   */
+  targets?: string[];
 }
 
 type Line = Omit<LogLine, 'id' | 'seq' | 'round'>;
@@ -32,6 +37,12 @@ function goods(c: Catalog, g: FoodCounts | undefined): string {
 export function describeEvent(e: GameEvent, view: GameView, c: Catalog): Line | null {
   const n = (id: PlayerId | null | undefined) => (id ? (view.players[id]?.name ?? id) : 'Someone');
   const L = (icon: LogIcon, text: string, player: PlayerId | null = null, header = false): Line => ({ icon, text, player, ...(header ? { header } : {}) });
+  /** Same, pointing at board pieces. */
+  const T = (targets: (string | null | undefined)[], line: Line): Line => {
+    const ids = targets.filter((x): x is string => !!x);
+    return ids.length ? { ...line, targets: ids } : line;
+  };
+  const houseName = (id: string) => `house ${view.board.houses[id]?.label ?? id}`;
   switch (e.type) {
     case 'gameStarted':
       return L('round', 'The game begins', null, true);
@@ -88,32 +99,34 @@ export function describeEvent(e: GameEvent, view: GameView, c: Catalog): Line | 
     case 'foodFrozen':
       return L('food', `${n(e.player)} freezes ${goods(c, e.goods)}`, e.player);
     case 'restaurantPlaced':
-      return L('board', `${n(e.player)} ${e.comingSoon ? 'announces a restaurant (coming soon)' : 'opens a restaurant'}`, e.player);
+      return T([e.restaurantId], L('board', `${n(e.player)} ${e.comingSoon ? 'announces a restaurant (coming soon)' : 'opens a restaurant'}`, e.player));
     case 'restaurantMoved':
-      return L('board', `${n(e.player)} moves a restaurant`, e.player);
+      return T([e.restaurantId], L('board', `${n(e.player)} moves a restaurant`, e.player));
     case 'restaurantOpened':
-      return L('board', 'A restaurant opens its doors');
+      return T([e.restaurantId], L('board', 'A restaurant opens its doors'));
     case 'houseBuilt':
-      return L('board', `${n(e.player)} builds a house`, e.player);
+      return T([e.houseId], L('board', `${n(e.player)} builds ${houseName(e.houseId)}`, e.player));
     case 'gardenAdded':
-      return L('board', `${n(e.player)} adds a garden`, e.player);
-    case 'campaignPlaced':
-      return L('campaign', `${n(e.player)} launches a ${e.campaign.kind} for ${e.campaign.goods.map((g) => foodName(c, g).toLowerCase()).join(' + ')}`, e.player);
+      return T([e.houseId], L('board', `${n(e.player)} adds a garden to ${houseName(e.houseId)}`, e.player));
+    case 'campaignPlaced': {
+      const num = e.campaign.number !== null ? ` #${e.campaign.number}` : '';
+      return T([e.campaign.id], L('campaign', `${n(e.player)} launches ${e.campaign.kind}${num} for ${e.campaign.goods.map((g) => foodName(c, g).toLowerCase()).join(' + ')}`, e.player));
+    }
     case 'entityPlaced':
-      return L('board', `${n(e.player)} places a ${e.entity.kind.replace(/([A-Z])/g, ' $1').toLowerCase()}`, e.player);
+      return T([e.entity.id], L('board', `${n(e.player)} places a ${e.entity.kind.replace(/([A-Z])/g, ' $1').toLowerCase()}`, e.player));
     case 'entityRemoved':
       return null;
     case 'mapTileAdded':
-      return L('board', `${n(e.player)} adds map tile ${e.templateId}`, e.player);
+      return L('board', `${n(e.player)} adds map tile ${e.templateId} (row ${e.row + 1}, column ${e.col + 1})`, e.player);
     case 'houseConsidered':
       return null;
-    case 'houseStayedHome': {
-      const h = view.board.houses[e.houseId];
-      return L('info', `House ${h?.label ?? ''} stays home`.replace('  ', ' '));
-    }
+    case 'houseStayedHome':
+      return T([e.houseId], L('info', `House ${view.board.houses[e.houseId]?.label ?? e.houseId} stays home: no seller`));
     case 'sale': {
-      const h = view.board.houses[e.houseId];
-      return L('cash', `${n(e.player)} sells to house ${h?.label ?? e.houseId} for ${money(e.total)}`, e.player);
+      // "$9 + 1" is what decided it; name the best losing offer when there was one.
+      const rival = e.candidates?.find((x) => x.player !== e.player && x.canSupply);
+      const vs = rival ? `, beating ${n(rival.player)} at ${money(rival.score)}` : '';
+      return T([e.houseId, e.restaurantId], L('cash', `${n(e.player)} sells to ${houseName(e.houseId)} for ${money(e.total)} (${money(e.unitPrice)} + ${e.distance}${vs})`, e.player));
     }
     case 'coffeeSold':
       return L('cash', `${n(e.player)} sells coffee for ${money(e.amount)}`, e.player);
@@ -135,7 +148,9 @@ export function describeEvent(e: GameEvent, view: GameView, c: Catalog): Line | 
       return null;
     case 'demandPlaced': {
       const h = view.board.houses[e.houseId];
-      return L('campaign', `House ${h?.label ?? e.houseId} wants ${e.tokens.map((t) => foodName(c, t.good).toLowerCase()).join(', ')}`);
+      const camp = e.campaignId ? view.board.campaigns[e.campaignId] : undefined;
+      const from = camp?.number != null ? ` (campaign #${camp.number})` : '';
+      return T([e.houseId], L('campaign', `House ${h?.label ?? e.houseId} wants ${e.tokens.map((t) => foodName(c, t.good).toLowerCase()).join(', ')}${from}`, camp?.owner ?? null));
     }
     case 'marketingIncome':
       return L('cash', `${n(e.player)} earns ${money(e.amount)} from marketing`, e.player);

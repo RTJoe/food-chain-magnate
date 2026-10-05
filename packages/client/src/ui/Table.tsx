@@ -4,13 +4,14 @@
  * Desktop: player rail left, dock right. Mobile: compact rail on top, dock as a bottom sheet.
  */
 import { useEffect } from 'preact/hooks';
-import { boardRenderer } from '../state/boardBridge.js';
+import { boardRenderer, interactionMode, isPickMode } from '../state/boardBridge.js';
 import { isMyTurn, me, mode, prompt, unreadChat, view } from '../state/store.js';
 import { undo } from '../net/session.js';
 import { Board2D, hasBoard } from './Board2D.js';
 import { BoardControls } from './BoardControls.js';
 import { ChatBox } from './Chat.js';
 import { Icon, type IconName } from './icons.js';
+import { InspectCard } from './Inspect.js';
 import { Log } from './Log.js';
 import { Market } from './Market.js';
 import { Milestones } from './Milestones.js';
@@ -50,18 +51,21 @@ export function Table() {
     };
   }, []);
 
-  // Jump to the Turn tab when it becomes my turn.
+  // Board pick modes collapse the phone sheet to the pick strip (and never reopen it while picking);
+  // otherwise jump to the Turn tab when it becomes my turn (or a pick ends on my turn).
+  const picking = isPickMode(interactionMode.value);
   useEffect(() => {
-    if (isMyTurn.value) {
+    if (picking) sheetOpen.value = false;
+    else if (isMyTurn.value) {
       dockTab.value = 'turn';
       sheetOpen.value = true;
     }
-  }, [isMyTurn.value, v?.phase.kind]);
+  }, [isMyTurn.value, v?.phase.kind, picking]);
 
   if (!v) return null;
   const show2d = boardRenderer.value !== '3d' && hasBoard(v);
   return (
-    <div class={`table ${sheetOpen.value ? 'sheet-open' : ''}`}>
+    <div class={`table ${sheetOpen.value ? 'sheet-open' : ''} ${picking ? 'is-picking' : ''}`}>
       <TopBar onMenu={() => (menuOpen.value = true)} />
       <ConnectionBanner />
       <div class="table-main">
@@ -69,6 +73,7 @@ export function Table() {
         <div class="table-board">
           {show2d && <Board2D />}
           <BoardControls />
+          <InspectCard />
         </div>
         <Dock />
       </div>

@@ -217,6 +217,7 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
     internals: { stage, rec, cam, inter, overlays },
     dispose() {
       for (const d of disposers) d();
+      anim.dispose();
       overlays.dispose();
       stage.onFrame.delete(camTick);
       stage.onResize.delete(refit);

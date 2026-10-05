@@ -25,8 +25,13 @@ export interface SpotIndex {
   of: Map<Placement, { spot: Spot; idx: number }>;
 }
 
-/** On-board orientation of a campaign placement (engine field, else from w × h). */
+/**
+ * On-board orientation of a campaign placement (engine field, else from w × h). Lobbyist roads and
+ * parks (WP5) also rotate in place: landscape = along x, portrait = along y.
+ */
 export function orientationOf(p: Placement): CampaignOrientation | null {
+  if (p.kind === 'lobbyistRoad') return p.cells.length < 2 ? 'square' : p.cells[0]!.y === p.cells[1]!.y ? 'landscape' : 'portrait';
+  if (p.kind === 'park') return p.w === p.h ? 'square' : p.w > p.h ? 'landscape' : 'portrait';
   if (p.kind !== 'campaign') return null;
   if (p.orientation) return p.orientation;
   const pl = p.placement;
@@ -36,6 +41,13 @@ export function orientationOf(p: Placement): CampaignOrientation | null {
 
 /** Spot key: campaigns by anchor + tile number (orientation is a variant); others by hit rectangle. */
 export function spotKeyFor(b: Board, p: Placement): string {
+  // Lobbyist roads pivot on their middle square (first square for length 2), parks on the top-left
+  // square: both orientations of one piece are variants of one spot, so R turns it in place.
+  if (p.kind === 'lobbyistRoad') {
+    const a = p.cells[Math.floor((p.cells.length - 1) / 2)];
+    if (a) return `lobbyistRoad:${a.x},${a.y}:L${p.cells.length}`;
+  }
+  if (p.kind === 'park') return `park:${p.x},${p.y}:${Math.min(p.w, p.h)}x${Math.max(p.w, p.h)}`;
   if (p.kind !== 'campaign') return spotKey(b, p);
   const pl = p.placement;
   switch (pl.kind) {
@@ -53,6 +65,7 @@ export function spotKeyFor(b: Board, p: Placement): string {
 /** Within a campaign spot, placements that look the same (differ only in range start) collapse. */
 function variantKey(p: Placement): string {
   if (p.kind === 'campaign') return orientationOf(p) ?? JSON.stringify(p.placement);
+  if (p.kind === 'lobbyistRoad' || p.kind === 'park') return orientationOf(p) ?? JSON.stringify(p);
   return JSON.stringify(p);
 }
 
@@ -71,7 +84,7 @@ export function groupSpots(b: Board, placements: readonly Placement[]): SpotInde
       seen.set(k, new Map());
     }
     const vs = seen.get(k)!;
-    const vk = p.kind === 'campaign' ? variantKey(p) : null;
+    const vk = p.kind === 'campaign' || p.kind === 'lobbyistRoad' || p.kind === 'park' ? variantKey(p) : null;
     const dup = vk !== null ? vs.get(vk) : undefined;
     if (dup !== undefined) {
       of.set(p, { spot: s, idx: dup });

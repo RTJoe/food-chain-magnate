@@ -41,19 +41,28 @@ export function addCampaignMarker(ctx: MiniCtx, parent: THREE.Object3D, v: Campa
     inf.name = 'eternal';
     parent.add(inf);
   } else {
-    const geo = miniGeo(`pip:${v.color}`, () => {
-      const s = new Shape();
-      s.add(puck(0.09, 0.05, 10, 0.015), pal.base, { jitter: 0 });
-      s.add(puck(0.05, 0.052, 10, 0.01), P.white, { jitter: 0 });
-      return s;
-    });
+    const geo = pipGeo(v.color);
     for (let i = 0; i < Math.min(v.remaining, 6); i++) {
       const o = new THREE.Group();
-      o.position.set(0, i * 0.055, 0);
+      o.position.set(0, i * PIP_STEP, 0);
       pips.add(o);
       solid(ctx, o, geo, { castShadow: false });
     }
   }
+}
+
+/** Height of one duration pip in the stack. */
+export const PIP_STEP = 0.055;
+
+/** Duration pip (owner-colour puck with a white centre); shared, cached geometry. */
+export function pipGeo(color: string): THREE.BufferGeometry {
+  return miniGeo(`pip:${color}`, () => {
+    const pal = playerPalette(color);
+    const s = new Shape();
+    s.add(puck(0.09, 0.05, 10, 0.015), pal.base, { jitter: 0 });
+    s.add(puck(0.05, 0.052, 10, 0.01), P.white, { jitter: 0 });
+    return s;
+  });
 }
 
 // ---------------------------------------------------------------------------

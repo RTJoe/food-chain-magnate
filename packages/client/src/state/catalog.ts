@@ -1,16 +1,21 @@
 /**
- * Content index for the UI: employees, milestones and foods of the enabled modules, built from the
+ * Content index for the UI: employees, milestones, foods, marketing tiles and map tiles of the
+ * enabled modules, built from the
  * module manifest (architecture §3.7: the client renders content generically from it). Fallback
  * tables fill gaps while the engine's content is incomplete.
  */
 import { FOODS } from '@fcm/engine';
-import type { EmployeeDef, EmployeeId, FoodDef, FoodId, MilestoneDef, MilestoneId, ModuleId, ModuleManifest } from '@fcm/engine';
+import type { EmployeeDef, EmployeeId, FoodDef, FoodId, MarketingTileDef, MilestoneDef, MilestoneId, ModuleId, ModuleManifest, TileDef, TileTemplateId } from '@fcm/engine';
 import { FALLBACK_EMPLOYEES, FALLBACK_MILESTONES } from './fallbackContent.js';
 
 export interface Catalog {
   employees: Partial<Record<EmployeeId, EmployeeDef>>;
   milestones: Partial<Record<MilestoneId, MilestoneDef>>;
   foods: Partial<Record<FoodId, FoodDef>>;
+  /** Marketing tiles by number (token picker: size, kind). */
+  marketingTiles: Partial<Record<number, MarketingTileDef>>;
+  /** Map tile templates by id (extra map tile picker previews). */
+  tiles: Partial<Record<TileTemplateId, TileDef>>;
 }
 
 const isOn = (module: ModuleId, enabled: readonly ModuleId[]) => module === 'base' || enabled.includes(module);
@@ -19,6 +24,8 @@ export function buildCatalog(manifest: readonly ModuleManifest[], enabled: reado
   const employees: Catalog['employees'] = {};
   const milestones: Catalog['milestones'] = {};
   const foods: Catalog['foods'] = {};
+  const marketingTiles: Catalog['marketingTiles'] = {};
+  const tiles: Catalog['tiles'] = {};
   // Fallbacks first (all modules: fixtures may hold cards of modules the config does not list).
   for (const e of FALLBACK_EMPLOYEES) employees[e.id] = e;
   for (const m of FALLBACK_MILESTONES) milestones[m.id] = m;
@@ -28,6 +35,8 @@ export function buildCatalog(manifest: readonly ModuleManifest[], enabled: reado
     for (const e of m.content.employees ?? []) employees[e.id] = e;
     for (const ms of m.content.milestones ?? []) milestones[ms.id] = ms;
     for (const f of m.content.foods ?? []) foods[f.id] = f;
+    for (const t of m.content.marketingTiles ?? []) marketingTiles[t.number] = t;
+    for (const t of m.content.tiles ?? []) tiles[t.id] = t;
   }
   for (const m of active) {
     for (const [id, patch] of Object.entries(m.content.employeeOverrides ?? {}) as [EmployeeId, Partial<EmployeeDef>][]) {
@@ -35,7 +44,7 @@ export function buildCatalog(manifest: readonly ModuleManifest[], enabled: reado
       if (base) employees[id] = { ...base, ...patch, id };
     }
   }
-  return { employees, milestones, foods };
+  return { employees, milestones, foods, marketingTiles, tiles };
 }
 
 /** Readable name for an unknown id: `ketchup:fry_chef` → `Fry chef`. */
