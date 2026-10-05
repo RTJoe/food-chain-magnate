@@ -9,3 +9,4 @@ data/
 docs/rules/source/
 test-results/
 playwright-report/
+packages/ai/runs/

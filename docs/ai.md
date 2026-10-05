@@ -21,6 +21,7 @@ interface BotInput {
 interface Bot {
   readonly level: BotLevel;
   choose(input: BotInput): Action;   // must not throw; must be legal on the real state
+  explain?(input: BotInput): BotExplanation; // optional, bench traces only: { action (== choose), archetype?, candidates?, rollouts?, samples?, horizon?, top?, evalTerms?, warnings?, extra? }
 }
 
 createBot(level): Bot                 // registered bot, or Easy wearing that level
@@ -101,3 +102,22 @@ Contract and tips:
 6. Keep `choose` stateless, or treat any memory as a cache that may be missing: the server runs bots in a pool of worker threads, so consecutive decisions of one seat may land in different workers (and a restart or undo can happen between them). A per-turn plan should be keyed by something in the view (round, `view.turn`, `history.seq`) and rebuilt from the view when absent or stale.
 7. The seat is `input.playerId` (not `me`); `input.legal` is computed on `viewState(view)`, which equals the legal actions on the real state.
 8. Add the level to `packages/ai/test/botGames.test.ts` (it already loops over `BOT_LEVELS`) and keep `fellBack` at zero; add a test that Medium beats Easy more often than not over a few seeds.
+
+## Tuning harness (`packages/ai/src/bench/`)
+
+Node-only (worker_threads, fs). Excluded from the `@fcm/ai` build and its exports; `check-boundaries` lets only `bench/` use `node:*` / `@fcm/engine/testing` and forbids the rest of `ai/src` from importing it. Type-checked by `tsconfig.test.json`.
+
+```
+npm run ai:bench -- --a medium --b easy --players 2 --games 200 --seed 1 --modules none|all|a,b --budget 2000 [--workers n] [--trace] [--out dir] [--phases] [--json]
+npm run ai:bench -- --bots hard,medium,medium --games 99
+npm run ai:inspect -- <run>/traces/game-0003.jsonl [--round 5 --player p2 --phase working --fellback]
+npm run ai:inspect -- <run>/traces/game-0003.jsonl --step 120 [--board] [--rerun [--level hard] [--budget 5000]] [--dump state.json]
+npm run ai:gate [-- --profile ci|full] [--only name] [--set name.field=value] [--config gate.json] [--strict]
+```
+
+- `--a` plays one seat, `--b` the rest (same level on both sides → labelled `A:x` / `B:x`); `--bots` gives one level per seat. Every seat list is played in every cyclic rotation on the same map seed (`--no-rotate` to disable), so `--games` should be a multiple of the player count. Easy vs Easy rotations are mirror games (same bot, same decision seeds).
+- Games run on a `worker_threads` pool, default half the cores (`--workers`, 0 = inline). Each decision mirrors `runBotDetailed` (same input, decision seed and fallback) and records thinking time, invalid answers (fallback sent), throws, and real-state rejections (game aborted, offender ranked last). Caps: 60 rounds (draw, flagged), 20 000 decisions.
+- Report: win rate with Wilson 95 % CI (capped games count as no win), expected share, multiplayer Elo (K 16, 2 passes, mean ± sd of 10 shuffles), head-to-head (seat pairs; draws ½), mean final cash and place, fallbacks/invalid/threw/rejected, p50/p95/max decision ms per level (`--phases` per phase), completion, game length, wins by seat.
+- Output (default `packages/ai/runs/<stamp>-<label>/`, git-ignored): `summary.json`, `elo.json`, `games.jsonl`, and with `--trace` `traces/game-NNNN.jsonl` (a header line with config and seed, then one line per decision: phase, stage, player, bot, ms, applied action, summary, up to 40 legal alternatives, fallback/error, and the bot's `explain()` fields). With `--trace` the harness calls `explain` instead of `choose` when a bot has it.
+- `ai:inspect` rebuilds the exact state before any traced decision by replaying the actions from the header's config and seed, prints players, legal actions and the traced explanation, and with `--rerun` asks the bot again (same decision seed) and says whether it reproduces the traced action.
+- `ai:gate` checks the §8.5 success criteria of `docs/ai-strategy.md` (`ci`: legality, completion, Medium ≥ 60 % vs Easy; `full`: the whole table plus a determinism replay). Thresholds and sizes are overridable; checks needing an unregistered level are skipped (failed with `--strict`); exit code 1 on failure.

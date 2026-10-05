@@ -39,6 +39,46 @@ export interface Bot {
    * throw; the host falls back to a safe action if it does or if the action is rejected.
    */
   choose(input: BotInput): Action;
+  /**
+   * Optional, for tuning and debugging only (decision traces, `bench/`): the same decision as
+   * `choose(input)` with the reasoning behind it. Hosts never call it; the bench harness calls it
+   * instead of `choose` when tracing, so `explain(input).action` must equal what `choose(input)`
+   * returns for the same input and rng seed. Must not throw.
+   */
+  explain?(input: BotInput): BotExplanation;
+}
+
+/** One scored alternative in a {@link BotExplanation}. */
+export interface ScoredAlternative {
+  /** Short human-readable description ("billboard#13 burger d2 @ (11,5)"). */
+  summary: string;
+  score: number;
+  /** Samples / rollouts behind `score` (search bots). */
+  n?: number;
+  /** Evaluation terms behind `score`. */
+  terms?: Record<string, number>;
+}
+
+/**
+ * What a bot considered for one decision (docs/ai-strategy.md §8.3). Every field but `action` is
+ * optional; the trace records whatever the bot provides.
+ */
+export interface BotExplanation {
+  action: Action;
+  /** Strategy label (Medium/Hard archetype). */
+  archetype?: string;
+  /** Candidates scored, rollouts run, determinization samples, search horizon. */
+  candidates?: number;
+  rollouts?: number;
+  samples?: number;
+  horizon?: number;
+  /** Best alternatives, best first (the chosen one included). */
+  top?: ScoredAlternative[];
+  /** Evaluation terms of the chosen action. */
+  evalTerms?: Record<string, number>;
+  warnings?: string[];
+  /** Anything else worth logging (must be JSON-serializable). */
+  extra?: Record<string, unknown>;
 }
 
 /**

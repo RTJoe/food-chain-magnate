@@ -25,7 +25,10 @@
     "test": "vitest run",
     "e2e": "npm run build && playwright test",
     "lint": "node scripts/check-boundaries.mjs && npm run typecheck",
-    "fixtures": "npm run fixtures -w @fcm/engine"
+    "fixtures": "npm run fixtures -w @fcm/engine",
+    "ai:bench": "tsx --conditions=fcm-source packages/ai/src/bench/cli.ts",
+    "ai:inspect": "tsx --conditions=fcm-source packages/ai/src/bench/inspect.ts",
+    "ai:gate": "tsx --conditions=fcm-source packages/ai/src/bench/gate.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

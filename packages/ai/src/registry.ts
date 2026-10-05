@@ -28,5 +28,6 @@ export function createBot(level: BotLevel): Bot {
   const own = factories.get(level);
   if (own) return own();
   const easy = createEasyBot();
-  return { level, choose: (input) => easy.choose(input) };
+  const explain = easy.explain?.bind(easy);
+  return { level, choose: (input) => easy.choose(input), ...(explain ? { explain } : {}) };
 }
