@@ -1,6 +1,6 @@
 # AI opponents
 
-Bots fill seats online (host: **Add bot ▾** in the lobby) and in hot-seat (setup: "played by"). Levels: Easy, Medium, Hard. Today only Easy exists; Medium and Hard fall back to Easy until they are registered (see "Interface for Medium/Hard").
+Bots fill seats online (host: **Add bot ▾** in the lobby) and in hot-seat (setup: "played by"). Levels: Easy, Medium, Hard. Easy and Medium exist; Hard falls back to Easy until it is registered (see "Interface for Medium/Hard").
 
 ## Package
 
@@ -54,6 +54,22 @@ Engine helpers for bots are exported from `@fcm/engine` (read-only, pure): `cont
 - Ketchup choices: places what must be placed (coffee shop, pizza radio, free mailbox, extra map tile), near its restaurants when it matters; accepts optional bonuses (second campaign, freeway); lobbyist roads/parks on a legal spot near its restaurants; declines anything else.
 
 Every candidate is checked with `engine.validateAction` before it is returned; the last resort is `fallbackAction`. Tests: `packages/ai/test/botGames.test.ts` plays full bot-vs-bot games for every level (base, all Ketchup modules, 2–6 players, Hard Choices, intro) and requires zero rejected actions and zero fallbacks.
+
+## Medium bot
+
+`packages/ai/src/medium/` (+ `shared/`), design in `docs/ai-strategy.md` §3. Heuristics, no search; stateless (everything is rebuilt from the view on each call).
+
+- Shared reading of the table (`shared/market.ts`): every house's outlook, a price model (structures known after the reveal, estimated before), `winProb`, and a shadow Dinnertime that predicts sales from stock.
+- Archetype (`archetype.ts`): burger/pizza volume (default), drinks, discount, luxury, CFO rush, milestone racer, scored from map fit, sunk cards, contested houses and open milestones. Each has a build list.
+- Org planner (`orgPlanner.ts`): matches owned cards to the build list, then says what to hire and whom to train, within salary room and slots. It adds buyers or cooks when the shadow Dinnertime shows a shortfall, a local/regional manager when demand is out of reach, and swaps marketeers whose campaign tiles are gone for the next card up.
+- Setup: first restaurant by exact position value (the placement is applied to a copy and the houses re-read). Reserve card by archetype; never the $5 base price.
+- Restructuring (`restructure.ts`): for each choice of managers, cards are added greedily (single cards and same-kind bundles) by a one-round forecast: shadow Dinnertime income with the prices, waitresses and production of the set, plus hires, training steps, campaign slots and milestones.
+- Order of business: earliest position.
+- Working (`working.ts`): a MacroPlan (`shared/plan.ts`) built in sub-step order and executed one step per call. Hires and training follow the org plan. Campaigns are scored with `campaignReach` × win chance × revenue minus leaked demand, over the rounds they run (`campaign.ts`). Food and drink choices maximise the shadow Dinnertime (`food.ts`). Houses, gardens and restaurants are pre-ranked cheaply, then checked exactly (`develop.ts`). Cards Medium has no scorer for (lobbyists) use Easy's choice.
+- Payday: fire salaried cards that are idle or outside the plan, and whatever cash cannot carry. Freezer keeps what next round's houses want.
+- Ketchup: fry-chef bonus and kimchi/sushi/noodle tiers come through the outlook; night shift managers are CEO-only; "used" milestones (urgent when they expire early) add to structure scores; apartments that no one could serve in one go are not advertised to; scorers for second campaign, free mailbox, pizza radio and coffee shop choices.
+- For Hard: `medium.structureCandidates`, `medium.planAlternatives` (base plan, ranked options per card and dimension, single-substitution neighbours), `executePlan`, `medium.fireCandidates`, `medium.orderValue`.
+- `explain(input)` reports the archetype and the scored structures or plan steps.
 
 ## Where bots run
 

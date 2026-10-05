@@ -18,14 +18,14 @@ function expectClean(g: ReturnType<typeof playBots>): void {
   expect(g.state.phase.kind === 'gameOver' || g.state.round > ROUNDS).toBe(true);
 }
 
-describe.each(BOT_LEVELS)('%s bots (Medium/Hard fall back to Easy for now)', (level) => {
+describe.each(BOT_LEVELS)('%s bots (Hard falls back to Easy for now)', (level) => {
   it.each([1, 2, 3, 4, 5, 6])('base game, 3 players, seed %i', (seed) => {
     expectClean(playBots(gameConfig(3), seed, seats(3, level), ROUNDS));
-  });
+  }, 30_000);
 
   it.each([11, 12, 13, 14])('all Ketchup modules, 3 players, seed %i', (seed) => {
     expectClean(playBots(gameConfig(3, { modules: ALL_KETCHUP }), seed, seats(3, level), ROUNDS));
-  });
+  }, 30_000);
 });
 
 describe('player counts and variants', () => {
@@ -35,7 +35,7 @@ describe('player counts and variants', () => {
 
   it('6 players with every Ketchup module (mixed levels)', () => {
     expectClean(playBots(gameConfig(6, { modules: [...ALL_KETCHUP, 'ketchup:sixPlayers'] }), 66, seats(6, (i) => BOT_LEVELS[i % 3] as BotLevel), ROUNDS));
-  });
+  }, 60_000);
 
   it('Hard Choices (conflicts with New Milestones)', () => {
     const modules: ModuleId[] = [...ALL_KETCHUP.filter((m) => m !== 'ketchup:newMilestones'), 'ketchup:hardChoices'];

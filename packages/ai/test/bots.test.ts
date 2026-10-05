@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Action, GameState } from '@fcm/engine';
 import { applyAction, createGame, engine, legalActions, redactFor } from '@fcm/engine';
-import { createBot, decisionSeed, hasBot, registerBot, runBot, runBotDetailed, sampleState, viewState, type Bot } from '../src/index.js';
+import { createBot, createMediumBot, decisionSeed, hasBot, registerBot, runBot, runBotDetailed, sampleState, viewState, type Bot } from '../src/index.js';
 import { ALL_KETCHUP, gameConfig } from './helpers.js';
 
 /** Walk a bot game and call `visit` before each action. */
@@ -20,12 +20,12 @@ function walk(state0: GameState, steps: number, visit: (s: GameState, who: strin
 }
 
 describe('registry', () => {
-  it('Medium and Hard fall back to Easy but report their level', () => {
+  it('Easy and Medium are registered; Hard falls back to Easy but reports its level', () => {
     expect(hasBot('easy')).toBe(true);
-    for (const level of ['medium', 'hard'] as const) {
-      expect(hasBot(level)).toBe(false);
-      expect(createBot(level).level).toBe(level);
-    }
+    expect(hasBot('medium')).toBe(true);
+    expect(createBot('medium').level).toBe('medium');
+    expect(hasBot('hard')).toBe(false);
+    expect(createBot('hard').level).toBe('hard');
   });
 
   it('registerBot replaces the fallback wherever runBot is used', () => {
@@ -52,10 +52,7 @@ describe('registry', () => {
     const r = runBotDetailed({ level: 'medium', view: redactFor(s, who), playerId: who, seed: 1, budgetMs: 10 });
     expect(r.fellBack).toBe(true);
     expect(applyAction(s, r.action).ok).toBe(true);
-    registerBot('medium', () => {
-      const easy = createBot('easy');
-      return { level: 'medium', choose: (i) => easy.choose(i) };
-    });
+    registerBot('medium', createMediumBot);
   });
 });
 

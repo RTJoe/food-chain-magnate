@@ -7,5 +7,7 @@ export { createBot, registerBot, hasBot, type BotFactory } from './registry.js';
 export { runBot, runBotDetailed, botInput, decisionSeed, type BotResult } from './run.js';
 export { viewState, sampleState } from './viewState.js';
 export { createEasyBot } from './easy.js';
+export * as medium from './medium/index.js';
+export { createMediumBot } from './medium/index.js';
 export * as heuristics from './heuristics.js';
 export { fallbackAction, actionFromPlacement, simpleStructure } from './heuristics.js';

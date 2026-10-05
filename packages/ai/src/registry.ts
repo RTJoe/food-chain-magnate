@@ -5,10 +5,14 @@
  */
 import type { Bot, BotLevel } from './types.js';
 import { createEasyBot } from './easy.js';
+import { createMediumBot } from './medium/index.js';
 
 export type BotFactory = () => Bot;
 
-const factories = new Map<BotLevel, BotFactory>([['easy', createEasyBot]]);
+const factories = new Map<BotLevel, BotFactory>([
+  ['easy', createEasyBot],
+  ['medium', createMediumBot],
+]);
 
 /** Register (or replace) the factory for a level. */
 export function registerBot(level: BotLevel, factory: BotFactory): void {
