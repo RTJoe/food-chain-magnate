@@ -281,7 +281,7 @@ Server → Client: `welcome`, `error`, `pong`, `room.update { room }`, `game.sna
 
 ### 4.2 Room lifecycle
 
-`lobby` → `playing` → `finished`. 5-char room codes; lobby shows join URL + QR. Host passes on if disconnected > 60 s. Idle rooms GC'd after 6 h (snapshot kept).
+`lobby` → `playing` → `finished`. 5-char room codes; lobby shows join URL + QR. Host passes on if disconnected > 60 s. Idle rooms are unloaded from memory after 6 h (flushed to disk first) and loaded again on demand by `room.join` or a reconnecting `hello`.
 
 ### 4.3 Sessions and reconnection
 
@@ -293,7 +293,7 @@ Validate message → set `playerId` from seat → check `expectedSeq` → `apply
 
 ### 4.5 Persistence
 
-`data/rooms/<id>.json` = `{ id, createdAt, config, seed, seats, status, actions[] }`, debounced writes, replayed on boot. Env: `FCM_DATA_DIR`, `FCM_PERSIST=0`, `PORT` (3000), `HOST` (0.0.0.0).
+`data/rooms/<id>.json` = `{ id, createdAt, config, seed, seats, status, actions[] }`, debounced writes. On boot every file is indexed, seat-holder sessions are re-created from their token hashes, games in progress are loaded and the rest load on demand. A seat's token hash is kept across writes even when its session is not in memory; a seat whose hash is lost can be reclaimed by joining under its name. Files are deleted after `FCM_ROOM_RETENTION_DAYS` (30) without activity, lobbies whose game never started after `FCM_LOBBY_RETENTION_DAYS` (2). SIGTERM/SIGINT flush before exit. Env: `FCM_DATA_DIR`, `FCM_PERSIST=0`, `PORT` (3000), `HOST` (0.0.0.0).
 
 ## 5. Client
 

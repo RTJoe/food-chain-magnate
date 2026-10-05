@@ -63,6 +63,10 @@ export class SessionRegistry {
     return n;
   }
 
+  all(): IterableIterator<ClientSession> {
+    return this.byClient.values();
+  }
+
   get size(): number {
     return this.byClient.size;
   }

@@ -3,6 +3,11 @@ services:
     build: .
     image: food-chain-magnate
     restart: unless-stopped
+    # tini as PID 1: forwards SIGTERM to node and reaps zombies. The server flushes rooms on SIGTERM.
+    init: true
+    stop_grace_period: 10s
+    environment:
+      FCM_ROOM_RETENTION_DAYS: "${FCM_ROOM_RETENTION_DAYS:-30}"
     ports:
       - "${FCM_PORT:-8090}:3000"
     volumes:

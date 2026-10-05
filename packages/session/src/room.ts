@@ -258,6 +258,27 @@ export class Room {
     return OK;
   }
 
+  /**
+   * Give a seat of a game in progress to `clientId`, a member who holds no seat. The previous
+   * holder stops being a member (and host). The server uses this to recover seats whose holder
+   * can never reconnect (their session is lost).
+   */
+  reassign(index: number, clientId: string): Result {
+    if (this.status !== 'playing') return fail('CANNOT_START', 'Only seats of a game in progress can be reassigned');
+    const seat = this.seats[index];
+    if (!seat) return fail('BAD_MESSAGE', `No seat ${index}`);
+    const m = this.members.get(clientId);
+    if (!m) return fail('NOT_IN_ROOM', 'Not in this room');
+    if (seat.clientId === clientId) return OK;
+    if (this.seatOf(clientId)) return fail('SEAT_TAKEN', 'Already seated');
+    const prev = seat.clientId;
+    if (prev) this.members.delete(prev);
+    seat.clientId = clientId;
+    m.spectate = false;
+    if (prev && this.hostClientId === prev) this.hostClientId = clientId;
+    return OK;
+  }
+
   /** Host only: frees a seat so another device can take it over. */
   kick(clientId: string, index: number): Result {
     if (!this.isHost(clientId)) return fail('NOT_HOST', 'Only the host can kick');

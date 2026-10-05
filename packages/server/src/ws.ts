@@ -6,9 +6,9 @@
 import { randomBytes } from 'node:crypto';
 import type { RawData, WebSocket } from 'ws';
 import type { EngineApi } from '@fcm/engine';
-import { PROTOCOL_VERSION, parseClientMessage, type ClientMessage, type ClientMessageOf, type ErrorCode, type ServerMessage } from '@fcm/protocol';
+import { PROTOCOL_VERSION, parseClientMessage, type ClientMessage, type ClientMessageOf, type ErrorCode, type RoomStatus, type ServerMessage } from '@fcm/protocol';
 import { GameSession, Room, type Outbound } from '@fcm/session';
-import type { Persistence, PersistedRoom } from './persistence.js';
+import { LOBBY_RETENTION_MS, ROOM_RETENTION_MS, type Persistence, type PersistedRoom } from './persistence.js';
 import { ROOM_IDLE_TTL_MS, type RoomEntry, type RoomStore } from './roomStore.js';
 import type { ClientSession, SessionRegistry } from './sessions.js';
 
@@ -17,6 +17,16 @@ export const SERVER_VERSION = '0.1.0';
 /** Chat flood control: at most this many messages per window. */
 const CHAT_BURST = 8;
 const CHAT_WINDOW_MS = 5_000;
+/** How often the retention sweep runs (from `tick`). */
+const RETENTION_SWEEP_MS = 60 * 60 * 1000;
+
+/** What the hub knows about every room file, loaded or not. */
+interface RoomIndexEntry {
+  updatedAt: number;
+  status: RoomStatus;
+  /** Seat holders and the hash of their session token (null if it was lost). */
+  seats: { clientId: string; tokenHash: string | null }[];
+}
 
 interface Conn {
   ws: WebSocket;
@@ -35,6 +45,10 @@ export interface HubOptions {
   /** Game seed source (default: crypto random uint32). */
   seed?: () => number;
   idleTtlMs?: number;
+  /** Delete room files after this long without activity (default 30 days). */
+  retentionMs?: number;
+  /** Same, for lobbies whose game never started (default 2 days). */
+  lobbyRetentionMs?: number;
 }
 
 export class Hub {
@@ -46,8 +60,13 @@ export class Hub {
   private readonly log: (msg: string) => void;
   private readonly seed: () => number;
   private readonly idleTtlMs: number;
+  private readonly retentionMs: number;
+  private readonly lobbyRetentionMs: number;
   private readonly conns = new Set<Conn>();
   private readonly byClient = new Map<string, Conn>();
+  /** Every persisted room (in memory or only on disk), by id. */
+  private readonly index = new Map<string, RoomIndexEntry>();
+  private lastSweep: number;
 
   constructor(opts: HubOptions) {
     this.engine = opts.engine;
@@ -58,6 +77,9 @@ export class Hub {
     this.log = opts.log ?? ((m) => console.log(m));
     this.seed = opts.seed ?? (() => randomBytes(4).readUInt32LE(0));
     this.idleTtlMs = opts.idleTtlMs ?? ROOM_IDLE_TTL_MS;
+    this.retentionMs = opts.retentionMs ?? ROOM_RETENTION_MS;
+    this.lobbyRetentionMs = opts.lobbyRetentionMs ?? LOBBY_RETENTION_MS;
+    this.lastSweep = this.now();
   }
 
   // --- sockets ----------------------------------------------------------------
@@ -98,11 +120,51 @@ export class Hub {
     }
   }
 
-  /** Periodic housekeeping: host transfer and idle-room GC. */
+  /**
+   * Periodic housekeeping: host transfer, unloading idle rooms from memory (after writing them to
+   * disk; they load again on demand), session GC and the hourly file-retention sweep.
+   */
   tick(): void {
     for (const e of this.store.all()) if (e.room.tick()) this.roomChanged(e);
-    for (const id of this.store.gc(this.idleTtlMs)) this.log(`hub: room ${id} idle, unloaded`);
-    this.sessions.gc(this.idleTtlMs, (s) => this.byClient.has(s.clientId));
+    const unloaded = this.store.gc(this.idleTtlMs, (e) => {
+      this.persist(e);
+      this.persistence.flush(e.room.id);
+    });
+    for (const id of unloaded) this.log(`hub: room ${id} idle, unloaded (kept on disk)`);
+    // Seat holders keep their session as long as the room file exists, so their token still works.
+    const seated = new Set<string>();
+    for (const r of this.index.values()) for (const s of r.seats) seated.add(s.clientId);
+    for (const e of this.store.all()) for (const s of e.room.seats) if (s.clientId) seated.add(s.clientId);
+    this.sessions.gc(this.idleTtlMs, (s) => this.byClient.has(s.clientId) || seated.has(s.clientId));
+    if (this.now() - this.lastSweep >= RETENTION_SWEEP_MS) this.sweepRetention();
+  }
+
+  /** Delete room files whose retention period has passed. Returns deleted ids. */
+  sweepRetention(): string[] {
+    this.lastSweep = this.now();
+    const deleted: string[] = [];
+    for (const [id, rec] of [...this.index]) {
+      const entry = this.store.get(id);
+      if (entry && entry.room.connectedCount() > 0) continue;
+      const updatedAt = entry?.updatedAt ?? rec.updatedAt;
+      const status = entry?.room.status ?? rec.status;
+      if (!this.expired(updatedAt, status)) continue;
+      this.deleteRoom(id);
+      deleted.push(id);
+    }
+    if (deleted.length) this.log(`hub: deleted ${deleted.length} expired room(s): ${deleted.join(', ')}`);
+    return deleted;
+  }
+
+  private expired(updatedAt: number, status: RoomStatus): boolean {
+    return this.now() - updatedAt > (status === 'lobby' ? this.lobbyRetentionMs : this.retentionMs);
+  }
+
+  private deleteRoom(id: string): void {
+    this.store.remove(id);
+    this.index.delete(id);
+    this.persistence.delete(id);
+    for (const s of this.sessions.all()) if (s.roomId === id) s.roomId = null;
   }
 
   closeAll(code = 1001, reason = 'server shutting down'): void {
@@ -132,25 +194,71 @@ export class Hub {
 
   // --- restore ----------------------------------------------------------------
 
-  /** Load persisted rooms. Rooms idle longer than the GC TTL are left on disk. */
+  /**
+   * Boot: index every persisted room, delete expired ones, re-create the sessions of all seat
+   * holders (so their tokens keep working), and load games in progress plus recently active
+   * rooms into memory. Everything else is loaded on demand. Returns the number loaded.
+   */
   restore(records: PersistedRoom[]): number {
     let n = 0;
-    for (const rec of records) {
-      if (this.now() - rec.updatedAt > this.idleTtlMs) continue;
-      try {
-        const room = Room.restore({ id: rec.id, createdAt: rec.createdAt, status: rec.status, hostClientId: rec.hostClientId, config: rec.config, seats: rec.seats.map(({ tokenHash: _t, ...s }) => s) }, this.now);
-        const game = rec.gameConfig && rec.seed !== null ? new GameSession({ engine: this.engine, config: rec.gameConfig, seed: rec.seed, actions: rec.actions }) : null;
-        if (room.status === 'playing' && !game) throw new Error('playing room without a game');
-        this.store.add(room, game, rec.updatedAt);
-        for (const s of rec.seats) {
-          if (s.clientId && s.tokenHash) this.sessions.adopt({ clientId: s.clientId, tokenHash: s.tokenHash, name: s.name ?? 'Player', roomId: rec.id });
-        }
-        n++;
-      } catch (e) {
-        this.log(`hub: could not restore room ${rec.id}: ${(e as Error).message}`);
+    // Most recent first, so a client seated in several rooms resumes the latest one.
+    for (const rec of [...records].sort((a, b) => b.updatedAt - a.updatedAt)) {
+      if (this.expired(rec.updatedAt, rec.status)) {
+        this.persistence.delete(rec.id);
+        this.log(`hub: deleted expired room ${rec.id}`);
+        continue;
+      }
+      this.indexRecord(rec);
+      this.adoptSeats(rec);
+      if (rec.status === 'playing' || this.now() - rec.updatedAt <= this.idleTtlMs) {
+        if (this.load(rec)) n++;
       }
     }
     return n;
+  }
+
+  private indexRecord(rec: PersistedRoom): void {
+    this.index.set(rec.id, {
+      updatedAt: rec.updatedAt,
+      status: rec.status,
+      seats: rec.seats.flatMap((s) => (s.clientId ? [{ clientId: s.clientId, tokenHash: s.tokenHash }] : [])),
+    });
+  }
+
+  private adoptSeats(rec: PersistedRoom): void {
+    for (const s of rec.seats) {
+      if (s.clientId && s.tokenHash) this.sessions.adopt({ clientId: s.clientId, tokenHash: s.tokenHash, name: s.name ?? 'Player', roomId: rec.id });
+    }
+  }
+
+  /** Rebuild a room and its game from a record and add it to the store. */
+  private load(rec: PersistedRoom): RoomEntry | undefined {
+    try {
+      const room = Room.restore({ id: rec.id, createdAt: rec.createdAt, status: rec.status, hostClientId: rec.hostClientId, config: rec.config, seats: rec.seats.map(({ tokenHash: _t, ...s }) => s) }, this.now);
+      const game = rec.gameConfig && rec.seed !== null ? new GameSession({ engine: this.engine, config: rec.gameConfig, seed: rec.seed, actions: rec.actions }) : null;
+      if (room.status === 'playing' && !game) throw new Error('playing room without a game');
+      this.indexRecord(rec);
+      this.adoptSeats(rec);
+      return this.store.add(room, game, rec.updatedAt);
+    } catch (e) {
+      this.log(`hub: could not restore room ${rec.id}: ${(e as Error).message}`);
+      return undefined;
+    }
+  }
+
+  /** The room in memory, or loaded from disk (load on demand). */
+  private room(id: string): RoomEntry | undefined {
+    const entry = this.store.get(id);
+    if (entry) return entry;
+    const rec = this.persistence.load(id);
+    if (!rec) return undefined;
+    if (this.expired(rec.updatedAt, rec.status)) {
+      this.deleteRoom(id);
+      return undefined;
+    }
+    const loaded = this.load(rec);
+    if (loaded) this.log(`hub: room ${id} loaded from disk`);
+    return loaded;
   }
 
   // --- routing ----------------------------------------------------------------
@@ -166,7 +274,7 @@ export class Hub {
     if (msg.t === 'room.create') return this.createRoom(session, msg);
     if (msg.t === 'room.join') return this.joinRoom(conn, session, msg);
 
-    const entry = session.roomId ? this.store.get(session.roomId) : undefined;
+    const entry = session.roomId ? this.room(session.roomId) : undefined;
     if (!entry || !entry.room.members.has(session.clientId)) return err('NOT_IN_ROOM', 'Not in a room');
     const { room } = entry;
     const id = session.clientId;
@@ -249,7 +357,7 @@ export class Hub {
     conn.clientId = session.clientId;
     this.byClient.set(session.clientId, conn);
 
-    let entry = session.roomId ? this.store.get(session.roomId) : undefined;
+    let entry = session.roomId ? this.room(session.roomId) : undefined;
     if (entry && !entry.room.members.has(session.clientId)) entry = undefined;
     if (!entry) session.roomId = null;
     if (entry) entry.room.setConnected(session.clientId, true);
@@ -271,18 +379,34 @@ export class Hub {
   }
 
   private joinRoom(conn: Conn, session: ClientSession, msg: ClientMessageOf<'room.join'>): void {
-    const entry = this.store.get(msg.roomId);
+    const entry = this.room(msg.roomId);
     if (!entry) return this.sendTo(conn, { t: 'error', code: 'ROOM_NOT_FOUND', message: `No room ${msg.roomId}`, ref: msg.t });
     if (session.roomId !== entry.room.id) this.leaveCurrent(session);
     session.name = msg.name;
     entry.room.join(session.clientId, msg.name, msg.spectate ?? false);
     session.roomId = entry.room.id;
+    if (!msg.spectate) this.reclaimOrphanSeat(entry, session);
     this.roomChanged(entry);
     if (entry.game) this.send(session.clientId, entry.game.snapshot(entry.room.viewerOf(session.clientId)));
   }
 
+  /**
+   * Fallback for seats nobody can ever reconnect to: the holder's session token is lost (no
+   * session, no stored hash). A player joining a game in progress under that seat's name gets it.
+   */
+  private reclaimOrphanSeat(entry: RoomEntry, session: ClientSession): void {
+    const { room } = entry;
+    if (room.status !== 'playing' || room.seatOf(session.clientId)) return;
+    const name = session.name.trim().toLowerCase();
+    const known = new Map((this.index.get(room.id)?.seats ?? []).map((s) => [s.clientId, s.tokenHash]));
+    const seat = room.seats.find(
+      (s) => s.clientId && s.name?.trim().toLowerCase() === name && !room.members.get(s.clientId)?.connected && !this.sessions.get(s.clientId) && !known.get(s.clientId),
+    );
+    if (seat && room.reassign(seat.index, session.clientId).ok) this.log(`hub: room ${room.id} seat ${seat.index} reclaimed by name`);
+  }
+
   private leaveCurrent(session: ClientSession): void {
-    const prev = session.roomId ? this.store.get(session.roomId) : undefined;
+    const prev = session.roomId ? this.room(session.roomId) : undefined;
     session.roomId = null;
     if (prev && prev.room.leave(session.clientId).ok) this.roomChanged(prev);
   }
@@ -328,19 +452,25 @@ export class Hub {
 
   record(entry: RoomEntry): PersistedRoom {
     const snap = entry.room.snapshot();
-    return {
+    // A seat's token hash comes from its live session, else from the last write: it must never be
+    // lost just because the session is not in memory (it would lock the player out for good).
+    const known = new Map((this.index.get(snap.id)?.seats ?? []).map((s) => [s.clientId, s.tokenHash]));
+    const tokenHash = (clientId: string | null) => (clientId ? (this.sessions.get(clientId)?.tokenHash ?? known.get(clientId) ?? null) : null);
+    const rec: PersistedRoom = {
       version: 1,
       id: snap.id,
       createdAt: snap.createdAt,
-      updatedAt: entry.lastActivity,
+      updatedAt: entry.updatedAt,
       hostClientId: snap.hostClientId,
       config: snap.config,
       status: snap.status,
-      seats: snap.seats.map((s) => ({ ...s, connected: false, tokenHash: s.clientId ? (this.sessions.get(s.clientId)?.tokenHash ?? null) : null })),
+      seats: snap.seats.map((s) => ({ ...s, connected: false, tokenHash: tokenHash(s.clientId) })),
       seed: entry.game?.seed ?? null,
       gameConfig: entry.game?.config ?? null,
       actions: entry.game?.actions ?? [],
     };
+    this.indexRecord(rec);
+    return rec;
   }
 
   private entryOf(clientId: string): RoomEntry | undefined {

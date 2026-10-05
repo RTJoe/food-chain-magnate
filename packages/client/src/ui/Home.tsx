@@ -2,8 +2,9 @@ import { useSignal } from '@preact/signals';
 import { ROOM_CODE_ALPHABET } from '@fcm/protocol';
 import { navigate } from '../state/router.js';
 import { connection, settings, updateSettings } from '../state/store.js';
+import { forgetRoom, recentGames, type RecentGame } from '../state/recentGames.js';
 import { createRoom, startOnline } from '../net/session.js';
-import { Button } from './common.js';
+import { Button, IconButton } from './common.js';
 import { Icon, Logo } from './icons.js';
 
 const cleanCode = (s: string) =>
@@ -13,6 +14,49 @@ const cleanCode = (s: string) =>
     .filter((ch) => ROOM_CODE_ALPHABET.includes(ch))
     .join('')
     .slice(0, 5);
+
+const STATUS_LABEL: Record<RecentGame['status'], string> = { lobby: 'In the lobby', playing: 'Game in progress', finished: 'Finished' };
+
+function ago(ts: number): string {
+  const min = Math.round((Date.now() - ts) / 60_000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  if (h < 48) return `${h} h ago`;
+  return `${Math.round(h / 24)} days ago`;
+}
+
+/** Rooms this browser has been in (localStorage), newest first, with one-click resume. */
+function YourGames() {
+  const games = recentGames.value;
+  if (!games.length) return null;
+  const resume = (id: string) => {
+    startOnline({ id });
+    navigate({ name: 'room', id });
+  };
+  return (
+    <section class="home-games glass" aria-label="Your games" style={{ padding: '12px 18px', marginBottom: '18px' }}>
+      <h2 style={{ margin: '0 0 8px', fontSize: '1.05rem' }}>Your games</h2>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '8px' }}>
+        {games.map((g) => (
+          <li key={g.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700, letterSpacing: '0.08em' }}>{g.id}</span>
+            <span style={{ flex: '1 1 160px', minWidth: 0 }}>
+              <span>{g.players.join(', ') || 'No players seated'}</span>
+              <span class="muted" style={{ display: 'block', fontSize: '0.85rem' }}>
+                {STATUS_LABEL[g.status]} · {ago(g.lastSeen)}
+              </span>
+            </span>
+            <Button size="sm" variant={g.status === 'playing' ? 'primary' : 'secondary'} icon="arrowRight" onClick={() => resume(g.id)}>
+              {g.status === 'finished' ? 'View' : 'Resume'}
+            </Button>
+            <IconButton icon="x" label={`Forget room ${g.id}`} onClick={() => forgetRoom(g.id)} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 export function Home() {
   const code = useSignal('');
@@ -56,6 +100,8 @@ export function Home() {
           />
         </label>
       </section>
+
+      <YourGames />
 
       <div class="home-grid">
         <article class="home-card glass">

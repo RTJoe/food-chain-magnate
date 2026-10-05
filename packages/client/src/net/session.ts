@@ -20,6 +20,7 @@ import {
   settings,
   type Mode,
 } from '../state/store.js';
+import { forgetRoom, rememberRoom } from '../state/recentGames.js';
 import { LocalTransport } from './localTransport.js';
 import { SocketTransport } from './socketTransport.js';
 import type { Transport } from './transport.js';
@@ -31,6 +32,8 @@ let unsubs: (() => void)[] = [];
 let actionCounter = 0;
 /** Room to join once the handshake completes (deep link #/room/:id). */
 let wantRoom: { id: string; spectate: boolean } | null = null;
+/** Last room we asked to join (to forget it from "Your games" if the server no longer has it). */
+let joiningRoom: string | null = null;
 
 function storage(): Storage | null {
   try {
@@ -59,25 +62,40 @@ function attach(t: Transport, m: Mode): void {
       if (t instanceof SocketTransport) reconnectAttempt.value = t.attempt;
       if (s === 'open' && t.kind === 'socket') hello(wasDown);
     }),
-    t.onMessage((msg) => {
+    t.onMessage((incoming) => {
+      let msg = incoming;
       if (msg.t === 'welcome') {
         saveToken(msg.sessionToken);
         const want = wantRoom;
-        if (msg.room) {
-          wantRoom = null;
+        wantRoom = null;
+        if (msg.room && (!want || want.id === msg.room.id)) {
           // Re-attached to a game in progress: make sure we have the latest view.
           if (msg.room.status !== 'lobby') queueMicrotask(() => send({ t: 'game.resync' }));
         } else if (want) {
-          wantRoom = null;
-          queueMicrotask(() => send({ t: 'room.join', roomId: want.id, name: displayName(), spectate: want.spectate }));
+          // Asked for another room than the one the server re-attached: go there instead.
+          if (msg.room) msg = { ...msg, room: null };
+          queueMicrotask(() => sendJoin(want.id, want.spectate));
         }
       }
+      if (t.kind === 'socket') trackRoom(msg);
       const r = handleServerMessage(msg);
       if (r.resync) send({ t: 'game.resync' });
       continueChain(msg);
     }),
   );
   if (t instanceof LocalTransport) unsubs.push(t.onHandoff((to) => (handoff.value = { to })));
+}
+
+/** Keep "Your games" (state/recentGames) in sync with what the server tells us. */
+function trackRoom(msg: ServerMessage): void {
+  if (msg.t === 'welcome' && msg.room) rememberRoom(msg.room, msg.clientId);
+  else if (msg.t === 'room.update') {
+    if (msg.room.id === joiningRoom) joiningRoom = null;
+    rememberRoom(msg.room, clientId.value);
+  } else if (msg.t === 'error' && msg.code === 'ROOM_NOT_FOUND' && joiningRoom) {
+    forgetRoom(joiningRoom);
+    joiningRoom = null;
+  }
 }
 
 function detach(): void {
@@ -109,7 +127,7 @@ export function startOnline(joinRoom?: { id: string; spectate?: boolean }): void
   if (transport?.kind === 'socket' && connection.value !== 'closed') {
     if (joinRoom && room.value?.id !== joinRoom.id && connection.value === 'open') {
       wantRoom = null;
-      send({ t: 'room.join', roomId: joinRoom.id, name: displayName(), spectate: joinRoom.spectate ?? false });
+      sendJoin(joinRoom.id, joinRoom.spectate ?? false);
     }
     return;
   }
@@ -123,8 +141,14 @@ export function reconnectNow(): void {
 }
 
 export const createRoom = (config?: Partial<RoomConfig>) => send({ t: 'room.create', name: displayName(), ...(config ? { config } : {}) });
-export const joinRoom = (roomId: string, spectate = false) => send({ t: 'room.join', roomId, name: displayName(), spectate });
+function sendJoin(roomId: string, spectate: boolean): void {
+  joiningRoom = roomId;
+  send({ t: 'room.join', roomId, name: displayName(), spectate });
+}
+export const joinRoom = (roomId: string, spectate = false) => sendJoin(roomId, spectate);
 export const leaveRoom = () => {
+  // Leaving a lobby frees the seat, so there is nothing to resume. A game in progress keeps it.
+  if (room.value?.status === 'lobby') forgetRoom(room.value.id);
   send({ t: 'room.leave' });
   room.value = null;
 };

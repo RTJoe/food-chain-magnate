@@ -4,13 +4,16 @@ import { ROOM_CODE_ALPHABET, type RoomConfig } from '@fcm/protocol';
 import { Room, type GameSession } from '@fcm/session';
 
 export const ROOM_CODE_LENGTH = 5;
-/** Idle rooms are dropped from memory after 6 h; their snapshot file is kept. */
+/** Idle rooms are dropped from memory after 6 h; their file is kept and loaded again on demand. */
 export const ROOM_IDLE_TTL_MS = 6 * 60 * 60 * 1000;
 
 export interface RoomEntry {
   room: Room;
   game: GameSession | null;
+  /** Last activity seen by this process (memory GC). */
   lastActivity: number;
+  /** Last real room activity (persisted as `updatedAt`; drives file retention). */
+  updatedAt: number;
 }
 
 export function generateRoomCode(): string {
@@ -30,8 +33,8 @@ export class RoomStore {
     return this.add(new Room({ id, hostClientId, config, now: this.now }), null);
   }
 
-  add(room: Room, game: GameSession | null, lastActivity = this.now()): RoomEntry {
-    const entry: RoomEntry = { room, game, lastActivity };
+  add(room: Room, game: GameSession | null, updatedAt = this.now()): RoomEntry {
+    const entry: RoomEntry = { room, game, lastActivity: this.now(), updatedAt };
     this.rooms.set(room.id, entry);
     return entry;
   }
@@ -41,7 +44,11 @@ export class RoomStore {
   }
 
   touch(entry: RoomEntry): void {
-    entry.lastActivity = this.now();
+    entry.lastActivity = entry.updatedAt = this.now();
+  }
+
+  remove(id: string): boolean {
+    return this.rooms.delete(id);
   }
 
   all(): IterableIterator<RoomEntry> {
@@ -52,11 +59,15 @@ export class RoomStore {
     return this.rooms.size;
   }
 
-  /** Remove rooms with nobody connected and no activity for `ttlMs`. Returns removed ids. */
-  gc(ttlMs = ROOM_IDLE_TTL_MS): string[] {
+  /**
+   * Unload rooms with nobody connected and no activity for `ttlMs`. `beforeRemove` runs first
+   * (the hub flushes the room to disk there). Returns removed ids.
+   */
+  gc(ttlMs = ROOM_IDLE_TTL_MS, beforeRemove: (e: RoomEntry) => void = () => {}): string[] {
     const removed: string[] = [];
     for (const [id, e] of this.rooms) {
       if (e.room.connectedCount() === 0 && this.now() - e.lastActivity > ttlMs) {
+        beforeRemove(e);
         this.rooms.delete(id);
         removed.push(id);
       }

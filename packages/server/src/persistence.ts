@@ -1,8 +1,10 @@
 /**
  * Room persistence (architecture §4.5): `<dataDir>/rooms/<id>.json` holding the room config,
  * seats (with hashed session tokens), status, seed and the action log. Writes are debounced per
- * room and atomic (tmp + rename). On boot the server replays every file.
- * Env: `FCM_DATA_DIR` (default `./data`), `FCM_PERSIST=0` disables.
+ * room and atomic (tmp + rename). On boot the server indexes every file, restores games in
+ * progress and loads the rest on demand. Files are deleted after a retention period of inactivity.
+ * Env: `FCM_DATA_DIR` (default `./data`), `FCM_PERSIST=0` disables,
+ * `FCM_ROOM_RETENTION_DAYS` (30), `FCM_LOBBY_RETENTION_DAYS` (2, rooms whose game never started).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -10,6 +12,13 @@ import type { Action, GameConfig } from '@fcm/engine';
 import type { RoomConfig, RoomStatus, Seat } from '@fcm/protocol';
 
 export const PERSIST_DEBOUNCE_MS = 250;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Rooms (started or finished games) are deleted after this long without activity. */
+export const ROOM_RETENTION_MS = 30 * DAY_MS;
+/** Lobbies whose game never started are deleted sooner. */
+export const LOBBY_RETENTION_MS = 2 * DAY_MS;
+/** Room ids are 5-char codes; anything else never touches the filesystem. */
+const SAFE_ID = /^[A-Za-z0-9]{1,16}$/;
 
 export interface PersistedSeat extends Seat {
   /** SHA-256 of the seat holder's session token. */
@@ -34,9 +43,13 @@ export interface PersistedRoom {
 export interface Persistence {
   /** Schedule a debounced write; `build` is called when the write happens. */
   schedule(id: string, build: () => PersistedRoom): void;
-  /** Write everything pending now. */
-  flush(): void;
+  /** Write pending changes now: one room, or everything. */
+  flush(id?: string): void;
   loadAll(): PersistedRoom[];
+  /** Read one room (pending changes are flushed first). Null if missing or unreadable. */
+  load(id: string): PersistedRoom | null;
+  /** Delete a room's file and drop any pending write. */
+  delete(id: string): void;
 }
 
 export class NullPersistence implements Persistence {
@@ -45,6 +58,10 @@ export class NullPersistence implements Persistence {
   loadAll(): PersistedRoom[] {
     return [];
   }
+  load(): PersistedRoom | null {
+    return null;
+  }
+  delete(): void {}
 }
 
 export class FilePersistence implements Persistence {
@@ -70,8 +87,9 @@ export class FilePersistence implements Persistence {
     this.pending.set(id, { timer, build });
   }
 
-  flush(): void {
-    for (const id of [...this.pending.keys()]) this.write(id);
+  flush(id?: string): void {
+    if (id !== undefined) return this.write(id);
+    for (const key of [...this.pending.keys()]) this.write(key);
   }
 
   loadAll(): PersistedRoom[] {
@@ -79,14 +97,39 @@ export class FilePersistence implements Persistence {
     const out: PersistedRoom[] = [];
     for (const f of readdirSync(this.dir)) {
       if (!f.endsWith('.json')) continue;
-      try {
-        const rec = JSON.parse(readFileSync(join(this.dir, f), 'utf8')) as PersistedRoom;
-        if (rec.version === 1 && typeof rec.id === 'string') out.push(rec);
-      } catch (e) {
-        this.log(`persistence: skipping ${f}: ${(e as Error).message}`);
-      }
+      const rec = this.read(f);
+      if (rec) out.push(rec);
     }
     return out;
+  }
+
+  load(id: string): PersistedRoom | null {
+    if (!SAFE_ID.test(id)) return null;
+    this.write(id);
+    const f = `${id}.json`;
+    if (!existsSync(join(this.dir, f))) return null;
+    const rec = this.read(f);
+    return rec?.id === id ? rec : null;
+  }
+
+  delete(id: string): void {
+    const p = this.pending.get(id);
+    if (p) {
+      clearTimeout(p.timer);
+      this.pending.delete(id);
+    }
+    if (!SAFE_ID.test(id)) return;
+    rmSync(join(this.dir, `${id}.json`), { force: true });
+  }
+
+  private read(f: string): PersistedRoom | null {
+    try {
+      const rec = JSON.parse(readFileSync(join(this.dir, f), 'utf8')) as PersistedRoom;
+      if (rec.version === 1 && typeof rec.id === 'string') return rec;
+    } catch (e) {
+      this.log(`persistence: skipping ${f}: ${(e as Error).message}`);
+    }
+    return null;
   }
 
   private write(id: string): void {
@@ -105,6 +148,21 @@ export class FilePersistence implements Persistence {
       rmSync(join(this.dir, `${id}.json.tmp`), { force: true });
     }
   }
+}
+
+export interface Retention {
+  /** Started or finished games. */
+  roomMs: number;
+  /** Lobbies whose game never started. */
+  lobbyMs: number;
+}
+
+export function retentionFromEnv(env: NodeJS.ProcessEnv = process.env): Retention {
+  const days = (v: string | undefined, fallback: number) => {
+    const n = Number(v);
+    return v !== undefined && v !== '' && Number.isFinite(n) && n > 0 ? n * DAY_MS : fallback;
+  };
+  return { roomMs: days(env.FCM_ROOM_RETENTION_DAYS, ROOM_RETENTION_MS), lobbyMs: days(env.FCM_LOBBY_RETENTION_DAYS, LOBBY_RETENTION_MS) };
 }
 
 export function persistenceFromEnv(env: NodeJS.ProcessEnv = process.env): Persistence {

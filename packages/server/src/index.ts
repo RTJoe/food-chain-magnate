@@ -1,18 +1,18 @@
 /**
  * @fcm/server CLI entry: serves packages/client/dist over HTTP and accepts WebSocket upgrades on
  * /ws (architecture §4). Env: PORT (3000), HOST (0.0.0.0), FCM_DATA_DIR (./data),
- * FCM_PERSIST=0, FCM_CLIENT_DIST, FCM_ENGINE=real|toy (default: real, falling back to the toy
+ * FCM_PERSIST=0, FCM_ROOM_RETENTION_DAYS (30), FCM_LOBBY_RETENTION_DAYS (2), FCM_CLIENT_DIST, FCM_ENGINE=real|toy (default: real, falling back to the toy
  * engine while the real one is not implemented).
  */
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { engine as realEngine, NotImplementedError, type EngineApi } from '@fcm/engine';
 import { joinUrls } from './lanAddress.js';
-import { persistenceFromEnv } from './persistence.js';
-import { startServer } from './server.js';
+import { persistenceFromEnv, retentionFromEnv } from './persistence.js';
+import { installShutdown, startServer } from './server.js';
 import { SERVER_VERSION } from './ws.js';
 
-export { startServer, type RunningServer, type ServerOptions } from './server.js';
+export { installShutdown, startServer, type RunningServer, type ServerOptions } from './server.js';
 export { SERVER_VERSION } from './ws.js';
 
 /** Engine selection. Swapping engines is this one function; everything else takes `EngineApi`. */
@@ -33,22 +33,19 @@ async function selectEngine(): Promise<EngineApi> {
 async function main(): Promise<void> {
   const port = Number(process.env.PORT ?? 3000);
   const host = process.env.HOST ?? '0.0.0.0';
+  const retention = retentionFromEnv();
   const server = await startServer({
     engine: await selectEngine(),
     port,
     host,
     clientDist: process.env.FCM_CLIENT_DIST ?? fileURLToPath(new URL('../../client/dist/', import.meta.url)),
     persistence: persistenceFromEnv(),
+    retentionMs: retention.roomMs,
+    lobbyRetentionMs: retention.lobbyMs,
   });
   console.log(`Food Chain Magnate server ${SERVER_VERSION} listening on ${host}:${server.port}`);
   for (const line of joinUrls(server.port, host)) console.log(line);
-
-  const shutdown = () => {
-    void server.close().then(() => process.exit(0));
-    setTimeout(() => process.exit(0), 1500).unref();
-  };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  installShutdown(server);
 }
 
 const isEntry = (): boolean => {

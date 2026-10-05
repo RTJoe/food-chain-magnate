@@ -40,6 +40,8 @@ Server settings (environment variables):
 | `HOST` | `0.0.0.0` | Interface to listen on |
 | `FCM_DATA_DIR` | `./data` | Where room snapshots are saved |
 | `FCM_PERSIST` | on | `0` disables saving; rooms then live only in memory |
+| `FCM_ROOM_RETENTION_DAYS` | 30 | Delete a room's file after this many days without activity |
+| `FCM_LOBBY_RETENTION_DAYS` | 2 | Same, for lobbies whose game never started |
 
 Rooms are saved as `{config, seed, actions}` and replayed when the server restarts, so games survive a restart.
 

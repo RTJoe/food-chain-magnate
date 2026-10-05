@@ -29,6 +29,10 @@ export interface ServerOptions {
   /** Host-transfer / GC sweep interval. */
   tickMs?: number;
   idleTtlMs?: number;
+  /** Delete room files after this long without activity (default 30 days). */
+  retentionMs?: number;
+  /** Same, for lobbies whose game never started (default 2 days). */
+  lobbyRetentionMs?: number;
   gzip?: boolean;
   now?: () => number;
   log?: (msg: string) => void;
@@ -55,6 +59,8 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     now,
     log,
     idleTtlMs: opts.idleTtlMs ?? ROOM_IDLE_TTL_MS,
+    ...(opts.retentionMs !== undefined ? { retentionMs: opts.retentionMs } : {}),
+    ...(opts.lobbyRetentionMs !== undefined ? { lobbyRetentionMs: opts.lobbyRetentionMs } : {}),
   });
   const restored = hub.restore(persistence.loadAll());
   if (restored) log(`restored ${restored} room(s)`);
@@ -90,13 +96,48 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     (closed ??= new Promise<void>((res) => {
       clearInterval(heartbeat);
       clearInterval(tick);
+      // Write first: the process may be killed before the sockets finish closing.
       persistence.flush();
       hub.closeAll();
       for (const c of wss.clients) c.terminate();
       wss.close();
       http.closeAllConnections?.();
-      http.close(() => res());
+      http.close(() => {
+        persistence.flush();
+        res();
+      });
     }));
 
   return { port, host, hub, close };
+}
+
+/** The bits of `process` that `installShutdown` uses (injectable for tests). */
+export interface SignalTarget {
+  on(signal: 'SIGINT' | 'SIGTERM', listener: () => void): unknown;
+  exit(code?: number): never | void;
+}
+
+/**
+ * SIGTERM (docker stop) / SIGINT (Ctrl-C): flush persistence and close, then exit. Persistence is
+ * flushed synchronously before anything else, so even the forced exit after `graceMs` loses
+ * nothing. Node installs real handlers, so this also works as PID 1 in a container.
+ */
+export function installShutdown(server: RunningServer, proc: SignalTarget = process, log: (msg: string) => void = console.log, graceMs = 1500): void {
+  let stopping = false;
+  const shutdown = (signal: string) => {
+    if (stopping) return;
+    stopping = true;
+    log(`${signal} received: saving rooms and shutting down`);
+    const force = setTimeout(() => proc.exit(0), graceMs);
+    force.unref?.();
+    server.close().then(
+      () => proc.exit(0),
+      (e: unknown) => {
+        log(`shutdown error: ${(e as Error).message}`);
+        proc.exit(1);
+      },
+    );
+  };
+  proc.on('SIGINT', () => shutdown('SIGINT'));
+  proc.on('SIGTERM', () => shutdown('SIGTERM'));
 }

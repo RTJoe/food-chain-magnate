@@ -97,6 +97,20 @@ describe('Room', () => {
     expect(room.hostClientId).toBe('c2');
   });
 
+  it('reassigns a seat of a game in progress to a member, dropping the old holder', () => {
+    const { room } = lobby(3);
+    room.sit('c0', 0);
+    room.sit('c1', 1);
+    expect(room.reassign(1, 'c2')).toMatchObject({ ok: false, code: 'CANNOT_START' });
+    room.status = 'playing';
+    expect(room.reassign(1, 'c0')).toMatchObject({ ok: false, code: 'SEAT_TAKEN' });
+    expect(room.reassign(1, 'zz')).toMatchObject({ ok: false, code: 'NOT_IN_ROOM' });
+    expect(room.reassign(0, 'c2').ok).toBe(true);
+    expect(room.seats[0]?.clientId).toBe('c2');
+    expect(room.members.has('c0')).toBe(false);
+    expect(room.hostClientId).toBe('c2');
+  });
+
   it('host reconnecting within 60 s stays host', () => {
     const { room, now } = lobby(2);
     room.setConnected('c0', false);
