@@ -26,7 +26,8 @@ export function commitPlacement(legal: PlacementLegal, p: Placement, opts: Place
   if (!who) return false;
   const a = actionFromPlacement(legal, p, who, opts);
   if (!a) return false;
-  act(a);
+  // Not sent (a lesson's action gate kept it back): stay in the pick so the learner can choose again.
+  if (!act(a)) return false;
   boardBridge.setInteractionMode({ kind: 'idle' });
   return true;
 }
@@ -145,7 +146,7 @@ export function GoodChips({ foods, value, onChange }: { foods: readonly FoodId[]
   return (
     <div class="chip-row">
       {foods.map((f) => (
-        <button key={f} type="button" class={`chip chip-food ${value === f ? 'is-on' : ''}`} aria-pressed={value === f} onClick={() => onChange(f)}>
+        <button key={f} type="button" class={`chip chip-food ${value === f ? 'is-on' : ''}`} data-tutorial={`good-${f}`} aria-pressed={value === f} onClick={() => onChange(f)}>
           <FoodIcon food={f} size={18} /> {foodName(c, f)}
         </button>
       ))}

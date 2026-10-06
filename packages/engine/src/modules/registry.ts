@@ -24,12 +24,17 @@ import type {
 } from '../types/content.js';
 import type { GameEvent } from '../types/events.js';
 import type { ActionHandler, ContentIndex, GameModule, HookContext, Hooks, ModuleManifest } from '../types/module.js';
-import type { Phase } from '../types/state.js';
+import type { Phase, PhaseKind } from '../types/state.js';
 import type { GameView } from '../types/view.js';
 import { BASE_MODULE } from './base.js';
 import { KETCHUP_MODULES } from './ketchup/index.js';
+import { TUTORIAL_MODULE } from './tutorial.js';
 
-const REGISTRY = new Map<ModuleId, GameModule>([['base', BASE_MODULE], ...KETCHUP_MODULES.map((m) => [m.id, m] as [ModuleId, GameModule])]);
+const REGISTRY = new Map<ModuleId, GameModule>([
+  ['base', BASE_MODULE],
+  ...KETCHUP_MODULES.map((m) => [m.id, m] as [ModuleId, GameModule]),
+  ['tutorial', TUTORIAL_MODULE],
+]);
 const contentCache = new Map<string, EngineContent>();
 const resolveCache = new Map<string, GameModule[]>();
 
@@ -141,7 +146,7 @@ export function contentFor(ids: readonly ModuleId[]): EngineContent {
 // Hooks
 // ---------------------------------------------------------------------------
 
-type LifecycleName = 'onCreateGame' | 'onPhaseEnter' | 'onPhaseExit' | 'onEvent' | 'beforeAction' | 'onAction';
+type LifecycleName = 'onCreateGame' | 'onPhaseEnter' | 'onPhaseExit' | 'afterPhase' | 'onEvent' | 'beforeAction' | 'onAction';
 export type PipelineName = Exclude<keyof Hooks, LifecycleName | 'redact'>;
 type PipeValue<K extends PipelineName> = Parameters<Hooks[K]>[0];
 type PipeArgs<K extends PipelineName> = Parameters<Hooks[K]>[2];
@@ -157,9 +162,10 @@ export function pipe<K extends PipelineName>(ctx: HookContext, name: K, value: P
 
 export function lifecycle(ctx: HookContext, name: 'onCreateGame'): void;
 export function lifecycle(ctx: HookContext, name: 'onPhaseEnter' | 'onPhaseExit', phase: Phase): void;
+export function lifecycle(ctx: HookContext, name: 'afterPhase', finished: PhaseKind): void;
 export function lifecycle(ctx: HookContext, name: 'onEvent', event: GameEvent): void;
 export function lifecycle(ctx: HookContext, name: 'beforeAction' | 'onAction', action: Action): void;
-export function lifecycle(ctx: HookContext, name: LifecycleName, arg?: Phase | GameEvent | Action): void {
+export function lifecycle(ctx: HookContext, name: LifecycleName, arg?: Phase | PhaseKind | GameEvent | Action): void {
   for (const m of resolveModules(ctx.state.config.modules)) {
     const hook = m.hooks?.[name] as ((ctx: HookContext, arg?: unknown) => void) | undefined;
     if (hook) hook(ctx, arg);

@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { effect, type ReadonlySignal } from '@preact/signals';
 import type { GameEvent, GameView, PlayerId } from '@fcm/engine';
 import { registerBoardBridge, type BoardBridge, type BoardPick, type InteractionMode } from '../state/boardBridge.js';
-import { animationSpeed, cameraCommand, skipAnimations, topView } from '../state/interaction.js';
+import { animationSpeed, cameraCommand, skipAnimations, topView, tutorialHighlight } from '../state/interaction.js';
 import { boardInset, highContrastTiles, houseBoardInfo, rangeOverlay, reachOverlay, routeOverlay, type BoardInset, type RouteRibbon } from '../state/boardOverlays.js';
 import type { FoodId, HouseId } from '@fcm/engine';
 import { OverlayLayer, type OverlayKind, type ReachOptions } from './overlays/index.js';
@@ -55,6 +55,8 @@ export interface SceneHandle extends BoardBridge {
   routeAt(clientX: number, clientY: number): number | null;
   /** Client-space position (CSS px) of a world point (board x, height y, board z). For tests and tooltips. */
   project(x: number, z: number, y?: number): { x: number; y: number };
+  /** World footprint of a board piece (house / restaurant / campaign / source / entity id), or null. Lesson spotlights. */
+  boundsOf(id: string): { x0: number; z0: number; x1: number; z1: number } | null;
   dispose(): void;
   /** Dev/test access to internals (playground, e2e). */
   readonly internals: { stage: Stage; rec: Reconciler; cam: CameraController; inter: Interaction; overlays: OverlayLayer; anim: Animator; timeline: TimelineHandle };
@@ -198,8 +200,13 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
         case 'focus':
           inter.focus(c.ids);
           break;
+        case 'frame':
+          cam.focusRect(c.rect.x0, c.rect.z0, c.rect.x1, c.rect.z1);
+          break;
       }
     }),
+    // Lesson coach marks: ring the step's board targets.
+    effect(() => inter.highlight([...tutorialHighlight.value])),
   );
 
   const handle: SceneHandle = {
@@ -273,6 +280,16 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
       const v = new THREE.Vector3(x, y, z).project(stage.camera);
       const r = stage.renderer.domElement.getBoundingClientRect();
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    },
+    boundsOf(id) {
+      const ps = rec.byId(id).filter((p) => p.kind !== 'demand');
+      if (!ps.length) return null;
+      return {
+        x0: Math.min(...ps.map((p) => p.rect.x0)),
+        z0: Math.min(...ps.map((p) => p.rect.z0)),
+        x1: Math.max(...ps.map((p) => p.rect.x1)),
+        z1: Math.max(...ps.map((p) => p.rect.z1)),
+      };
     },
     internals: { stage, rec, cam, inter, overlays, anim, timeline },
     dispose() {

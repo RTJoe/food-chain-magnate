@@ -227,6 +227,7 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
                   role="radio"
                   aria-checked={on}
                   class={`token-card ${on ? 'is-on' : ''} ${t.reason ? 'is-dim' : ''}`}
+                  data-tutorial={`token-${t.number}`}
                   disabled={Boolean(t.reason)}
                   title={t.reason ?? `${t.spots.length} legal spot${t.spots.length === 1 ? '' : 's'}`}
                   onClick={() => chooseToken(t.number)}
@@ -251,7 +252,7 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
           <span class="field-label">2 · Advertise</span>
           <GoodChips foods={marketableFoods()} value={good.value} onChange={(f) => (good.value = f)} />
           {legal.actionType === 'work.placeCampaign' && (
-            <label class="field-inline">
+            <label class="field-inline" data-tutorial="duration">
               <span class="field-label">Duration</span>
               {eternal ? (
                 <Pill tone="ok" icon="star">

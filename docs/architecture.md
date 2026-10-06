@@ -347,6 +347,8 @@ Store signals: `connection`, `room`, `view`, `seq`, `me`, `manifest`, `legal`, `
 
 `Transport` interface; `SocketTransport` (auto-reconnect, session token); `LocalTransport` (hot-seat, in-process engine, handoff pseudo-events; bot seats computed in a Web Worker, `net/botRunner.ts`, and never handed the device).
 
+Lessons (`#/learn`, docs/tutorial-plan.md §4 and §6) run on the same `LocalTransport` in mode `tutorial` (`session.startTutorial`): a fixed learner viewer with no handoffs and no undo, scripted opponent seats moved by the lesson through `actFor`, Easy bot seats through the worker, and a `prelude` of recorded actions for resume by replay. The internal engine module `tutorial` (hidden from `listModules`, never accepted over the wire) pauses after configured automatic phases with a `continue` pending choice resolved by `tutorial.continue`; it changes no rule. `session.setActionGate` lets the lesson runner (`client/src/tutorial/runner.ts`) keep back learner actions outside the current step; the engine still validates everything that is sent.
+
 ## 6. Task breakdown
 
 - **C0** Scaffold, contracts, fixtures, toy engine, move old code to `legacy/`. (wave 0)

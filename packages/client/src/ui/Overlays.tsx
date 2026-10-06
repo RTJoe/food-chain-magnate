@@ -9,6 +9,7 @@ import { Button, IconButton, PlayerBadge, Toggle } from './common.js';
 import { Icon, Logo } from './icons.js';
 import { Standings } from './PromptPanel.js';
 import { menuOpen, minimisedModal } from './uiState.js';
+import { GameMenuExtras } from './hints/CoachHints.js';
 
 export function Toasts() {
   const list = toasts.value;
@@ -112,11 +113,12 @@ export function GameOverModal() {
 }
 
 export function leaveTable(): void {
+  const lesson = mode.value === 'tutorial';
   if (mode.value === 'online' && room.value) leaveRoom();
   if (mode.value !== 'online') endSession();
   menuOpen.value = false;
   minimisedModal.value = null;
-  navigate({ name: 'home' });
+  navigate(lesson ? { name: 'learn', lesson: null } : { name: 'home' });
 }
 
 export function GameMenu() {
@@ -127,7 +129,7 @@ export function GameMenu() {
   return (
     <Modal title={<><Logo size={28} /> Menu</>} onClose={close}>
       <div class="menu">
-        {me.value && (
+        {me.value && m !== 'tutorial' && (
           <Button variant="secondary" icon="undo" onClick={() => (undo(), close())}>
             Undo my last action
           </Button>
@@ -143,9 +145,10 @@ export function GameMenu() {
           </p>
         )}
         <Toggle checked={settings.value.placementList} onChange={(b) => updateSettings({ placementList: b })} label="List placements" description="Also show board spots as a list under placement prompts." />
+        <GameMenuExtras />
         {m === 'dev' && v && <DevViewer viewers={['spectator', ...v.turnOrder]} />}
         <Button variant="danger" icon="logout" onClick={() => leaveTable()}>
-          {m === 'online' ? 'Leave the table' : 'End this game'}
+          {m === 'online' ? 'Leave the table' : m === 'tutorial' ? 'Leave the lesson' : 'End this game'}
         </Button>
       </div>
     </Modal>

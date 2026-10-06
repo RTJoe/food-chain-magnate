@@ -26,7 +26,9 @@ export type CameraCommand =
   | { kind: 'zoom'; by: number }
   | { kind: 'yaw'; by: number }
   /** Centre on board objects (house / restaurant / campaign / entity ids). */
-  | { kind: 'focus'; ids: string[] };
+  | { kind: 'focus'; ids: string[] }
+  /** Frame a world rectangle (board squares; tutorial camera frames). */
+  | { kind: 'frame'; rect: { x0: number; z0: number; x1: number; z1: number } };
 
 /** Write a new object to fire a command (the board consumes and resets it to null). */
 export const cameraCommand = signal<CameraCommand | null>(null);
@@ -88,6 +90,8 @@ export const selectionRelated = signal<readonly string[]>([]);
 export const selectedOutlook = signal<HouseOutlook | null>(null);
 /** Transient highlight (e.g. a player's pieces while hovering their rail panel). Does not touch `selection`. */
 export const inspectIds = signal<readonly string[]>([]);
+/** Lesson coach marks (tutorial/runner.ts): board pieces ringed for the current step, in any mode. */
+export const tutorialHighlight = signal<readonly string[]>([]);
 
 export function select(s: Selection | null): void {
   selection.value = s;

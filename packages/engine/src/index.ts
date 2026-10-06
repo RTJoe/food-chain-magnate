@@ -17,6 +17,9 @@ import { derivePrompt } from './core/prompt.js';
 import { replay } from './core/replay.js';
 import { allModules, manifestOf } from './modules/registry.js';
 import { campaignReach, houseCellsReach, houseOutlook, placementProblem, rangeOverlay } from './rules/outlook.js';
+import { enableTutorial as enableTutorialWith, type EnableTutorialOptions } from './modules/tutorial.js';
+import { makeCtx } from './core/context.js';
+import { runUntilInput } from './core/phase.js';
 
 export type * from './types/index.js';
 export { BASE_WORK_STAGE_ORDER } from './types/state.js';
@@ -41,6 +44,20 @@ export { submissionProblem, isOverfilled } from './rules/restructuring.js';
 export { freezerCapacity, stockOf } from './rules/cleanup.js';
 export { reserveOptions } from './rules/setup.js';
 export { abilityStage, stageIndex, stagesFor } from './rules/working/stages.js';
+
+export { TUTORIAL_PAUSE_PHASES, type EnableTutorialOptions } from './modules/tutorial.js';
+
+/**
+ * Tutorial scenarios (docs/tutorial-plan.md §4.2): enable the internal `tutorial` module on a built
+ * state (pause after `pauseAfter` phases, `continue` choices for `player`) and settle it. Pure.
+ */
+export function enableTutorial(state: GameState, opts: EnableTutorialOptions): { state: GameState; events: GameEvent[] } {
+  return enableTutorialWith(state, opts, (s) => {
+    const ctx = makeCtx(s);
+    runUntilInput(ctx);
+    return ctx.events;
+  });
+}
 
 export const ENGINE_VERSION = '0.2.0';
 
@@ -73,7 +90,9 @@ export interface EngineApi {
 }
 
 export function listModules(): ModuleManifest[] {
-  return allModules().map(manifestOf);
+  return allModules()
+    .filter((m) => !m.internal)
+    .map(manifestOf);
 }
 
 export const engine: EngineApi = {

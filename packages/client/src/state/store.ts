@@ -17,7 +17,7 @@ import { legalFor, promptFor } from './guidance.js';
 import { describeEvent, type LogLine } from './log.js';
 import type { OrgDraft } from './orgChart.js';
 
-export type Mode = 'online' | 'hotseat' | 'dev';
+export type Mode = 'online' | 'hotseat' | 'dev' | 'tutorial';
 
 export interface ChatLine {
   id: number;
@@ -263,7 +263,8 @@ export function handleServerMessage(msg: ServerMessage): HandleResult {
     case 'game.rejected': {
       const { [msg.id]: _gone, ...rest } = pending.value;
       pending.value = rest;
-      pushToast(msg.message || msg.code, 'error');
+      // Lessons show the engine's reason in the coach strip instead (tutorial/runner.ts).
+      if (mode.value !== 'tutorial') pushToast(msg.message || msg.code, 'error');
       return {};
     }
     case 'game.undone':

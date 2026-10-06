@@ -54,7 +54,7 @@ export function RouteFlow({ legal, placements, onDone, onCancel }: FlowProps) {
         <div class="chip-row">
           {errands.map((p, i) =>
             p.kind === 'buyerRoute' && p.route.mode === 'errand' ? (
-              <button key={i} type="button" class="chip chip-food chip-lg placement-btn" onClick={() => pick(p)}>
+              <button key={i} type="button" class="chip chip-food chip-lg placement-btn" data-tutorial={`drink-${p.route.drink}`} onClick={() => pick(p)}>
                 <FoodIcon food={p.route.drink as FoodId} size={22} /> {foodName(c, p.route.drink as FoodId)}
               </button>
             ) : null,

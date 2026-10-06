@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { Action, EmployeeId, FoodId, GameView, LegalAction, PlayerState, Uid } from '@fcm/engine';
 import { employeeName, foodName } from '../state/catalog.js';
 import { cardStage, cardsAtWork, employeeIdOf, employeeSort, hireOptions, STAGE_LABELS, trainableUids, trainOptions, workStages, type TrainOption } from '../state/selectors.js';
-import { catalog, legal, me, pending } from '../state/store.js';
+import { catalog, legal, me, mode, pending } from '../state/store.js';
 import { act, undo } from '../net/session.js';
 import { Button, EmployeeCard, Empty } from './common.js';
 import { FoodIcon, Icon } from './icons.js';
@@ -44,7 +44,7 @@ export function WorkPanel({ view: v, player: p }: { view: GameView; player: Play
 
   return (
     <div class="work">
-      <ol class="stages" aria-label="Working sub-steps">
+      <ol class="stages" aria-label="Working sub-steps" data-tutorial="work-stages">
         {stages.map((s, i) => {
           const closing = selIdx > now && i >= now && i < selIdx;
           return (
@@ -72,6 +72,7 @@ export function WorkPanel({ view: v, player: p }: { view: GameView; player: Play
               key={uid}
               id={id}
               flip={`card:${p.id}:${uid}`}
+              tutorial={`work-card-${uid}`}
               compact
               selected={sel.cardUid === uid}
               dimmed={!acts.length}
@@ -114,6 +115,7 @@ export function WorkPanel({ view: v, player: p }: { view: GameView; player: Play
                 <Button
                   variant="primary"
                   icon="check"
+                  data-tutorial="end-turn"
                   disabled={busy}
                   onClick={() => {
                     confirmEnd.value = false;
@@ -128,13 +130,16 @@ export function WorkPanel({ view: v, player: p }: { view: GameView; player: Play
           </div>
         ) : (
           <>
-            <Button variant="ghost" icon="undo" onClick={() => undo()} disabled={busy}>
-              Undo
-            </Button>
+            {mode.value !== 'tutorial' && (
+              <Button variant="ghost" icon="undo" data-tutorial="undo" onClick={() => undo()} disabled={busy}>
+                Undo
+              </Button>
+            )}
             {endTurn && endTurn.kind === 'ready' && (
               <Button
                 variant="primary"
                 icon="check"
+                data-tutorial="end-turn"
                 disabled={busy}
                 onClick={() => {
                   if (canAct.length > 0) {
@@ -242,6 +247,7 @@ function HireGrid({ view: v, actions, busy }: { view: GameView; actions: ReadyLe
               key={id}
               id={id}
               flip={`market:${id}`}
+              tutorial={`hire-${id}`}
               compact
               dimmed={!l}
               highlight={Boolean(l)}
@@ -285,7 +291,7 @@ function TrainGrid({ view: v, player: p, trainerUid, actions, busy }: { view: Ga
         <p class="muted small">Train whom? Only cards on the beach can be trained (including this turn’s hires).</p>
         <div class="card-grid">
           {targets.map((u) => (
-            <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} compact highlight onClick={() => (target.value = u)} />
+            <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} tutorial={`train-target-${u}`} compact highlight onClick={() => (target.value = u)} />
           ))}
         </div>
       </div>
@@ -322,6 +328,7 @@ function TrainGrid({ view: v, player: p, trainerUid, actions, busy }: { view: Ga
               key={o.id}
               type="button"
               class="train-opt"
+              data-tutorial={`train-${o.id}`}
               disabled={!l || busy}
               title={reason}
               onClick={() => {
@@ -398,6 +405,7 @@ function HirePicker({ view: v, cardUid, onBack }: { view: GameView; cardUid: Uid
             key={o.id}
             id={o.id}
             flip={`market:${o.id}`}
+            tutorial={`hire-${o.id}`}
             compact
             dimmed={!o.ok}
             highlight={o.ok}
@@ -429,7 +437,7 @@ function TrainPicker({ view: v, player: p, trainerUid, onBack }: { view: GameVie
             <p class="muted small">Only cards on the beach can be trained (including this turn’s hires).</p>
             <div class="card-grid">
               {targets.map((u) => (
-                <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} compact highlight onClick={() => (target.value = u)} />
+                <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} tutorial={`train-target-${u}`} compact highlight onClick={() => (target.value = u)} />
               ))}
             </div>
           </>
@@ -443,6 +451,7 @@ function TrainPicker({ view: v, player: p, trainerUid, onBack }: { view: GameVie
               key={o.id}
               type="button"
               class="train-opt"
+              data-tutorial={`train-${o.id}`}
               disabled={!o.ok}
               title={o.reason}
               onClick={() => {
@@ -486,6 +495,7 @@ function ProducePicker({ player: p, cardUid, onBack }: { player: PlayerState; ca
             key={f}
             type="button"
             class="chip chip-food chip-lg"
+            data-tutorial={`produce-${f}`}
             onClick={() => {
               act({ type: 'work.produce', playerId: mine, cardUid, food: f });
               resetWorkSelection();

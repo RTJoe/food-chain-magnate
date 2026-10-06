@@ -126,6 +126,7 @@ export function OrgChartEditor({ view: v, player: p, prompt }: { view: GameView;
         id={id}
         flip={`card:${p.id}:${uid}`}
         compact
+        tutorial={where === 'hand' ? `hand-card-${id}` : `org-card-${uid}`}
         selected={sel === uid}
         onClick={() => (where === 'slot' && sel === uid ? toHand(uid) : clickCard(uid))}
         draggableUid={locked ? undefined : uid}
@@ -153,7 +154,7 @@ export function OrgChartEditor({ view: v, player: p, prompt }: { view: GameView;
       </div>
 
       <div class="org-tree">
-        <div class="org-ceo">
+        <div class="org-ceo" data-tutorial="org-ceo">
           <EmployeeCard id="ceo" compact badge={Icon.crown({ size: 14 })} />
         </div>
         <ol class="org-row" aria-label="CEO slots">
@@ -169,7 +170,7 @@ export function OrgChartEditor({ view: v, player: p, prompt }: { view: GameView;
                     const t: SlotTarget = { kind: 'manager', managerUid: uid };
                     return (
                       <li key={`e${i}`}>
-                        <button type="button" class={`slot ${canGo(t) ? 'is-target' : ''}`} disabled={locked} onClick={() => clickSlot(t)} {...dropProps(t)} aria-label="Empty manager slot">
+                        <button type="button" data-tutorial={`org-mslot-${uid}-${i + 1}`} class={`slot ${canGo(t) ? 'is-target' : ''}`} disabled={locked} onClick={() => clickSlot(t)} {...dropProps(t)} aria-label="Empty manager slot">
                           {Icon.plus({ size: 16 })}
                         </button>
                       </li>
@@ -188,7 +189,7 @@ export function OrgChartEditor({ view: v, player: p, prompt }: { view: GameView;
           ))}
           {Array.from({ length: ceoEmpty }, (_, i) => (
             <li key={`c${i}`} class="org-node">
-              <button type="button" class={`slot slot-ceo ${canGo(ceoTarget) ? 'is-target' : ''}`} disabled={locked} onClick={() => clickSlot(ceoTarget)} {...dropProps(ceoTarget)} aria-label="Empty CEO slot">
+              <button type="button" data-tutorial={`org-slot-${d.ceoSubs.length + i + 1}`} class={`slot slot-ceo ${canGo(ceoTarget) ? 'is-target' : ''}`} disabled={locked} onClick={() => clickSlot(ceoTarget)} {...dropProps(ceoTarget)} aria-label="Empty CEO slot">
                 {Icon.plus({ size: 18 })}
                 <span>CEO slot</span>
               </button>
@@ -217,7 +218,7 @@ export function OrgChartEditor({ view: v, player: p, prompt }: { view: GameView;
       )}
 
       {!locked && (
-        <div class="org-hand" {...dropProps({ kind: 'ceo' })} onDrop={(e) => {
+        <div class="org-hand" data-tutorial="org-hand" {...dropProps({ kind: 'ceo' })} onDrop={(e) => {
           e.preventDefault();
           const uid = e.dataTransfer?.getData('text/fcm-uid');
           if (uid) toHand(uid);
@@ -255,6 +256,7 @@ export function OrgChartEditor({ view: v, player: p, prompt }: { view: GameView;
             <Button
               variant={check.overfilled ? 'danger' : 'primary'}
               icon="check"
+              data-tutorial="submit-structure"
               disabled={check.errors.length > 0}
               onClick={() => act({ type: 'restructure.submit', playerId: p.id, structure: toSubmission(d) })}
             >

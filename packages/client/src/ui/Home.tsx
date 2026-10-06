@@ -6,6 +6,9 @@ import { forgetRoom, recentGames, type RecentGame } from '../state/recentGames.j
 import { createRoom, startOnline } from '../net/session.js';
 import { Button, IconButton } from './common.js';
 import { Icon, Logo } from './icons.js';
+import { continueEntry } from './learn/index.js';
+import { hasLearnProgress, learnProgress } from '../tutorial/progress.js';
+import './learn/learn.css';
 
 const cleanCode = (s: string) =>
   s
@@ -24,6 +27,25 @@ function ago(ts: number): string {
   const h = Math.round(min / 60);
   if (h < 48) return `${h} h ago`;
   return `${Math.round(h / 24)} days ago`;
+}
+
+/** The tutorial entry point: "New to the game? Start here", or Continue once lessons are under way. */
+function LearnBanner() {
+  void learnProgress.value;
+  const started = hasLearnProgress();
+  const next = continueEntry();
+  return (
+    <section class="home-learn glass" aria-label="Learn to play">
+      <span class="home-card-icon tone-accent">{Icon.sparkle({ size: 24 })}</span>
+      <div>
+        <h2>{started ? 'Keep learning' : 'New to the game? Start here'}</h2>
+        <p class="muted">{started && next ? `Next: ${next.title} (${next.minutes} min).` : 'Short interactive lessons on the real board, then a guided game against a bot.'}</p>
+      </div>
+      <Button variant="primary" size="lg" icon="arrowRight" data-learn-entry onClick={() => navigate({ name: 'learn', lesson: null })}>
+        {started ? 'Open lessons' : 'Learn to play'}
+      </Button>
+    </section>
+  );
 }
 
 /** Rooms this browser has been in (localStorage), newest first, with one-click resume. */
@@ -87,6 +109,8 @@ export function Home() {
         </div>
       </header>
 
+      <LearnBanner />
+
       <section class="home-name glass">
         <label class="field">
           <span class="field-label">Your name</span>
@@ -143,6 +167,8 @@ export function Home() {
       </div>
 
       <footer class="home-foot">
+        <a href="#/learn">Learn to play</a>
+        <span aria-hidden="true">·</span>
         <a href="#/dev">Fixture gallery</a>
         <span aria-hidden="true">·</span>
         <span class="muted">An unofficial fan implementation. All art is original.</span>

@@ -5,6 +5,8 @@ import { employeeName } from '../state/catalog.js';
 import { careerForest, type CareerNode } from '../state/selectors.js';
 import { catalog, view } from '../state/store.js';
 import { EmployeeCard, Empty, Toggle } from './common.js';
+import { employeeTermId } from './glossary/index.js';
+import { WhatsThis } from './glossary/WhatsThis.js';
 
 export function Market() {
   const v = view.value;
@@ -33,10 +35,13 @@ export function Market() {
 
   return (
     <div class="market">
-      <Toggle checked={onlyEntry.value} onChange={(b) => (onlyEntry.value = b)} label="Entry level only" description="Cards you can hire directly." />
+      <Toggle checked={onlyEntry.value} onChange={(b) => (onlyEntry.value = b)} label={<>Entry level only <WhatsThis id="entry_level" /></>} description={<>Cards you can hire directly. Piles are limited <WhatsThis id="supply" label="Supply piles" /></>} />
       {detail && (
         <div class="market-detail glass-inner" role="status">
-          <b>{employeeName(c, detail.id)}</b>
+          <b>
+            {employeeName(c, detail.id)}
+            <WhatsThis id={employeeTermId(detail.id)} label={employeeName(c, detail.id)} />
+          </b>
           <p class="small">{detail.text}</p>
           <p class="muted small">
             {v.supply[detail.id] ?? 0} left{detail.salary ? ' · salary $5' : ' · no salary'}

@@ -31,6 +31,7 @@ import type {
   HouseId,
   OwnedCard,
   Phase,
+  PhaseKind,
   PlayerId,
   ReserveCard,
   RestaurantId,
@@ -68,6 +69,16 @@ export interface ModuleOptionsMap {
   'ketchup:movieStars': Record<string, never>;
   'ketchup:hardChoices': Record<string, never>;
   'ketchup:sixPlayers': Record<string, never>;
+  tutorial: TutorialOptions;
+}
+
+/** Phases the tutorial module can pause after (docs/tutorial-plan.md §4.2). */
+export type TutorialPausePhase = 'restructuring' | 'orderOfBusiness' | 'working' | 'dinnertime' | 'payday' | 'marketing' | 'cleanup';
+
+/** `config.options.tutorial`: who presses Continue, and after which phases the game pauses. */
+export interface TutorialOptions {
+  player: PlayerId;
+  pauseAfter: TutorialPausePhase[];
 }
 
 export type ModuleOptions = { [K in ModuleId]?: ModuleOptionsMap[K] };
@@ -164,6 +175,11 @@ export interface Hooks {
   onCreateGame(ctx: HookContext): void;
   onPhaseEnter(ctx: HookContext, phase: Phase): void;
   onPhaseExit(ctx: HookContext, phase: Phase): void;
+  /**
+   * An automatic phase finished and the next phase's automatic work has not started yet
+   * (`runUntilInput`). A module may push a `PendingChoice` to hold the game here (tutorial pauses).
+   */
+  afterPhase(ctx: HookContext, finished: PhaseKind): void;
   /** Every emitted event; milestone triggers live here. */
   onEvent(ctx: HookContext, event: GameEvent): void;
 
@@ -238,6 +254,8 @@ export interface GameModule {
   /** Keyed by action type (`ketchup:coffee.placeShop`). */
   actions?: Partial<Record<Action['type'], ActionHandler>>;
   hooks?: Partial<Hooks>;
+  /** Engine-internal (the tutorial): hidden from `listModules`, so lobbies never offer it. */
+  internal?: boolean;
 }
 
 /** Serializable description of a module for the client (rendered generically). */

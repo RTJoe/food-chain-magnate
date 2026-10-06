@@ -243,6 +243,12 @@ export interface NewMilestonesPlaceSecondCampaign extends A<'ketchup:newMileston
   placement: CampaignPlacement;
 }
 
+// --- Tutorial module (docs/tutorial-plan.md §4.2) ------------------------------
+/** Resolves a `continue` pending choice: the paused game runs on to the next input or pause. */
+export interface TutorialContinue extends A<'tutorial.continue'> {
+  choiceId: ChoiceId;
+}
+
 export type KetchupAction =
   | LobbyistPlaceRoad
   | LobbyistPlacePark
@@ -276,7 +282,7 @@ export type BaseAction =
   | CleanupFreezer
   | ChoiceDecline;
 
-export type Action = BaseAction | KetchupAction;
+export type Action = BaseAction | KetchupAction | TutorialContinue;
 export type ActionType = Action['type'];
 export type ActionOf<T extends ActionType> = Extract<Action, { type: T }>;
 

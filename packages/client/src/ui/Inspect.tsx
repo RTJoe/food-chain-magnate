@@ -15,6 +15,8 @@ import { humanize } from '../state/catalog.js';
 import { IconButton, PlayerBadge, Pill } from './common.js';
 import { FoodIcon, Icon } from './icons.js';
 import { KIND_LABEL } from './flows/Campaign.js';
+import { campaignTermId, entityTermId, houseTermId } from './glossary/index.js';
+import { WhatsThis } from './glossary/WhatsThis.js';
 
 const HOUSE_KIND: Record<string, string> = { printed: 'House', placed: 'New house', apartment: 'Apartment', rural: 'Rural area' };
 
@@ -23,18 +25,21 @@ export function InspectCard() {
   const v = view.value;
   if (!sel || !v || isPickMode(interactionMode.value)) return null;
   return (
-    <section class="inspect glass" aria-label="Inspect" role="dialog">
+    <section class="inspect glass" aria-label="Inspect" role="dialog" data-tutorial="inspect">
       <InspectBody sel={sel} view={v} />
     </section>
   );
 }
 
-function Head({ eyebrow, title, id }: { eyebrow: string; title: ComponentChildren; id: string }) {
+function Head({ eyebrow, title, id, term }: { eyebrow: string; title: ComponentChildren; id: string; term?: string | null }) {
   return (
     <header class="inspect-head">
       <span>
         <span class="eyebrow">{eyebrow}</span>
-        <h3>{title}</h3>
+        <h3>
+          {title}
+          {term && <WhatsThis id={term} />}
+        </h3>
       </span>
       <IconButton icon="recenter" label="Focus camera" onClick={() => (cameraCommand.value = { kind: 'focus', ids: [id] })} />
       <IconButton icon="x" label="Close" onClick={() => select(null)} />
@@ -91,7 +96,7 @@ function HouseCard({ id, view: v }: { id: HouseId; view: GameView }) {
   const full = cap !== null && demand.length >= cap;
   return (
     <>
-      <Head eyebrow={HOUSE_KIND[h.kind] ?? 'House'} title={houseLabel(v, id)} id={id} />
+      <Head eyebrow={HOUSE_KIND[h.kind] ?? 'House'} title={houseLabel(v, id)} id={id} term={houseTermId(h.kind)} />
       <div class="inspect-chips">
         <Pill tone={full ? 'warn' : 'neutral'}>
           {demand.length}/{cap ?? '∞'} demand{full ? ' (full)' : ''}
@@ -103,13 +108,15 @@ function HouseCard({ id, view: v }: { id: HouseId; view: GameView }) {
         )}
       </div>
       {demand.length ? <Goods goods={demand} size={22} /> : <p class="muted small">No demand yet.</p>}
-      <h4>Who can sell</h4>
+      <h4>
+        Who can sell <WhatsThis id="winning_a_sale" />
+      </h4>
       {!o ? (
         <p class="muted small">Needs the rules engine.</p>
       ) : o.sellers.length === 0 ? (
         <p class="muted small">No restaurant is connected by road.</p>
       ) : (
-        <ul class="inspect-list">
+        <ul class="inspect-list" data-tutorial="inspect-sellers">
           {o.sellers.map((s, i) => {
             const wins = o.winner === s.player && o.sellers.findIndex((x) => x.player === s.player && x.canSupply) === i;
             return (
@@ -166,7 +173,7 @@ function RestaurantCard({ id, view: v }: { id: RestaurantId; view: GameView }) {
   if (!r) return null;
   return (
     <>
-      <Head eyebrow={`${name(v, r.owner)}’s restaurant`} title={`Restaurant at ${r.x},${r.y}`} id={id} />
+      <Head eyebrow={`${name(v, r.owner)}’s restaurant`} title={`Restaurant at ${r.x},${r.y}`} id={id} term="restaurant" />
       <div class="inspect-chips">
         <Pill tone={r.status === 'open' ? 'ok' : 'warn'}>{STATUS[r.status] ?? r.status}</Pill>
         <Pill>Entrance {r.entrance}</Pill>
@@ -206,7 +213,7 @@ function CampaignCard({ id, view: v }: { id: CampaignId; view: GameView }) {
   const where = pl.kind === 'board' ? `${pl.w}×${pl.h} at ${pl.x},${pl.y}` : pl.kind === 'airplane' ? `${pl.side} edge, ${pl.width} wide` : pl.kind === 'rural' ? `rural ${pl.side}` : 'beside the board';
   return (
     <>
-      <Head eyebrow={`${name(v, camp.owner)}’s campaign`} title={`${camp.number !== null ? `#${camp.number} ` : ''}${KIND_LABEL[camp.kind] ?? humanize(camp.kind)}`} id={id} />
+      <Head eyebrow={`${name(v, camp.owner)}’s campaign`} title={`${camp.number !== null ? `#${camp.number} ` : ''}${KIND_LABEL[camp.kind] ?? humanize(camp.kind)}`} id={id} term={campaignTermId(camp.kind)} />
       <div class="inspect-chips">
         <Goods goods={camp.goods} size={22} />
         <Pill tone={camp.eternal ? 'ok' : 'neutral'}>{camp.eternal ? 'Eternal' : `${camp.remaining} turn${camp.remaining === 1 ? '' : 's'} left`}</Pill>
@@ -247,7 +254,7 @@ function SourceCard({ id, view: v }: { id: SourceId; view: GameView }) {
   if (!s) return null;
   return (
     <>
-      <Head eyebrow="Drink source" title={<span class="row gap">{foodName(c, s.drink as FoodId)}</span>} id={id} />
+      <Head eyebrow="Drink source" title={<span class="row gap">{foodName(c, s.drink as FoodId)}</span>} id={id} term="drink_source" />
       <div class="inspect-chips">
         <FoodIcon food={s.drink as FoodId} size={24} />
         <Pill>Square {s.x},{s.y}</Pill>
@@ -273,7 +280,7 @@ function EntityCard({ id, view: v }: { id: string; view: GameView }) {
   if (e.kind === 'lobbyistRoad') notes.push(e.underConstruction ? 'Under construction: +1 distance for everyone until it opens.' : 'Open road.');
   return (
     <>
-      <Head eyebrow={owner ? `${name(v, owner)}’s` : 'Board piece'} title={humanize(e.kind)} id={id} />
+      <Head eyebrow={owner ? `${name(v, owner)}’s` : 'Board piece'} title={humanize(e.kind)} id={id} term={entityTermId(e.kind)} />
       <div class="inspect-chips">{at && <Pill>{at}</Pill>}</div>
       {notes.map((n) => (
         <p key={n} class="muted small">

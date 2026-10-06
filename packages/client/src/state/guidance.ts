@@ -123,6 +123,8 @@ export function choiceTitle(c: PendingChoice): string {
       return 'Place a freeway?';
     case 'coffeeShop':
       return 'Place a coffee shop';
+    case 'continue':
+      return 'Paused: continue when ready';
   }
 }
 
@@ -239,6 +241,8 @@ function choiceActionType(c: PendingChoice): Action['type'] {
       return 'payday.fire';
     case 'payWithTokens':
       return 'payday.confirm';
+    case 'continue':
+      return 'tutorial.continue';
   }
 }
 

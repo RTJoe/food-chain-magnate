@@ -1,0 +1,71 @@
+{
+  "lesson": "base.1",
+  "steps": [
+    {
+      "id": "tiles",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "tap-b2",
+      "ops": [
+        "tap {\"tile\":\"B2\"}"
+      ]
+    },
+    {
+      "id": "roads",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "distance",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "tap-house-18",
+      "ops": [
+        "tap {\"house\":18}"
+      ]
+    },
+    {
+      "id": "demand",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "sources",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "tap-lemonade",
+      "ops": [
+        "tap {\"source\":[1,11]}"
+      ]
+    },
+    {
+      "id": "top-view",
+      "ops": [
+        "tap {\"ui\":\"camera-top\"}",
+        "tap {\"ui\":\"camera-top\"}"
+      ]
+    }
+  ],
+  "actions": [],
+  "outcome": {
+    "seq": 0,
+    "round": 0,
+    "phase": "setup.restaurants",
+    "cash": {
+      "p1": 0,
+      "p2": 0
+    },
+    "bank": 100
+  }
+}

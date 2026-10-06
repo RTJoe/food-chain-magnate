@@ -51,13 +51,15 @@ export function BoardControls() {
           label={topView.value ? 'Tilted view' : 'Top view'}
           class={topView.value ? 'is-on' : ''}
           aria-pressed={topView.value}
+          data-tutorial="camera-top"
           onClick={() => (cameraCommand.value = { kind: 'top' })}
         />
-        <IconButton icon="recenter" label="Reset camera" onClick={() => (cameraCommand.value = { kind: 'reset' })} />
+        <IconButton icon="recenter" label="Reset camera" data-tutorial="camera-reset" onClick={() => (cameraCommand.value = { kind: 'reset' })} />
         <span class="board-controls-sep" aria-hidden="true" />
         <button
           type="button"
           class="speed-btn"
+          data-tutorial="speed"
           title="Animation speed"
           aria-label={`Animation speed ${animationSpeed.value}x`}
           onClick={() => (animationSpeed.value = SPEEDS[(SPEEDS.indexOf(animationSpeed.value as (typeof SPEEDS)[number]) + 1) % SPEEDS.length] ?? 1)}
@@ -70,6 +72,7 @@ export function BoardControls() {
           label={followAction.value ? 'Stop following the action' : 'Follow the action'}
           class={followAction.value ? 'is-on' : ''}
           aria-pressed={followAction.value}
+          data-tutorial="follow"
           onClick={() => setFollowAction(!followAction.value)}
         />
       </div>
@@ -103,7 +106,7 @@ function PickStrip({ mode }: { mode: PickMode }) {
   const canRotate = staged ? pendingVariants.value > 1 : mode.kind === 'campaign' && (orient === 'landscape' || orient === 'portrait');
   const canConfirm = Boolean(staged) || (route && activeCandidate.value >= 0);
   return (
-    <div class={`pick-strip glass ${staged ? 'is-staged' : ''}`} role="group" aria-label="Board pick">
+    <div class={`pick-strip glass ${staged ? 'is-staged' : ''}`} role="group" aria-label="Board pick" data-tutorial="pick-strip">
       <span class="pick-text" role="status">
         {pickText(mode, staged)}
       </span>
@@ -115,11 +118,11 @@ function PickStrip({ mode }: { mode: PickMode }) {
           </>
         )}
         {canRotate && (
-          <Button size="sm" variant="secondary" icon="rotateRight" onClick={() => rotatePlacement()}>
+          <Button size="sm" variant="secondary" icon="rotateRight" data-tutorial="rotate" onClick={() => rotatePlacement()}>
             Rotate
           </Button>
         )}
-        <Button size="sm" variant="primary" icon="check" disabled={!canConfirm} onClick={() => confirmPlacement()}>
+        <Button size="sm" variant="primary" icon="check" data-tutorial="confirm" disabled={!canConfirm} onClick={() => confirmPlacement()}>
           {route ? (
             'Buy'
           ) : (

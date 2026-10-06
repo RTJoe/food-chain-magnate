@@ -5,6 +5,8 @@ import { catalog } from '../state/store.js';
 import { employeeName, managerSlots } from '../state/catalog.js';
 import { foodList, initial, seatIndex } from '../state/selectors.js';
 import { FoodIcon, Icon, type IconName } from './icons.js';
+import { employeeTermId } from './glossary/index.js';
+import { useWhatsThisPress, WhatsThis } from './glossary/WhatsThis.js';
 
 type BtnProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'icon'> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'ok';
@@ -183,12 +185,15 @@ export interface EmployeeCardProps {
   title?: string;
   /** FLIP key for overlay motion (ui/motion.tsx), e.g. `card:<player>:<uid>`. */
   flip?: string;
+  /** Lesson coach-mark target name (`data-tutorial`, docs/tutorial-plan.md §4.4). */
+  tutorial?: string;
 }
 
 /** An employee card: colour strip by card group, icons for entry / salary / 1x, manager slots. */
-export function EmployeeCard({ id, compact, selected, disabled, dimmed, highlight, badge, footer, onClick, draggableUid, title, flip }: EmployeeCardProps) {
+export function EmployeeCard({ id, compact, selected, disabled, dimmed, highlight, badge, footer, onClick, draggableUid, title, flip, tutorial }: EmployeeCardProps) {
   const d = catalog.value.employees[id];
   const slots = managerSlots(d);
+  const press = useWhatsThisPress(employeeTermId(id));
   const cls = `emp ${compact ? 'is-compact' : ''} ${selected ? 'is-selected' : ''} ${dimmed ? 'is-dimmed' : ''} ${highlight ? 'is-highlight' : ''} ${onClick ? 'is-clickable' : ''}`;
   const content = (
     <>
@@ -204,6 +209,7 @@ export function EmployeeCard({ id, compact, selected, disabled, dimmed, highligh
           {d?.unique && <span class="tag tag-unique" title="1x: own at most one">1x</span>}
           {slots > 0 && <span class="tag tag-slots" title={`${slots} slots`}>{slots} slots</span>}
           {d?.mandatory && <span class="tag" title="Acts automatically">auto</span>}
+          <WhatsThis id={employeeTermId(id)} label={employeeName(catalog.value, id)} />
         </span>
         {footer}
       </span>
@@ -211,9 +217,11 @@ export function EmployeeCard({ id, compact, selected, disabled, dimmed, highligh
     </>
   );
   const common = {
+    ...press,
     class: cls,
     'data-colour': d?.colour ?? 'grey',
     'data-flip': flip,
+    'data-tutorial': tutorial,
     title: title ?? d?.text,
   };
   if (onClick) {

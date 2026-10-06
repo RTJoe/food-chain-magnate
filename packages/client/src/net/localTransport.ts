@@ -36,7 +36,18 @@ export interface LocalTransportOptions {
   botRunner?: LocalBotRunner;
   /** Delay before a bot moves, ms (default 400–900). */
   botDelay?: number | { min: number; max: number };
+  /**
+   * Tutorial (docs/tutorial-plan.md §4.2): seats moved by a lesson script through `actFor`. They are
+   * never handed the device and the device holder cannot act for them.
+   */
+  scripted?: PlayerId[];
+  /** Actions applied silently on connect, before the first snapshot (tutorial resume by replay). */
+  prelude?: Action[];
+  /** Allow `game.undo` (default true; lessons turn it off so the recorded action list stays linear). */
+  undo?: boolean;
 }
+
+export type ActResult = { ok: true; events: GameEvent[] } | { ok: false; code: string; message: string };
 
 export interface LocalBotRunner {
   run(req: BotRequest): Promise<Action>;
@@ -70,11 +81,42 @@ export class LocalTransport implements Transport {
   private botThinking: PlayerId | null = null;
   private botGen = 0;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Every action applied since the start state (prelude included), in order. */
+  private applied: Action[] = [];
 
   constructor(private readonly opts: LocalTransportOptions) {}
 
   private isBot(p: PlayerId): boolean {
     return Boolean(this.opts.bots?.[p]);
+  }
+
+  private isScripted(p: PlayerId): boolean {
+    return Boolean(this.opts.scripted?.includes(p));
+  }
+
+  /** Every action applied since the start state, in order (the tutorial's resume log). */
+  get actions(): readonly Action[] {
+    return this.applied;
+  }
+
+  /**
+   * Tutorial: apply `action` for a scripted seat (bypasses the viewer overwrite of `act`). Events
+   * reach listeners redacted for the viewer, as a real opponent's would.
+   */
+  actFor(playerId: PlayerId, action: Action): ActResult {
+    const s = this.state;
+    if (!s) return { ok: false, code: 'NOT_STARTED', message: 'No game' };
+    if (!this.isScripted(playerId)) return { ok: false, code: 'NOT_SEATED', message: `${playerId} is not a scripted seat` };
+    const a = { ...action, playerId } as Action;
+    let result;
+    try {
+      result = this.opts.engine.applyAction(s, a);
+    } catch (e) {
+      return { ok: false, code: 'INTERNAL', message: e instanceof Error ? e.message : String(e) };
+    }
+    if (!result.ok) return { ok: false, code: result.code, message: result.message };
+    this.commit(s, a, result, null);
+    return { ok: true, events: result.events };
   }
 
   /** The bot seat deciding right now (null when none). */
@@ -90,6 +132,12 @@ export class LocalTransport implements Transport {
       this.manifest = [];
     }
     this.state = this.opts.state ?? this.opts.engine.createGame(this.requireConfig(), this.opts.seed ?? randomSeed());
+    for (const [i, a] of (this.opts.prelude ?? []).entries()) {
+      const r = this.opts.engine.applyAction(this.state, a);
+      if (!r.ok) throw new Error(`prelude action ${i} (${a.type}) rejected: ${r.message}`);
+      this.state = r.state;
+      this.applied.push(a);
+    }
     this.setStatus('open');
     this.emit({ t: 'welcome', clientId: 'local', sessionToken: '', serverVersion: 'local', protocol: PROTOCOL_VERSION, room: null });
     if (this.opts.viewer) {
@@ -175,8 +223,8 @@ export class LocalTransport implements Transport {
     }
     // Hot-seat: the device holder acts for the current viewer (like the server's seat overwrite).
     const playerId = this.viewer === 'spectator' ? action.playerId : this.viewer;
-    if (this.isBot(playerId)) {
-      this.emit({ t: 'game.rejected', id, code: 'NOT_SEATED', message: 'A bot plays this seat' });
+    if (this.isBot(playerId) || this.isScripted(playerId)) {
+      this.emit({ t: 'game.rejected', id, code: 'NOT_SEATED', message: this.isBot(playerId) ? 'A bot plays this seat' : 'The lesson plays this seat' });
       return;
     }
     const a = { ...action, playerId } as Action;
@@ -200,6 +248,7 @@ export class LocalTransport implements Transport {
     if (result.undoable) this.undo.push({ state: prev, by: a.playerId, seq: this.seq });
     else this.undo = [];
     this.state = result.state;
+    this.applied.push(a);
     // Events are redacted for spectators: in hot-seat several people read the same log.
     const events = this.redactEvents(result.events, this.opts.handoff ? 'spectator' : this.viewer);
     this.emit({ t: 'game.applied', seq: this.seq, actionId: id, action: a, events, view: this.opts.engine.redactFor(this.state, this.viewer) });
@@ -308,11 +357,16 @@ export class LocalTransport implements Transport {
     let i = this.undo.length - 1;
     while (i >= 0 && this.isBot((this.undo[i] as UndoEntry).by) && (this.undo[i] as UndoEntry).by !== this.viewer) i--;
     const top = this.undo[i];
+    if (this.opts.undo === false) {
+      this.emit({ t: 'error', code: 'BAD_MESSAGE', message: 'Undo is off in lessons' });
+      return;
+    }
     if (!top || expectedSeq !== this.seq || (this.viewer !== 'spectator' && top.by !== this.viewer)) {
       this.emit({ t: 'error', code: 'BAD_MESSAGE', message: 'Nothing to undo' });
       return;
     }
     this.undo = this.undo.slice(0, i);
+    this.applied = this.applied.slice(0, top.seq - (this.seq - this.applied.length));
     this.state = top.state;
     this.botGen++;
     if (this.botTimer) clearTimeout(this.botTimer);

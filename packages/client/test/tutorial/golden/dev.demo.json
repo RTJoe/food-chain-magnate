@@ -1,0 +1,109 @@
+{
+  "lesson": "dev.demo",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "place",
+      "ops": [
+        "setup.placeRestaurant"
+      ]
+    },
+    {
+      "id": "reserve",
+      "ops": [
+        "scripted p2 setup.chooseReserve",
+        "setup.chooseReserve"
+      ]
+    },
+    {
+      "id": "order",
+      "ops": [
+        "order.choosePosition"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "after-dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "setup.placeRestaurant",
+      "playerId": "p1",
+      "x": 3,
+      "y": 3,
+      "entrance": "NW"
+    },
+    {
+      "type": "setup.chooseReserve",
+      "playerId": "p2",
+      "card": {
+        "kind": "standard",
+        "amount": 100,
+        "ceoSlots": 2
+      }
+    },
+    {
+      "type": "setup.chooseReserve",
+      "playerId": "p1",
+      "card": {
+        "kind": "standard",
+        "amount": 200,
+        "ceoSlots": 3
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r1:working"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r1:dinnertime"
+    }
+  ],
+  "outcome": {
+    "seq": 8,
+    "round": 2,
+    "phase": "orderOfBusiness",
+    "cash": {
+      "p1": 0,
+      "p2": 0
+    },
+    "bank": 100
+  }
+}

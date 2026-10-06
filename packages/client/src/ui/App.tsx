@@ -1,4 +1,4 @@
-/** App shell: hash routes (#/, #/room/:id, #/hotseat, #/dev) and global overlays. */
+/** App shell: hash routes (#/, #/room/:id, #/hotseat, #/dev, #/learn) and global overlays. */
 import { useEffect } from 'preact/hooks';
 import { route, navigate } from '../state/router.js';
 import { connection, mode, room, view } from '../state/store.js';
@@ -8,7 +8,10 @@ import { Home } from './Home.js';
 import { Logo } from './icons.js';
 import { DevGallery, HotseatSetup } from './LocalGames.js';
 import { Lobby } from './Lobby.js';
+import { Learn } from './learn/index.js';
 import { Toasts } from './Overlays.js';
+import { WhatsThisLayer } from './glossary/WhatsThis.js';
+import { isRulesHash, RulesRoute } from './rules/RulesRoute.js';
 import { Table } from './Table.js';
 
 let lastRoomId: string | null = null;
@@ -32,12 +35,14 @@ export function App() {
     <>
       <Screen />
       <Toasts />
+      <WhatsThisLayer />
     </>
   );
 }
 
 function Screen() {
   const r = route.value;
+  if (isRulesHash()) return <RulesRoute />;
   switch (r.name) {
     case 'home':
       return <Home />;
@@ -48,6 +53,8 @@ function Screen() {
     }
     case 'hotseat':
       return mode.value === 'hotseat' && view.value ? <Table /> : <HotseatSetup />;
+    case 'learn':
+      return <Learn lesson={r.lesson} />;
     case 'dev':
       return (
         <>

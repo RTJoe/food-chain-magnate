@@ -77,6 +77,17 @@ function enterCleanup(ctx: EngineCtx): void {
   runCleanup(ctx);
 }
 
+/**
+ * Hold point between an automatic phase and the next phase's automatic work (module `afterPhase`
+ * hook; only the tutorial module uses it). True when a module queued a pending choice, which the
+ * loop then waits on. Without such a module this is a no-op.
+ */
+function held(ctx: EngineCtx, finished: PhaseKind): boolean {
+  if (!ctx.state.config.modules.length) return false;
+  lifecycle(ctx, 'afterPhase', finished);
+  return ctx.state.pending.length > 0;
+}
+
 const wait = (ctx: EngineCtx, kind: GameStateAwaitKind, players: PlayerId[]): void => {
   ctx.state.awaiting = { kind, players: [...players] };
 };
@@ -116,6 +127,7 @@ export function runUntilInput(ctx: EngineCtx): void {
         if (allSubmitted(s)) {
           revealStructures(ctx);
           enterOrderOfBusiness(ctx);
+          held(ctx, 'restructuring');
           continue;
         }
         return wait(ctx, 'restructure', awaitingRestructure(s));
@@ -124,6 +136,7 @@ export function runUntilInput(ctx: EngineCtx): void {
         if (normalizeOrder(ctx)) {
           finishOrder(ctx);
           enterWorking(ctx);
+          held(ctx, 'orderOfBusiness');
           continue;
         }
         const who = currentChooser(s);
@@ -134,6 +147,7 @@ export function runUntilInput(ctx: EngineCtx): void {
           let idx = ph.idx;
           while (idx < s.turnOrder.length && (s.players[s.turnOrder[idx] as PlayerId]?.bankrupt ?? true)) idx++;
           if (idx >= s.turnOrder.length) {
+            if (held(ctx, 'working')) continue;
             enterDinnertime(ctx);
             continue;
           }
@@ -150,11 +164,13 @@ export function runUntilInput(ctx: EngineCtx): void {
           runDinnertime(ctx);
           continue;
         }
+        if (held(ctx, 'dinnertime')) continue;
         enterPaydayPhase(ctx);
         continue;
       }
       case 'payday': {
         if (isPaydayComplete(s)) {
+          if (held(ctx, 'payday')) continue;
           enterMarketing(ctx);
           continue;
         }
@@ -170,11 +186,13 @@ export function runUntilInput(ctx: EngineCtx): void {
           runMarketing(ctx);
           continue;
         }
+        if (held(ctx, 'marketing')) continue;
         enterCleanup(ctx);
         continue;
       }
       case 'cleanup': {
         if (!isCleanupComplete(s) && s.awaiting.kind === 'cleanup.freezer') return;
+        if (held(ctx, 'cleanup')) continue;
         startRound(ctx);
         continue;
       }

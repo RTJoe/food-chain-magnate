@@ -181,7 +181,12 @@ export type PendingChoice =
   /** ketchup.md §12 First rural marketeer used: optional freeway. */
   | { id: ChoiceId; kind: 'freeway'; player: PlayerId; optional: true }
   /** ketchup.md §4: coffee shop placement after training a barista, or First coffee sold in Clean up. */
-  | { id: ChoiceId; kind: 'coffeeShop'; player: PlayerId; source: 'training' | 'milestone'; optional: false };
+  | { id: ChoiceId; kind: 'coffeeShop'; player: PlayerId; source: 'training' | 'milestone'; optional: false }
+  /**
+   * Tutorial module only (docs/tutorial-plan.md §4.2): the game is paused after `phase` finished
+   * (`start` = before anything ran). Resolved by `tutorial.continue`. Never occurs in real games.
+   */
+  | { id: ChoiceId; kind: 'continue'; player: PlayerId; phase: PhaseKind | 'start'; optional: false };
 
 export type PendingChoiceKind = PendingChoice['kind'];
 

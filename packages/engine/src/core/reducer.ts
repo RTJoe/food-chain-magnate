@@ -38,8 +38,9 @@ function validateDecline(state: GameState, a: ChoiceDecline): Ok | Rejected {
   return OK;
 }
 
+/** `${moduleId}.${name}` actions of Ketchup (`ketchup:…`) and the internal tutorial module. */
 function isModuleAction(a: Action): boolean {
-  return a.type.includes(':');
+  return a.type.includes(':') || a.type.startsWith('tutorial.');
 }
 
 export function validateAction(state: GameState, action: Action): Ok | Rejected {

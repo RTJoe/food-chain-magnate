@@ -4,6 +4,8 @@ import { milestoneRows } from '../state/selectors.js';
 import { catalog, me, view } from '../state/store.js';
 import { Empty, PlayerBadge, Pill } from './common.js';
 import { Icon } from './icons.js';
+import { milestoneTermId } from './glossary/index.js';
+import { WhatsThis } from './glossary/WhatsThis.js';
 
 export function Milestones() {
   const v = view.value;
@@ -17,10 +19,13 @@ export function Milestones() {
         const d = c.milestones[r.id];
         const mine = me.value ? r.claimedBy.includes(me.value) : false;
         return (
-          <li key={r.id} data-flip={`milestone:${r.id}`} class={`milestone ${r.removed ? 'is-removed' : ''} ${mine ? 'is-mine' : ''} ${r.claimedBy.length ? 'is-claimed' : ''}`}>
+          <li key={r.id} data-flip={`milestone:${r.id}`} data-tutorial={`milestone-${r.id}`} class={`milestone ${r.removed ? 'is-removed' : ''} ${mine ? 'is-mine' : ''} ${r.claimedBy.length ? 'is-claimed' : ''}`}>
             <span class="milestone-icon">{Icon.star({ size: 18 })}</span>
             <span class="milestone-body">
-              <b>{milestoneName(c, r.id)}</b>
+              <b>
+                {milestoneName(c, r.id)}
+                <WhatsThis id={milestoneTermId(r.id)} label={milestoneName(c, r.id)} />
+              </b>
               {d?.text && <span class="small">{d.text}</span>}
               <span class="milestone-meta">
                 {r.claimedBy.map((id) => (

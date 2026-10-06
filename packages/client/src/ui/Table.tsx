@@ -22,6 +22,8 @@ import { PromptPanel } from './PromptPanel.js';
 import { SummaryCard, SummaryLinks } from './Summary.js';
 import { TopBar } from './TopBar.js';
 import { dockTab, menuOpen, sheetOpen, type DockTab } from './uiState.js';
+import { CoachLayer } from '../tutorial/coach/CoachLayer.js';
+import { navigate } from '../state/router.js';
 
 const TABS: { id: DockTab; label: string; icon: IconName }[] = [
   { id: 'turn', label: 'Turn', icon: 'play' },
@@ -81,6 +83,7 @@ export function Table() {
       <GameOverModal />
       <GameMenu />
       <HotseatHandoff />
+      {mode.value === 'tutorial' && <CoachLayer onExit={() => navigate({ name: 'learn', lesson: null })} />}
     </div>
   );
 }
@@ -106,6 +109,7 @@ function Dock() {
             key={t.id}
             type="button"
             role="tab"
+            data-tutorial={`tab-${t.id}`}
             aria-selected={tab === t.id}
             class={`dock-tab ${tab === t.id ? 'is-on' : ''}`}
             onClick={() => {

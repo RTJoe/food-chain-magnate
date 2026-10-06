@@ -16,6 +16,7 @@ import { PlacementFlow } from './flows/index.js';
 import { LegalButton, WorkPanel } from './Work.js';
 import { SeatControl } from './PlayerPanels.js';
 import { BotBadge } from './bots.js';
+import { CoachHints } from './hints/CoachHints.js';
 
 type PlacementLegal = Extract<LegalAction, { kind: 'placement' }>;
 
@@ -37,8 +38,9 @@ export function PromptPanel() {
         </span>
         <h2>{pr.title}</h2>
       </header>
+      <CoachHints />
       <PromptBody view={v} prompt={pr} player={p} />
-      {pr.kind !== 'work' && pr.kind !== 'gameOver' && pr.kind !== 'spectating' && me.value && <UndoRow />}
+      {pr.kind !== 'work' && pr.kind !== 'gameOver' && pr.kind !== 'spectating' && me.value && mode.value !== 'tutorial' && <UndoRow />}
     </div>
   );
 }
@@ -138,7 +140,7 @@ function StillDeciding({ view: v }: { view: GameView }) {
 function UndoRow() {
   return (
     <div class="undo-row">
-      <Button size="sm" variant="ghost" icon="undo" disabled={busyNow()} onClick={() => undo()}>
+      <Button size="sm" variant="ghost" icon="undo" data-tutorial="undo" disabled={busyNow()} onClick={() => undo()}>
         Undo my last action
       </Button>
     </div>
@@ -168,7 +170,7 @@ function FirstRestaurantPanel({ canPass }: { canPass: boolean }) {
       )}
       {canPass && pass && (
         <div class="row gap">
-          <Button variant="ghost" disabled={busyNow()} onClick={() => act(pass.action)}>
+          <Button variant="ghost" data-tutorial="pass-setup" disabled={busyNow()} onClick={() => act(pass.action)}>
             Pass this round
           </Button>
           <span class="muted small">You can place in the second round instead.</span>
@@ -197,6 +199,7 @@ function ReservePanel({ view: v, options }: { view: GameView; options: ReserveCa
               key={i}
               type="button"
               class={`reserve-card ${on ? 'is-on' : ''}`}
+              data-tutorial={`reserve-${o.amount}${o.kind === 'price' ? `-${o.basePrice}` : ''}`}
               aria-pressed={on}
               disabled={busyNow() || !mine}
               onClick={() => mine && act({ type: 'setup.chooseReserve', playerId: mine, card: o })}
@@ -241,6 +244,7 @@ function OrderPanel({ view: v, free }: { view: GameView; free: number[] }) {
               <button
                 type="button"
                 class={`order-slot ${who ? 'is-taken' : ''} ${open ? 'is-open' : ''}`}
+                data-tutorial={`order-pos-${i + 1}`}
                 disabled={!open || busyNow() || !mine}
                 onClick={() => mine && act({ type: 'order.choosePosition', playerId: mine, position: i })}
               >
@@ -278,6 +282,7 @@ function FirePicker({ player: p, selected, onToggle, locked, canPick }: { player
           <EmployeeCard
             key={u}
             id={id}
+            tutorial={`fire-${u}`}
             compact
             selected={on}
             disabled={locked}
@@ -334,6 +339,7 @@ function PaydayPanel({ player: p, owed, mustFire }: { player: PlayerState; owed:
           <Button
             variant={n > 0 ? 'danger' : 'primary'}
             icon={n > 0 ? 'x' : 'check'}
+            data-tutorial="payday-confirm"
             disabled={busyNow() || Boolean(problem)}
             onClick={() => {
               const steps: Action[] = [];
@@ -389,7 +395,7 @@ function FreezerPanel({ player: p, capacity }: { player: PlayerState; capacity: 
         <span class="muted small">
           {total}/{capacity} frozen
         </span>
-        <Button variant="primary" icon="snow" disabled={busyNow()} onClick={() => act({ type: 'cleanup.freezer', playerId: p.id, keep: keep.value })}>
+        <Button variant="primary" icon="snow" data-tutorial="freezer" disabled={busyNow()} onClick={() => act({ type: 'cleanup.freezer', playerId: p.id, keep: keep.value })}>
           {total ? `Freeze ${total}` : 'Throw everything away'}
         </Button>
       </div>
@@ -428,6 +434,21 @@ function ChoicePanel({ player: p, choice }: { player: PlayerState; choice: Pendi
           <span class="muted small">Salaries after: ${after}</span>
           <Button variant="danger" icon="x" disabled={busyNow() || !selected.value.length || Boolean(problem)} onClick={() => act(fire(selected.value))}>
             Fire {selected.value.length}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (choice.kind === 'continue') {
+    // Lessons only (engine tutorial module): the game is paused after an automatic phase.
+    const go = findReady(all, 'tutorial.continue');
+    return (
+      <div class="choice">
+        <p class="muted small">Paused so you can look at what just happened. Continue when you are ready.</p>
+        <div class="row gap end">
+          <Button variant="primary" icon="play" data-tutorial="continue" disabled={busyNow() || !go} onClick={() => go && act(go.action)}>
+            Continue
           </Button>
         </div>
       </div>

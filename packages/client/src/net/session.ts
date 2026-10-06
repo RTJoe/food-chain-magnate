@@ -22,7 +22,7 @@ import {
   type Mode,
 } from '../state/store.js';
 import { forgetRoom, rememberRoom } from '../state/recentGames.js';
-import { LocalTransport } from './localTransport.js';
+import { LocalTransport, type ActResult } from './localTransport.js';
 import { workerBotRunner } from './botRunner.js';
 import { SocketTransport } from './socketTransport.js';
 import type { Transport } from './transport.js';
@@ -169,12 +169,31 @@ export const sendChat = (text: string) => {
 
 // --- Game ------------------------------------------------------------------------
 
+/**
+ * Lessons (docs/tutorial-plan.md §4.2) narrow what the learner may send: the gate returns null to
+ * let an action through or the reason it is not part of this step. The engine stays the only judge
+ * of legality: a gated-in action can still be rejected.
+ */
+export type ActionGate = (action: Action) => string | null;
+let actionGate: { gate: ActionGate; blocked: (reason: string, action: Action) => void } | null = null;
+
+export function setActionGate(gate: ActionGate | null, blocked: (reason: string, action: Action) => void = () => {}): void {
+  actionGate = gate ? { gate, blocked } : null;
+}
+
 /** Sends an action for `me` with the current `expectedSeq`. Returns the action id. */
 export function act(action: Action): string | null {
   const who = me.value;
   if (!who) {
     pushToast('You are spectating', 'error');
     return null;
+  }
+  if (actionGate) {
+    const reason = actionGate.gate({ ...action, playerId: who } as Action);
+    if (reason) {
+      actionGate.blocked(reason, action);
+      return null;
+    }
   }
   const id = `${clientId.value ?? 'c'}-${Date.now().toString(36)}-${(actionCounter++).toString(36)}`;
   const a = { ...action, playerId: who } as Action;
@@ -226,6 +245,46 @@ export function startFixture(engine: EngineApi, state: GameState, viewer: Viewer
   t.connect();
 }
 
+export interface TutorialStart {
+  /** Scenario state (tutorial module already enabled). */
+  state: GameState;
+  /** The learner's seat: the fixed viewer, never handed off. */
+  learner: PlayerId;
+  /** Seats the lesson script moves through `scriptedAct`. */
+  scripted?: PlayerId[];
+  /** Bot seats (Easy bot in a Web Worker). */
+  bots?: Record<PlayerId, BotLevel>;
+  /** Actions to replay before the first snapshot (resume). */
+  prelude?: Action[];
+  botDelay?: number | { min: number; max: number };
+}
+
+/** Lesson game (docs/tutorial-plan.md §4.2): fixed learner view, scripted and bot opponents, no handoffs, no undo. */
+export function startTutorial(engine: EngineApi, opts: TutorialStart): LocalTransport {
+  const bots = opts.bots ?? {};
+  const withBots = Object.keys(bots).length > 0;
+  const t = new LocalTransport({
+    engine,
+    state: opts.state,
+    viewer: opts.learner,
+    handoff: false,
+    undo: false,
+    scripted: opts.scripted ?? [],
+    prelude: opts.prelude ?? [],
+    ...(withBots ? { bots, botRunner: workerBotRunner(), ...(opts.botDelay !== undefined ? { botDelay: opts.botDelay } : {}) } : {}),
+  });
+  attach(t, 'tutorial');
+  localBots.value = { ...bots };
+  t.connect();
+  return t;
+}
+
+/** Tutorial: apply a scripted opponent's move (see `LocalTransport.actFor`). */
+export function scriptedAct(player: PlayerId, action: Action): ActResult {
+  if (!(transport instanceof LocalTransport)) return { ok: false, code: 'NOT_LOCAL', message: 'No local game' };
+  return transport.actFor(player, action);
+}
+
 export function setDevViewer(viewer: Viewer): void {
   if (transport instanceof LocalTransport) transport.setViewer(viewer);
 }
@@ -238,6 +297,7 @@ export function acceptHandoff(): void {
 }
 
 export function endSession(): void {
+  actionGate = null;
   detach();
   resetStore();
   wantRoom = null;

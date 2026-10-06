@@ -96,6 +96,7 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
       class={`ppanel glass ${active ? 'is-active' : ''} ${isMe ? 'is-me' : ''} ${p.bankrupt ? 'is-bankrupt' : ''} ${bot ? 'is-bot' : ''}`}
       style={{ '--pc': p.color }}
       data-flip={`panel:${id}`}
+      data-tutorial={`rail-${id}`}
       onMouseEnter={() => (inspectIds.value = playerPieceIds(v, id))}
       onMouseLeave={() => (inspectIds.value = [])}
     >
@@ -111,7 +112,9 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
             {simultaneous && submitted && <span class="ppanel-ok"> · {Icon.check({ size: 12 })} done</span>}
           </span>
         </span>
-        <RollingCash amount={p.cash} player={id} size="lg" flip={`cash:${id}`} />
+        <span data-tutorial={`cash-${id}`}>
+          <RollingCash amount={p.cash} player={id} size="lg" flip={`cash:${id}`} />
+        </span>
       </button>
       <div class="ppanel-stats">
         <span title="Employees at work / owned">

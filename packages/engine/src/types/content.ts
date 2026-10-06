@@ -39,7 +39,9 @@ export type ModuleId =
   | 'ketchup:reservePrices' // §14
   | 'ketchup:movieStars' // §15
   | 'ketchup:hardChoices' // §16 — base milestones only
-  | 'ketchup:sixPlayers'; // §17 — requires newDistricts
+  | 'ketchup:sixPlayers' // §17 — requires newDistricts
+  /** Interactive tutorial only (docs/tutorial-plan.md §4.2): pauses after automatic phases. Never offered in lobbies. */
+  | 'tutorial';
 
 // ---------------------------------------------------------------------------
 // Foods

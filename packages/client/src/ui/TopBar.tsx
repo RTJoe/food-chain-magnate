@@ -4,6 +4,9 @@ import { connection, mode, view } from '../state/store.js';
 import { IconButton, PlayerBadge } from './common.js';
 import { MotionLayer, RollingCash } from './motion.js';
 import { Icon, Logo } from './icons.js';
+import { phaseTermId } from './glossary/index.js';
+import { WhatsThis, whatsThisKeys } from './glossary/WhatsThis.js';
+import { whatsThis } from './glossary/api.js';
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const v = view.value;
@@ -36,13 +39,24 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
 function PhaseStepper({ view: v, idx, setup }: { view: GameView; idx: number; setup: boolean }) {
   return (
     <nav class="phases" aria-label="Phases">
-      <span class="phase-current">{phaseLabel(v.phase)}</span>
+      <span class="phase-current">
+        {phaseLabel(v.phase)}
+        <WhatsThis id={phaseTermId(v.phase.kind)} class="phase-wt wt-btn-light" />
+      </span>
       {setup ? (
         <span class="phase-setup">{Icon.flag({ size: 16 })} Setup</span>
       ) : (
         <ol class="phase-steps">
           {PHASE_STEPS.map((s, i) => (
-            <li key={s.label} class={i < idx ? 'is-done' : i === idx ? 'is-now' : ''} aria-current={i === idx ? 'step' : undefined} title={s.label}>
+            <li
+              key={s.label}
+              class={`is-wt ${i < idx ? 'is-done' : i === idx ? 'is-now' : ''}`}
+              aria-current={i === idx ? 'step' : undefined}
+              title={`${s.label}: what’s this?`}
+              tabIndex={0}
+              onClick={(e) => whatsThis(phaseTermId(s.kinds[0]!), e.currentTarget)}
+              {...whatsThisKeys(phaseTermId(s.kinds[0]!))}
+            >
               {Icon[s.icon]({ size: 16 })}
               <span class="phase-name">{s.short}</span>
             </li>
@@ -56,7 +70,15 @@ function PhaseStepper({ view: v, idx, setup }: { view: GameView; idx: number; se
 function BankChip({ view: v }: { view: GameView }) {
   const b = v.bank;
   return (
-    <div class={`bank ${b.breaks > 0 ? 'is-broken' : ''}`} data-flip="bank" title={`Bank: $${b.cash}${b.reserveOpened ? ' (reserve opened)' : ''}`}>
+    <div
+      class={`bank is-wt ${b.breaks > 0 ? 'is-broken' : ''}`}
+      data-tutorial="bank"
+      data-flip="bank"
+      title={`Bank: $${b.cash}${b.reserveOpened ? ' (reserve opened)' : ''}. What’s a bank break?`}
+      tabIndex={0}
+      onClick={(e) => whatsThis('bank_break', e.currentTarget)}
+      {...whatsThisKeys('bank_break')}
+    >
       {Icon.bank({ size: 18 })}
       <RollingCash amount={b.cash} />
       <span class="bank-breaks" aria-label={`${b.breaks} of 2 bank breaks`}>

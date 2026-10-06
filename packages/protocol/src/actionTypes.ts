@@ -36,7 +36,9 @@ export const ACTION_TYPES = [
   'ketchup:newMilestones.placeSecondCampaign',
 ] as const satisfies readonly ActionType[];
 
-type Missing = Exclude<ActionType, (typeof ACTION_TYPES)[number]>;
+/** Local-only actions (the in-process tutorial, docs/tutorial-plan.md §4.2): never accepted over the wire. */
+type LocalOnly = 'tutorial.continue';
+type Missing = Exclude<ActionType, (typeof ACTION_TYPES)[number] | LocalOnly>;
 /** Compile-time exhaustiveness check: errors if `Missing` is not `never`. */
 export const ACTION_TYPES_EXHAUSTIVE: [Missing] extends [never] ? true : Missing = true;
 

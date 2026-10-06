@@ -61,7 +61,7 @@ function SummaryStrip({ view: v, summary: s }: { view: GameView; summary: PhaseS
     [],
   );
   return (
-    <div class="summary-card summary-strip glass" role="dialog" aria-label={TITLES[s.phase]}>
+    <div class="summary-card summary-strip glass" role="dialog" aria-label={TITLES[s.phase]} data-tutorial="summary">
       <header class="summary-head sx-head">
         <h3>
           {TITLES[s.phase] ?? s.phase} <span class="eyebrow">Round {s.round}</span>
@@ -145,7 +145,9 @@ function Stepper<T>({ steps, idx, go, label, chip, start }: { steps: T[]; idx: n
         )}
         <IconButton icon="chevronRight" label="Next" disabled={n === 0} onClick={() => go(idx >= n - 1 ? 0 : idx + 1)} />
       </div>
-      <div class="sx-chips">{steps.map((s, i) => chip(s, i === idx, i))}</div>
+      <div class="sx-chips" data-tutorial="summary-steps">
+        {steps.map((s, i) => chip(s, i === idx, i))}
+      </div>
     </div>
   );
 }
@@ -192,7 +194,7 @@ function ReplayButtons({ replay, from, label }: { replay: ReturnType<typeof useR
   if (boardRenderer.value !== '3d') return null;
   return (
     <div class="sx-replay row">
-      <Button size="sm" variant="secondary" icon="play" onClick={() => replay.start(null)}>
+      <Button size="sm" variant="secondary" icon="play" data-tutorial="watch-again" onClick={() => replay.start(null)}>
         Watch again
       </Button>
       {from && (

@@ -1,11 +1,13 @@
-/** Hash router: #/ (home), #/room/:id, #/hotseat, #/dev[/:fixture[/:viewer]]. */
+/** Hash router: #/ (home), #/room/:id, #/hotseat, #/dev[/:fixture[/:viewer]], #/learn[/:lessonId]. */
 import { signal } from '@preact/signals';
 
 export type Route =
   | { name: 'home' }
   | { name: 'room'; id: string }
   | { name: 'hotseat' }
-  | { name: 'dev'; fixture: string | null; viewer: string | null };
+  | { name: 'dev'; fixture: string | null; viewer: string | null }
+  /** Learn hub (lesson null) or a lesson being played (docs/tutorial-plan.md §4.5). */
+  | { name: 'learn'; lesson: string | null };
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
@@ -13,6 +15,7 @@ export function parseRoute(hash: string): Route {
   if (head === 'room' && a) return { name: 'room', id: a.toUpperCase() };
   if (head === 'hotseat') return { name: 'hotseat' };
   if (head === 'dev') return { name: 'dev', fixture: a ?? null, viewer: b ?? null };
+  if (head === 'learn') return { name: 'learn', lesson: a ?? null };
   return { name: 'home' };
 }
 
@@ -26,6 +29,8 @@ export function routeHash(r: Route): string {
       return '#/hotseat';
     case 'dev':
       return ['#/dev', r.fixture, r.fixture ? r.viewer : null].filter(Boolean).join('/');
+    case 'learn':
+      return r.lesson ? `#/learn/${encodeURIComponent(r.lesson)}` : '#/learn';
   }
 }
 
