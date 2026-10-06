@@ -247,6 +247,97 @@ export function chainHouseDistance(board: Board, playerId: PlayerId, house: Pick
 }
 
 // ---------------------------------------------------------------------------
+// Shortest routes (delivery paths for animation; same costs as the distance fields)
+// ---------------------------------------------------------------------------
+
+/** Route starts grouped by their `RouteStart` (one per usable corner / coffee shop). */
+export interface RouteSearchStart {
+  from: RouteStart;
+  roads: RoadStart[];
+}
+
+/**
+ * Shortest road route from any start to any target road square: fewest borders (stepCost, so
+ * roadworks count) then fewest squares. `targets` maps a road square's index (cellIndex) to an
+ * extra cost paid on arrival (house square on another tile). Same moves as `distanceField`
+ * (bridges, capped sides), so `cost` equals the distance the field reports. Deterministic.
+ */
+export function shortestRoute(board: Board, starts: RouteSearchStart[], targets: ReadonlyMap<number, number>): { from: RouteStart; path: Cell[]; cost: number } | null {
+  if (!targets.size) return null;
+  const n = board.w * board.h * 5;
+  // Lexicographic (borders, squares) with a two-level bucket queue: queue[borders][squares] = states.
+  const bestC = new Int32Array(n).fill(0x3fffffff);
+  const bestS = new Int32Array(n).fill(0x3fffffff);
+  const prev = new Int32Array(n).fill(-1);
+  const origin = new Int32Array(n);
+  const queue: number[][][] = [];
+  const better = (st: number, c: number, k: number) => c < (bestC[st] as number) || (c === bestC[st] && k < (bestS[st] as number));
+  const push = (st: number, c: number, k: number, from: number, start: number) => {
+    if (st < 0 || st >= n || !better(st, c, k)) return;
+    bestC[st] = c;
+    bestS[st] = k;
+    prev[st] = from;
+    origin[st] = start;
+    ((queue[c] ??= [])[k] ??= []).push(st);
+  };
+  starts.forEach((st, si) => {
+    for (const r of st.roads) if (roadAt(board, r.cell)) push(cellIndex(board, r.cell) * 5 + NO_HEADING, r.cost, 1, -1, si);
+  });
+  let found: { state: number; c: number; k: number } | null = null;
+  for (let c = 0; c < queue.length; c++) {
+    if (found && c >= found.c) break;
+    const level = queue[c];
+    if (!level) continue;
+    for (let k = 0; k < level.length; k++) {
+      const bucket = level[k];
+      if (!bucket) continue;
+      for (let i = 0; i < bucket.length; i++) {
+        const state = bucket[i] as number;
+        if (bestC[state] !== c || bestS[state] !== k) continue;
+        const ci = Math.floor(state / 5);
+        const extra = targets.get(ci);
+        if (extra !== undefined && (!found || c + extra < found.c || (c + extra === found.c && k < found.k))) found = { state, c: c + extra, k };
+        const here = cellFromIndex(board, ci);
+        const hi = state % 5;
+        const heading = hi === NO_HEADING ? null : (DIRECTIONS[hi] as Direction);
+        for (const d of DIRECTIONS) {
+          const to = canStep(board, here, heading, d);
+          if (!to) continue;
+          push(cellIndex(board, to) * 5 + DIR_INDEX[d], c + stepCost(board, here, to), k + 1, state, origin[state] as number);
+        }
+      }
+    }
+  }
+  if (!found) return null;
+  const path: Cell[] = [];
+  for (let st = found.state; st >= 0; st = prev[st] as number) path.unshift(cellFromIndex(board, Math.floor(st / 5)));
+  const start = starts[origin[found.state] as number] as RouteSearchStart;
+  return { from: start.from, path, cost: found.c };
+}
+
+/** Search starts for every usable corner of a restaurant. */
+export function restaurantRouteStarts(board: Board, r: Restaurant): RouteSearchStart[] {
+  return restaurantCorners(r).map((corner) => ({ from: { kind: 'restaurant', restaurantId: r.id, corner }, roads: cornerStarts(board, r, corner) }));
+}
+
+/**
+ * The delivery route behind `restaurantHouseDistance`: from the restaurant's entrance (or the best
+ * drive-in corner) to a road square next to the house or its garden. Null if not connected.
+ */
+export function restaurantHouseRoute(board: Board, restaurant: Restaurant, house: Pick<House, 'cells' | 'garden'>): { from: RouteStart; path: Cell[]; cost: number } | null {
+  const targets = new Map<number, number>();
+  for (const t of houseSquares(house))
+    for (const d of DIRECTIONS) {
+      const r = step(t, d);
+      if (!roadAt(board, r)) continue;
+      const extra = tileOf(board, r) !== tileOf(board, t) ? 1 : 0;
+      const i = cellIndex(board, r);
+      if (extra < (targets.get(i) ?? Infinity)) targets.set(i, extra);
+    }
+  return shortestRoute(board, restaurantRouteStarts(board, restaurant), targets);
+}
+
+// ---------------------------------------------------------------------------
 // Drink buyers (base.md §6.5)
 // ---------------------------------------------------------------------------
 

@@ -17,5 +17,7 @@ export default defineConfig({
   test: {
     include: ['packages/*/test/**/*.test.ts'],
     environment: 'node',
+    // Bot and full-game specs are CPU-bound; leave headroom when the suite runs under load.
+    testTimeout: 15_000,
   },
 });

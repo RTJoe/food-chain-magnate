@@ -3,7 +3,8 @@
  * (architecture §3.4). Events never carry information the viewer may not see after
  * `redactEvents`: secret payloads are optional and stripped for other viewers.
  */
-import type { CampaignKind, EmployeeId, FoodId, MilestoneId, Rotation, TileTemplateId } from './content.js';
+import type { CampaignKind, Direction, EmployeeId, FoodId, MilestoneId, Rotation, TileTemplateId } from './content.js';
+import type { BuyerRoute, RouteStart } from './actions.js';
 import type {
   Campaign,
   CampaignId,
@@ -29,6 +30,18 @@ import type {
 
 interface E<T extends string> {
   type: T;
+}
+
+/**
+ * The road a delivery took (animation): from the winning restaurant's entrance (`from`) along road
+ * squares (`path`, the first one next to the start) to a road square next to the house. Its tile
+ * borders (plus roadworks) equal the sale's `distance`. Ketchup rural area: `path` ends on the
+ * freeway's road square and `exit` names the board edge the van leaves by.
+ */
+export interface SaleRoute {
+  from: RouteStart;
+  path: Cell[];
+  exit?: { cell: Cell; side: Direction };
 }
 
 /** One line of a sale's income (base.md §7 "Selling"). */
@@ -95,14 +108,19 @@ export type GameEvent =
   | (E<'drinksBought'> & {
       player: PlayerId;
       uid: Uid;
+      /** Road squares of a road route (kept for logs); empty for errand / air / milestone hauls. */
       path: Cell[];
       collected: { sourceId: SourceId | null; drink: FoodId; count: number }[];
+      /** The buyer's route as played (start, road path or air tiles). Absent on milestone hauls. */
+      route?: BuyerRoute;
+      /** Why drinks arrived without a buyer route (milestone id), e.g. Ketchup new milestones. */
+      reason?: string;
     })
   | (E<'foodDiscarded'> & { player: PlayerId; goods: FoodCounts })
   | (E<'foodFrozen'> & { player: PlayerId; goods: FoodCounts })
   // --- Board --------------------------------------------------------------
   | (E<'restaurantPlaced'> & { player: PlayerId; restaurantId: RestaurantId; x: number; y: number; entrance: Corner; comingSoon: boolean })
-  | (E<'restaurantMoved'> & { player: PlayerId; restaurantId: RestaurantId; x: number; y: number; entrance: Corner })
+  | (E<'restaurantMoved'> & { player: PlayerId; restaurantId: RestaurantId; x: number; y: number; entrance: Corner; from?: { x: number; y: number; entrance: Corner } })
   | (E<'restaurantOpened'> & { restaurantId: RestaurantId })
   /** base.md §6.3a: drive-in signs placed on these open restaurants (Working step 3c). */
   | (E<'driveInsOpened'> & { player: PlayerId; restaurantIds: RestaurantId[] })
@@ -110,7 +128,7 @@ export type GameEvent =
   | (E<'gardenAdded'> & { player: PlayerId; houseId: HouseId; cells: Cell[] })
   | (E<'campaignPlaced'> & { player: PlayerId; campaign: Campaign })
   | (E<'entityPlaced'> & { player: PlayerId | null; entity: ModuleEntity })
-  | (E<'entityRemoved'> & { entityId: EntityId })
+  | (E<'entityRemoved'> & { entityId: EntityId; kind?: ModuleEntity['kind'] })
   | (E<'mapTileAdded'> & { player: PlayerId; templateId: TileTemplateId; row: number; col: number; rotation: Rotation })
   // --- Dinnertime (base.md §7) --------------------------------------------
   /** `candidates`: chains that can deliver. `offers`: every connected chain, ranked, with `canSupply`. */
@@ -127,6 +145,8 @@ export type GameEvent =
       total: number;
       /** Every chain that could deliver, ranked best first (the winner is first). */
       candidates?: SaleCandidate[];
+      /** The delivery's road route (animation). Absent when no road connects (module overrides). */
+      route?: SaleRoute;
     })
   /** ketchup.md §4: coffee sold en route. */
   | (E<'coffeeSold'> & { houseId: HouseId; player: PlayerId; at: RestaurantId | EntityId; amount: number })
@@ -139,7 +159,8 @@ export type GameEvent =
   | (E<'salaryPaid'> & { player: PlayerId; gross: number; discounts: number; paid: number; tokens?: FoodCounts })
   | (E<'bankBurned'> & { player: PlayerId; amount: number })
   // --- Marketing (base.md §9) ---------------------------------------------
-  | (E<'campaignRan'> & { campaignId: CampaignId; pass: number })
+  /** `reached`: houses in reach (run order); `full`: the reached houses that took no demand. */
+  | (E<'campaignRan'> & { campaignId: CampaignId; pass: number; reached?: HouseId[]; full?: HouseId[] })
   | (E<'demandPlaced'> & { campaignId: CampaignId | null; houseId: HouseId; tokens: DemandToken[] })
   | (E<'marketingIncome'> & { player: PlayerId; campaignId: CampaignId; amount: number })
   | (E<'campaignTicked'> & { campaignId: CampaignId; remaining: number })

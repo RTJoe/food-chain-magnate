@@ -11,6 +11,7 @@ import { highContrastTiles, type RouteRibbon } from '../src/state/boardOverlays.
 import { houseCapacity } from '../src/three/reconcile.js';
 import { playerColor } from '../src/three/layout.js';
 import { startRoads } from '../src/three/overlays/fallback.js';
+import { mountVehicleGallery } from './vehicles.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -291,6 +292,7 @@ $('panels').onclick = () => {
 };
 
 load(sel.value as FixtureName);
+mountVehicleGallery(scene, () => view, $('vehicles'), say);
 setInterval(() => {
   const s = scene.stats();
   info.dataset.stats = JSON.stringify(s);

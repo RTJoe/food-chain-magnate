@@ -12,7 +12,7 @@
  * - "First errand boy played": +1 per supplier (errand boys get 2). "First cart operator played":
  *   road/air buyers +1 range (DLX p34). Ketchup per-card overrides via `buyerPerSourceOverride`.
  */
-import type { WorkBuyDrinks } from '../../types/actions.js';
+import type { BuyerRoute, WorkBuyDrinks } from '../../types/actions.js';
 import type { DrinkId, EmployeeDef } from '../../types/content.js';
 import type { GameState, PlayerId, SourceId } from '../../types/state.js';
 import type { EngineCtx } from '../../core/context.js';
@@ -79,6 +79,13 @@ export function validateBuyDrinks(s: GameState, a: WorkBuyDrinks): Check {
   return typeof haul === 'string' ? reject('ILLEGAL_ROUTE', haul) : OK;
 }
 
+/** A plain copy of the played route (actions may carry extra keys from clients). */
+function cloneRoute(r: WorkBuyDrinks['route']): BuyerRoute {
+  if (r.mode === 'errand') return { mode: 'errand', drink: r.drink };
+  if (r.mode === 'road') return { mode: 'road', from: { ...r.from }, path: r.path.map((c) => ({ x: c.x, y: c.y })) };
+  return { mode: 'air', from: { ...r.from }, tiles: r.tiles.map((t) => ({ row: t.row, col: t.col })) };
+}
+
 export function applyBuyDrinks(ctx: EngineCtx, a: WorkBuyDrinks): void {
   const s = ctx.state;
   const p = s.players[a.playerId];
@@ -91,5 +98,5 @@ export function applyBuyDrinks(ctx: EngineCtx, a: WorkBuyDrinks): void {
   for (const h of haul) p.inventory[h.drink] = (p.inventory[h.drink] ?? 0) + h.count;
   spend(ctx, a.cardUid);
   const path = a.route.mode === 'road' ? a.route.path.map((c) => ({ x: c.x, y: c.y })) : [];
-  ctx.emit({ type: 'drinksBought', player: a.playerId, uid: a.cardUid, path, collected: haul.map((h) => ({ ...h })) });
+  ctx.emit({ type: 'drinksBought', player: a.playerId, uid: a.cardUid, path, collected: haul.map((h) => ({ ...h })), route: cloneRoute(a.route) });
 }

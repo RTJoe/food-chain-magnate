@@ -119,6 +119,32 @@ describe('reach (base.md §9)', () => {
   });
 });
 
+describe('campaignRan reach (animation)', () => {
+  it('names every house in reach and the full ones, before the demandPlaced events', () => {
+    let b = base().demand(2, ['beer', 'beer', 'beer']);
+    b = camp(b, { id: 'c', kind: 'airplane', number: 4, goods: ['burger'], placement: plane(3), remaining: 3 });
+    const ctx = market(b);
+    const run = ctx.of('campaignRan')[0]!;
+    expect(run.full).toEqual(run.reached);
+    expect(run.reached?.length).toBeGreaterThan(0);
+    const types = ctx.events.map((e) => e.type);
+    expect(types.indexOf('campaignRan')).toBeLessThan(types.indexOf('campaignTicked'));
+  });
+
+  it('full lists only reached houses that took nothing; demandPlaced follows in reach order', () => {
+    let b = base().demand(10, ['beer', 'beer', 'beer']);
+    b = camp(b, { id: 'c', kind: 'airplane', number: 4, goods: ['burger'], placement: plane(5), remaining: 3 });
+    const ctx = market(b);
+    const run = ctx.of('campaignRan')[0]!;
+    const got = ctx.of('demandPlaced').map((e) => e.houseId);
+    const h10 = Object.values(ctx.state.board.houses).find((h) => h.order === 10)!.id;
+    expect(run.full).toEqual([h10]);
+    expect(got.every((h) => run.reached!.includes(h) && !run.full!.includes(h))).toBe(true);
+    expect([...got, ...run.full!].sort()).toEqual([...run.reached!].sort());
+    expect(got).toEqual(run.reached!.filter((h) => !run.full!.includes(h)));
+  });
+});
+
 describe('duration and expiry (base.md §9 "After each campaign runs")', () => {
   it('one counter comes off after each run, even when the campaign placed nothing', () => {
     let b = base().demand(2, ['beer', 'beer', 'beer']);

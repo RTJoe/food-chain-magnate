@@ -12,18 +12,18 @@
  * earned this Dinnertime, rounded up. Bank breaks are handled as payments happen (bank.ts); the
  * game ends here after the last break.
  *
- * Module pipelines: unitPrice (pricing.ts), houseDistance, dinnerCandidates, saleRevenue, tips.
+ * Module pipelines: unitPrice (pricing.ts), houseDistance, dinnerCandidates, saleRevenue, saleRoute, tips.
  */
 import type { MilestoneDef } from '../types/content.js';
 import type { DinnerCandidate, HookContext, SaleBreakdown } from '../types/module.js';
-import type { SaleCandidate } from '../types/events.js';
+import type { SaleCandidate, SaleRoute } from '../types/events.js';
 import type { FoodCounts, FoodId, GameState, House, PlayerId, PlayerState } from '../types/index.js';
 import { FOODS } from '../content/foods.js';
 import { BASE_MILESTONES } from '../content/milestones.js';
 import { endGameIfBankBroken, payFromBank, payToBank } from './bank.js';
 import { checkCashMilestones, checkStartOfDinnertime } from './milestones.js';
 import { defsAtWork, hasMilestone, hasMilestoneBefore, runPipeline, unitPrice } from './pricing.js';
-import { chainHouseDistance } from '../map/pathfinding.js';
+import { chainHouseDistance, restaurantHouseRoute } from '../map/pathfinding.js';
 
 /** Phase 4: resolve all sales, CFO, bank payouts; may end the game. Emits events via ctx.emit. */
 export function runDinnertime(ctx: HookContext): void {
@@ -172,6 +172,7 @@ function resolveHouse(ctx: HookContext, house: House): void {
   const p = s.players[winner.player] as PlayerState;
 
   const bd = runPipeline(ctx, 'saleRevenue', baseRevenue(ctx, house, winner), { house, candidate: winner });
+  const route = saleRoute(ctx, house, winner);
   takeFromStock(p, winner.items);
   // The demand is removed after the `sale` event so module hooks can see who created it (Ketchup §8).
   ctx.emit({
@@ -185,12 +186,22 @@ function resolveHouse(ctx: HookContext, house: House): void {
     bonuses: bd.bonuses,
     total: bd.total,
     candidates: offers.filter((o) => o.canSupply),
+    ...(route ? { route } : {}),
   });
   house.demand = [];
   p.earningsThisRound += bd.total;
   if (bd.total >= 0) payFromBank(ctx, winner.player, bd.total, `sale to house ${house.label}`);
   else payToBank(ctx, winner.player, -bd.total, `sale to house ${house.label}`);
   checkCashMilestones(ctx, winner.player);
+}
+
+/** The road the delivery takes (animation): the winner's shortest route, modules may override (rural area). */
+function saleRoute(ctx: HookContext, house: House, winner: DinnerCandidate): SaleRoute | null {
+  const s = ctx.state;
+  const r = s.board.restaurants[winner.restaurantId];
+  const found = r && house.cells.length ? restaurantHouseRoute(s.board, r, house) : null;
+  const base: SaleRoute | null = found ? { from: found.from, path: found.path } : null;
+  return runPipeline(ctx, 'saleRoute', base, { player: winner.player, restaurantId: winner.restaurantId, house });
 }
 
 const isDrink = (g: FoodId) => FOODS.find((f) => f.id === g)?.category === 'drink';

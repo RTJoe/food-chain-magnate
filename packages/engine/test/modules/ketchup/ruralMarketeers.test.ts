@@ -267,6 +267,15 @@ describe('Rural Marketeers - Dinnertime (ketchup.md §12, Q-K7)', () => {
     expect(ruralHouse(ctx.state)?.demand).toHaveLength(0);
   });
 
+  it('animation: a rural sale routes to the nearest freeway square and exits by its board edge', () => {
+    const ctx = scene([fw('f1', 'N', 12), fw('f2', 'N', 7)]);
+    const [sale] = ctx.of('sale');
+    const r = sale!.route!;
+    expect(r.exit).toMatchObject({ side: 'N', cell: r.path[r.path.length - 1] });
+    expect(r.exit!.cell.x).toBe(7);
+    expect(r.from).toMatchObject({ kind: 'restaurant', restaurantId: sale!.restaurantId });
+  });
+
   it('§12 / Q-K7: a farther freeway adds tile borders crossed; the nearest freeway counts', () => {
     expect(scene([fw('f1', 'N', 12)]).of('sale')[0]).toMatchObject({ distance: 2 });
     expect(scene([fw('f1', 'N', 12), fw('f2', 'N', 7)]).of('sale')[0]).toMatchObject({ distance: 1 });

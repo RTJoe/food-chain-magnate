@@ -53,8 +53,10 @@ export function baseDemandCapacity(house: House): number | null {
 
 function runCampaign(ctx: HookContext, camp: Campaign, pass: number): void {
   const s = ctx.state;
-  ctx.emit({ type: 'campaignRan', campaignId: camp.id, pass });
+  // Work out every house's tokens first so `campaignRan` can name the reach and the full houses
+  // (animation, late joiners); state changes and `demandPlaced` follow in the same order as before.
   const reached = runPipeline(ctx, 'campaignReach', campaignReach(s.board, camp), { campaign: camp });
+  const drops: { house: House; tokens: DemandToken[] }[] = [];
   for (const houseId of reached) {
     const house = s.board.houses[houseId];
     if (!house) continue;
@@ -62,16 +64,24 @@ function runCampaign(ctx: HookContext, camp: Campaign, pass: number): void {
     // First Radio Campaign: the owner's radios place 2 per house (DLX p35).
     const base = camp.kind === 'radio' && hasMilestone(s, camp.owner, 'first_radio') ? 2 : 1;
     const amount = runPipeline(ctx, 'demandAmount', base, { house, campaign: camp });
-    const placed: DemandToken[] = [];
+    const tokens: DemandToken[] = [];
+    let size = house.demand.length + drops.filter((d) => d.house === house).reduce((n, d) => n + d.tokens.length, 0);
     for (const good of camp.goods) {
       for (let k = 0; k < amount; k++) {
-        if (cap !== null && house.demand.length >= cap) break;
-        const token: DemandToken = { good, by: camp.source === 'marketeer' ? camp.owner : null, campaign: camp.id };
-        house.demand.push(token);
-        placed.push({ ...token });
+        if (cap !== null && size >= cap) break;
+        tokens.push({ good, by: camp.source === 'marketeer' ? camp.owner : null, campaign: camp.id });
+        size++;
       }
     }
-    if (placed.length) ctx.emit({ type: 'demandPlaced', campaignId: camp.id, houseId, tokens: placed });
+    drops.push({ house, tokens });
+  }
+  const houses = drops.map((d) => d.house.id);
+  const full = drops.filter((d) => !d.tokens.length).map((d) => d.house.id);
+  ctx.emit({ type: 'campaignRan', campaignId: camp.id, pass, reached: houses, full });
+  for (const { house, tokens } of drops) {
+    if (!tokens.length) continue;
+    house.demand.push(...tokens);
+    ctx.emit({ type: 'demandPlaced', campaignId: camp.id, houseId: house.id, tokens: tokens.map((t) => ({ ...t })) });
   }
 }
 

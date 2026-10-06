@@ -21,7 +21,7 @@ import type {
   TileTemplateId,
 } from './content.js';
 import type { Action, Ok, Rejected, RouteStart } from './actions.js';
-import type { GameEvent } from './events.js';
+import type { GameEvent, SaleRoute } from './events.js';
 import type {
   Campaign,
   CampaignPlacement,
@@ -197,6 +197,8 @@ export interface Hooks {
   legalActions: PipelineHook<LegalAction[], { player: PlayerId }>;
   /** Nearest connected OPEN restaurant of a chain for a house (rural area via freeways, ketchup.md §12). */
   houseDistance: PipelineHook<{ restaurantId: RestaurantId; distance: number } | null, { player: PlayerId; house: House }>;
+  /** The delivery route a sale shows (animation): base = the restaurant's shortest road route; the rural area routes via a freeway. */
+  saleRoute: PipelineHook<SaleRoute | null, { player: PlayerId; restaurantId: RestaurantId; house: House }>;
   /** Placement problem for a campaign (null = legal). Modules decide their own campaign kinds (giant billboard, gourmet guide). */
   campaignPlacementProblem: PipelineHook<
     string | null,

@@ -371,7 +371,7 @@ export const LOBBYISTS_MODULE: GameModule = {
           const road = cellAt(s.board, e)?.road;
           if (road) road.roadworks = Math.max(0, road.roadworks - 1);
           delete s.board.entities[e.id];
-          ctx.emit({ type: 'entityRemoved', entityId: e.id });
+          ctx.emit({ type: 'entityRemoved', entityId: e.id, kind: e.kind });
         } else if (e.kind === 'lobbyistRoad' && e.underConstruction) {
           e.underConstruction = false;
           for (const c of e.cells) {

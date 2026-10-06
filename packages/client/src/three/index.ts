@@ -16,7 +16,8 @@ import { CameraController } from './camera.js';
 import { Interaction, type HoverInfo } from './interaction.js';
 import { Reconciler } from './reconcile.js';
 import { guessTier, Stage, type Tier } from './scene.js';
-import { contentRect, frameRect, hasRural } from './layout.js';
+import { chainMark, contentRect, frameRect, hasRural, playerColor } from './layout.js';
+import { setActorMarks } from './minis/vehiclesActors.js';
 
 /** The parts of the client store the scene reads. The store module satisfies this. */
 export interface SceneStore {
@@ -56,7 +57,19 @@ export interface SceneHandle extends BoardBridge {
   project(x: number, z: number, y?: number): { x: number; y: number };
   dispose(): void;
   /** Dev/test access to internals (playground, e2e). */
-  readonly internals: { stage: Stage; rec: Reconciler; cam: CameraController; inter: Interaction; overlays: OverlayLayer };
+  readonly internals: { stage: Stage; rec: Reconciler; cam: CameraController; inter: Interaction; overlays: OverlayLayer; anim: Animator; timeline: TimelineHandle };
+}
+
+/** The running animation timeline, for tests (`window.__fcmBoard.internals.timeline`). */
+export interface TimelineHandle {
+  readonly active: boolean;
+  /** Planned length of the running timeline (s at 1×), 0 when idle. */
+  readonly length: number;
+  /** Current time of the running timeline (s at 1×). */
+  readonly time: number;
+  finish(): void;
+  pause(): void;
+  resume(): void;
 }
 
 export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHandle {
@@ -65,11 +78,32 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
   const rec = new Reconciler(stage);
   if (opts.grid) rec.setGrid(true);
   const anim = new Animator(stage, rec);
+  // e2e waits on data-anim="idle" before asserting.
+  const canvas = stage.renderer.domElement;
+  canvas.dataset.anim = 'idle';
+  anim.onActive = (on) => {
+    canvas.dataset.anim = on ? 'playing' : 'idle';
+  };
+  const timeline: TimelineHandle = {
+    get active() {
+      return anim.active;
+    },
+    get length() {
+      return anim.timeline?.length ?? 0;
+    },
+    get time() {
+      return anim.timeline?.time ?? 0;
+    },
+    finish: () => anim.finish(),
+    pause: () => anim.timeline?.pause(),
+    resume: () => anim.timeline?.resume(),
+  };
   const inter = new Interaction(stage, cam, rec);
   const overlays = new OverlayLayer(stage, rec);
   inter.routeAt = (p) => overlays.pickRoute(cam.rayAt(p.x, p.y));
   let boardKey = '';
   let lastView: GameView | null = null;
+  let vanColors = '';
   let inset: BoardInset = boardInset.peek() ?? { left: 0, right: 0, top: 0, bottom: 0 };
   const TOP_FROM = 70 * (Math.PI / 180);
   const seamStyle = () => {
@@ -129,7 +163,9 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
   );
   disposers.push(
     effect(() => {
-      stage.tweens.speed = reducedMotion() ? 0 : Math.max(0, animationSpeed.value);
+      // Reduced motion (or speed 0) still runs the clock at 1×: reduced plans hold captions per step.
+      const s = animationSpeed.value;
+      stage.tweens.speed = reducedMotion() || s <= 0 ? 1 : s;
     }),
   );
   let firstSkip = true;
@@ -166,9 +202,12 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
   );
 
   const handle: SceneHandle = {
-    setView(view: GameView | null, _me: PlayerId | null, events: readonly GameEvent[]) {
+    setView(view: GameView | null, me: PlayerId | null, events: readonly GameEvent[]) {
       const b = view?.board;
+      const prevView = lastView;
       lastView = view;
+      // Snapshot / handoff / reconnect: nothing to animate; whatever runs jumps to its end first.
+      if (!events.length && view !== prevView) anim.finish();
       const air = b ? [...new Set(Object.values(b.campaigns).flatMap((c) => (c.placement.kind === 'airplane' ? [c.placement.side] : [])))].sort().join('') : '';
       const key = b ? `${b.w}x${b.h}:${b.tiles.map((t) => t.id).join(',')}:${hasRural(b)}:${air}` : '';
       const res = rec.sync(view, events.length > 0);
@@ -178,7 +217,16 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
         if (b) cam.setContent(contentRect(b), first || res.boardChanged, inset, frameRect(b));
         seamStyle();
       }
-      if (events.length) anim.play(events, res.added, res.prevDemand);
+      if (view && view.players) {
+        const colors = Object.keys(view.players).map((id) => playerColor(view, id));
+        if (colors.join() !== vanColors) {
+          vanColors = colors.join();
+          // Vehicle decals: chain mark by colour (vans built later pick it up; variant stays null).
+          setActorMarks(Object.fromEntries(Object.keys(view.players).map((id) => [playerColor(view, id), chainMark(view.players[id]?.chain, id)])));
+          anim.pool.prewarm('van', colors, 2);
+        }
+      }
+      if (events.length) anim.play(events, { view, prevView, me, added: res.added, removed: res.removed, prevDemand: res.prevDemand });
       inter.refresh();
     },
     setInteractionMode(mode: InteractionMode) {
@@ -215,7 +263,7 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
       const r = stage.renderer.domElement.getBoundingClientRect();
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     },
-    internals: { stage, rec, cam, inter, overlays },
+    internals: { stage, rec, cam, inter, overlays, anim, timeline },
     dispose() {
       for (const d of disposers) d();
       anim.dispose();

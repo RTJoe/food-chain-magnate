@@ -252,7 +252,8 @@ export function buildRadio(ctx: MiniCtx, v: CampaignVisual & { w: number; h: num
 // Airplane
 // ---------------------------------------------------------------------------
 
-function planeShape(color: string): Shape {
+/** Airplane body (nose at +x); shared with the flying actor in `vehicles.ts`. */
+export function planeShape(color: string): Shape {
   const pal = playerPalette(color);
   const s = new Shape();
   // Fuselage along +x (nose at +x).
@@ -291,7 +292,7 @@ function planeShape(color: string): Shape {
   return s;
 }
 
-function propShape(): Shape {
+export function propShape(): Shape {
   const s = new Shape();
   s.add(box(0.02, 0.36, 0.05, 0.008), '#3d3b44', { at: [0, -0.18, 0] });
   return s;
@@ -323,6 +324,11 @@ export function buildAirplane(ctx: MiniCtx, v: CampaignVisual & { width: number 
   const prop = mesh(ctx, plane, miniGeo('prop', propShape), false);
   prop.position.set(0.61, 0, 0);
   prop.name = 'prop';
+  // Leaflet spawn point under the fuselage (airplane sweep, animation-plan §2.9).
+  const leaflet = new THREE.Object3D();
+  leaflet.name = 'leaflet';
+  leaflet.position.set(0, -0.22, 0);
+  plane.add(leaflet);
   // Banner trailing behind (towards -x): rope + cloth with the poster.
   const bannerLen = Math.max(0.8, v.width - 1.35);
   const rope = new THREE.Mesh(cyl(0.008, 0.008, 0.32, 3), ctx.ghost ?? owned(new THREE.MeshBasicMaterial({ color: 0x4a4650 })));

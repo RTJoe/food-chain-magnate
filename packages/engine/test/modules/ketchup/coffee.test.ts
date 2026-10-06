@@ -206,6 +206,14 @@ describe('Coffee (ketchup.md §4)', () => {
       expect(ctx.state.players.p2?.cash).toBe(20);
     });
 
+    it('animation: the house beat order with coffee is houseConsidered → sale → (coffeeSold → cashChanged)* → cashChanged', () => {
+      const ctx = dine(dinner().entity(shop('entity-k1', 'p2', 11, 8)).inventory('p2', { coffee: 3 }));
+      const types = ctx.events.filter((e) => ['houseConsidered', 'sale', 'houseStayedHome', 'coffeeSold', 'cashChanged'].includes(e.type)).map((e) => e.type);
+      expect(types).toEqual(['houseConsidered', 'sale', 'coffeeSold', 'cashChanged', 'cashChanged']);
+      const cash = ctx.of('cashChanged');
+      expect(cash.map((c) => c.player)).toEqual(['p2', 'p1']);
+    });
+
     it('§4: the house picks its restaurant ignoring coffee; no sale → no coffee', () => {
       const ctx = dine(dinner().inventory('p1', {}).entity(shop('entity-k1', 'p2', 11, 8)).inventory('p2', { coffee: 3 }));
       expect(ctx.of('sale')).toEqual([]);

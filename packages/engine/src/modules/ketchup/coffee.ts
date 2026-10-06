@@ -130,7 +130,7 @@ function placeShop(ctx: HookContext, player: PlayerId, x: number, y: number, mov
     if (old?.kind === 'coffeeShop') {
       clearCells(s.board, [{ x: old.x, y: old.y }]);
       delete s.board.entities[moveFrom];
-      ctx.emit({ type: 'entityRemoved', entityId: moveFrom });
+      ctx.emit({ type: 'entityRemoved', entityId: moveFrom, kind: old.kind });
     }
   }
   const id = ctx.id('entity');

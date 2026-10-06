@@ -265,6 +265,17 @@ describe('3e food and drinks (base.md §6.5)', () => {
     expect(t.players.p1?.inventory).toEqual({ lemonade: 2, beer: 2 });
   });
 
+  it('animation: drinksBought carries the played route (road / errand)', () => {
+    const { s, work } = workingTurn(base(), 'p1', { work: ['cart_operator'] });
+    const path = line([[3, 2], [4, 2], [5, 2], [6, 2], [7, 2], [8, 2], [9, 2], [10, 2], [11, 2]]);
+    const route = { mode: 'road' as const, from: from(s), path };
+    const ev = actE(s, { type: 'work.buyDrinks', playerId: 'p1', cardUid: work[0] as Uid, route }).events.find((e) => e.type === 'drinksBought');
+    expect(ev).toMatchObject({ path, route });
+    const e2 = workingTurn(base(), 'p1', { work: ['errand_boy'] });
+    const ev2 = actE(e2.s, { type: 'work.buyDrinks', playerId: 'p1', cardUid: e2.work[0] as Uid, route: { mode: 'errand', drink: 'beer' } }).events.find((e) => e.type === 'drinksBought');
+    expect(ev2).toMatchObject({ path: [], route: { mode: 'errand', drink: 'beer' } });
+  });
+
   it('§6.5: range is tile borders (3 is too far for a cart, fine with "First cart operator"); no U-turns', () => {
     const down = line([[2, 3], [2, 4], [2, 5], [2, 6], [2, 7], [3, 7], [4, 7], [5, 7], [6, 7], [7, 7], [7, 8], [7, 9], [7, 10], [7, 11]]);
     const { s, work } = workingTurn(base(), 'p1', { work: ['cart_operator'] });

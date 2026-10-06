@@ -37,6 +37,8 @@ export class Tweens {
   private list: Tween[] = [];
   /** Global time scale (animation speed setting). */
   speed = 1;
+  /** Scaled seconds elapsed (sum of `dt * speed` over every tick); timelines read their clock here. */
+  now = 0;
 
   /** Run `update(k)` from k = 0 to 1 over `dur` seconds. Resolves when finished (or finished early). */
   add(dur: number, update: (k: number, raw: number) => void, opts: TweenOpts = {}): Promise<void> {
@@ -65,8 +67,9 @@ export class Tweens {
 
   /** Advance by `dt` seconds of wall-clock time (speed is applied here). */
   tick(dt: number): void {
-    if (!this.list.length) return;
     const step = dt * this.speed;
+    this.now += step;
+    if (!this.list.length) return;
     const cur = this.list;
     this.list = []; // tweens added from callbacks land here
     const keep: Tween[] = [];

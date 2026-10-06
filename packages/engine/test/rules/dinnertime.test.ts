@@ -6,6 +6,9 @@
 import { describe, expect, it } from 'vitest';
 import { stateBuilder, type StateBuilder } from '../../src/testing/index.js';
 import { runDinnertime } from '../../src/rules/dinnertime.js';
+import { routeStartOrigin, roadAt } from '../../src/map/pathfinding.js';
+import { houseSquares, tileOf } from '../../src/map/grid.js';
+import type { Cell, GameEvent, GameState } from '../../src/types/index.js';
 import { MAP, makeCtx, type Pipe } from './c2ctx.js';
 
 function base(players = 2, opts: { intro?: boolean } = {}): StateBuilder {
@@ -467,5 +470,54 @@ describe('module pipelines (architecture §3.7)', () => {
     const ctx = dine(base().restaurant('p1', 3, 3, 'NW').inventory('p1', { burger: 1 }).demand(2, ['burger']), pipe);
     expect(seen).toEqual(expect.arrayContaining(['unitPrice', 'dinnerCandidates', 'saleRevenue']));
     expect(ctx.of('sale')[0]).toMatchObject({ unitPrice: 15, total: 1 });
+  });
+});
+
+describe('animation data (animation-plan §2.7)', () => {
+  /** Tile borders a sale route crosses: start square → path → house square (roadworks count). */
+  function borders(st: GameState, e: Extract<GameEvent, { type: 'sale' }>): number {
+    const b = st.board;
+    const r = e.route!;
+    const origin = routeStartOrigin(b, r.from)!;
+    let n = (tileOf(b, origin) !== tileOf(b, r.path[0]!) ? 1 : 0) + (roadAt(b, r.path[0]!)?.roadworks ?? 0);
+    for (let i = 1; i < r.path.length; i++) n += (tileOf(b, r.path[i - 1]!) !== tileOf(b, r.path[i]!) ? 1 : 0) + (roadAt(b, r.path[i]!)?.roadworks ?? 0);
+    const last = r.path[r.path.length - 1]!;
+    const house = st.board.houses[e.houseId]!;
+    const adj = houseSquares(house).filter((c: Cell) => Math.abs(c.x - last.x) + Math.abs(c.y - last.y) === 1);
+    expect(adj.length).toBeGreaterThan(0);
+    return n + Math.min(...adj.map((c: Cell) => (tileOf(b, c) !== tileOf(b, last) ? 1 : 0)));
+  }
+
+  it('sale.route: an orthogonal road path from the winning restaurant whose borders equal the distance', () => {
+    for (const [x, y] of [
+      [3, 3],
+      [5, 3],
+      [8, 8],
+    ] as const) {
+      const ctx = dine(base().restaurant('p1', x, y, 'NW').inventory('p1', { burger: 1 }).demand(2, ['burger']));
+      const [sale] = ctx.of('sale');
+      expect(sale?.route, `restaurant at ${x},${y}`).toBeDefined();
+      const r = sale!.route!;
+      expect(r.from).toMatchObject({ kind: 'restaurant', restaurantId: sale!.restaurantId });
+      for (let i = 1; i < r.path.length; i++) expect(Math.abs(r.path[i]!.x - r.path[i - 1]!.x) + Math.abs(r.path[i]!.y - r.path[i - 1]!.y)).toBe(1);
+      expect(r.path.every((c) => roadAt(ctx.state.board, c))).toBe(true);
+      expect(borders(ctx.state, sale!)).toBe(sale!.distance);
+      expect(r.exit).toBeUndefined();
+    }
+  });
+
+  it('pins the house beat order: houseConsidered → sale | houseStayedHome → cashChanged', () => {
+    const ctx = dine(base().restaurant('p1', 3, 3, 'NW').inventory('p1', { burger: 1 }).demand(2, ['burger']).demand(10, ['pizza']));
+    const seq = ctx.events.filter((e) => ['houseConsidered', 'sale', 'houseStayedHome', 'coffeeSold', 'cashChanged'].includes(e.type));
+    const houses = seq.filter((e) => e.type === 'houseConsidered').length;
+    expect(houses).toBe(2);
+    // Each beat starts with houseConsidered and resolves on the very next event.
+    seq.forEach((e, i) => {
+      if (e.type !== 'houseConsidered') return;
+      const next = seq[i + 1]!;
+      expect(['sale', 'houseStayedHome']).toContain(next.type);
+      expect((next as { houseId: string }).houseId).toBe(e.houseId);
+      if (next.type === 'sale') expect(seq[i + 2]).toMatchObject({ type: 'cashChanged', player: next.player, delta: next.total });
+    });
   });
 });

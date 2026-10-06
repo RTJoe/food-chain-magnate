@@ -107,11 +107,12 @@ export function applyMoveRestaurant(ctx: EngineCtx, a: WorkMoveRestaurant): void
   const r = s.board.restaurants[a.restaurantId];
   if (!r) return;
   advanceTo(ctx, 'restaurants');
+  const from = { x: r.x, y: r.y, entrance: r.entrance };
   clearCells(s.board, restaurantCells(r.x, r.y));
   paint(s.board, restaurantCells(a.x, a.y), 'restaurant', r.id);
   r.x = a.x;
   r.y = a.y;
   r.entrance = a.entrance;
   spend(ctx, a.cardUid);
-  ctx.emit({ type: 'restaurantMoved', player: a.playerId, restaurantId: r.id, x: a.x, y: a.y, entrance: a.entrance });
+  ctx.emit({ type: 'restaurantMoved', player: a.playerId, restaurantId: r.id, x: a.x, y: a.y, entrance: a.entrance, from });
 }

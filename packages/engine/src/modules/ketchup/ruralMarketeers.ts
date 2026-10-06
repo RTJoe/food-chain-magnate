@@ -23,8 +23,9 @@ import type { GameModule, HookContext } from '../../types/module.js';
 import type { CampaignPlacement, Cell, GameState, House, PlayerId } from '../../types/state.js';
 import type { Placement } from '../../types/view.js';
 import { OK, reject } from '../../core/errors.js';
-import { DIRECTIONS, onMap, tileOf } from '../../map/grid.js';
-import { distanceField, fieldAt, restaurantStarts, roadAt } from '../../map/pathfinding.js';
+import { DIRECTIONS, cellIndex, onMap, sameCell, tileOf } from '../../map/grid.js';
+import { distanceField, fieldAt, restaurantRouteStarts, restaurantStarts, roadAt, shortestRoute } from '../../map/pathfinding.js';
+import type { SaleRoute } from '../../types/events.js';
 import { contentFor } from '../registry.js';
 import { defOf } from '../../core/cards.js';
 import { awardMilestone } from '../../rules/milestones.js';
@@ -119,6 +120,24 @@ export function ruralDistance(s: GameState, player: PlayerId): { restaurantId: s
   return best;
 }
 
+/**
+ * The delivery route to the rural area (animation): shortest road route from the restaurant to a
+ * freeway's road square; `exit` is that square and the board edge the van leaves by.
+ */
+export function ruralRoute(s: GameState, restaurantId: string): SaleRoute | null {
+  const r = s.board.restaurants[restaurantId];
+  if (!r) return null;
+  const ends = freeways(s)
+    .map((f) => ({ side: f.side, cell: freewayCell(s, f.side, f.offset) }))
+    .filter((e) => roadAt(s.board, e.cell));
+  if (!ends.length) return null;
+  const found = shortestRoute(s.board, restaurantRouteStarts(s.board, r), new Map(ends.map((e) => [cellIndex(s.board, e.cell), 0])));
+  const end = found?.path[found.path.length - 1];
+  if (!found || !end) return null;
+  const exit = ends.find((e) => sameCell(e.cell, end));
+  return { from: found.from, path: found.path, ...(exit ? { exit: { cell: { x: end.x, y: end.y }, side: exit.side } } : {}) };
+}
+
 // ---------------------------------------------------------------------------
 // Giant billboards
 // ---------------------------------------------------------------------------
@@ -198,6 +217,7 @@ export const RURAL_MARKETEERS_MODULE: GameModule = {
     },
     demandAmount: (amount, _ctx, { house }) => (house.kind === 'rural' ? amount * 2 : amount),
     houseDistance: (best, ctx, { player, house }) => (house.kind === 'rural' ? ruralDistance(ctx.state, player) : best),
+    saleRoute: (route, ctx, { house, restaurantId }) => (house.kind === 'rural' ? ruralRoute(ctx.state, restaurantId) : route),
     onEvent(ctx, event) {
       if (event.type !== 'campaignPlaced' || event.campaign.kind !== 'giantBillboard') return;
       if (awardMilestone(ctx, event.player, 'ketchup:first_rural_marketeer_used')) pushChoice(ctx, { kind: 'freeway', player: event.player, optional: true });

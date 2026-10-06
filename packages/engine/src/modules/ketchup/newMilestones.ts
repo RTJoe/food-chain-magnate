@@ -298,7 +298,7 @@ function onCartHaul(ctx: HookContext, player: PlayerId, uid: string, collected: 
   const extra = collected.filter((c) => c.sourceId !== null && per > c.count).map((c) => ({ sourceId: c.sourceId, drink: c.drink as never, count: per - c.count }));
   if (!extra.length) return;
   for (const e of extra) p.inventory[e.drink as FoodId] = (p.inventory[e.drink as FoodId] ?? 0) + e.count;
-  ctx.emit({ type: 'drinksBought', player, uid, path: [], collected: extra });
+  ctx.emit({ type: 'drinksBought', player, uid, path: [], collected: extra, reason: 'ketchup:first_cart_operator_used' });
 }
 
 /** Total discount from price cards at work (positive number of dollars). */
