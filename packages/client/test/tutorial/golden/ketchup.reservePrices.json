@@ -1,0 +1,115 @@
+{
+  "lesson": "ketchup.reservePrices",
+  "steps": [
+    {
+      "id": "cards",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "choose",
+      "ops": [
+        "scripted p2 setup.chooseReserve",
+        "setup.chooseReserve"
+      ]
+    },
+    {
+      "id": "order",
+      "ops": [
+        "order.choosePosition"
+      ]
+    },
+    {
+      "id": "tight-bank",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "inspect",
+      "ops": [
+        "tap {\"house\":18}"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "new-price",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "house-18",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "setup.chooseReserve",
+      "playerId": "p2",
+      "card": {
+        "kind": "price",
+        "amount": 200,
+        "basePrice": 5
+      }
+    },
+    {
+      "type": "setup.chooseReserve",
+      "playerId": "p1",
+      "card": {
+        "kind": "price",
+        "amount": 200,
+        "basePrice": 20
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r1:working"
+    }
+  ],
+  "outcome": {
+    "seq": 6,
+    "round": 1,
+    "phase": "dinnertime",
+    "cash": {
+      "p1": 30,
+      "p2": 10
+    },
+    "bank": 375
+  }
+}

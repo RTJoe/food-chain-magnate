@@ -1,0 +1,148 @@
+{
+  "lesson": "ketchup.lobbyists",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "park",
+      "ops": [
+        "ketchup:lobbyists.placePark"
+      ]
+    },
+    {
+      "id": "map-tile",
+      "ops": [
+        "ketchup:lobbyists.placeMapTile"
+      ]
+    },
+    {
+      "id": "road",
+      "ops": [
+        "ketchup:lobbyists.placeRoad"
+      ]
+    },
+    {
+      "id": "roadworks",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "clean-up",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "ketchup:lobbyists.placePark",
+      "playerId": "p1",
+      "cardUid": "k11-l1",
+      "x": 1,
+      "y": 6,
+      "w": 1,
+      "h": 3,
+      "from": {
+        "kind": "restaurant",
+        "restaurantId": "restaurant-41",
+        "corner": "NW"
+      }
+    },
+    {
+      "type": "ketchup:lobbyists.placeMapTile",
+      "playerId": "p1",
+      "choiceId": "choice-44",
+      "templateId": "E",
+      "row": 3,
+      "col": 0,
+      "rotation": 0
+    },
+    {
+      "type": "ketchup:lobbyists.placeRoad",
+      "playerId": "p1",
+      "cardUid": "k11-l2",
+      "cells": [
+        {
+          "x": 6,
+          "y": 6
+        },
+        {
+          "x": 6,
+          "y": 7
+        },
+        {
+          "x": 6,
+          "y": 8
+        }
+      ],
+      "arrows": [
+        {
+          "from": {
+            "x": 6,
+            "y": 6
+          },
+          "dir": "N"
+        },
+        {
+          "from": {
+            "x": 6,
+            "y": 8
+          },
+          "dir": "S"
+        }
+      ],
+      "from": {
+        "kind": "restaurant",
+        "restaurantId": "restaurant-41",
+        "corner": "NW"
+      }
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r4:working"
+    }
+  ],
+  "outcome": {
+    "seq": 6,
+    "round": 4,
+    "phase": "dinnertime",
+    "cash": {
+      "p1": 50,
+      "p2": 0
+    },
+    "bank": 80
+  }
+}

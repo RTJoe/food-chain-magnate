@@ -1,0 +1,180 @@
+{
+  "lesson": "base.11",
+  "steps": [
+    {
+      "id": "salary-badges",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "pay-short",
+      "ops": [
+        "payday.confirm",
+        "scripted p2 payday.confirm"
+      ]
+    },
+    {
+      "id": "forced-fire",
+      "ops": [
+        "payday.fire"
+      ]
+    },
+    {
+      "id": "bo-beach",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "next-round",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "chart",
+      "ops": [
+        "scripted p2 restructure.submit",
+        "tap {\"ui\":\"hand-card-burger_cook\"}",
+        "tap {\"ui\":\"org-slot-1\"}",
+        "tap {\"ui\":\"hand-card-trainer\"}",
+        "tap {\"ui\":\"org-slot-2\"}",
+        "tap {\"ui\":\"hand-card-waitress\"}",
+        "tap {\"ui\":\"org-slot-3\"}",
+        "restructure.submit",
+        "scripted p2 order.choosePosition"
+      ]
+    },
+    {
+      "id": "cook",
+      "ops": [
+        "work.produce"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "idle-cook",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "voluntary",
+      "ops": [
+        "tutorial.continue",
+        "scripted p2 payday.confirm",
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "discounts",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.fire",
+      "playerId": "p1",
+      "uids": [
+        "p1-co"
+      ]
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r5:payday"
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "p2-bc",
+          "p2-kt"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "p1-bc",
+          "p1-tr",
+          "p1-wa"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p2",
+      "position": 1
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "p1-bc"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r6:working"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r6:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    }
+  ],
+  "outcome": {
+    "seq": 14,
+    "round": 6,
+    "phase": "payday",
+    "cash": {
+      "p1": 18,
+      "p2": 30
+    },
+    "bank": 100
+  }
+}

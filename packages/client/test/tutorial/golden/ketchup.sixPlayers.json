@@ -1,0 +1,56 @@
+{
+  "lesson": "ketchup.sixPlayers",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "siap-faji",
+      "ops": [
+        "tap {\"restaurant\":\"p6\"}"
+      ]
+    },
+    {
+      "id": "order",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "bank",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "supply",
+      "ops": [
+        "tap {\"ui\":\"tab-market\"}"
+      ]
+    },
+    {
+      "id": "districts",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [],
+  "outcome": {
+    "seq": 0,
+    "round": 2,
+    "phase": "working",
+    "cash": {
+      "p1": 0,
+      "p2": 0,
+      "p3": 0,
+      "p4": 0,
+      "p5": 0,
+      "p6": 0
+    },
+    "bank": 300
+  }
+}

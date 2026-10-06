@@ -1,0 +1,182 @@
+{
+  "lesson": "ketchup.movieStars",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "train",
+      "ops": [
+        "work.train"
+      ]
+    },
+    {
+      "id": "one-x",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "end-round",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn",
+        "tutorial.continue",
+        "tutorial.continue",
+        "scripted p2 payday.confirm",
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "structure",
+      "ops": [
+        "scripted p2 restructure.submit",
+        "restructure.submit"
+      ]
+    },
+    {
+      "id": "order",
+      "ops": [
+        "order.choosePosition"
+      ]
+    },
+    {
+      "id": "produce",
+      "ops": [
+        "work.produce"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.produce",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "tie",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "k3-tr",
+      "targetUid": "k3-w",
+      "toEmployeeId": "ketchup:b_movie_star"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r2:working"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r2:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "k3-bmt",
+          "k3-bpm"
+        ],
+        "managerSubs": {
+          "k3-bmt": [
+            "k3-bw",
+            "k3-bkt"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "k3-w",
+          "k3-kt",
+          "k3-tr"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "k3-kt",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "k3-bkt",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:working"
+    }
+  ],
+  "outcome": {
+    "seq": 15,
+    "round": 3,
+    "phase": "dinnertime",
+    "cash": {
+      "p1": 50,
+      "p2": 48
+    },
+    "bank": 82
+  }
+}

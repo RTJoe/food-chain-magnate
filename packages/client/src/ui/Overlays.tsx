@@ -10,6 +10,7 @@ import { Icon, Logo } from './icons.js';
 import { Standings } from './PromptPanel.js';
 import { menuOpen, minimisedModal } from './uiState.js';
 import { GameMenuExtras } from './hints/CoachHints.js';
+import { takeFreePlayReturn } from './hints/coach.js';
 
 export function Toasts() {
   const list = toasts.value;
@@ -91,6 +92,8 @@ export function GameOverModal() {
   const v = view.value;
   const pr = prompt.value;
   if (!v || pr?.kind !== 'gameOver' || minimisedModal.value === 'gameOver') return null;
+  // In a lesson the coach card tells the result; a modal would block it.
+  if (mode.value === 'tutorial') return null;
   const winner = v.players[pr.ranking[0] ?? ''];
   return (
     <Modal title={<>{Icon.trophy({ size: 22 })} Game over</>} onClose={() => (minimisedModal.value = 'gameOver')} class="gameover">
@@ -113,7 +116,8 @@ export function GameOverModal() {
 }
 
 export function leaveTable(): void {
-  const lesson = mode.value === 'tutorial';
+  // Lessons and L16 free play (launched from the Learn hub) return to the hub.
+  const lesson = mode.value === 'tutorial' || (mode.value === 'hotseat' && takeFreePlayReturn());
   if (mode.value === 'online' && room.value) leaveRoom();
   if (mode.value !== 'online') endSession();
   menuOpen.value = false;

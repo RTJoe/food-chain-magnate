@@ -25,7 +25,8 @@ describe('lessons: headless walk', () => {
       expect(quizProblems(lesson, r.view)).toEqual([]);
       expect(lessonLint(lesson)).toEqual([]);
     });
-    it(`${lesson.id} has no dead end (random allowed actions, 50 seeds)`, () => {
+    // A guided full game (L15) walks 50 whole games: give it room.
+    it(`${lesson.id} has no dead end (random allowed actions, 50 seeds)`, { timeout: 120_000 }, () => {
       expect(deadEndProblems(lesson, 50)).toEqual([]);
     });
   }

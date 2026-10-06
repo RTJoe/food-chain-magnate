@@ -127,6 +127,13 @@ function collectSummaries(prev: GameView | null, events: readonly GameEvent[]): 
   const done: PhaseSummary[] = [];
   for (const e of events) {
     if (e.type === 'roundStarted') round = e.round;
+    // A lesson pause after an automatic phase (engine `tutorial` module) comes before the phase
+    // ends: close its summary now so the lesson can replay it while paused.
+    if (e.type === 'choicePending' && e.kind === 'continue' && phaseBuf && SUMMARY_PHASES.includes(phaseBuf.phase) && phaseBuf.events.length) {
+      done.push({ id: nextSummaryId++, round: phaseBuf.round, phase: phaseBuf.phase, events: phaseBuf.events });
+      phaseBuf = { phase: phaseBuf.phase, round: phaseBuf.round, events: [] };
+      continue;
+    }
     if (e.type === 'phaseChanged' || e.type === 'gameEnded') {
       if (phaseBuf && SUMMARY_PHASES.includes(phaseBuf.phase) && phaseBuf.events.length) {
         done.push({ id: nextSummaryId++, round: phaseBuf.round, phase: phaseBuf.phase, events: phaseBuf.events });

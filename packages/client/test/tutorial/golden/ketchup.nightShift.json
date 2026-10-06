@@ -1,0 +1,140 @@
+{
+  "lesson": "ketchup.nightShift",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "structure",
+      "ops": [
+        "restructure.submit"
+      ]
+    },
+    {
+      "id": "order",
+      "ops": [
+        "scripted p2 order.choosePosition"
+      ]
+    },
+    {
+      "id": "uses",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "produce",
+      "ops": [
+        "work.produce",
+        "work.produce"
+      ]
+    },
+    {
+      "id": "drinks",
+      "ops": [
+        "work.buyDrinks",
+        "work.buyDrinks"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "passive",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "k5-ns",
+          "k5-kt",
+          "k5-eb"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p2",
+      "position": 1
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "k5-kt",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "k5-kt",
+      "food": "pizza"
+    },
+    {
+      "type": "work.buyDrinks",
+      "playerId": "p1",
+      "cardUid": "k5-eb",
+      "route": {
+        "mode": "errand",
+        "drink": "beer"
+      }
+    },
+    {
+      "type": "work.buyDrinks",
+      "playerId": "p1",
+      "cardUid": "k5-eb",
+      "route": {
+        "mode": "errand",
+        "drink": "beer"
+      }
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:working"
+    }
+  ],
+  "outcome": {
+    "seq": 9,
+    "round": 3,
+    "phase": "dinnertime",
+    "cash": {
+      "p1": 60,
+      "p2": 0
+    },
+    "bank": 60
+  }
+}

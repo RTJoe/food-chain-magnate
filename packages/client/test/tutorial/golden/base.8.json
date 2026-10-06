@@ -1,0 +1,151 @@
+{
+  "lesson": "base.8",
+  "steps": [
+    {
+      "id": "want-beer",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "errand-beer",
+      "ops": [
+        "work.buyDrinks"
+      ]
+    },
+    {
+      "id": "cart-range",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "cart-route",
+      "ops": [
+        "work.buyDrinks"
+      ]
+    },
+    {
+      "id": "must-collect",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "paid",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.buyDrinks",
+      "playerId": "p1",
+      "cardUid": "p1-eb",
+      "route": {
+        "mode": "errand",
+        "drink": "beer"
+      }
+    },
+    {
+      "type": "work.buyDrinks",
+      "playerId": "p1",
+      "cardUid": "p1-co",
+      "route": {
+        "mode": "road",
+        "from": {
+          "kind": "restaurant",
+          "restaurantId": "restaurant-41",
+          "corner": "NW"
+        },
+        "path": [
+          {
+            "x": 3,
+            "y": 2
+          },
+          {
+            "x": 4,
+            "y": 2
+          },
+          {
+            "x": 5,
+            "y": 2
+          },
+          {
+            "x": 6,
+            "y": 2
+          },
+          {
+            "x": 7,
+            "y": 2
+          },
+          {
+            "x": 8,
+            "y": 2
+          },
+          {
+            "x": 9,
+            "y": 2
+          },
+          {
+            "x": 10,
+            "y": 2
+          },
+          {
+            "x": 11,
+            "y": 2
+          },
+          {
+            "x": 12,
+            "y": 2
+          },
+          {
+            "x": 12,
+            "y": 1
+          },
+          {
+            "x": 12,
+            "y": 0
+          }
+        ]
+      }
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r4:working"
+    }
+  ],
+  "outcome": {
+    "seq": 5,
+    "round": 4,
+    "phase": "dinnertime",
+    "cash": {
+      "p1": 50,
+      "p2": 20
+    },
+    "bank": 70
+  }
+}

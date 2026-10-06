@@ -18,10 +18,12 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
       <button type="button" class="topbar-brand" onClick={onMenu} aria-label="Game menu">
         <Logo size={34} />
       </button>
-      <div class="topbar-round" title="Round">
-        <span class="eyebrow">Round</span>
-        <b>{v.round || '—'}</b>
-      </div>
+      {v.round > 0 && (
+        <div class="topbar-round" title="Round">
+          <span class="eyebrow">Round</span>
+          <b>{v.round}</b>
+        </div>
+      )}
       <PhaseStepper view={v} idx={idx} setup={setup} />
       <BankChip view={v} />
       <TurnOrder view={v} />

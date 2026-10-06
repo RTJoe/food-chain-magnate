@@ -7,6 +7,12 @@
  * needs an action type it does not know yet (until then it falls back to Skip step and says so).
  */
 import { expect, type Page } from '@playwright/test';
+// --- WP-T3: late-lesson action paths (L8–L15) ---
+import { clickPlacement, openRestaurantFlow, performLate } from './tutorial-late';
+// --- WP-T4: Ketchup action paths ---
+import { performKetchup } from './tutorial-ketchup';
+// --- WP-T2: early-lesson action paths (L2–L7) ---
+import { performEarly } from './tutorial-early';
 
 type Target = Record<string, unknown>;
 type Op = { tap: Target } | ({ type: string } & Record<string, unknown>);
@@ -69,16 +75,53 @@ async function clickVisible(page: Page, selector: string): Promise<void> {
 
 async function tapTarget(page: Page, t: Target): Promise<void> {
   if (typeof t.ui === 'string') {
-    if (/^(tab-|end-turn|reserve-|order-pos-|payday-|hand-card-|work-card-|hire-)/.test(t.ui)) await openSheet(page);
+    if (/^(tab-|end-turn|reserve-|order-pos-|payday-|hand-card-|work-card-|hire-|org-|submit-|train-|fire-|drink-|token-|good-|launch-)/.test(t.ui)) await openSheet(page);
     await clickVisible(page, `[data-tutorial="${t.ui}"]`);
     return;
   }
-  const r = await page.evaluate((target) => (window as unknown as { __fcmTutorial: { targetRect(t: unknown): { x: number; y: number; w: number; h: number } | null } }).__fcmTutorial.targetRect(target), t);
+  type Rect = { x: number; y: number; w: number; h: number };
+  const rectOf = () => page.evaluate((target) => (window as unknown as { __fcmTutorial: { targetRect(t: unknown): Rect | null } }).__fcmTutorial.targetRect(target), t);
+  // The camera may still be gliding (step camera, phone sheet resizing the board): wait until the
+  // projected rect holds still for a moment before tapping.
+  let r = await rectOf();
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(120);
+    const n = await rectOf();
+    const still = r && n && Math.abs(n.x - r.x) < 1 && Math.abs(n.y - r.y) < 1 && Math.abs(n.w - r.w) < 1;
+    r = n;
+    if (still) break;
+  }
   if (!r) throw new Error(`target not on screen: ${JSON.stringify(t)}`);
+  // Phones: the bottom sheet or a card may still cover the board there; collapse the sheet and wait
+  // until the board itself is under the point.
+  {
+    const px = r.x + r.w / 2;
+    const py = r.y + r.h * (typeof t.house === 'number' ? 0.3 : 0.5);
+    for (let i = 0; i < 10; i++) {
+      const onBoard = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.tagName === 'CANVAS', [px, py] as const);
+      if (onBoard) break;
+      if (isPhone(page) && (await page.locator('.dock.is-open').count())) await page.locator('.sheet-handle').click(CLICK).catch(() => {});
+      await page.waitForTimeout(250);
+    }
+  }
   const x = r.x + r.w / 2;
-  const y = r.y + r.h / 2;
+  // Houses: aim at the far (upper) part of the footprint, so a billboard standing in front of the
+  // house (nearer the camera) does not take the click.
+  const y = r.y + r.h * (typeof t.house === 'number' ? 0.3 : 0.5);
   if (isPhone(page)) await page.touchscreen.tap(x, y);
   else await page.mouse.click(x, y);
+}
+
+/** Tap a target until `done` holds (a touch on a gliding board can be lost), at most 3 times. */
+async function tapUntil(page: Page, t: Target, done: () => Promise<boolean>): Promise<void> {
+  for (let tries = 0; tries < 3; tries++) {
+    await tapTarget(page, t);
+    const ok = await expect
+      .poll(done, { timeout: 2500 })
+      .toBe(true)
+      .then(() => true, () => false);
+    if (ok) return;
+  }
 }
 
 /** Performs a canonical action through the UI. Returns false when the type is not supported yet. */
@@ -90,7 +133,8 @@ export async function performAction(page: Page, a: { type: string } & Record<str
     case 'setup.placeRestaurant':
     case 'work.placeRestaurant': {
       await openSheet(page);
-      await page.locator('.placement-btn').filter({ hasText: `Square ${a.x},${a.y} · entrance ${a.entrance}` }).first().click(CLICK);
+      await openRestaurantFlow(page, a); // WP-T3: Local / Regional Manager flow
+      await clickPlacement(page, `Square ${a.x},${a.y} · entrance ${a.entrance}`); // WP-T3: phone-safe row pick
       return true;
     }
     case 'setup.chooseReserve': {
@@ -116,7 +160,12 @@ export async function performAction(page: Page, a: { type: string } & Record<str
       await clickVisible(page, '[data-tutorial="payday-confirm"]');
       return true;
     default:
-      return false;
+      // --- WP-T2: L2–L7 action types (e2e/tutorial-early.ts) ---
+      if (await performEarly(page, a)) return true;
+      // --- WP-T4: Ketchup action types and campaign kinds (e2e/tutorial-ketchup.ts), tried first ---
+      if (await performKetchup(page, a)) return true;
+      // --- WP-T3: L8–L15 action types (e2e/tutorial-late.ts) ---
+      return performLate(page, a);
   }
 }
 
@@ -152,11 +201,51 @@ export async function runLesson(page: Page, lessonId: string, opts: RunLessonOpt
     if (s.status !== 'steps') break;
     if (opts.stopAt === s.stepId) return s;
     if (s.solution.length === 0 && s.offersNext) {
-      await page.locator('[data-coach="next"]').click(CLICK);
+      // The strip can move as the step settles (phone: sheet opens, strip jumps to the top): if the
+      // first press did not land, press again.
+      for (let tries = 0; tries < 3; tries++) {
+        if (tries > 0) {
+          // Only press again when the same step still offers Next (it may be waiting on Bo).
+          const again = await tutorialState(page);
+          if (again.status !== 'steps' || again.index !== s.index) break;
+          if (!(await page.locator('[data-coach="next"]').isVisible().catch(() => false))) break;
+        }
+        await page.locator('[data-coach="next"]').click(tries > 0 ? { timeout: 2000 } : CLICK).catch((e: unknown) => {
+          if (tries === 0) throw e;
+        });
+        const moved = await expect
+          .poll(async () => {
+            const n = await tutorialState(page);
+            return n.status !== 'steps' || n.index !== s.index;
+          }, { timeout: 2500 })
+          .toBe(true)
+          .then(() => true, () => false);
+        if (moved) break;
+      }
     } else {
       for (const op of s.solution) {
-        if ('tap' in op) await tapTarget(page, op.tap as Target);
-        else if (!(await performAction(page, op as { type: string } & Record<string, unknown>))) {
+        // One UI gesture may perform several canonical moves (e.g. "Fire 1 and pay"): stop once the step is done.
+        const cur = await tutorialState(page);
+        if (cur.status !== 'steps' || cur.index !== s.index) break;
+        if ('tap' in op) {
+          const target = op.tap as Target;
+          const last = op === s.solution[s.solution.length - 1];
+          // A board tap that should finish the step: retry if the touch did not register.
+          if (last && typeof target.ui !== 'string') {
+            await tapUntil(page, target, async () => {
+              const n = await tutorialState(page);
+              return n.status !== 'steps' || n.index !== s.index;
+            });
+          } else await tapTarget(page, target);
+        }
+        else if (
+          !(await performAction(page, op as { type: string } & Record<string, unknown>).catch(async (e: unknown) => {
+            // The step may have completed while the UI path was still looking for its last control.
+            const n = await tutorialState(page);
+            if (n.status !== 'steps' || n.index !== s.index) return true;
+            throw e;
+          }))
+        ) {
           opts.skipped?.push(`${s.stepId}: ${String(op.type)}`);
           await page.locator('[data-coach="skip"]').click(CLICK);
           break;
@@ -185,7 +274,7 @@ export async function runLesson(page: Page, lessonId: string, opts: RunLessonOpt
     if (s.status !== 'quiz' || !s.quiz?.question) break;
     const q = s.quiz.question;
     if (q.kind === 'choice') await page.locator(`[data-quiz-option="${q.answer}"]`).click();
-    else if (q.kind === 'tap' && q.target) await tapTarget(page, q.target);
+    else if (q.kind === 'tap' && q.target) await tapUntil(page, q.target, async () => Boolean((await tutorialState(page)).quiz?.picked));
     else if (q.kind === 'number') {
       const n = await page.evaluate(() => (window as unknown as { __fcmTutorial: { quizAnswer(): unknown } }).__fcmTutorial.quizAnswer());
       await page.locator('[data-quiz-number]').fill(String(n ?? 0));

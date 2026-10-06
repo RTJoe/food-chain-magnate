@@ -1,0 +1,97 @@
+{
+  "lesson": "ketchup.newDistricts",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "inspect",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "billboard",
+      "ops": [
+        "work.placeCampaign"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "marketing",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "no-cap",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "order",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p1",
+      "cardUid": "k10-mt",
+      "campaignKind": "billboard",
+      "tileNumber": 14,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 5,
+        "y": 3,
+        "w": 1,
+        "h": 2
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:working"
+    }
+  ],
+  "outcome": {
+    "seq": 4,
+    "round": 3,
+    "phase": "marketing",
+    "cash": {
+      "p1": 20,
+      "p2": 0
+    },
+    "bank": 100
+  }
+}

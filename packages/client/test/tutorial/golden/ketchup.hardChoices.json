@@ -1,0 +1,91 @@
+{
+  "lesson": "ketchup.hardChoices",
+  "steps": [
+    {
+      "id": "deadlines",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "which",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "train",
+      "ops": [
+        "work.train"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "clean-up",
+      "ops": [
+        "tutorial.continue",
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "gone",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "hire-3",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "k1-tr",
+      "targetUid": "k1-eb",
+      "toEmployeeId": "cart_operator"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r2:working"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    }
+  ],
+  "outcome": {
+    "seq": 5,
+    "round": 2,
+    "phase": "cleanup",
+    "cash": {
+      "p1": 30,
+      "p2": 0
+    },
+    "bank": 100
+  }
+}

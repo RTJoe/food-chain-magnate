@@ -1,0 +1,52 @@
+{
+  "lesson": "base.10",
+  "steps": [
+    {
+      "id": "count",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "most-first",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "not-always-first",
+      "ops": [
+        "order.choosePosition"
+      ]
+    },
+    {
+      "id": "ties",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "hire-first",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    }
+  ],
+  "outcome": {
+    "seq": 1,
+    "round": 5,
+    "phase": "working",
+    "cash": {
+      "p1": 30,
+      "p2": 30
+    },
+    "bank": 100
+  }
+}

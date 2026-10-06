@@ -175,7 +175,7 @@ function actionFood(a: Action): FoodId | null {
   return null;
 }
 
-export function LegalButton({ legal: l, busy, variant }: { legal: LegalAction; busy?: boolean; variant?: 'primary' | 'secondary' | 'ghost' }) {
+export function LegalButton({ legal: l, busy, variant, tutorial }: { legal: LegalAction; busy?: boolean; variant?: 'primary' | 'secondary' | 'ghost'; tutorial?: string }) {
   if (l.kind === 'ready') {
     const food = actionFood(l.action);
     return (
@@ -186,7 +186,7 @@ export function LegalButton({ legal: l, busy, variant }: { legal: LegalAction; b
     );
   }
   return (
-    <Button variant={variant ?? 'secondary'} icon={l.kind === 'placement' ? 'pin' : 'arrowRight'} disabled={busy} onClick={() => (workSelection.value = { cardUid: cardOf(l) ?? null, action: l })}>
+    <Button variant={variant ?? 'secondary'} icon={l.kind === 'placement' ? 'pin' : 'arrowRight'} data-tutorial={tutorial} disabled={busy} onClick={() => (workSelection.value = { cardUid: cardOf(l) ?? null, action: l })}>
       {cardOf(l) ? shortLabel(l.label) : l.label}
     </Button>
   );
@@ -216,7 +216,7 @@ function CardActions({ view: v, player: p, uid, acts, busy }: { view: GameView; 
       <div class="action-list">
         {recruits.length > 0 && <HireGrid view={v} actions={recruits} busy={busy} />}
         {trains.length > 0 && <TrainGrid view={v} player={p} trainerUid={uid} actions={trains} busy={busy} />}
-        {campaign && <LegalButton legal={campaign} busy={busy} />}
+        {campaign && <LegalButton legal={campaign} busy={busy} tutorial="launch-campaign" />}
         {rest.map((l, i) => (
           <LegalButton key={i} legal={l} busy={busy} />
         ))}

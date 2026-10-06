@@ -1,0 +1,86 @@
+{
+  "lesson": "ketchup.fryChefs",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "train",
+      "ops": [
+        "work.train"
+      ]
+    },
+    {
+      "id": "produce",
+      "ops": [
+        "work.produce"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "per-house",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "k4-tr",
+      "targetUid": "k4-pc",
+      "toEmployeeId": "ketchup:fry_chef"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "k4-bc",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r4:working"
+    }
+  ],
+  "outcome": {
+    "seq": 5,
+    "round": 4,
+    "phase": "dinnertime",
+    "cash": {
+      "p1": 90,
+      "p2": 0
+    },
+    "bank": 50
+  }
+}

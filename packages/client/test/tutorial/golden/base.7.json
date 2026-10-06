@@ -1,0 +1,117 @@
+{
+  "lesson": "base.7",
+  "steps": [
+    {
+      "id": "why",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "token",
+      "ops": [
+        "tap {\"ui\":\"work-card-p1-mkt\"}",
+        "tap {\"ui\":\"launch-campaign\"}",
+        "tap {\"ui\":\"token-14\"}"
+      ]
+    },
+    {
+      "id": "good",
+      "ops": [
+        "tap {\"ui\":\"good-burger\"}"
+      ]
+    },
+    {
+      "id": "range",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "place",
+      "ops": [
+        "work.placeCampaign"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn",
+        "scripted p2 payday.confirm"
+      ]
+    },
+    {
+      "id": "replay",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "results",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "duration",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "cap",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "next-dinner",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p1",
+      "cardUid": "p1-mkt",
+      "campaignKind": "billboard",
+      "tileNumber": 14,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 3,
+        "y": 8,
+        "w": 2,
+        "h": 1
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    }
+  ],
+  "outcome": {
+    "seq": 4,
+    "round": 3,
+    "phase": "marketing",
+    "cash": {
+      "p1": 10,
+      "p2": 10
+    },
+    "bank": 100
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "lesson": "base.3",
+  "steps": [
+    {
+      "id": "restructuring",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "submit",
+      "ops": [
+        "restructure.submit"
+      ]
+    },
+    {
+      "id": "order",
+      "ops": [
+        "order.choosePosition"
+      ]
+    },
+    {
+      "id": "working",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "hire",
+      "ops": [
+        "work.recruit"
+      ]
+    },
+    {
+      "id": "beach",
+      "ops": [
+        "tap {\"ui\":\"tab-company\"}"
+      ]
+    },
+    {
+      "id": "supply",
+      "ops": [
+        "tap {\"ui\":\"tab-market\"}"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.recruit",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "payday",
+      "ops": [
+        "scripted p2 payday.confirm",
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "auto-phases",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "next-round",
+      "ops": [
+        "tutorial.continue"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "kitchen_trainee"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "kitchen_trainee"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r1:cleanup"
+    }
+  ],
+  "outcome": {
+    "seq": 9,
+    "round": 2,
+    "phase": "restructuring",
+    "cash": {
+      "p1": 0,
+      "p2": 0
+    },
+    "bank": 100
+  }
+}

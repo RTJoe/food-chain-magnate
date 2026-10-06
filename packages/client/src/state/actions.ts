@@ -74,8 +74,11 @@ export function describePlacement(p: Placement, view?: GameView | null): string 
       return `Move to ${p.x},${p.y} · entrance ${p.entrance}`;
     case 'house':
       return `House #${p.houseOrder} at ${p.x},${p.y} · garden ${p.gardenSide}`;
-    case 'garden':
-      return `Garden on side ${p.side}`;
+    case 'garden': {
+      // Several houses can take a garden: name the house so list rows are not ambiguous.
+      const h = view?.board.houses[p.houseId];
+      return h ? `Garden for house ${h.label ?? h.order} · side ${p.side}` : `Garden on side ${p.side}`;
+    }
     case 'campaign': {
       const pl = p.placement;
       if (pl.kind === 'board') {
@@ -96,7 +99,7 @@ export function describePlacement(p: Placement, view?: GameView | null): string 
     case 'freeMailbox':
       return `Square ${p.x},${p.y}`;
     case 'lobbyistRoad':
-      return `Road over ${p.cells.length} squares`;
+      return `Road over ${p.cells.length} squares from ${p.cells[0]?.x},${p.cells[0]?.y}`;
     case 'park':
       return `Park at ${p.x},${p.y}`;
     case 'freeway':

@@ -1,0 +1,79 @@
+{
+  "lesson": "ketchup.noodles",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "inspect",
+      "ops": [
+        "tap {\"house\":18}"
+      ]
+    },
+    {
+      "id": "produce",
+      "ops": [
+        "work.produce"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "priority",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "k8-nc",
+      "food": "noodles"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:working"
+    }
+  ],
+  "outcome": {
+    "seq": 4,
+    "round": 3,
+    "phase": "dinnertime",
+    "cash": {
+      "p1": 60,
+      "p2": 0
+    },
+    "bank": 70
+  }
+}

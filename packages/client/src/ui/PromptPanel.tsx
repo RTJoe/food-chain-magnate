@@ -17,6 +17,7 @@ import { LegalButton, WorkPanel } from './Work.js';
 import { SeatControl } from './PlayerPanels.js';
 import { BotBadge } from './bots.js';
 import { CoachHints } from './hints/CoachHints.js';
+import { lessonSeatWaiting } from '../tutorial/runner.js';
 
 type PlacementLegal = Extract<LegalAction, { kind: 'placement' }>;
 
@@ -34,7 +35,7 @@ export function PromptPanel() {
     <div class={`prompt prompt-${pr.kind} ${isMyTurn.value ? 'is-mine' : ''}`}>
       <header class="prompt-head">
         <span class="eyebrow">
-          Round {v.round || '—'} · {phaseLabel(v.phase)}
+          {v.round ? `Round ${v.round} · ` : ''}{phaseLabel(v.phase)}
         </span>
         <h2>{pr.title}</h2>
       </header>
@@ -110,7 +111,7 @@ function WaitingPanel({ view: v, waitingFor, spectating }: { view: GameView; wai
                 <span>
                   <b>{v.players[id]?.name ?? id}</b>
                   {botSeats.value[id] && <BotBadge level={botSeats.value[id]} thinking />}
-                  <span class="muted small"> {offline ? (seat.clientId === null ? '· seat released, waiting for someone to take it' : '· offline, waiting for them to reconnect') : v.submitted[id] ? '· done' : '· thinking…'}</span>
+                  <span class="muted small"> {offline ? (seat.clientId === null ? '· seat released, waiting for someone to take it' : '· offline, waiting for them to reconnect') : v.submitted[id] ? '· done' : lessonSeatWaiting(id) ? '· waiting' : '· thinking…'}</span>
                 </span>
                 {offline && <SeatControl playerId={id} />}
               </li>

@@ -1,0 +1,105 @@
+{
+  "lesson": "ketchup.coffee",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "train",
+      "ops": [
+        "work.train"
+      ]
+    },
+    {
+      "id": "shop",
+      "ops": [
+        "ketchup:coffee.placeShop"
+      ]
+    },
+    {
+      "id": "produce",
+      "ops": [
+        "work.produce"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "route",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "rules",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "k9-tr",
+      "targetUid": "k9-bt2",
+      "toEmployeeId": "ketchup:barista"
+    },
+    {
+      "type": "ketchup:coffee.placeShop",
+      "playerId": "p1",
+      "choiceId": "choice-43",
+      "x": 6,
+      "y": 6
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "k9-bt1",
+      "food": "coffee"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:working"
+    }
+  ],
+  "outcome": {
+    "seq": 6,
+    "round": 3,
+    "phase": "dinnertime",
+    "cash": {
+      "p1": 40,
+      "p2": 10
+    },
+    "bank": 80
+  }
+}

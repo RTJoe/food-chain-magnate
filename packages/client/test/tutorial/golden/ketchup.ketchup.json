@@ -1,0 +1,90 @@
+{
+  "lesson": "ketchup.ketchup",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "inspect",
+      "ops": [
+        "tap {\"house\":18}"
+      ]
+    },
+    {
+      "id": "produce",
+      "ops": [
+        "work.produce"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "claim",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "effect",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "k15-kt",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:working"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:dinnertime"
+    }
+  ],
+  "outcome": {
+    "seq": 5,
+    "round": 3,
+    "phase": "payday",
+    "cash": {
+      "p1": 30,
+      "p2": 20
+    },
+    "bank": 90
+  }
+}

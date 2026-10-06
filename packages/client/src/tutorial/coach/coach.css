@@ -19,6 +19,10 @@
   animation: rise 0.2s ease-out;
 }
 .coach-strip.is-wide { width: min(440px, calc(100vw - var(--rail-w) - var(--dock-w) - 40px)); }
+/* Desktop: a Summary card is open over the board's bottom edge: dock in the rail column instead. */
+.coach-strip.is-beside { left: 12px; width: var(--rail-w); min-width: 0; }
+/* Desktop board picks: the pick strip sits at the bottom centre of the board; keep clear of it. */
+@media (min-width: 861px) { .table.is-picking .coach-strip:not(.is-top) { left: 12px; width: var(--rail-w); min-width: 0; } }
 .coach-head { display: flex; align-items: center; gap: 8px; }
 .coach-head .icon-btn { margin-left: auto; width: 36px; height: 36px; }
 .coach-count { margin: 0; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--c-ink-muted); }

@@ -1,0 +1,85 @@
+{
+  "lesson": "ketchup.massMarketeers",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "train",
+      "ops": [
+        "work.train"
+      ]
+    },
+    {
+      "id": "billboard",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "marketing",
+      "ops": [
+        "tutorial.continue",
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "pips",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "k12-tr",
+      "targetUid": "k12-mt",
+      "toEmployeeId": "ketchup:mass_marketeer"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r4:working"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    }
+  ],
+  "outcome": {
+    "seq": 5,
+    "round": 4,
+    "phase": "marketing",
+    "cash": {
+      "p1": 40,
+      "p2": 0
+    },
+    "bank": 100
+  }
+}

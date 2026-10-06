@@ -1,0 +1,87 @@
+{
+  "lesson": "ketchup.gourmetCritics",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "gardens",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "guide",
+      "ops": [
+        "work.placeCampaign"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "marketing",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "not",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p1",
+      "cardUid": "k13-gc",
+      "campaignKind": "gourmetGuide",
+      "tileNumber": 17,
+      "goods": [
+        "pizza"
+      ],
+      "placement": {
+        "kind": "offBoard"
+      },
+      "duration": 3
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:working"
+    }
+  ],
+  "outcome": {
+    "seq": 4,
+    "round": 3,
+    "phase": "marketing",
+    "cash": {
+      "p1": 25,
+      "p2": 0
+    },
+    "bank": 105
+  }
+}

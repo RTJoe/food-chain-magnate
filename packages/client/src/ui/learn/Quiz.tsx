@@ -8,6 +8,7 @@ import { COURSE_BADGES, lessonBadgeId, lessonBadgeLabel, nextEntry } from '../..
 import { navigate } from '../../state/router.js';
 import { Button } from '../common.js';
 import { Icon } from '../icons.js';
+import { isBoardTarget } from '../../tutorial/targets.js';
 
 export function QuizPanel({ runner }: { runner: TutorialRunner }) {
   const idx = runner.quizIndex.value;
@@ -36,7 +37,7 @@ export function QuizPanel({ runner }: { runner: TutorialRunner }) {
           })}
         </div>
       )}
-      {q.kind === 'tap' && !picked && <p class="muted small">{Icon.hand({ size: 16 })} Tap it on the board.</p>}
+      {q.kind === 'tap' && !picked && <p class="muted small">{Icon.hand({ size: 16 })} {isBoardTarget(q.target) ? 'Tap it on the board.' : 'Tap it on the screen.'}</p>}
       {q.kind === 'number' && !picked && (
         <form
           class="row gap"

@@ -1,0 +1,96 @@
+{
+  "lesson": "base.13",
+  "steps": [
+    {
+      "id": "drive-in",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "garden",
+      "ops": [
+        "work.placeGarden"
+      ]
+    },
+    {
+      "id": "new-house",
+      "ops": [
+        "work.placeHouse"
+      ]
+    },
+    {
+      "id": "local-manager",
+      "ops": [
+        "work.placeRestaurant"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "payday",
+      "ops": [
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "opened",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.placeGarden",
+      "playerId": "p1",
+      "cardUid": "p1-nb1",
+      "houseId": "house-30",
+      "side": "S"
+    },
+    {
+      "type": "work.placeHouse",
+      "playerId": "p1",
+      "cardUid": "p1-nb2",
+      "houseOrder": 1,
+      "x": 3,
+      "y": 0,
+      "gardenSide": "E"
+    },
+    {
+      "type": "work.placeRestaurant",
+      "playerId": "p1",
+      "cardUid": "p1-lm",
+      "x": 0,
+      "y": 8,
+      "entrance": "NW"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    }
+  ],
+  "outcome": {
+    "seq": 6,
+    "round": 6,
+    "phase": "cleanup",
+    "cash": {
+      "p1": 25,
+      "p2": 30
+    },
+    "bank": 115
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "lesson": "base.2",
+  "steps": [
+    {
+      "id": "bo-first",
+      "ops": [
+        "scripted p2 setup.placeRestaurant",
+        "next"
+      ]
+    },
+    {
+      "id": "door",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "one-door",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "place",
+      "ops": [
+        "setup.placeRestaurant"
+      ]
+    },
+    {
+      "id": "neighbours",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "reserve",
+      "ops": [
+        "scripted p2 setup.chooseReserve",
+        "setup.chooseReserve"
+      ]
+    },
+    {
+      "id": "ready",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "setup.placeRestaurant",
+      "playerId": "p2",
+      "x": 11,
+      "y": 8,
+      "entrance": "NW"
+    },
+    {
+      "type": "setup.placeRestaurant",
+      "playerId": "p1",
+      "x": 3,
+      "y": 3,
+      "entrance": "NW"
+    },
+    {
+      "type": "setup.chooseReserve",
+      "playerId": "p2",
+      "card": {
+        "kind": "standard",
+        "amount": 100,
+        "ceoSlots": 2
+      }
+    },
+    {
+      "type": "setup.chooseReserve",
+      "playerId": "p1",
+      "card": {
+        "kind": "standard",
+        "amount": 200,
+        "ceoSlots": 3
+      }
+    }
+  ],
+  "outcome": {
+    "seq": 4,
+    "round": 1,
+    "phase": "orderOfBusiness",
+    "cash": {
+      "p1": 0,
+      "p2": 0
+    },
+    "bank": 100
+  }
+}

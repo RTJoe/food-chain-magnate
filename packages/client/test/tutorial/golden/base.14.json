@@ -1,0 +1,76 @@
+{
+  "lesson": "base.14",
+  "steps": [
+    {
+      "id": "low-bank",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "reserves",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "run",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "first-break",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "slot-vote",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "continued",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "second-break",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "winner",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "cfo",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r7:start"
+    }
+  ],
+  "outcome": {
+    "seq": 1,
+    "round": 7,
+    "phase": "gameOver",
+    "cash": {
+      "p1": 270,
+      "p2": 260
+    },
+    "bank": 0
+  }
+}

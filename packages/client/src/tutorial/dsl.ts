@@ -5,7 +5,7 @@
  *
  * Authoring guide: docs/tutorial-plan.md "Authoring lessons (framework API)".
  */
-import type { Action, FoodId, GameEvent, GameState, GameView, LegalAction, Placement, PlacementSpec, PlayerId, TutorialPausePhase } from '@fcm/engine';
+import type { Action, FoodId, GameEvent, GameState, GameView, LegalAction, Placement, PlacementSpec, PlayerId, StructureSubmission, TutorialPausePhase } from '@fcm/engine';
 import type { Selection } from '../state/interaction.js';
 import type { Settings } from '../state/store.js';
 import type { DockTab } from '../ui/uiState.js';
@@ -71,6 +71,12 @@ export interface Step {
    * whenever `allow` is not 'none' or `until` is not `{ next: true }`. Must satisfy `allow` and reach `until`.
    */
   solution?: SolutionOp[] | ((ctx: StepCtx) => SolutionOp[]);
+  /**
+   * Recompute `solution` (a function) every time its moves run out until `until` holds: long
+   * free-play steps whose solution is "the next sensible move" (the guided game). Skip step then
+   * plays the rest of the step for the learner.
+   */
+  repeatSolution?: boolean;
   /** Replay the stored phase on the board (Summary "Watch again") and wait for beats. */
   replay?: { phase: 'dinnertime' | 'marketing'; from?: string };
   /** Resume point: progress (lessonId, stepId, actions so far) is saved on entry. */
@@ -125,7 +131,7 @@ export interface ActionMatcher {
 }
 
 /** UI signals a predicate can watch (the board and dock publish them). */
-export type SignalName = 'selection' | 'topView' | 'dockTab' | 'placementReason' | 'previewGood' | 'boardHover' | 'uiTap';
+export type SignalName = 'selection' | 'topView' | 'dockTab' | 'placementReason' | 'previewGood' | 'boardHover' | 'uiTap' | 'draft';
 
 export type Predicate =
   /** An event of this type in the events applied since the step started (any seat, redacted for the learner). */
@@ -175,7 +181,9 @@ export type Effect =
   | { select: Selection | null }
   | { summary: 'open' | 'close' }
   | { camera: CameraFrame }
-  | { follow: boolean };
+  | { follow: boolean }
+  /** Coach hint level for the step (restored when the lesson closes). */
+  | { coach: 'off' | 'light' | 'full' };
 
 /** UI signal values as the step sees them. */
 export interface SignalValues {
@@ -186,6 +194,8 @@ export interface SignalValues {
   previewGood: FoodId | null;
   boardHover: { id: string | null; cell: { x: number; y: number } | null } | null;
   uiTap: string | null;
+  /** The learner's Restructuring draft in the org chart editor (null until the editor opens). */
+  draft: StructureSubmission | null;
 }
 
 export interface StepCtx {

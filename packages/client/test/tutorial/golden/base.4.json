@@ -1,0 +1,162 @@
+{
+  "lesson": "base.4",
+  "steps": [
+    {
+      "id": "hand",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "place-trainee",
+      "ops": [
+        "tap {\"ui\":\"hand-card-kitchen_trainee\"}",
+        "tap {\"ui\":\"org-slot-1\"}"
+      ]
+    },
+    {
+      "id": "submit",
+      "ops": [
+        "scripted p2 restructure.submit",
+        "restructure.submit"
+      ]
+    },
+    {
+      "id": "order",
+      "ops": [
+        "order.choosePosition"
+      ]
+    },
+    {
+      "id": "optional",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "produce",
+      "ops": [
+        "work.produce"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.produce",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "no-dinner",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "run-payday",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "payday",
+      "ops": [
+        "scripted p2 payday.fire",
+        "scripted p2 payday.confirm",
+        "payday.fire",
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "thrown-away",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "p2-kt"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "p1-kt"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "p1-kt",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "p2-kt",
+      "food": "pizza"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r2:dinnertime"
+    },
+    {
+      "type": "payday.fire",
+      "playerId": "p2",
+      "uids": [
+        "card-44"
+      ]
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.fire",
+      "playerId": "p1",
+      "uids": [
+        "card-43"
+      ]
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    }
+  ],
+  "outcome": {
+    "seq": 12,
+    "round": 2,
+    "phase": "cleanup",
+    "cash": {
+      "p1": 0,
+      "p2": 0
+    },
+    "bank": 100
+  }
+}

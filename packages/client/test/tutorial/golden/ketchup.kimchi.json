@@ -1,0 +1,101 @@
+{
+  "lesson": "ketchup.kimchi",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "inspect",
+      "ops": [
+        "tap {\"house\":5}"
+      ]
+    },
+    {
+      "id": "rule",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "produce",
+      "ops": [
+        "work.produce"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "clean-up",
+      "ops": [
+        "tutorial.continue",
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "priority",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "k6-kt",
+      "food": "pizza"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:working"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    }
+  ],
+  "outcome": {
+    "seq": 6,
+    "round": 4,
+    "phase": "restructuring",
+    "cash": {
+      "p1": 30,
+      "p2": 0
+    },
+    "bank": 90
+  }
+}

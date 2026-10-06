@@ -25,7 +25,7 @@ function read(): Stored {
 function defaultLevel(): CoachLevel {
   try {
     const learn = JSON.parse(globalThis.localStorage?.getItem('fcm.learn') ?? 'null') as { lessons?: Record<string, { status?: string }> } | null;
-    if (learn?.lessons?.['L15']?.status === 'passed') return 'off';
+    if (learn?.lessons?.['base.15']?.status === 'passed') return 'off';
   } catch {
     /* no progress stored */
   }
@@ -59,6 +59,30 @@ export function dismissHint(id: string): void {
 
 export function closeHint(instance: string): void {
   closedHints.value = new Set([...closedHints.value, instance]);
+}
+
+/** sessionStorage flag: the current hot-seat game is L16 free play, launched from the Learn hub. */
+const FREE_PLAY_KEY = 'fcm.coach.freePlay';
+
+/** L16 "Free play with a coach": switch the coach on (full if it was off) and remember to return to the hub. */
+export function startFreePlay(): void {
+  if (coachLevel.value === 'off') setCoachLevel('full');
+  try {
+    globalThis.sessionStorage?.setItem(FREE_PLAY_KEY, '1');
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Whether the table being left was L16 free play (clears the flag): leaving goes back to the Learn hub. */
+export function takeFreePlayReturn(): boolean {
+  try {
+    const on = globalThis.sessionStorage?.getItem(FREE_PLAY_KEY) === '1';
+    globalThis.sessionStorage?.removeItem(FREE_PLAY_KEY);
+    return on;
+  } catch {
+    return false;
+  }
 }
 
 export function resetHints(): void {

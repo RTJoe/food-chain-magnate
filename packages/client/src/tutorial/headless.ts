@@ -14,6 +14,9 @@ import { engine } from '@fcm/engine';
 import type { Lesson, SignalName, SignalValues, SolutionOp, Step, StepCtx, Target } from './dsl.js';
 import { allowedReady, allowReachable, botSeats, evaluate, freshProgress, gateReason, isTap, matcherIndex, needsSolution, nextScripted, offersNext, scriptedSeats, solutionOf, type StepProgress } from './machine.js';
 import { isBoardTarget, selectionFor, targetBoardIds, targetUiNames, targetWorldRects } from './targets.js';
+import { contentFor, isManager as engineIsManager, managerSlots as engineManagerSlots, type EmployeeId } from '@fcm/engine';
+import { restructureCandidates } from '../state/selectors.js';
+import { draftFromStructure, emptyDraft, placeCard, placementError, removeCard, type OrgRules, type SlotTarget } from '../state/orgChart.js';
 
 export { lessonStart };
 
@@ -41,7 +44,47 @@ export interface WalkOptions {
   until?: string;
 }
 
-const initialSignals = (): SignalValues => ({ selection: null, topView: false, dockTab: 'turn', placementReason: null, previewGood: null, boardHover: null, uiTap: null });
+const initialSignals = (): SignalValues => ({ selection: null, topView: false, dockTab: 'turn', placementReason: null, previewGood: null, boardHover: null, uiTap: null, draft: null });
+
+/**
+ * Org chart taps as the editor handles them (ui/OrgChart.tsx): tap a hand card (`hand-card-<employeeId>`)
+ * or a placed card (`org-card-<uid>`) to select it, then a slot (`org-slot-<n>`, `org-mslot-<managerUid>-<n>`).
+ * Tapping a selected placed card returns it to the hand. Returns the new draft, or null when the tap is
+ * not an org chart tap.
+ */
+function orgTap(state: GameState, me: PlayerId, name: string, draft: SignalValues['draft'], selected: { uid: string | null }): SignalValues['draft'] | undefined {
+  const p = state.players[me];
+  if (!p || state.phase.kind !== 'restructuring') return undefined;
+  const content = contentFor(state.config.modules);
+  const defOf = (u: string) => content.employees[(p.employees[u]?.employeeId ?? 'waitress') as EmployeeId];
+  const rules: OrgRules = { ceoSlots: state.ceoSlots, isManager: (u) => engineIsManager(defOf(u)), slotsOf: (u) => engineManagerSlots(defOf(u)) };
+  const candidates = restructureCandidates(p);
+  const d = draft ?? (p.structure.ceoSubs.length ? draftFromStructure(p.structure, (u) => candidates.includes(u)) : emptyDraft());
+  const placed = new Set([...d.ceoSubs, ...Object.values(d.managerSubs).flat()]);
+  if (name.startsWith('hand-card-')) {
+    const id = name.slice('hand-card-'.length);
+    selected.uid = candidates.find((u) => !placed.has(u) && p.employees[u]?.employeeId === id) ?? null;
+    return d;
+  }
+  if (name.startsWith('org-card-')) {
+    const uid = name.slice('org-card-'.length);
+    if (selected.uid === uid) {
+      selected.uid = null;
+      return removeCard(d, uid);
+    }
+    selected.uid = uid;
+    return d;
+  }
+  let target: SlotTarget | null = null;
+  if (name.startsWith('org-slot-')) target = { kind: 'ceo' };
+  const m = /^org-mslot-(.+)-\d+$/.exec(name);
+  if (m?.[1]) target = { kind: 'manager', managerUid: m[1] };
+  if (!target) return undefined;
+  const uid = selected.uid;
+  selected.uid = null;
+  if (!uid || placementError(d, uid, target, rules)) return d;
+  return placeCard(d, uid, target, rules);
+}
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -79,6 +122,7 @@ export function walkLesson(lesson: Lesson, opts: WalkOptions = {}): WalkResult {
   let state = lessonStart(lesson).state;
   let signals = initialSignals();
   let lastAction: Action | null = null;
+  const orgSelected = { uid: null as string | null };
 
   const view = () => redactFor(state, me);
   const legal = (): LegalAction[] => legalActions(state, me);
@@ -101,6 +145,11 @@ export function walkLesson(lesson: Lesson, opts: WalkOptions = {}): WalkResult {
       const act = { ...a, playerId: who } as Action;
       const r = applyAction(state, act);
       if (!r.ok) return r.message;
+      // The editor's draft resets when the phase or round changes (state/store.ts).
+      if (r.state.phase.kind !== state.phase.kind || r.state.round !== state.round) {
+        setSignal('draft', null);
+        orgSelected.uid = null;
+      }
       state = r.state;
       actions.push(act);
       if (who === me) lastAction = act;
@@ -130,7 +179,9 @@ export function walkLesson(lesson: Lesson, opts: WalkOptions = {}): WalkResult {
       // uiTap counts every tap, even on the same element.
       signals = { ...signals, uiTap: name };
       prog.changes.uiTap = (prog.changes.uiTap ?? 0) + 1;
-      if (name === 'camera-top') setSignal('topView', !signals.topView);
+      const org = orgTap(state, me, name, signals.draft, orgSelected);
+      if (org !== undefined) setSignal('draft', org);
+      else if (name === 'camera-top') setSignal('topView', !signals.topView);
       else if (name === 'camera-reset') setSignal('topView', false);
       else if (name.startsWith('tab-')) setSignal('dockTab', name.slice(4) as SignalValues['dockTab']);
       else if (name === 'continue') {
@@ -178,7 +229,8 @@ export function walkLesson(lesson: Lesson, opts: WalkOptions = {}): WalkResult {
 
     let ops = solutionOf(step, ctx());
     let usedSolution = false;
-    for (let guard = 0; guard < 400; guard++) {
+    const repeat = Boolean(step.repeatSolution) && typeof step.solution === 'function';
+    for (let guard = 0; guard < (repeat ? 6000 : 400); guard++) {
       if (evaluate(step.until, ctx(), prog)) break;
       // Opponents first: the engine may be waiting on them.
       const awaited = state.awaiting.players;
@@ -210,7 +262,7 @@ export function walkLesson(lesson: Lesson, opts: WalkOptions = {}): WalkResult {
         continue;
       }
       // A solution computed at step start may depend on state reached since (Continue ids): refresh once.
-      if (!ops.length && !usedSolution && step.solution) {
+      if (!ops.length && (!usedSolution || repeat) && step.solution) {
         usedSolution = true;
         ops = solutionOf(step, ctx());
       }

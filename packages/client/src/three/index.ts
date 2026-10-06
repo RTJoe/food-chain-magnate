@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { effect, type ReadonlySignal } from '@preact/signals';
 import type { GameEvent, GameView, PlayerId } from '@fcm/engine';
 import { registerBoardBridge, type BoardBridge, type BoardPick, type InteractionMode } from '../state/boardBridge.js';
-import { animationSpeed, cameraCommand, skipAnimations, topView, tutorialHighlight } from '../state/interaction.js';
+import { animationSpeed, cameraCommand, skipAnimations, skipBoardBuild, topView, tutorialHighlight } from '../state/interaction.js';
 import { boardInset, highContrastTiles, houseBoardInfo, rangeOverlay, reachOverlay, routeOverlay, type BoardInset, type RouteRibbon } from '../state/boardOverlays.js';
 import type { FoodId, HouseId } from '@fcm/engine';
 import { OverlayLayer, type OverlayKind, type ReachOptions } from './overlays/index.js';
@@ -240,7 +240,7 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
         }
       }
       if (events.length) anim.play(events, { view, prevView, me, added: res.added, removed: res.removed, prevDemand: res.prevDemand });
-      else if (!prevView && view && view.phase.kind === 'setup.restaurants' && !Object.keys(view.board.restaurants).length) {
+      else if (!prevView && view && view.phase.kind === 'setup.restaurants' && !Object.keys(view.board.restaurants).length && !skipBoardBuild.peek()) {
         // Games start from a snapshot (`gameStarted` is never a live batch): the first look at a
         // fresh board plays the setup board build (animation-plan §2.1).
         anim.play([{ type: 'gameStarted', players: Object.keys(view.players), turnOrder: [...view.turnOrder] }], { view, prevView: null, me, added: [], removed: [], prevDemand: res.prevDemand });

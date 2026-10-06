@@ -1,0 +1,88 @@
+{
+  "lesson": "base.5",
+  "steps": [
+    {
+      "id": "hungry",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "house-2",
+      "ops": [
+        "tap {\"house\":2}"
+      ]
+    },
+    {
+      "id": "price-distance",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "house-18",
+      "ops": [
+        "tap {\"house\":18}"
+      ]
+    },
+    {
+      "id": "house-5",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "run",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "replay-2",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "replay-5",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "replay-18",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "bank",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "bank-end",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:start"
+    }
+  ],
+  "outcome": {
+    "seq": 1,
+    "round": 3,
+    "phase": "dinnertime",
+    "cash": {
+      "p1": 30,
+      "p2": 10
+    },
+    "bank": 60
+  }
+}

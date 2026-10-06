@@ -7,6 +7,7 @@ import { hasTerm } from '../glossary/index.js';
 import { whatsThis } from '../glossary/api.js';
 import { Button, Pill } from '../common.js';
 import { Icon } from '../icons.js';
+import { startFreePlay } from '../hints/coach.js';
 
 export function statusLabel(p: LessonProgress): { text: string; tone: 'neutral' | 'ok' | 'info' | 'warn' } {
   switch (p.status) {
@@ -93,7 +94,7 @@ export function LessonCard({ entry: e, index }: { entry: CourseEntry; index: num
             </span>
           </>
         ) : e.freePlay ? (
-          <Button size="sm" variant="secondary" icon="robot" onClick={() => navigate({ name: 'hotseat' })}>
+          <Button size="sm" variant="secondary" icon="robot" data-free-play onClick={() => (startFreePlay(), navigate({ name: 'hotseat' }))}>
             Play with the coach on
           </Button>
         ) : (

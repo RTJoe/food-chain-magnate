@@ -1,0 +1,110 @@
+{
+  "lesson": "base.12",
+  "steps": [
+    {
+      "id": "open-tab",
+      "ops": [
+        "tap {\"ui\":\"tab-milestones\"}"
+      ]
+    },
+    {
+      "id": "billboard",
+      "ops": [
+        "work.placeCampaign"
+      ]
+    },
+    {
+      "id": "mandatory",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "same-round",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.placeCampaign",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "cleanup",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "crossed-out",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "costs",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p1",
+      "cardUid": "p1-mk",
+      "campaignKind": "billboard",
+      "tileNumber": 14,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 3,
+        "y": 8,
+        "w": 2,
+        "h": 1
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p2",
+      "cardUid": "p2-mk",
+      "campaignKind": "billboard",
+      "tileNumber": 13,
+      "goods": [
+        "pizza"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 6,
+        "y": 8,
+        "w": 3,
+        "h": 1
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:working"
+    }
+  ],
+  "outcome": {
+    "seq": 5,
+    "round": 3,
+    "phase": "cleanup",
+    "cash": {
+      "p1": 12,
+      "p2": 12
+    },
+    "bank": 100
+  }
+}

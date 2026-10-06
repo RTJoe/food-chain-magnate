@@ -9,7 +9,7 @@ import { useSignal } from '@preact/signals';
 import type { Action } from '@fcm/engine';
 import { act } from '../../net/session.js';
 import { view } from '../../state/store.js';
-import { sheetOpen } from '../../ui/uiState.js';
+import { openSummary, sheetOpen } from '../../ui/uiState.js';
 import { Button, IconButton } from '../../ui/common.js';
 import { Icon } from '../../ui/icons.js';
 import { LessonDone, QuizPanel } from '../../ui/learn/Quiz.js';
@@ -40,12 +40,14 @@ function Coach({ runner: r, onExit }: { runner: TutorialRunner; onExit: () => vo
   useScrollTargets(targets, `${status}:${i}`);
   const strip = useRef<HTMLElement>(null);
   const top = useStripOnTop(cuts, strip);
+  // Desktop: an open Summary card (replay walkthroughs) sits where the strip docks; move beside it.
+  const beside = !top && openSummary.value !== null && typeof window !== 'undefined' && !window.matchMedia('(max-width: 860px)').matches;
   return (
     <>
       {cuts.length > 0 && <Spotlight cuts={cuts} pulse={hint > 0} />}
       <section
         ref={strip}
-        class={`coach-strip glass ${top ? 'is-top' : ''} ${status !== 'steps' ? 'is-wide' : ''}`}
+        class={`coach-strip glass ${top ? 'is-top' : ''} ${beside ? 'is-beside' : ''} ${status !== 'steps' ? 'is-wide' : ''}`}
         role="region"
         aria-label="Lesson coach"
         data-tutorial-strip
@@ -84,7 +86,7 @@ function StepBody({ runner: r, targets }: { runner: TutorialRunner; targets: Tar
   const notice = r.notice.value;
   const hint = r.hintLevel.value;
   const say = r.say();
-  const continueAllowed = matchers(step.allow).some((m) => m.type === 'tutorial.continue');
+  const continueAllowed = step.allow === 'any' || matchers(step.allow).some((m) => m.type === 'tutorial.continue');
   const head = v?.pending[0];
   const paused = head?.kind === 'continue' && head.player === r.me;
   const whats = step.glossary && hasTerm(step.glossary) ? step.glossary : null;
@@ -236,7 +238,7 @@ function useStripOnTop(cuts: Cutout[], strip: { current: HTMLElement | null }): 
     }
     const h = window.innerHeight;
     const lowTarget = cuts.some((c) => !c.arrow && c.y + c.h > h * 0.55);
-    top.value = sheetOpen.value || lowTarget;
-  }, [JSON.stringify(cuts), sheetOpen.value]);
+    top.value = sheetOpen.value || lowTarget || openSummary.value !== null;
+  }, [JSON.stringify(cuts), sheetOpen.value, openSummary.value]);
   return top.value;
 }

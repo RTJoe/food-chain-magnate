@@ -10,6 +10,7 @@ import { Button, FoodChips, PlayerBadge } from './common.js';
 import { RollingCash } from './motion.js';
 import { Icon } from './icons.js';
 import { BotBadge } from './bots.js';
+import { lessonSeatWaiting } from '../tutorial/runner.js';
 
 export function PlayerPanels() {
   const v = view.value;
@@ -108,7 +109,7 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
           <span class="ppanel-sub">
             {connected !== null && <span class={`dot ${connected ? 'is-on' : 'is-off'}`} aria-label={connected ? 'Online' : 'Offline'} />}
             {isMe ? 'You' : `#${rank} in cash`}
-            {thinking ? <span class="ppanel-turn ppanel-thinking"> · thinking…</span> : active && <span class="ppanel-turn"> · {simultaneous ? 'deciding' : 'playing'}</span>}
+            {thinking ? <span class="ppanel-turn ppanel-thinking"> · thinking…</span> : active && <span class="ppanel-turn"> · {lessonSeatWaiting(id) ? 'waiting' : simultaneous ? 'deciding' : 'playing'}</span>}
             {simultaneous && submitted && <span class="ppanel-ok"> · {Icon.check({ size: 12 })} done</span>}
           </span>
         </span>

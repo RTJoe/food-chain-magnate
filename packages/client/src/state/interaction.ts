@@ -92,6 +92,8 @@ export const selectedOutlook = signal<HouseOutlook | null>(null);
 export const inspectIds = signal<readonly string[]>([]);
 /** Lesson coach marks (tutorial/runner.ts): board pieces ringed for the current step, in any mode. */
 export const tutorialHighlight = signal<readonly string[]>([]);
+/** Skip the setup board build (animation-plan §2.1) on the next fresh board: a resumed lesson has seen it. */
+export const skipBoardBuild = signal(false);
 
 export function select(s: Selection | null): void {
   selection.value = s;

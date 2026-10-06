@@ -1,0 +1,100 @@
+{
+  "lesson": "ketchup.ruralMarketeers",
+  "steps": [
+    {
+      "id": "intro",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "billboard",
+      "ops": [
+        "work.placeCampaign"
+      ]
+    },
+    {
+      "id": "freeway",
+      "ops": [
+        "ketchup:ruralMarketeers.placeFreeway"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "dinner",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "marketing",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "combine",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p1",
+      "cardUid": "k14-rm",
+      "campaignKind": "giantBillboard",
+      "tileNumber": 21,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "rural",
+        "side": "N"
+      },
+      "duration": 1
+    },
+    {
+      "type": "ketchup:ruralMarketeers.placeFreeway",
+      "playerId": "p1",
+      "choiceId": "choice-45",
+      "side": "W",
+      "offset": 2
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r4:working"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r4:dinnertime"
+    }
+  ],
+  "outcome": {
+    "seq": 6,
+    "round": 4,
+    "phase": "marketing",
+    "cash": {
+      "p1": 60,
+      "p2": 0
+    },
+    "bank": 70
+  }
+}

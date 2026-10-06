@@ -1,0 +1,2237 @@
+{
+  "lesson": "base.15",
+  "steps": [
+    {
+      "id": "welcome",
+      "ops": [
+        "bot p2 setup.chooseReserve",
+        "next"
+      ]
+    },
+    {
+      "id": "reserve",
+      "ops": [
+        "setup.chooseReserve"
+      ]
+    },
+    {
+      "id": "round-1",
+      "ops": [
+        "order.choosePosition",
+        "work.recruit",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.confirm",
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "round-2",
+      "ops": [
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.placeCampaign",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.produce",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.fire",
+        "bot p2 payday.confirm",
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "play",
+      "ops": [
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.train",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.placeCampaign",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.placeCampaign",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.train",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.placeCampaign",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.train",
+        "bot p2 work.placeCampaign",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.placeCampaign",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.train",
+        "bot p2 work.skip",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.buyDrinks",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.fire",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 cleanup.freezer",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.train",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.placeCampaign",
+        "bot p2 work.skip",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.buyDrinks",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.fire",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 cleanup.freezer",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.train",
+        "work.produce",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.skip",
+        "bot p2 work.skip",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 cleanup.freezer",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.train",
+        "work.placeCampaign",
+        "work.produce",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.placeCampaign",
+        "bot p2 work.skip",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 cleanup.freezer",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.train",
+        "work.produce",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.train",
+        "bot p2 work.skip",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.buyDrinks",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.fire",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 cleanup.freezer",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.train",
+        "work.placeCampaign",
+        "work.produce",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.placeCampaign",
+        "bot p2 work.skip",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.buyDrinks",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 cleanup.freezer",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.train",
+        "work.produce",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.skip",
+        "bot p2 work.skip",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.buyDrinks",
+        "bot p2 work.endTurn",
+        "tutorial.continue",
+        "bot p2 payday.confirm",
+        "payday.confirm",
+        "bot p2 cleanup.freezer",
+        "bot p2 restructure.submit",
+        "restructure.submit",
+        "order.choosePosition",
+        "work.recruit",
+        "work.placeCampaign",
+        "work.produce",
+        "work.produce",
+        "work.endTurn",
+        "bot p2 work.recruit",
+        "bot p2 work.placeCampaign",
+        "bot p2 work.skip",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.produce",
+        "bot p2 work.buyDrinks",
+        "bot p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "result",
+      "ops": [
+        "next"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "setup.chooseReserve",
+      "playerId": "p2",
+      "card": {
+        "kind": "standard",
+        "amount": 300,
+        "ceoSlots": 4
+      }
+    },
+    {
+      "type": "setup.chooseReserve",
+      "playerId": "p1",
+      "card": {
+        "kind": "standard",
+        "amount": 300,
+        "ceoSlots": 4
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "marketing_trainee"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "kitchen_trainee"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r1:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-44"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-43"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "trainer"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p1",
+      "cardUid": "card-43",
+      "campaignKind": "billboard",
+      "tileNumber": 11,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 0,
+        "y": 8,
+        "w": 3,
+        "h": 2
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "kitchen_trainee"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r2:dinnertime"
+    },
+    {
+      "type": "payday.fire",
+      "playerId": "p2",
+      "uids": [
+        "card-48"
+      ]
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-44",
+          "card-47"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-45"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "kitchen_trainee"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "card-45",
+      "targetUid": "card-49",
+      "toEmployeeId": "burger_cook"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "marketing_trainee"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-44",
+          "card-47",
+          "card-50"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-49"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "pricing_manager"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "marketing_trainee"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p2",
+      "cardUid": "card-50",
+      "campaignKind": "billboard",
+      "tileNumber": 14,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 14,
+        "y": 8,
+        "w": 1,
+        "h": 2
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r4:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-44",
+          "card-47",
+          "card-52"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-51",
+          "card-49",
+          "card-45"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "management_trainee"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "management_trainee"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p2",
+      "cardUid": "card-52",
+      "campaignKind": "billboard",
+      "tileNumber": 13,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 6,
+        "y": 8,
+        "w": 3,
+        "h": 1
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r5:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-55",
+          "card-44",
+          "card-47"
+        ],
+        "managerSubs": {
+          "card-55": [
+            "card-50"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-49",
+          "card-45"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "management_trainee"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "card-45",
+      "targetUid": "card-57",
+      "toEmployeeId": "junior_vp"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "trainer"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p2",
+      "cardUid": "card-50",
+      "campaignKind": "billboard",
+      "tileNumber": 14,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 14,
+        "y": 8,
+        "w": 1,
+        "h": 2
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r6:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-55",
+          "card-44",
+          "card-47"
+        ],
+        "managerSubs": {
+          "card-55": [
+            "card-52",
+            "card-58"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-49",
+          "card-45"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "marketing_trainee"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "errand_boy"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p2",
+      "trainerUid": "card-58",
+      "targetUid": "card-61",
+      "toEmployeeId": "cart_operator"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p2",
+      "cardUid": "card-52",
+      "campaignKind": "billboard",
+      "tileNumber": 13,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 6,
+        "y": 8,
+        "w": 3,
+        "h": 1
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r7:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-55",
+          "card-44",
+          "card-47",
+          "card-50"
+        ],
+        "managerSubs": {
+          "card-55": [
+            "card-61",
+            "card-58"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-49",
+          "card-60"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "waitress"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p1",
+      "cardUid": "card-60",
+      "campaignKind": "billboard",
+      "tileNumber": 14,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 3,
+        "y": 8,
+        "w": 2,
+        "h": 1
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "kitchen_trainee"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p2",
+      "trainerUid": "card-58",
+      "targetUid": "card-65",
+      "toEmployeeId": "burger_cook"
+    },
+    {
+      "type": "work.skip",
+      "playerId": "p2",
+      "cardUid": "card-50"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.buyDrinks",
+      "playerId": "p2",
+      "cardUid": "card-61",
+      "route": {
+        "mode": "road",
+        "from": {
+          "kind": "restaurant",
+          "restaurantId": "restaurant-42",
+          "corner": "NW"
+        },
+        "path": [
+          {
+            "x": 11,
+            "y": 7
+          },
+          {
+            "x": 10,
+            "y": 7
+          },
+          {
+            "x": 9,
+            "y": 7
+          },
+          {
+            "x": 9,
+            "y": 6
+          },
+          {
+            "x": 9,
+            "y": 5
+          },
+          {
+            "x": 8,
+            "y": 5
+          },
+          {
+            "x": 7,
+            "y": 5
+          },
+          {
+            "x": 7,
+            "y": 4
+          },
+          {
+            "x": 7,
+            "y": 3
+          },
+          {
+            "x": 7,
+            "y": 2
+          },
+          {
+            "x": 8,
+            "y": 2
+          },
+          {
+            "x": 9,
+            "y": 2
+          },
+          {
+            "x": 10,
+            "y": 2
+          },
+          {
+            "x": 11,
+            "y": 2
+          },
+          {
+            "x": 12,
+            "y": 2
+          },
+          {
+            "x": 12,
+            "y": 1
+          },
+          {
+            "x": 12,
+            "y": 0
+          }
+        ]
+      }
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r8:dinnertime"
+    },
+    {
+      "type": "payday.fire",
+      "playerId": "p2",
+      "uids": [
+        "card-65"
+      ]
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "cleanup.freezer",
+      "playerId": "p2",
+      "keep": {
+        "burger": 10
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-55",
+          "card-44",
+          "card-47",
+          "card-50"
+        ],
+        "managerSubs": {
+          "card-55": [
+            "card-52",
+            "card-61"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-49",
+          "card-63",
+          "card-45"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "kitchen_trainee"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "card-45",
+      "targetUid": "card-66",
+      "toEmployeeId": "burger_cook"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "kitchen_trainee"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p2",
+      "cardUid": "card-50",
+      "campaignKind": "billboard",
+      "tileNumber": 13,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 6,
+        "y": 6,
+        "w": 1,
+        "h": 3
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.skip",
+      "playerId": "p2",
+      "cardUid": "card-52"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.buyDrinks",
+      "playerId": "p2",
+      "cardUid": "card-61",
+      "route": {
+        "mode": "road",
+        "from": {
+          "kind": "restaurant",
+          "restaurantId": "restaurant-42",
+          "corner": "NW"
+        },
+        "path": [
+          {
+            "x": 11,
+            "y": 7
+          },
+          {
+            "x": 10,
+            "y": 7
+          },
+          {
+            "x": 9,
+            "y": 7
+          },
+          {
+            "x": 9,
+            "y": 6
+          },
+          {
+            "x": 9,
+            "y": 5
+          },
+          {
+            "x": 8,
+            "y": 5
+          },
+          {
+            "x": 7,
+            "y": 5
+          },
+          {
+            "x": 7,
+            "y": 4
+          },
+          {
+            "x": 7,
+            "y": 3
+          },
+          {
+            "x": 7,
+            "y": 2
+          },
+          {
+            "x": 8,
+            "y": 2
+          },
+          {
+            "x": 9,
+            "y": 2
+          },
+          {
+            "x": 10,
+            "y": 2
+          },
+          {
+            "x": 11,
+            "y": 2
+          },
+          {
+            "x": 12,
+            "y": 2
+          },
+          {
+            "x": 12,
+            "y": 1
+          },
+          {
+            "x": 12,
+            "y": 0
+          }
+        ]
+      }
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r9:dinnertime"
+    },
+    {
+      "type": "payday.fire",
+      "playerId": "p2",
+      "uids": [
+        "card-61"
+      ]
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "cleanup.freezer",
+      "playerId": "p2",
+      "keep": {
+        "burger": 10
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-55",
+          "card-44",
+          "card-47",
+          "card-67"
+        ],
+        "managerSubs": {
+          "card-55": [
+            "card-52",
+            "card-58"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-49",
+          "card-45",
+          "card-63",
+          "card-66"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "marketing_trainee"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "card-45",
+      "targetUid": "card-69",
+      "toEmployeeId": "campaign_manager"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-66",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "errand_boy"
+    },
+    {
+      "type": "work.skip",
+      "playerId": "p2",
+      "cardUid": "card-58"
+    },
+    {
+      "type": "work.skip",
+      "playerId": "p2",
+      "cardUid": "card-52"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-67",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r10:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "cleanup.freezer",
+      "playerId": "p2",
+      "keep": {
+        "burger": 10
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-55",
+          "card-44",
+          "card-47",
+          "card-67"
+        ],
+        "managerSubs": {
+          "card-55": [
+            "card-50",
+            "card-52"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-54",
+          "card-45",
+          "card-63",
+          "card-66"
+        ],
+        "managerSubs": {
+          "card-54": [
+            "card-49",
+            "card-69"
+          ]
+        }
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "management_trainee"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "card-45",
+      "targetUid": "card-71",
+      "toEmployeeId": "junior_vp"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p1",
+      "cardUid": "card-69",
+      "campaignKind": "mailbox",
+      "tileNumber": 7,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 13,
+        "y": 8,
+        "w": 2,
+        "h": 2
+      },
+      "duration": 3
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-66",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "management_trainee"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p2",
+      "cardUid": "card-50",
+      "campaignKind": "billboard",
+      "tileNumber": 13,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 6,
+        "y": 6,
+        "w": 1,
+        "h": 3
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.skip",
+      "playerId": "p2",
+      "cardUid": "card-52"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-67",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r11:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "cleanup.freezer",
+      "playerId": "p2",
+      "keep": {
+        "burger": 10
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-55",
+          "card-73",
+          "card-44",
+          "card-47"
+        ],
+        "managerSubs": {
+          "card-55": [
+            "card-67",
+            "card-52"
+          ],
+          "card-73": [
+            "card-70",
+            "card-58"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-49",
+          "card-66",
+          "card-45",
+          "card-63"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "marketing_trainee"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "card-45",
+      "targetUid": "card-75",
+      "toEmployeeId": "campaign_manager"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-66",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "errand_boy"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p2",
+      "trainerUid": "card-58",
+      "targetUid": "card-76",
+      "toEmployeeId": "cart_operator"
+    },
+    {
+      "type": "work.skip",
+      "playerId": "p2",
+      "cardUid": "card-52"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-67",
+      "food": "burger"
+    },
+    {
+      "type": "work.buyDrinks",
+      "playerId": "p2",
+      "cardUid": "card-70",
+      "route": {
+        "mode": "errand",
+        "drink": "lemonade"
+      }
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r12:dinnertime"
+    },
+    {
+      "type": "payday.fire",
+      "playerId": "p2",
+      "uids": [
+        "card-76"
+      ]
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "cleanup.freezer",
+      "playerId": "p2",
+      "keep": {
+        "burger": 10
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-55",
+          "card-73",
+          "card-44",
+          "card-47"
+        ],
+        "managerSubs": {
+          "card-55": [
+            "card-67",
+            "card-50"
+          ],
+          "card-73": [
+            "card-52",
+            "card-70"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-54",
+          "card-75",
+          "card-45",
+          "card-63"
+        ],
+        "managerSubs": {
+          "card-54": [
+            "card-49",
+            "card-66"
+          ]
+        }
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "marketing_trainee"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "card-45",
+      "targetUid": "card-71",
+      "toEmployeeId": "vice_president"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p1",
+      "cardUid": "card-75",
+      "campaignKind": "mailbox",
+      "tileNumber": 8,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 4,
+        "y": 13,
+        "w": 2,
+        "h": 2
+      },
+      "duration": 3
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-66",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "waitress"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p2",
+      "cardUid": "card-50",
+      "campaignKind": "billboard",
+      "tileNumber": 13,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 6,
+        "y": 6,
+        "w": 1,
+        "h": 3
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.skip",
+      "playerId": "p2",
+      "cardUid": "card-52"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-67",
+      "food": "burger"
+    },
+    {
+      "type": "work.buyDrinks",
+      "playerId": "p2",
+      "cardUid": "card-70",
+      "route": {
+        "mode": "errand",
+        "drink": "beer"
+      }
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r13:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "cleanup.freezer",
+      "playerId": "p2",
+      "keep": {
+        "burger": 10
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-55",
+          "card-73",
+          "card-44",
+          "card-47"
+        ],
+        "managerSubs": {
+          "card-55": [
+            "card-67",
+            "card-52"
+          ],
+          "card-73": [
+            "card-70",
+            "card-58"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-49",
+          "card-63",
+          "card-66",
+          "card-45"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "pricing_manager"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "card-45",
+      "targetUid": "card-77",
+      "toEmployeeId": "campaign_manager"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-66",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "pricing_manager"
+    },
+    {
+      "type": "work.skip",
+      "playerId": "p2",
+      "cardUid": "card-58"
+    },
+    {
+      "type": "work.skip",
+      "playerId": "p2",
+      "cardUid": "card-52"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-67",
+      "food": "burger"
+    },
+    {
+      "type": "work.buyDrinks",
+      "playerId": "p2",
+      "cardUid": "card-70",
+      "route": {
+        "mode": "errand",
+        "drink": "soft_drink"
+      }
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r14:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "cleanup.freezer",
+      "playerId": "p2",
+      "keep": {
+        "burger": 10
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "card-55",
+          "card-73",
+          "card-44",
+          "card-47"
+        ],
+        "managerSubs": {
+          "card-55": [
+            "card-67",
+            "card-50"
+          ],
+          "card-73": [
+            "card-52",
+            "card-70"
+          ]
+        }
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "card-71",
+          "card-63"
+        ],
+        "managerSubs": {
+          "card-71": [
+            "card-49",
+            "card-77",
+            "card-81",
+            "card-66"
+          ]
+        }
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p1",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "marketing_trainee"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p1",
+      "cardUid": "card-77",
+      "campaignKind": "mailbox",
+      "tileNumber": 9,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 6,
+        "y": 6,
+        "w": 1,
+        "h": 1
+      },
+      "duration": 3
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-49",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "card-66",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "marketing_trainee"
+    },
+    {
+      "type": "work.placeCampaign",
+      "playerId": "p2",
+      "cardUid": "card-50",
+      "campaignKind": "billboard",
+      "tileNumber": 13,
+      "goods": [
+        "burger"
+      ],
+      "placement": {
+        "kind": "board",
+        "x": 6,
+        "y": 8,
+        "w": 3,
+        "h": 1
+      },
+      "duration": 2
+    },
+    {
+      "type": "work.skip",
+      "playerId": "p2",
+      "cardUid": "card-52"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-44",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-47",
+      "food": "burger"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "card-67",
+      "food": "burger"
+    },
+    {
+      "type": "work.buyDrinks",
+      "playerId": "p2",
+      "cardUid": "card-70",
+      "route": {
+        "mode": "errand",
+        "drink": "soft_drink"
+      }
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    }
+  ],
+  "outcome": {
+    "seq": 249,
+    "round": 15,
+    "phase": "gameOver",
+    "cash": {
+      "p1": 783,
+      "p2": 0
+    },
+    "bank": 0
+  }
+}

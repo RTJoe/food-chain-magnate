@@ -1,0 +1,165 @@
+{
+  "lesson": "base.9",
+  "steps": [
+    {
+      "id": "manager-slots",
+      "ops": [
+        "tap {\"ui\":\"hand-card-management_trainee\"}",
+        "tap {\"ui\":\"org-slot-1\"}"
+      ]
+    },
+    {
+      "id": "fill-manager",
+      "ops": [
+        "tap {\"ui\":\"hand-card-waitress\"}",
+        "tap {\"ui\":\"org-mslot-p1-mt-1\"}",
+        "tap {\"ui\":\"hand-card-kitchen_trainee\"}",
+        "tap {\"ui\":\"org-mslot-p1-mt-1\"}"
+      ]
+    },
+    {
+      "id": "trainer-slot",
+      "ops": [
+        "tap {\"ui\":\"hand-card-trainer\"}",
+        "tap {\"ui\":\"org-slot-2\"}"
+      ]
+    },
+    {
+      "id": "submit",
+      "ops": [
+        "scripted p2 restructure.submit",
+        "restructure.submit"
+      ]
+    },
+    {
+      "id": "overfill",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "open-slots",
+      "ops": [
+        "tutorial.continue",
+        "scripted p2 order.choosePosition",
+        "scripted p2 work.recruit",
+        "scripted p2 work.endTurn"
+      ]
+    },
+    {
+      "id": "order",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "hire",
+      "ops": [
+        "work.recruit"
+      ]
+    },
+    {
+      "id": "train",
+      "ops": [
+        "work.train"
+      ]
+    },
+    {
+      "id": "only-beach",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "one-x",
+      "ops": [
+        "tap {\"ui\":\"tab-market\"}"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "p2-kt",
+          "p2-wa",
+          "p2-eb",
+          "p2-mk",
+          "p2-rg"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "p1-mt",
+          "p1-tr"
+        ],
+        "managerSubs": {
+          "p1-mt": [
+            "p1-wa",
+            "p1-kt"
+          ]
+        }
+      }
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r4:restructuring"
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p2",
+      "position": 0
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p2",
+      "cardUid": "card-2",
+      "employeeId": "errand_boy"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "work.recruit",
+      "playerId": "p1",
+      "cardUid": "card-1",
+      "employeeId": "marketing_trainee"
+    },
+    {
+      "type": "work.train",
+      "playerId": "p1",
+      "trainerUid": "p1-tr",
+      "targetUid": "p1-eb",
+      "toEmployeeId": "cart_operator"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    }
+  ],
+  "outcome": {
+    "seq": 9,
+    "round": 4,
+    "phase": "working",
+    "cash": {
+      "p1": 25,
+      "p2": 25
+    },
+    "bank": 100
+  }
+}

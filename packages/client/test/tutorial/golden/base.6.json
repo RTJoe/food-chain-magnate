@@ -1,0 +1,183 @@
+{
+  "lesson": "base.6",
+  "steps": [
+    {
+      "id": "distance",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "bo-price",
+      "ops": [
+        "tap {\"house\":18}"
+      ]
+    },
+    {
+      "id": "run-1",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "replay-1",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "next-round",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "payday",
+      "ops": [
+        "scripted p2 payday.confirm",
+        "payday.confirm"
+      ]
+    },
+    {
+      "id": "restructure",
+      "ops": [
+        "scripted p2 restructure.submit",
+        "restructure.submit"
+      ]
+    },
+    {
+      "id": "bo-order",
+      "ops": [
+        "scripted p2 order.choosePosition",
+        "scripted p2 work.produce",
+        "scripted p2 work.endTurn",
+        "next"
+      ]
+    },
+    {
+      "id": "produce",
+      "ops": [
+        "work.produce"
+      ]
+    },
+    {
+      "id": "end-turn",
+      "ops": [
+        "work.endTurn"
+      ]
+    },
+    {
+      "id": "tie",
+      "ops": [
+        "tap {\"house\":18}"
+      ]
+    },
+    {
+      "id": "tie-break",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "run-2",
+      "ops": [
+        "tutorial.continue"
+      ]
+    },
+    {
+      "id": "replay-2",
+      "ops": [
+        "next"
+      ]
+    },
+    {
+      "id": "staff",
+      "ops": [
+        "tap {\"ui\":\"tab-market\"}"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:start"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r3:dinnertime"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p2"
+    },
+    {
+      "type": "payday.confirm",
+      "playerId": "p1"
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p2",
+      "structure": {
+        "ceoSubs": [
+          "p2-pm",
+          "p2-kt"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "restructure.submit",
+      "playerId": "p1",
+      "structure": {
+        "ceoSubs": [
+          "p1-pm",
+          "p1-w",
+          "p1-kt"
+        ],
+        "managerSubs": {}
+      }
+    },
+    {
+      "type": "order.choosePosition",
+      "playerId": "p2",
+      "position": 0
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p2",
+      "cardUid": "p2-kt",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p2"
+    },
+    {
+      "type": "work.produce",
+      "playerId": "p1",
+      "cardUid": "p1-kt",
+      "food": "burger"
+    },
+    {
+      "type": "work.endTurn",
+      "playerId": "p1"
+    },
+    {
+      "type": "tutorial.continue",
+      "playerId": "p1",
+      "choiceId": "tutorial-pause:r4:working"
+    }
+  ],
+  "outcome": {
+    "seq": 12,
+    "round": 4,
+    "phase": "dinnertime",
+    "cash": {
+      "p1": 34,
+      "p2": 28
+    },
+    "bank": 78
+  }
+}

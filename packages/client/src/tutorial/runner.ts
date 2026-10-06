@@ -22,16 +22,18 @@ import { act, endSession, scriptedAct, setActionGate, startTutorial } from '../n
 import type { LocalTransport } from '../net/localTransport.js';
 import { boardRenderer } from '../state/boardBridge.js';
 import { currentBeat, requestReplay } from '../state/feedback.js';
-import { boardHover, cameraCommand, followAction, placementReason, previewGood, select, selection, topView, tutorialHighlight } from '../state/interaction.js';
+import { boardHover, cameraCommand, followAction, placementReason, previewGood, select, selection, skipBoardBuild, topView, tutorialHighlight } from '../state/interaction.js';
 import { rangeOverlay, reachOverlay } from '../state/boardOverlays.js';
 import { rangeFor, reachFor } from '../state/guidance.js';
-import { me as storeMe, summaries, updateSettings, view as storeView } from '../state/store.js';
+import { draft as storeDraft, me as storeMe, summaries, updateSettings, view as storeView } from '../state/store.js';
+import { coachLevel, type CoachLevel } from '../ui/hints/coach.js';
 import { dockTab, openSummary, seenSummary, sheetOpen } from '../ui/uiState.js';
 import type { CameraFrame, Effect, Lesson, Question, SignalName, SignalValues, SolutionOp, Step, StepCtx, Target } from './dsl.js';
 import { allowReachable, botSeats, evaluate, freshProgress, gateReason, hintDelay, isTap, matcherIndex, nextScripted, offersNext, sayOf, scriptedSeats, solutionOf, thenOf, type StepProgress } from './machine.js';
 import { clearCheckpoint, lessonProgress, markOpened, recordQuiz, saveCheckpoint } from './progress.js';
 import { courseBadges, lessonBadgeId } from './catalog.js';
 import { lessonStart } from './scenario.js';
+import { haulDrinks } from '../state/actions.js';
 import { isBoardTarget, selectionFor, selectionMatches, targetBoardIds, targetUiNames, targetWorldRects } from './targets.js';
 
 export type RunnerStatus = 'steps' | 'quiz' | 'done';
@@ -47,6 +49,17 @@ export interface QuizResult {
 export const uiTap = signal<{ name: string; n: number } | null>(null);
 /** The open lesson, or null. */
 export const activeTutorial = signal<TutorialRunner | null>(null);
+/** The scripted seat whose move is about to be applied (the rail says "thinking…" only then). */
+export const scriptedActing = signal<PlayerId | null>(null);
+
+/**
+ * In a lesson, a scripted seat the engine awaits is only "thinking" while its scripted move is
+ * pending; otherwise it is waiting for the lesson. Bot seats and other modes: false.
+ */
+export function lessonSeatWaiting(id: PlayerId): boolean {
+  const r = activeTutorial.value;
+  return Boolean(r && r.lesson.scenario.opponents[id] === 'scripted' && scriptedActing.value !== id);
+}
 
 const SCRIPT_DELAY_MS = 650;
 const WATCHDOG_MS = 3000;
@@ -69,6 +82,7 @@ function signalValues(): SignalValues {
     previewGood: previewGood.peek(),
     boardHover: boardHover.peek(),
     uiTap: uiTap.peek()?.name ?? null,
+    draft: storeDraft.peek(),
   };
 }
 
@@ -132,6 +146,8 @@ export class TutorialRunner {
   private actionsAtEntry: number[] = [];
   private wroteOverlay = { range: false, reach: false };
   private followBefore = followAction.peek();
+  /** Coach level before a `{ coach }` effect changed it (restored on dispose). */
+  private coachBefore: CoachLevel | null = null;
   private disposed = false;
 
   constructor(lesson: Lesson) {
@@ -155,6 +171,8 @@ export class TutorialRunner {
     if (at < 0) at = 0;
     const prelude = at > 0 ? (prog.actions ?? []) : [];
     const base = { state: lessonStart(lesson).state, learner: this.me, scripted: scriptedSeats(lesson), bots: botSeats(lesson) };
+    // A resumed lesson has already shown the setup board build: do not replay it (or wait for it).
+    skipBoardBuild.value = at > 0;
     try {
       this.transport = startTutorial(engine, { ...base, prelude });
     } catch (e) {
@@ -181,9 +199,12 @@ export class TutorialRunner {
     this.disposers = [];
     setActionGate(null);
     tutorialHighlight.value = [];
+    skipBoardBuild.value = false;
+    scriptedActing.value = null;
     if (this.wroteOverlay.range) rangeOverlay.value = null;
     if (this.wroteOverlay.reach) reachOverlay.value = null;
     followAction.value = this.followBefore;
+    if (this.coachBefore !== null) coachLevel.value = this.coachBefore;
     if (activeTutorial.peek() === this) activeTutorial.value = null;
     const w = globalThis as unknown as { __fcmTutorial?: unknown };
     if ((w.__fcmTutorial as { runner?: unknown } | undefined)?.runner === this) delete w.__fcmTutorial;
@@ -271,6 +292,7 @@ export class TutorialRunner {
         void previewGood.value;
         void boardHover.value;
         void uiTap.value;
+        void storeDraft.value;
         void storeView.value;
         const now = signalValues();
         const prev = this.prevSignals;
@@ -286,7 +308,8 @@ export class TutorialRunner {
         const b = currentBeat.value;
         if (!b) return;
         this.prog.beats.add(b.id);
-        this.tick.value++;
+        // peek: reading `tick` here would subscribe this effect to the signal it writes (cycle).
+        this.tick.value = this.tick.peek() + 1;
         this.queueEvaluate();
       }),
     );
@@ -297,6 +320,8 @@ export class TutorialRunner {
         if (!name) return;
         this.prog.changes.uiTap = (this.prog.changes.uiTap ?? 0) + 1;
         uiTap.value = { name, n: (uiTap.peek()?.n ?? 0) + 1 };
+        // Quiz `tap` questions on a UI target (a tab, a button) are answered by tapping it.
+        if (this.status.peek() === 'quiz') this.answerTap(name);
       };
       const onActivity = () => this.activity();
       document.addEventListener('click', onClick, true);
@@ -391,6 +416,12 @@ export class TutorialRunner {
     this.clearTimers();
     tutorialHighlight.value = [];
     clearCheckpoint(this.lesson.id);
+    // Phones: tap questions need the board (no sheet, no Summary card over it); the check lives on the coach card.
+    sheetOpen.value = false;
+    this.applyEffects([{ summary: 'close' }]);
+    // Stop following a replay and show the whole board, so tap questions land where the pieces are.
+    followAction.value = this.followBefore;
+    this.frame({ kind: 'board' });
     batch(() => {
       this.status.value = 'quiz';
       this.quizIndex.value = 0;
@@ -454,6 +485,10 @@ export class TutorialRunner {
       else if ('setSetting' in e) updateSettings(e.setSetting);
       else if ('camera' in e) this.frame(e.camera);
       else if ('follow' in e) followAction.value = e.follow;
+      else if ('coach' in e) {
+        if (this.coachBefore === null) this.coachBefore = coachLevel.peek();
+        coachLevel.value = e.coach;
+      }
       else if ('summary' in e) {
         const last = summaries.peek().at(-1);
         if (e.summary === 'open' && last) openSummary.value = last.id;
@@ -483,8 +518,10 @@ export class TutorialRunner {
     if (!move) return;
     this.prog.scripted.add(move.index);
     const stepAt = this.stepIndex.peek();
+    scriptedActing.value = sp;
     this.scriptTimer = setTimeout(() => {
       this.scriptTimer = null;
+      scriptedActing.value = null;
       if (this.disposed || this.stepIndex.peek() !== stepAt) return;
       const r = scriptedAct(sp, move.action);
       if (!r.ok) {
@@ -545,12 +582,18 @@ export class TutorialRunner {
       const c = this.ctx();
       let ops: SolutionOp[] = c ? solutionOf(this.step, c) : [];
       let refreshed = false;
-      for (let guard = 0; guard < 40 && this.stepIndex.peek() === stepAt && this.status.peek() === 'steps'; guard++) {
+      const repeat = Boolean(this.step.repeatSolution);
+      for (let guard = 0; guard < (repeat ? 3000 : 40) && this.stepIndex.peek() === stepAt && this.status.peek() === 'steps' && !this.disposed; guard++) {
         const cc = this.ctx();
         if (cc && evaluate(this.step.until, cc, this.prog)) break;
-        if (!ops.length && !refreshed && typeof this.step.solution === 'function' && cc) {
+        if (!ops.length && (!refreshed || repeat) && typeof this.step.solution === 'function' && cc) {
           refreshed = true;
           ops = solutionOf(this.step, cc);
+          // A repeating solution with nothing to do yet: wait for opponents and bots.
+          if (repeat && !ops.length) {
+            await this.settle(250);
+            continue;
+          }
         }
         const op = ops.shift();
         if (!op) {
@@ -634,6 +677,7 @@ export class TutorialRunner {
     for (const t of this.timers.splice(0)) clearTimeout(t);
     if (this.scriptTimer) clearTimeout(this.scriptTimer);
     this.scriptTimer = null;
+    scriptedActing.value = null;
     if (this.watchdog) clearTimeout(this.watchdog);
     this.watchdog = null;
   }
@@ -731,6 +775,21 @@ export class TutorialRunner {
         return targetClientRect(t);
       },
       skip: () => runner.skip(),
+      /** Employee id of one of the learner's cards (e2e finds `hand-card-<employeeId>` for a uid). */
+      employeeOf(uid: string) {
+        return storeView.peek()?.players[runner.me]?.employees[uid]?.employeeId ?? null;
+      },
+      /** A house's printed label (e2e matches garden rows). */
+      houseLabel(id: string) {
+        return storeView.peek()?.board.houses[id]?.label ?? null;
+      },
+      /** Drinks a road / air `work.buyDrinks` action collects, as the haul rows list them (e2e picks the row). */
+      haul(a: Action) {
+        const st = runner.transport?.state;
+        if (!st || a.type !== 'work.buyDrinks' || a.route.mode === 'errand') return null;
+        const same = engine.legalPlacements(st, runner.me, { kind: 'buyerRoute', cardUid: a.cardUid }).find((p) => p.kind === 'buyerRoute' && JSON.stringify(p.route) === JSON.stringify(a.route));
+        return same && same.kind === 'buyerRoute' ? haulDrinks(same, storeView.peek()) : null;
+      },
       /** The current quiz question's correct answer (choice index, number, or tap target). */
       quizAnswer() {
         const q = runner.question;
