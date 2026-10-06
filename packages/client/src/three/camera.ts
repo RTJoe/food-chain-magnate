@@ -299,6 +299,24 @@ export class CameraController {
     return { x: w.target.x, z: w.target.z, dist: w.dist, yaw: w.yaw, tilt: w.tilt, homeDist: this.home.dist };
   }
 
+  /** Whether the camera rests at its target pose and lens shift (no glide in progress). */
+  get settled(): boolean {
+    const c = this.cur;
+    const w = this.want;
+    const i = this.insetCur;
+    const t = this.inset;
+    return (
+      c.target.distanceTo(w.target) < 1e-4 &&
+      Math.abs(c.dist - w.dist) < 1e-4 &&
+      Math.abs(c.yaw - w.yaw) < 1e-5 &&
+      Math.abs(c.tilt - w.tilt) < 1e-5 &&
+      i.left === t.left &&
+      i.right === t.right &&
+      i.top === t.top &&
+      i.bottom === t.bottom
+    );
+  }
+
   /** Per-frame damping. Returns true while the camera is still moving. */
   update(dt: number): boolean {
     const k = 1 - Math.exp(-dt * 12);

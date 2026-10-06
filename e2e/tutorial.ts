@@ -81,47 +81,50 @@ async function tapTarget(page: Page, t: Target): Promise<void> {
   }
   type Rect = { x: number; y: number; w: number; h: number };
   const rectOf = () => page.evaluate((target) => (window as unknown as { __fcmTutorial: { targetRect(t: unknown): Rect | null } }).__fcmTutorial.targetRect(target), t);
-  // The camera may still be gliding (step camera, phone sheet resizing the board): wait until the
-  // projected rect holds still for a moment before tapping.
-  let r = await rectOf();
-  for (let i = 0; i < 20; i++) {
-    await page.waitForTimeout(120);
-    const n = await rectOf();
-    const still = r && n && Math.abs(n.x - r.x) < 1 && Math.abs(n.y - r.y) < 1 && Math.abs(n.w - r.w) < 1;
-    r = n;
-    if (still) break;
-  }
-  if (!r) throw new Error(`target not on screen: ${JSON.stringify(t)}`);
-  // Phones: the bottom sheet or a card may still cover the board there; collapse the sheet and wait
-  // until the board itself is under the point.
-  {
-    const px = r.x + r.w / 2;
-    const py = r.y + r.h * (typeof t.house === 'number' ? 0.3 : 0.5);
-    for (let i = 0; i < 10; i++) {
-      const onBoard = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.tagName === 'CANVAS', [px, py] as const);
-      if (onBoard) break;
-      if (isPhone(page) && (await page.locator('.dock.is-open').count())) await page.locator('.sheet-handle').click(CLICK).catch(() => {});
-      await page.waitForTimeout(250);
-    }
-  }
-  const x = r.x + r.w / 2;
   // Houses: aim at the far (upper) part of the footprint, so a billboard standing in front of the
-  // house (nearer the camera) does not take the click.
-  const y = r.y + r.h * (typeof t.house === 'number' ? 0.3 : 0.5);
-  if (isPhone(page)) await page.touchscreen.tap(x, y);
-  else await page.mouse.click(x, y);
+  // house (nearer the camera) does not take the tap.
+  const aim = (r: Rect) => ({ x: r.x + r.w / 2, y: r.y + r.h * (typeof t.house === 'number' ? 0.3 : 0.5) });
+  for (let i = 0; ; i++) {
+    // The step may glide the camera (step framing, phone sheet sliding shut): aim once the board rests.
+    await boardSettled(page);
+    const r = await rectOf();
+    if (!r) throw new Error(`target not on screen: ${JSON.stringify(t)}`);
+    const { x, y } = aim(r);
+    const onBoard = await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.tagName === 'CANVAS', [x, y] as const);
+    if (onBoard || i >= 10) {
+      if (isPhone(page)) await page.touchscreen.tap(x, y);
+      else await page.mouse.click(x, y);
+      return;
+    }
+    // Phones: the bottom sheet or a card may still cover the board there; collapse the sheet.
+    if (isPhone(page) && (await page.locator('.dock.is-open').count())) await page.locator('.sheet-handle').click(CLICK).catch(() => {});
+    await page.waitForTimeout(250);
+  }
 }
 
-/** Tap a target until `done` holds (a touch on a gliding board can be lost), at most 3 times. */
-async function tapUntil(page: Page, t: Target, done: () => Promise<boolean>): Promise<void> {
-  for (let tries = 0; tries < 3; tries++) {
-    await tapTarget(page, t);
-    const ok = await expect
-      .poll(done, { timeout: 2500 })
-      .toBe(true)
-      .then(() => true, () => false);
-    if (ok) return;
-  }
+/**
+ * Waits until the board camera rests (no glide, lens shift settled) and the phone sheet is not
+ * sliding, for a few frames in a row, so a projected target stays where it is tapped.
+ */
+async function boardSettled(page: Page): Promise<void> {
+  await page
+    .evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          type Cam = { settled: boolean };
+          const t0 = performance.now();
+          let calm = 0;
+          const frame = () => {
+            const cam = (window as unknown as { __fcmBoard?: { internals: { cam: Cam } } }).__fcmBoard?.internals.cam;
+            const sliding = [...document.querySelectorAll('.dock, .pick-strip')].some((el) => el.getAnimations().some((a) => a.playState === 'running'));
+            calm = (cam && !cam.settled) || sliding ? 0 : calm + 1;
+            if (calm >= 3 || performance.now() - t0 > 8000) resolve();
+            else requestAnimationFrame(frame);
+          };
+          requestAnimationFrame(frame);
+        }),
+    )
+    .catch(() => {});
 }
 
 /** Performs a canonical action through the UI. Returns false when the type is not supported yet. */
@@ -228,15 +231,7 @@ export async function runLesson(page: Page, lessonId: string, opts: RunLessonOpt
         const cur = await tutorialState(page);
         if (cur.status !== 'steps' || cur.index !== s.index) break;
         if ('tap' in op) {
-          const target = op.tap as Target;
-          const last = op === s.solution[s.solution.length - 1];
-          // A board tap that should finish the step: retry if the touch did not register.
-          if (last && typeof target.ui !== 'string') {
-            await tapUntil(page, target, async () => {
-              const n = await tutorialState(page);
-              return n.status !== 'steps' || n.index !== s.index;
-            });
-          } else await tapTarget(page, target);
+          await tapTarget(page, op.tap as Target);
         }
         else if (
           !(await performAction(page, op as { type: string } & Record<string, unknown>).catch(async (e: unknown) => {
@@ -274,7 +269,10 @@ export async function runLesson(page: Page, lessonId: string, opts: RunLessonOpt
     if (s.status !== 'quiz' || !s.quiz?.question) break;
     const q = s.quiz.question;
     if (q.kind === 'choice') await page.locator(`[data-quiz-option="${q.answer}"]`).click();
-    else if (q.kind === 'tap' && q.target) await tapUntil(page, q.target, async () => Boolean((await tutorialState(page)).quiz?.picked));
+    else if (q.kind === 'tap' && q.target) {
+      await tapTarget(page, q.target);
+      await expect.poll(async () => Boolean((await tutorialState(page)).quiz?.picked), { message: 'quiz tap did not register' }).toBe(true);
+    }
     else if (q.kind === 'number') {
       const n = await page.evaluate(() => (window as unknown as { __fcmTutorial: { quizAnswer(): unknown } }).__fcmTutorial.quizAnswer());
       await page.locator('[data-quiz-number]').fill(String(n ?? 0));
