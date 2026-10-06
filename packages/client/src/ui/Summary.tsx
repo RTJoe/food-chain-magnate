@@ -14,9 +14,10 @@ import { useEffect } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameEvent, GameView, PlayerId } from '@fcm/engine';
 import { employeeName, foodName } from '../state/catalog.js';
-import { boardFeedback, campaignInfo, campaignSteps, dinnerFeedback, dinnerSteps, phaseCaption, type CampaignStep, type DinnerStep, type PhaseCaption } from '../state/feedback.js';
+import { boardRenderer } from '../state/boardBridge.js';
+import { boardFeedback, campaignInfo, campaignSteps, currentBeat, dinnerFeedback, dinnerSteps, phaseCaption, requestReplay, type CampaignStep, type DinnerStep, type PhaseCaption } from '../state/feedback.js';
 import { reachPreview } from '../state/guidance.js';
-import { cameraCommand, select, selection } from '../state/interaction.js';
+import { cameraCommand, finishAnimations, select, selection } from '../state/interaction.js';
 import { catalog, me, summaries, view, type PhaseSummary } from '../state/store.js';
 import { Button, Cash, IconButton, PlayerBadge } from './common.js';
 import { FoodIcon, Icon } from './icons.js';
@@ -169,6 +170,45 @@ function useStepSelection(): (sel: { kind: 'house' | 'campaign'; id: string } | 
   };
 }
 
+/**
+ * Replays on the 3D board (animation-plan §1.4): "Watch again" plays the phase from its stored
+ * events, "Play from here" from the selected house / campaign. While a replay runs the stepper
+ * follows the beat on the board; picking a step stops it.
+ */
+function useReplay<T>(events: GameEvent[], steps: T[], idOf: (s: T) => string) {
+  const beat = currentBeat.value;
+  const playing = beat?.replay ? steps.findIndex((s) => idOf(s) === beat.id) : -1;
+  const replaying = !!beat?.replay;
+  const start = (fromId: string | null) => {
+    // The step's static drawing would sit under the moving pieces.
+    boardFeedback.value = null;
+    sheetOpen.value = false;
+    requestReplay(events, fromId);
+  };
+  return { playing, replaying, start, stop: () => replaying && finishAnimations() };
+}
+
+function ReplayButtons({ replay, from, label }: { replay: ReturnType<typeof useReplay>; from: string | null; label: string }) {
+  if (boardRenderer.value !== '3d') return null;
+  return (
+    <div class="sx-replay row">
+      <Button size="sm" variant="secondary" icon="play" onClick={() => replay.start(null)}>
+        Watch again
+      </Button>
+      {from && (
+        <Button size="sm" variant="secondary" icon="forward" onClick={() => replay.start(from)} title={`Play from ${label}`}>
+          Play from here
+        </Button>
+      )}
+      {replay.replaying && (
+        <Button size="sm" variant="ghost" onClick={() => finishAnimations()}>
+          Stop
+        </Button>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Dinnertime
 // ---------------------------------------------------------------------------
@@ -189,14 +229,17 @@ function Dinner({ view: v, events }: { view: GameView; events: GameEvent[] }) {
   for (const x of cfo) add(x.player, x.amount);
   for (const x of coffee) add(x.player, x.amount);
   const home = steps.filter((s) => s.stayedHome && !s.sale).length;
+  const replay = useReplay(events, steps, (s) => s.houseId);
   const go = (i: number) => {
     const st = steps[i];
     if (!st) return;
+    replay.stop();
     idx.value = i;
     boardFeedback.value = dinnerFeedback(st);
     pickStep(v.board.houses[st.houseId] ? { kind: 'house', id: st.houseId } : null, [st.houseId, ...(st.sale ? [st.sale.restaurantId] : [])]);
   };
-  const cur = idx.value >= 0 ? steps[idx.value] : undefined;
+  const at = replay.playing >= 0 ? replay.playing : idx.value;
+  const cur = at >= 0 ? steps[at] : undefined;
   return (
     <>
       {totals.size === 0 && <p class="muted">No sales this round.</p>}
@@ -214,7 +257,7 @@ function Dinner({ view: v, events }: { view: GameView; events: GameEvent[] }) {
       {steps.length > 0 && (
         <Stepper
           steps={steps}
-          idx={idx.value}
+          idx={at}
           go={go}
           start={`Step through ${steps.length} house${steps.length === 1 ? '' : 's'}`}
           label={(s) => `House ${houseLabel(v, s.houseId)}`}
@@ -232,6 +275,7 @@ function Dinner({ view: v, events }: { view: GameView; events: GameEvent[] }) {
           )}
         />
       )}
+      {steps.some((s) => s.sale) && <ReplayButtons replay={replay} from={cur && idx.value >= 0 && !replay.replaying ? cur.houseId : null} label={cur ? `house ${houseLabel(v, cur.houseId)}` : ''} />}
       {cur && <DinnerDetail view={v} step={cur} />}
       {tips.length > 0 && <p class="small">Waitress tips: {tips.map((t) => `${nameOf(v, t.player)} $${t.amount}`).join(', ')}</p>}
       {cfo.length > 0 && <p class="small">CFO bonus: {cfo.map((t) => `${nameOf(v, t.player)} $${t.amount}`).join(', ')}</p>}
@@ -363,16 +407,19 @@ function Marketing({ view: v, events }: { view: GameView; events: GameEvent[] })
     const r = reachPreview(v, me.value, { kind: 'campaign', campaignKind: cm.kind, tileNumber: cm.number ?? 0, placement: cm.placement }, cm.goods[0] ?? null);
     return (r?.houses ?? []).filter((h) => h.full && !got.has(h.houseId)).map((h) => h.houseId);
   };
+  const replay = useReplay(events, steps, (s) => s.campaignId);
   const go = (i: number) => {
     const st = steps[i];
     if (!st) return;
+    replay.stop();
     idx.value = i;
     const cm = camp(st.campaignId);
     boardFeedback.value = { kind: 'campaign', campaignId: st.campaignId, owner: cm?.owner ?? null, good: st.drops[0]?.goods[0] ?? cm?.goods[0] ?? null, houses: st.drops.map((d) => d.houseId), full: fullOf(st) };
     const live = !!v.board.campaigns[st.campaignId];
     pickStep(live ? { kind: 'campaign', id: st.campaignId } : null, [...(live ? [st.campaignId] : []), ...st.drops.map((d) => d.houseId)]);
   };
-  const cur = idx.value >= 0 ? steps[idx.value] : undefined;
+  const at = replay.playing >= 0 ? replay.playing : idx.value;
+  const cur = at >= 0 ? steps[at] : undefined;
   const label = (st: CampaignStep) => {
     const cm = camp(st.campaignId);
     const name = cm?.number != null ? `Campaign #${cm.number}` : cm ? `${cm.kind} campaign` : 'Campaign';
@@ -384,7 +431,7 @@ function Marketing({ view: v, events }: { view: GameView; events: GameEvent[] })
       {steps.length > 0 && (
         <Stepper
           steps={steps}
-          idx={idx.value}
+          idx={at}
           go={go}
           start={`Step through ${steps.length} campaign${steps.length === 1 ? '' : 's'} in run order`}
           label={label}
@@ -404,6 +451,7 @@ function Marketing({ view: v, events }: { view: GameView; events: GameEvent[] })
           }}
         />
       )}
+      {steps.length > 0 && <ReplayButtons replay={replay} from={cur && idx.value >= 0 && !replay.replaying ? cur.campaignId : null} label={cur ? label(cur) : ''} />}
       {cur && (
         <div class="sx-detail" aria-live="polite">
           <p class="sx-line">

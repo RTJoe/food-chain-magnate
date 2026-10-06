@@ -71,6 +71,7 @@ export function WorkPanel({ view: v, player: p }: { view: GameView; player: Play
             <EmployeeCard
               key={uid}
               id={id}
+              flip={`card:${p.id}:${uid}`}
               compact
               selected={sel.cardUid === uid}
               dimmed={!acts.length}
@@ -240,6 +241,7 @@ function HireGrid({ view: v, actions, busy }: { view: GameView; actions: ReadyLe
             <EmployeeCard
               key={id}
               id={id}
+              flip={`market:${id}`}
               compact
               dimmed={!l}
               highlight={Boolean(l)}
@@ -283,7 +285,7 @@ function TrainGrid({ view: v, player: p, trainerUid, actions, busy }: { view: Ga
         <p class="muted small">Train whom? Only cards on the beach can be trained (including this turn’s hires).</p>
         <div class="card-grid">
           {targets.map((u) => (
-            <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} compact highlight onClick={() => (target.value = u)} />
+            <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} compact highlight onClick={() => (target.value = u)} />
           ))}
         </div>
       </div>
@@ -395,6 +397,7 @@ function HirePicker({ view: v, cardUid, onBack }: { view: GameView; cardUid: Uid
           <EmployeeCard
             key={o.id}
             id={o.id}
+            flip={`market:${o.id}`}
             compact
             dimmed={!o.ok}
             highlight={o.ok}
@@ -426,7 +429,7 @@ function TrainPicker({ view: v, player: p, trainerUid, onBack }: { view: GameVie
             <p class="muted small">Only cards on the beach can be trained (including this turn’s hires).</p>
             <div class="card-grid">
               {targets.map((u) => (
-                <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} compact highlight onClick={() => (target.value = u)} />
+                <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} compact highlight onClick={() => (target.value = u)} />
               ))}
             </div>
           </>

@@ -31,6 +31,7 @@
  * the illegal-square reason, roof-plaque capacities and the selection's related pieces.
  */
 import { batch, effect, signal } from '@preact/signals';
+import { publishMotion } from './motion.js';
 import type { GameEvent, GameView, HouseId, Placement, PlacementKind, PlacementSpec, PlayerId } from '@fcm/engine';
 import { houseBoardInfo, rangeOverlay, reachOverlay, routeOverlay, type HouseBoardInfo } from './boardOverlays.js';
 import { campaignReachIds, candidateAt, houseInfoFor, outlookFor, problemAt, rangeFor, reachFor, type CampaignPlacementT, type RoutePlacementT } from './guidance.js';
@@ -153,6 +154,8 @@ export function emitPick(p: BoardPick): void {
 export const boardBridge: BoardBridge = {
   setView(view, me, events) {
     trackNoSeller(view, events);
+    // Overlay motion (ui/motion.tsx) measures the old DOM before the new view renders.
+    publishMotion(boardView.peek().view, view, events, boardRenderer.peek() === '3d');
     boardView.value = { view, me };
     impl?.setView(view, me, events);
   },

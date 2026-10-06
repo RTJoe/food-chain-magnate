@@ -9,6 +9,8 @@
  * Taps (short press without travel) and mouse hover are reported to the interaction layer.
  */
 import * as THREE from 'three';
+import { effect } from '@preact/signals';
+import { followFocus } from '../state/interaction.js';
 import { RIM } from './coords.js';
 
 const DEG = Math.PI / 180;
@@ -20,6 +22,8 @@ const TAP_MS = 550;
 /** Focus framing: smallest square side (world units) and the margin around the focused pieces. */
 const FOCUS_MIN = 11;
 const FOCUS_PAD = 2.5;
+/** Follow the action: hands off the camera for this long after the player touched it (ms). */
+const FOLLOW_IDLE_MS = 5000;
 
 export interface PointerInfo {
   x: number;
@@ -71,6 +75,8 @@ export class CameraController {
   onHover: (p: PointerInfo | null) => void = () => {};
   onChange: () => void = () => {};
   onTopChange: (top: boolean) => void = () => {};
+  /** Last pointer / wheel / key input on the board (performance.now() ms); the follow camera waits on it. */
+  lastUserInput = -Infinity;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -92,6 +98,15 @@ export class CameraController {
     const key = (e: KeyboardEvent) => this.key(e);
     window.addEventListener('keydown', key);
     this.cleanup.push(() => window.removeEventListener('keydown', key));
+    // Follow the action (animation-plan §1.6): the animator writes the next step's rectangle.
+    let firstFollow = true;
+    this.cleanup.push(
+      effect(() => {
+        const f = followFocus.value;
+        if (firstFollow) return void (firstFollow = false);
+        if (f) this.follow(f.x0, f.z0, f.x1, f.z1);
+      }),
+    );
     this.apply(this.cur);
   }
 
@@ -203,6 +218,48 @@ export class CameraController {
     this.want.dist = clamp(clamp(d, homeD * 0.42, homeD), this.bounds.minD, this.bounds.maxD);
     this.clampWant();
     this.onChange();
+  }
+
+  /**
+   * Follow-the-action glide to a step's pieces: nothing while the player touched the camera in the
+   * last few seconds or while the pieces are already comfortably in view; a pan at the current
+   * distance when they fit, else a `focusRect` framing.
+   */
+  follow(x0: number, z0: number, x1: number, z1: number): void {
+    if (performance.now() - this.lastUserInput < FOLLOW_IDLE_MS) return;
+    if (this.inView(x0, z0, x1, z1)) return;
+    const cx = (x0 + x1) / 2;
+    const cz = (z0 + z1) / 2;
+    const target = new THREE.Vector3(cx, 0, cz);
+    const r = { x0: x0 - 1, z0: z0 - 1, x1: x1 + 1, z1: z1 + 1 };
+    const tilt = this.top ? TOP_TILT : this.want.tilt;
+    if (this.fitDistance(r, this.want.yaw, target, tilt, 0.94, 0.9) <= this.want.dist) {
+      this.want.target.copy(target);
+      this.clampWant();
+      this.onChange();
+    } else this.focusRect(x0, z0, x1, z1);
+  }
+
+  /** Whether a ground rectangle is inside the free area (panels excluded) with a margin, from the camera's pose now. */
+  private inView(x0: number, z0: number, x1: number, z1: number, margin = 0.12): boolean {
+    const { w, h } = this.viewport();
+    const i = this.effectiveInset();
+    const lx = -1 + (2 * i.left) / w + margin;
+    const hx = 1 - (2 * i.right) / w - margin;
+    const ly = -1 + (2 * i.bottom) / h + margin;
+    const hy = 1 - (2 * i.top) / h - margin;
+    this.camera.updateMatrixWorld();
+    const v = new THREE.Vector3();
+    for (const [x, z] of [
+      [x0, z0],
+      [x1, z0],
+      [x0, z1],
+      [x1, z1],
+    ] as const) {
+      v.set(x, 0.5, z).project(this.camera);
+      if (v.z > 1 || v.x < lx || v.x > hx || v.y < ly || v.y > hy) return false;
+    }
+    return true;
   }
 
   /** On-screen width / height of the home framing (for carving panels off the free area). */
@@ -438,6 +495,7 @@ export class CameraController {
   }
 
   private down(e: PointerEvent): void {
+    this.lastUserInput = performance.now();
     this.dom.setPointerCapture?.(e.pointerId);
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), type: e.pointerType, button: e.button, mods: e.shiftKey || e.ctrlKey || e.metaKey });
     if (this.pointers.size === 1) {
@@ -535,6 +593,7 @@ export class CameraController {
 
   private wheel(e: WheelEvent): void {
     e.preventDefault();
+    this.lastUserInput = performance.now();
     const f = Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * (e.ctrlKey ? 0.01 : 0.0018));
     const before = this.groundAt(e.clientX, e.clientY);
     const old = this.want.dist;
@@ -599,6 +658,7 @@ export class CameraController {
     }
     if (!used) return;
     e.preventDefault();
+    this.lastUserInput = performance.now();
     this.clampWant();
     this.onChange();
   }

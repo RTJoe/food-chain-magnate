@@ -19,19 +19,22 @@ import {
   confirmPlacement,
   cycleCandidate,
   finishAnimations,
+  followAction,
   ghostOrientation,
   hoverPlacement,
   pendingPlacement,
   pendingVariants,
   placementReason,
   rotatePlacement,
+  setFollowAction,
   topView,
 } from '../state/interaction.js';
 import { view } from '../state/store.js';
 import { Button, IconButton } from './common.js';
 import { sheetOpen } from './uiState.js';
 
-const SPEEDS = [0.5, 1, 2] as const;
+/** Animation speed cycle (animation-plan §1.4). */
+const SPEEDS = [1, 2, 4] as const;
 
 export function BoardControls() {
   if (boardRenderer.value !== '3d') return null;
@@ -62,6 +65,13 @@ export function BoardControls() {
           {animationSpeed.value}×
         </button>
         <IconButton icon="forward" label="Skip animations" onClick={() => finishAnimations()} />
+        <IconButton
+          icon="eye"
+          label={followAction.value ? 'Stop following the action' : 'Follow the action'}
+          class={followAction.value ? 'is-on' : ''}
+          aria-pressed={followAction.value}
+          onClick={() => setFollowAction(!followAction.value)}
+        />
       </div>
       {isPickMode(m) && <PickStrip mode={m} />}
       {isPickMode(m) && <PointerHint mode={m} />}

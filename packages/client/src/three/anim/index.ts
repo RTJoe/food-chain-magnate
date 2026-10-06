@@ -6,8 +6,13 @@
 import './basic.js';
 // WP-B: actor builders (registerActor).
 import '../minis/vehiclesActors.js';
-// WP-C: import './dinner.js'; import './drinks.js'; import './marketing.js';
-// WP-D: import './board.js'; import './phase.js';
+// WP-C: dinnertime, buyer hauls, marketing carriers.
+import './choreos/dinner.js';
+import './choreos/drinks.js';
+import './choreos/marketing.js';
+// WP-D: board pieces, Ketchup entities, map tiles (choreos/board.ts); setup build, turns, goods, money, milestones, game over (choreos/phase.ts).
+import './choreos/board.js';
+import './choreos/phase.js';
 
 export { Timeline, type Clip, type ClipSpec } from './timeline.js';
 export { compile, closingCaption, PACING, type Beat, type BeatKind, type Plan, type Segment } from './compile.js';

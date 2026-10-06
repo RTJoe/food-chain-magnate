@@ -238,6 +238,8 @@ function addDriveIn(ctx: MiniCtx, g: THREE.Group, color: string): void {
   });
   for (const c of ['NW', 'NE', 'SE', 'SW'] as Corner[]) {
     const o = new THREE.Group();
+    // Named so `driveInsOpened` can pop the corners one by one.
+    o.name = `driveIn:${c}`;
     o.rotation.y = cornerAngle(c) + Math.PI / 4;
     const a = cornerAngle(c);
     o.position.set(Math.sin(a + Math.PI / 4) * 1.18, 0.09, Math.cos(a + Math.PI / 4) * 1.18);

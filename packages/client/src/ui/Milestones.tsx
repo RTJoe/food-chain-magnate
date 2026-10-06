@@ -17,7 +17,7 @@ export function Milestones() {
         const d = c.milestones[r.id];
         const mine = me.value ? r.claimedBy.includes(me.value) : false;
         return (
-          <li key={r.id} class={`milestone ${r.removed ? 'is-removed' : ''} ${mine ? 'is-mine' : ''} ${r.claimedBy.length ? 'is-claimed' : ''}`}>
+          <li key={r.id} data-flip={`milestone:${r.id}`} class={`milestone ${r.removed ? 'is-removed' : ''} ${mine ? 'is-mine' : ''} ${r.claimedBy.length ? 'is-claimed' : ''}`}>
             <span class="milestone-icon">{Icon.star({ size: 18 })}</span>
             <span class="milestone-body">
               <b>{milestoneName(c, r.id)}</b>

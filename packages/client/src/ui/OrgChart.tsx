@@ -124,6 +124,7 @@ export function OrgChartEditor({ view: v, player: p, prompt }: { view: GameView;
       <EmployeeCard
         key={uid}
         id={id}
+        flip={`card:${p.id}:${uid}`}
         compact
         selected={sel === uid}
         onClick={() => (where === 'slot' && sel === uid ? toHand(uid) : clickCard(uid))}
@@ -232,7 +233,7 @@ export function OrgChartEditor({ view: v, player: p, prompt }: { view: GameView;
       {busyUids(p).length > 0 && (
         <div class="org-busy">
           <h4>{Icon.marketing({ size: 16 })} On a campaign (busy)</h4>
-          <div class="card-grid">{busyUids(p).map((u) => <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} compact dimmed />)}</div>
+          <div class="card-grid">{busyUids(p).map((u) => <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} compact dimmed />)}</div>
         </div>
       )}
 
@@ -285,12 +286,12 @@ export function OrgChartView({ view: v, player: p }: { view: GameView; player: P
           <ol class="org-row">
             {s.ceoSubs.map((uid) => (
               <li key={uid} class="org-node">
-                <EmployeeCard id={employeeIdOf(p, uid) ?? 'ceo'} compact badge={usesBadge(uid)} />
+                <EmployeeCard id={employeeIdOf(p, uid) ?? 'ceo'} flip={`card:${p.id}:${uid}`} compact badge={usesBadge(uid)} />
                 {(s.managerSubs[uid] ?? []).length > 0 && (
                   <ol class="org-subs">
                     {(s.managerSubs[uid] ?? []).map((sub) => (
                       <li key={sub}>
-                        <EmployeeCard id={employeeIdOf(p, sub) ?? 'ceo'} compact badge={usesBadge(sub)} />
+                        <EmployeeCard id={employeeIdOf(p, sub) ?? 'ceo'} flip={`card:${p.id}:${sub}`} compact badge={usesBadge(sub)} />
                       </li>
                     ))}
                   </ol>
@@ -306,12 +307,12 @@ export function OrgChartView({ view: v, player: p }: { view: GameView; player: P
         <h4>
           {Icon.beach({ size: 16 })} On the beach <span class="muted">({beach.length})</span>
         </h4>
-        {beach.length ? <div class="card-grid">{beach.map((u) => <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} compact dimmed />)}</div> : <p class="muted small">Nobody is on the beach.</p>}
+        {beach.length ? <div class="card-grid">{beach.map((u) => <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} compact dimmed />)}</div> : <p class="muted small">Nobody is on the beach.</p>}
       </div>
       {busy.length > 0 && (
         <div class="org-busy">
           <h4>{Icon.marketing({ size: 16 })} On a campaign</h4>
-          <div class="card-grid">{busy.map((u) => <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} compact dimmed />)}</div>
+          <div class="card-grid">{busy.map((u) => <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} compact dimmed />)}</div>
         </div>
       )}
     </div>

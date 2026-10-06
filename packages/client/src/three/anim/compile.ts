@@ -329,7 +329,7 @@ function group(events: readonly GameEvent[], ctx: CompileCtx): Beat[] {
         open.beat.events.push(e);
         if (e.type === 'sale') {
           open.beat.kind = 'sale';
-          open.beat.nominal = NOMINAL.sale;
+          open.beat.nominal = saleNominal(e);
           if (!open.beat.focal.includes(e.restaurantId)) open.beat.focal.push(e.restaurantId);
         }
         continue;
@@ -351,6 +351,7 @@ function group(events: readonly GameEvent[], ctx: CompileCtx): Beat[] {
         const kind: BeatKind = e.type === 'sale' ? 'sale' : 'stayedHome';
         const focal = e.type === 'sale' ? [e.houseId, e.restaurantId] : [e.houseId];
         const b = make(kind, 'dinnertime', e.houseId, e, focal);
+        if (e.type === 'sale') b.nominal = saleNominal(e);
         open = { beat: b, type: 'house', id: e.houseId };
         break;
       }
@@ -450,6 +451,21 @@ function group(events: readonly GameEvent[], ctx: CompileCtx): Beat[] {
     beats.push({ kind: 'pop', id: 'pop', focal: [], keys: loose, events: [], nominal: NOMINAL.pop, at: 0, dur: 0, segment: 'other' });
   }
   return beats;
+}
+
+/**
+ * Delivery van trip at 1× for a route of `length` world units: a speed the eye can follow
+ * (~8 units/s cruising), 0.45–1.8 s. Long cross-town routes would streak at the plan's 1.2 s.
+ */
+export function deliveryTrip(length: number): number {
+  return Math.min(1.8, Math.max(0.45, 0.3 + length / 8));
+}
+
+/** A sale beat: the van's trip plus the drop at the house; never under the 0.9 s per-house nominal. */
+function saleNominal(e: Ev<'sale'>): number {
+  const r = e.route;
+  const units = r ? r.path.length + 1 + (r.exit ? 3 : 0) : 0;
+  return Math.max(NOMINAL.sale, deliveryTrip(units) + 0.35);
 }
 
 /** Buyer haul: 0.5 s + 0.3 s per unit of path, 0.9–1.6 s (errand 0.9). */

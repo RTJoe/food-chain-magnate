@@ -192,3 +192,22 @@ export function dinnerFeedback(s: DinnerStep): BoardFeedback {
     stayedHome: s.stayedHome && !s.sale,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Replays (animation-plan §1.4, §4.4): "Watch again" / "Play from here"
+// ---------------------------------------------------------------------------
+
+/**
+ * Written by the results strip, read by the animator: replay a finished Dinnertime / Marketing from
+ * its stored events, optionally starting at one house / campaign (`fromId`). `n` makes repeated
+ * requests distinct.
+ */
+export const replayRequest = signal<{ events: readonly GameEvent[]; fromId: string | null; n: number } | null>(null);
+
+let replayN = 0;
+export function requestReplay(events: readonly GameEvent[], fromId: string | null = null): void {
+  replayRequest.value = { events, fromId, n: ++replayN };
+}
+
+/** The beat the animator is playing (house / campaign id), so the stepper can follow; null when idle. */
+export const currentBeat = signal<{ id: string; kind: string; replay: boolean } | null>(null);

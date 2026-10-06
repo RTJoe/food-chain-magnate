@@ -103,6 +103,7 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
   inter.routeAt = (p) => overlays.pickRoute(cam.rayAt(p.x, p.y));
   let boardKey = '';
   let lastView: GameView | null = null;
+  let lastMe: PlayerId | null = null;
   let vanColors = '';
   let inset: BoardInset = boardInset.peek() ?? { left: 0, right: 0, top: 0, bottom: 0 };
   const TOP_FROM = 70 * (Math.PI / 180);
@@ -205,9 +206,14 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
     setView(view: GameView | null, me: PlayerId | null, events: readonly GameEvent[]) {
       const b = view?.board;
       const prevView = lastView;
+      const prevMe = lastMe;
       lastView = view;
-      // Snapshot / handoff / reconnect: nothing to animate; whatever runs jumps to its end first.
-      if (!events.length && view !== prevView) anim.finish();
+      lastMe = me;
+      // Handoff / reconnect snapshot: nothing to animate; whatever runs jumps to its end first. An
+      // applied action with no visible events (another player's hidden submission) is not one: it
+      // must not cut a running Dinnertime short.
+      const jumped = !prevView || !view || prevView.round !== view.round || prevView.phase.kind !== view.phase.kind;
+      if (!events.length && view !== prevView && (me !== prevMe || jumped)) anim.finish();
       const air = b ? [...new Set(Object.values(b.campaigns).flatMap((c) => (c.placement.kind === 'airplane' ? [c.placement.side] : [])))].sort().join('') : '';
       const key = b ? `${b.w}x${b.h}:${b.tiles.map((t) => t.id).join(',')}:${hasRural(b)}:${air}` : '';
       const res = rec.sync(view, events.length > 0);
@@ -227,6 +233,11 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
         }
       }
       if (events.length) anim.play(events, { view, prevView, me, added: res.added, removed: res.removed, prevDemand: res.prevDemand });
+      else if (!prevView && view && view.phase.kind === 'setup.restaurants' && !Object.keys(view.board.restaurants).length) {
+        // Games start from a snapshot (`gameStarted` is never a live batch): the first look at a
+        // fresh board plays the setup board build (animation-plan §2.1).
+        anim.play([{ type: 'gameStarted', players: Object.keys(view.players), turnOrder: [...view.turnOrder] }], { view, prevView: null, me, added: [], removed: [], prevDemand: res.prevDemand });
+      }
       inter.refresh();
     },
     setInteractionMode(mode: InteractionMode) {

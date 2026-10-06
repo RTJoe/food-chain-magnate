@@ -10,7 +10,7 @@ import { FIXTURES } from '@fcm/engine/testing';
 import { makeCtx } from '../../engine/src/core/context.js';
 import { runUntilInput } from '../../engine/src/core/phase.js';
 import { clone } from '../../engine/src/core/clone.js';
-import { compile, PACING, type Plan } from '../src/three/anim/compile.js';
+import { compile, deliveryTrip, PACING, type Plan } from '../src/three/anim/compile.js';
 import { registerActor } from '../src/three/anim/pool.js';
 import { registry } from '../src/three/anim/index.js';
 import { Animator } from '../src/three/animate.js';
@@ -74,13 +74,18 @@ describe('compile: dinnertime', () => {
     expect(p.phase).toBe('dinnertime');
   });
 
-  it('sales carry the engine route; nominal 0.9 s per sold house, sequential under the 12 s cap', () => {
+  it('sales carry the engine route; nominal = van trip by route length + drop (≥ 0.9 s), sequential under the 12 s cap', () => {
     const sales = houses.filter((h) => h.kind === 'sale');
     expect(sales.length).toBeGreaterThan(0);
     for (const s of sales) {
-      expect(s.nominal).toBe(0.9);
-      expect(s.events.find((e) => e.type === 'sale')).toHaveProperty('route');
+      const sale = s.events.find((e) => e.type === 'sale') as Extract<GameEvent, { type: 'sale' }>;
+      expect(sale).toHaveProperty('route');
+      expect(s.nominal).toBeCloseTo(Math.max(0.9, deliveryTrip(sale.route!.path.length + 1) + 0.35), 9);
+      expect(s.nominal).toBeLessThanOrEqual(1.8 + 0.35);
     }
+    // Longer routes get longer beats.
+    const byLen = [...sales].sort((a, c) => (a.events.find((e) => e.type === 'sale') as { route: { path: unknown[] } }).route.path.length - (c.events.find((e) => e.type === 'sale') as { route: { path: unknown[] } }).route.path.length);
+    expect(byLen[byLen.length - 1]!.nominal).toBeGreaterThanOrEqual(byLen[0]!.nominal);
     for (let i = 1; i < houses.length; i++) expect(houses[i]!.at).toBeCloseTo(houses[i - 1]!.at + houses[i - 1]!.nominal, 9);
     const seg = p.segments.find((s) => s.segment === 'dinnertime')!;
     expect(seg.end - seg.start).toBeLessThanOrEqual(PACING.dinnerCap);
@@ -196,7 +201,7 @@ const simpleActor = () => {
 
 describe('Animator queue policy (§1.7)', () => {
   for (const k of ['van', 'cart', 'truck', 'zeppelin', 'scooter'] as const) registerActor(k, simpleActor);
-  const rec = { live: new Map(), board: null } as unknown as Reconciler;
+  const rec = { live: new Map(), board: null, byId: () => [] } as unknown as Reconciler;
   const info = (b: { prev: GameState; state: GameState }) => ({ view: view(b.state), prevView: view(b.prev), me: null, added: [], removed: [], prevDemand: new Map() });
   const tick = (st: Stage, s: number) => {
     for (let t = 0; t < s; t += 1 / 30) st.tweens.tick(1 / 30);

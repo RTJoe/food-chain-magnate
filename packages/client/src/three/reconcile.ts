@@ -4,7 +4,7 @@
  * rebuild on their own signatures. Minis use the instancer, so 40 houses cost a few draw calls.
  */
 import * as THREE from 'three';
-import type { Board, GameView, House } from '@fcm/engine';
+import type { Board, DemandToken, GameView, House } from '@fcm/engine';
 import { cellsRect, hashStr } from './coords.js';
 import { buildGround, buildTufts, groundSignature, type GroundLayer } from './board/ground.js';
 import { buildRoads, roadSignature, type RoadLayer } from './board/roads.js';
@@ -25,7 +25,7 @@ import {
   type CampaignVisual,
 } from './minis/marketing.js';
 import { buildCoffeeShop, buildRestaurant } from './minis/restaurant.js';
-import { buildDemandStack, demandKey } from './minis/tokens.js';
+import { buildDemandStack, demandKey, setPlaque, type PlaqueHold } from './minis/tokens.js';
 import { campaignAnchor, cellsToRect, chainMark, freewayAnchor, houseFacing, parkMultiplier, playerColor, rectCenter, rectOf, ruralCenter, RURAL_SIZE, type Rect } from './layout.js';
 import { makeChip } from './overlays/badges.js';
 import { COLORS } from '../theme.js';
@@ -84,6 +84,17 @@ export class Reconciler {
   private seamTop = 0;
   private highContrast = false;
   private labelYaw = 0;
+  /**
+   * Graveyard (animation-plan §4.2): pieces the last animated sync removed (`removed`) or rebuilt
+   * with a new signature (`replaced`), kept for one batch so a choreography can animate them out
+   * (`claimGrave`). Unclaimed graves are settled on the next microtask: removed pieces shrink
+   * away (the old default), replaced ones vanish at once.
+   */
+  private graves = new Map<string, { p: Placed; removed: boolean }>();
+  private graveFlush = false;
+  /** Roof plaques held at a pre-batch content until the animation lands (`holdPlaque`), by house id. */
+  private pendingPlaque = new Map<string, { demand: readonly DemandToken[]; n: number }>();
+  private plaqueHoldNo = 0;
 
   constructor(private readonly stage: Stage) {
     this.ctx = { inst: stage.inst };
@@ -105,19 +116,32 @@ export class Reconciler {
     const added: string[] = [];
     const removed: string[] = [];
     const before = new Set(this.live.keys());
+    // Graves of the previous batch nobody claimed settle now.
+    this.flushGraves();
+    const keep = animate && !boardChanged;
 
     for (const [k, p] of this.live) {
       const it = want.get(k);
       if (it && it.sig === p.sig) continue;
       this.live.delete(k);
       if (!it) removed.push(k);
-      this.drop(p, animate && !it && !boardChanged);
+      if (keep) {
+        // Kept for the choreographies; replaced pieces hide at once (the new one is in place).
+        if (it) p.obj.visible = false;
+        this.graves.set(k, { p, removed: !it });
+      } else this.drop(p, false);
+    }
+    if (this.graves.size && !this.graveFlush) {
+      this.graveFlush = true;
+      queueMicrotask(() => this.flushGraves());
     }
     for (const it of items) {
       if (this.live.has(it.key)) {
         // Same signature: keep, but refresh pick data (ids are stable; rects may not be).
         const p = this.live.get(it.key)!;
         p.rect = it.rect;
+        // The board can re-base its coordinates (Ketchup extra map tile): follow the new spot.
+        p.obj.position.set(it.x, it.y ?? 0, it.z);
         continue;
       }
       const obj = it.build(this.ctx);
@@ -129,6 +153,7 @@ export class Reconciler {
       this.stage.trackSized(obj);
       this.watchAmbient(obj);
       this.live.set(it.key, { key: it.key, id: it.id, kind: it.kind, obj, rect: it.rect, height: it.height, sig: it.sig });
+      if (it.kind === 'demand' && it.id && this.pendingPlaque.has(it.id)) this.applyPlaqueHold(it.id);
       if (animate && !boardChanged && !before.has(it.key)) added.push(it.key);
     }
     this.stage.invalidate();
@@ -150,6 +175,84 @@ export class Reconciler {
       },
       { delay, ease: ease.outBack, group: 'anim' },
     );
+  }
+
+  /**
+   * Claim the grave of a piece the last animated sync removed or replaced (choreographies, same
+   * call stack as the sync). The caller owns it now: it is visible (replaced pieces too) and must
+   * be handed back with `bury` when its exit animation ends (`tl.own(() => rec.bury(p))`).
+   * Null when there is no grave for `key` (already claimed, settled, or never removed).
+   */
+  claimGrave(key: string): Placed | null {
+    const g = this.graves.get(key);
+    if (!g) return null;
+    this.graves.delete(key);
+    g.p.obj.visible = true;
+    return g.p;
+  }
+
+  /** Whether the last animated sync removed (true) or replaced (false) `key`; undefined if no grave. */
+  graveRemoved(key: string): boolean | undefined {
+    return this.graves.get(key)?.removed;
+  }
+
+  /** Dispose a claimed grave (idempotent). */
+  bury(p: Placed): void {
+    if (!p.obj.parent) return;
+    this.drop(p, false);
+  }
+
+  /** Settle unclaimed graves: removed pieces shrink away (tween group 'anim', so Skip finishes it), replaced ones go at once. */
+  flushGraves(): void {
+    this.graveFlush = false;
+    if (!this.graves.size) return;
+    const list = [...this.graves.values()];
+    this.graves.clear();
+    for (const g of list) this.drop(g.p, g.removed);
+  }
+
+  /**
+   * Masking (§4.2): show a house's roof plaque with `demand` (the pre-batch tokens; empty hides
+   * the plaque) until the returned release runs, normally at the beat's landing. Survives the
+   * stack being rebuilt meanwhile (house info changes); the newest hold for a house wins.
+   */
+  holdPlaque(houseId: string, demand: readonly DemandToken[]): () => void {
+    const n = ++this.plaqueHoldNo;
+    this.pendingPlaque.set(houseId, { demand: [...demand], n });
+    this.applyPlaqueHold(houseId);
+    return () => {
+      if (this.pendingPlaque.get(houseId)?.n !== n) return;
+      this.pendingPlaque.delete(houseId);
+      const plaque = this.live.get(`demand:${houseId}`)?.obj.getObjectByName('plaque') as THREE.Sprite | undefined;
+      const held = plaque?.userData.held as PlaqueHold | undefined;
+      if (plaque && held) {
+        setPlaque(plaque, held);
+        delete plaque.userData.held;
+      }
+      this.stage.invalidate();
+    };
+  }
+
+  /** Whether a plaque hold is pending for a house (tests, dev). */
+  plaqueHeld(houseId: string): boolean {
+    return this.pendingPlaque.has(houseId);
+  }
+
+  private applyPlaqueHold(houseId: string): void {
+    const hold = this.pendingPlaque.get(houseId);
+    const piece = this.live.get(`demand:${houseId}`);
+    const h = this.board?.houses[houseId];
+    const plaque = piece?.obj.getObjectByName('plaque') as THREE.Sprite | undefined;
+    if (!hold || !plaque || !h) return;
+    plaque.userData.held ??= { plaque: plaque.userData.plaque, visible: plaque.visible } satisfies PlaqueHold;
+    const info = this.houseInfo[houseId];
+    setPlaque(plaque, hold.demand.length ? { demand: hold.demand, capacity: houseCapacity(h, info), noSeller: !!info?.noSeller } : { visible: false });
+    this.stage.invalidate();
+  }
+
+  /** Static layers (board build / map tile choreographies mask parts of them). */
+  get layers(): { ground: THREE.Group | null; roads: THREE.Group | null; tufts: THREE.Object3D | null } {
+    return { ground: this.ground?.group ?? null, roads: this.roads?.group ?? null, tufts: this.tufts };
   }
 
   /** Engine/house data for plaques (capacity, no-seller). Takes effect on the next `sync`. */
@@ -184,6 +287,8 @@ export class Reconciler {
 
   dispose(): void {
     for (const p of this.live.values()) this.drop(p, false);
+    for (const g of this.graves.values()) this.drop(g.p, false);
+    this.graves.clear();
     this.live.clear();
     this.ground?.dispose();
     this.roads?.dispose();
@@ -257,6 +362,7 @@ export class Reconciler {
   private drop(p: Placed, animate: boolean): void {
     const o = p.obj;
     this.stage.untrackSized(o);
+    if (o.visible === false) animate = false;
     const finish = () => {
       o.traverse((c) => this.stage.ambient.delete(c));
       releaseTree(o);

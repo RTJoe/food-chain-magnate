@@ -12,6 +12,8 @@ import { houseCapacity } from '../src/three/reconcile.js';
 import { playerColor } from '../src/three/layout.js';
 import { startRoads } from '../src/three/overlays/fallback.js';
 import { mountVehicleGallery } from './vehicles.js';
+import { mountAnimDemos } from './animDemos.js';
+import { mountBuildPanel } from './build.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -293,6 +295,9 @@ $('panels').onclick = () => {
 
 load(sel.value as FixtureName);
 mountVehicleGallery(scene, () => view, $('vehicles'), say);
+// WP-C: engine dinner / marketing, buyer hauls, campaign kinds, speed, Watch again.
+mountAnimDemos({ scene, view: () => view, setView: (v, ev) => ((view = v), scene.setView(v, null, ev)), fixture: () => sel.value as FixtureName, toView, say }, $('bar'));
+mountBuildPanel(scene, () => view, (v) => (view = v), $('build'), $<HTMLSelectElement>('build-pick'), say);
 setInterval(() => {
   const s = scene.stats();
   info.dataset.stats = JSON.stringify(s);

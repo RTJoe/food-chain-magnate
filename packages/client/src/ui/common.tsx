@@ -181,10 +181,12 @@ export interface EmployeeCardProps {
   onClick?: () => void;
   draggableUid?: string;
   title?: string;
+  /** FLIP key for overlay motion (ui/motion.tsx), e.g. `card:<player>:<uid>`. */
+  flip?: string;
 }
 
 /** An employee card: colour strip by card group, icons for entry / salary / 1x, manager slots. */
-export function EmployeeCard({ id, compact, selected, disabled, dimmed, highlight, badge, footer, onClick, draggableUid, title }: EmployeeCardProps) {
+export function EmployeeCard({ id, compact, selected, disabled, dimmed, highlight, badge, footer, onClick, draggableUid, title, flip }: EmployeeCardProps) {
   const d = catalog.value.employees[id];
   const slots = managerSlots(d);
   const cls = `emp ${compact ? 'is-compact' : ''} ${selected ? 'is-selected' : ''} ${dimmed ? 'is-dimmed' : ''} ${highlight ? 'is-highlight' : ''} ${onClick ? 'is-clickable' : ''}`;
@@ -211,6 +213,7 @@ export function EmployeeCard({ id, compact, selected, disabled, dimmed, highligh
   const common = {
     class: cls,
     'data-colour': d?.colour ?? 'grey',
+    'data-flip': flip,
     title: title ?? d?.text,
   };
   if (onClick) {

@@ -1,7 +1,8 @@
 import type { GameView } from '@fcm/engine';
 import { PHASE_STEPS, phaseIndex, phaseLabel } from '../state/selectors.js';
 import { connection, mode, view } from '../state/store.js';
-import { Cash, IconButton, PlayerBadge } from './common.js';
+import { IconButton, PlayerBadge } from './common.js';
+import { MotionLayer, RollingCash } from './motion.js';
 import { Icon, Logo } from './icons.js';
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
@@ -27,6 +28,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         </span>
       )}
       <IconButton class="topbar-menu" icon="settings" label="Menu" onClick={onMenu} />
+      <MotionLayer />
     </header>
   );
 }
@@ -54,9 +56,9 @@ function PhaseStepper({ view: v, idx, setup }: { view: GameView; idx: number; se
 function BankChip({ view: v }: { view: GameView }) {
   const b = v.bank;
   return (
-    <div class={`bank ${b.breaks > 0 ? 'is-broken' : ''}`} title={`Bank: $${b.cash}${b.reserveOpened ? ' (reserve opened)' : ''}`}>
+    <div class={`bank ${b.breaks > 0 ? 'is-broken' : ''}`} data-flip="bank" title={`Bank: $${b.cash}${b.reserveOpened ? ' (reserve opened)' : ''}`}>
       {Icon.bank({ size: 18 })}
-      <Cash amount={b.cash} />
+      <RollingCash amount={b.cash} />
       <span class="bank-breaks" aria-label={`${b.breaks} of 2 bank breaks`}>
         <i class={b.breaks >= 1 ? 'is-on' : ''} />
         <i class={b.breaks >= 2 ? 'is-on' : ''} />
@@ -71,7 +73,7 @@ function TurnOrder({ view: v }: { view: GameView }) {
   return (
     <ol class="turn-order" aria-label="Turn order">
       {v.turnOrder.map((id, i) => (
-        <li key={id} class={active.has(id) ? 'is-active' : ''} title={`${i + 1}. ${v.players[id]?.name ?? id}`}>
+        <li key={id} class={active.has(id) ? 'is-active' : ''} data-flip={`order:${id}`} title={`${i + 1}. ${v.players[id]?.name ?? id}`}>
           <PlayerBadge view={v} id={id} size={28} ring={active.has(id)} />
         </li>
       ))}

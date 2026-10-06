@@ -6,7 +6,8 @@ import { amHost, botSeats, botsThinking, catalog, clientId, me, mode, mySeat, ro
 import { cameraCommand, inspectIds } from '../state/interaction.js';
 import { kick, sit } from '../net/session.js';
 import { companyPlayer, dockTab } from './uiState.js';
-import { Button, Cash, FoodChips, PlayerBadge } from './common.js';
+import { Button, FoodChips, PlayerBadge } from './common.js';
+import { RollingCash } from './motion.js';
 import { Icon } from './icons.js';
 import { BotBadge } from './bots.js';
 
@@ -94,6 +95,7 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
     <article
       class={`ppanel glass ${active ? 'is-active' : ''} ${isMe ? 'is-me' : ''} ${p.bankrupt ? 'is-bankrupt' : ''} ${bot ? 'is-bot' : ''}`}
       style={{ '--pc': p.color }}
+      data-flip={`panel:${id}`}
       onMouseEnter={() => (inspectIds.value = playerPieceIds(v, id))}
       onMouseLeave={() => (inspectIds.value = [])}
     >
@@ -109,7 +111,7 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
             {simultaneous && submitted && <span class="ppanel-ok"> · {Icon.check({ size: 12 })} done</span>}
           </span>
         </span>
-        <Cash amount={p.cash} size="lg" />
+        <RollingCash amount={p.cash} player={id} size="lg" flip={`cash:${id}`} />
       </button>
       <div class="ppanel-stats">
         <span title="Employees at work / owned">
@@ -130,17 +132,17 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
           </span>
         </button>
         {milestones.length > 0 && (
-          <span title={milestones.map((m) => milestoneName(catalog.value, m)).join('\n')}>
+          <span title={milestones.map((m) => milestoneName(catalog.value, m)).join('\n')} data-flip={`stars:${id}`}>
             {Icon.star({ size: 14 })} {milestones.length}
           </span>
         )}
         {busyUids(p).length > 0 && <span title="Busy marketeers">{Icon.marketing({ size: 14 })} {busyUids(p).length}</span>}
       </div>
       {connected === false && <SeatControl playerId={id} />}
-      <div class="ppanel-goods">
+      <div class="ppanel-goods" data-flip={`goods:${id}`}>
         <FoodChips counts={p.inventory} empty="No goods" size={18} />
         {Object.values(p.freezer).some((n) => (n ?? 0) > 0) && (
-          <span class="freezer" title="Freezer">
+          <span class="freezer" title="Freezer" data-flip={`freezer:${id}`}>
             {Icon.snow({ size: 14 })}
             <FoodChips counts={p.freezer} size={16} />
           </span>

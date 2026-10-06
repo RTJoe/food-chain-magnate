@@ -7,14 +7,18 @@
  *
  * Queue policy (§1.7): a batch arriving while a timeline runs is queued (max 2) when it belongs to
  * the same phase and the running one has under 3 s left at the current speed; otherwise the running
- * timeline finishes (jump to end, actors released) and the new one starts. A batch that arrives
+ * timeline finishes (jump to end, actors released) and the new one starts. A batch with nothing to
+ * show on the board (submissions, ambient turn / phase beats) never interrupts. A batch that arrives
  * while the tab is hidden, or has waited more than 20 s, is finished without playing (its closing
  * caption still shows). Reduced motion (`prefers-reduced-motion` or speed 0) compiles the plan in
  * reduced mode: holds, captions and static drawings, no travel.
  */
+import { effect } from '@preact/signals';
 import type { GameEvent, GameView, PlayerId } from '@fcm/engine';
-import { showCaption } from '../state/feedback.js';
+import { boardView } from '../state/boardBridge.js';
+import { currentBeat, replayRequest, showCaption } from '../state/feedback.js';
 import { animationSpeed } from '../state/interaction.js';
+import { markReplay } from './anim/choreos/carriers.js';
 import { FeedbackLayer } from './overlays/feedback.js';
 import type { Reconciler } from './reconcile.js';
 import type { Stage } from './scene.js';
@@ -28,6 +32,8 @@ const QUEUE_WITHIN = 3;
 const QUEUE_MAX = 2;
 /** Batches older than this (wall-clock ms) are finished without playing. */
 const STALE_MS = 20_000;
+/** Beats that never interrupt a running timeline (dropped while one plays). */
+const AMBIENT = new Set<string>(['turn', 'phase']);
 
 export function reducedMotion(): boolean {
   return typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
@@ -48,6 +54,8 @@ interface Pending {
   info: BatchInfo;
   plan: Plan;
   arrived: number;
+  /** "Watch again": the real pieces are left alone (choreographies check `isReplay`). */
+  replay?: boolean;
 }
 
 export class Animator {
@@ -62,6 +70,8 @@ export class Animator {
   };
   /** Called with true when a timeline starts, false when the layer goes idle. */
   onActive: ((active: boolean) => void) | null = null;
+  private lastView: { view: GameView | null; me: PlayerId | null } = { view: null, me: null };
+  private stopReplays: () => void;
 
   constructor(
     private readonly stage: Stage,
@@ -70,9 +80,16 @@ export class Animator {
     this.feedback = new FeedbackLayer(stage, rec);
     this.pool = new ActorPool(stage);
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
+    let first = true;
+    this.stopReplays = effect(() => {
+      const r = replayRequest.value;
+      if (first) return void (first = false);
+      if (r) this.replay(r.events, r.fromId);
+    });
   }
 
   dispose(): void {
+    this.stopReplays();
     this.finish();
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this.onVisibility);
     this.pool.dispose();
@@ -106,10 +123,44 @@ export class Animator {
     if (last?.plan.closing) showCaption(last.plan.closing, CAPTION_HOLD_MS);
   }
 
+  /**
+   * Replay a finished Dinnertime / Marketing from its stored events ("Watch again", animation-plan
+   * §1.4): only the house / campaign beats, against the current board, starting at the beat with
+   * id `fromId` when given ("Play from here"). Real pieces stay as they are; choreographies draw
+   * ghosts and transient carriers. Anything running finishes first.
+   */
+  replay(events: readonly GameEvent[], fromId: string | null = null, view?: GameView | null, me?: PlayerId | null): void {
+    const v = view ?? this.lastView.view ?? boardView.peek().view;
+    const who = me ?? this.lastView.me ?? boardView.peek().me;
+    if (!v) return;
+    this.finish();
+    const plan = compile(events, { view: v, prevView: v, me: who, mode: this.mode(), kinds: new Set(registry.keys()) });
+    let beats = plan.beats.filter((b) => b.segment === 'dinnertime' || b.segment === 'marketing');
+    const from = fromId ? Math.max(0, beats.findIndex((b) => b.id === fromId)) : 0;
+    beats = beats.slice(from);
+    if (!beats.length) return;
+    const t0 = beats[0]!.at;
+    for (const b of beats) b.at -= t0;
+    const length = beats.reduce((m, b) => Math.max(m, b.at + b.dur), 0);
+    const p: Pending = {
+      events,
+      info: { view: v, prevView: v, me: who, added: [], removed: [], prevDemand: new Map() },
+      plan: { ...plan, beats, length, segments: plan.segments.filter((s) => s.segment === 'dinnertime' || s.segment === 'marketing') },
+      arrived: performance.now(),
+      replay: true,
+    };
+    this.start(p);
+  }
+
+  private mode(): 'full' | 'reduced' {
+    return reducedMotion() || animationSpeed.peek() <= 0 || this.stage.tweens.speed <= 0 ? 'reduced' : 'full';
+  }
+
   /** Animate one applied batch. */
   play(events: readonly GameEvent[], info: BatchInfo): void {
+    this.lastView = { view: info.view, me: info.me };
     const speed = this.stage.tweens.speed;
-    const mode = reducedMotion() || animationSpeed.peek() <= 0 || speed <= 0 ? 'reduced' : 'full';
+    const mode = this.mode();
     const plan = compile(events, { view: info.view, prevView: info.prevView, me: info.me, mode, added: info.added, kinds: new Set(registry.keys()) });
     const p: Pending = { events, info, plan, arrived: performance.now() };
     if (typeof document !== 'undefined' && document.hidden) {
@@ -118,6 +169,12 @@ export class Animator {
       return;
     }
     if (this.tl?.active && this.current) {
+      // Nothing to show on the board (submissions, prompts, ambient turn / phase beats): a busy
+      // table (bots answering within a second) must not cut a running Dinnertime or replay short.
+      if (plan.beats.every((b) => AMBIENT.has(b.kind))) {
+        this.settle(p);
+        return;
+      }
       const left = this.tl.remaining / Math.max(0.01, speed);
       if (plan.phase === this.current.plan.phase && left < QUEUE_WITHIN && this.queue.length < QUEUE_MAX) {
         this.queue.push(p);
@@ -143,15 +200,20 @@ export class Animator {
     const { plan, info } = p;
     const tl = new Timeline(this.stage.tweens, GROUP);
     const ctx = createChoreoCtx({ stage: this.stage, rec: this.rec, feedback: this.feedback, pool: this.pool, plan, ...info });
+    if (p.replay) markReplay(ctx);
+    const replay = !!p.replay;
     for (const beat of plan.beats) {
       const fn = registry.get(beat.kind);
       if (!fn) continue;
+      // The results strip's stepper follows the house / campaign being played.
+      if (beat.segment === 'dinnertime' || beat.segment === 'marketing') tl.call(beat.at, () => void (currentBeat.value = { id: beat.id, kind: beat.kind, replay }));
       try {
         fn(beat, beat.at, tl, ctx);
       } catch (err) {
         console.error(`[anim] ${beat.kind} choreography failed`, err);
       }
     }
+    tl.own(() => void (currentBeat.value = null));
     if (plan.closing) {
       const closing = plan.closing;
       tl.call(Math.max(plan.length, tl.focalEnd), () => showCaption(closing, CAPTION_HOLD_MS), 'tail');

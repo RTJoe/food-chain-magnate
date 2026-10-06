@@ -120,6 +120,7 @@ export function buildLobbyistRoad(
   const pal = playerPalette(p.color);
   for (const a of p.arrows) {
     const o = new THREE.Group();
+    o.name = 'arrow';
     o.position.set(a.from.x + 0.5 - ox, 0.045, a.from.y + 0.5 - oz);
     // dirAngle maps +z to the direction; the arrow shape points to -z, so add PI.
     o.rotation.y = dirAngle(a.dir) + Math.PI;
@@ -134,6 +135,8 @@ export function buildLobbyistRoad(
       const cx = c.x + 0.5 - ox;
       const cz = c.y + 0.5 - oz;
       const b = new THREE.Group();
+      // Named per square so the choreographies pop / pack the works one by one.
+      b.name = `works:${i}`;
       b.position.set(cx, 0.04, cz);
       const horiz = p.cells.some((d) => d.y === c.y && Math.abs(d.x - c.x) === 1);
       b.rotation.y = horiz ? 0 : Math.PI / 2;

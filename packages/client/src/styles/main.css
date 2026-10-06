@@ -611,3 +611,67 @@ body[data-screen='table'] { overflow: hidden; }
 .bot-menu-item:hover, .bot-menu-item:focus-visible { background: var(--c-line); outline: none; }
 .input-sm { min-height: 36px; padding: 4px 8px; width: auto; }
 .bot-level { flex: 0 0 auto; }
+
+/* --- Overlay motion (ui/motion.tsx, animation-plan rows marked U) ---------------------------
+   Ghosts, chips and coins live in a fixed layer that never takes pointer events. */
+.motion-ghosts { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+.motion-ghost { position: fixed !important; margin: 0 !important; pointer-events: none; box-sizing: border-box; }
+.motion-chip { position: fixed; padding: 3px 9px; border-radius: 999px; font-size: 0.78rem; font-weight: 800; white-space: nowrap; box-shadow: 0 4px 12px rgba(43, 42, 51, 0.22); color: #fffaf0; background: var(--c-ink); pointer-events: none; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.motion-chip.tone-ok { background: var(--c-ok); }
+.motion-chip.tone-danger { background: var(--c-danger); }
+.motion-chip.tone-gold { background: #d9a21c; color: var(--c-ink); }
+.motion-coin { position: fixed; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fbe17a, #e0a91f 70%); box-shadow: 0 0 0 1px #b8841a; pointer-events: none; }
+.motion-ribbon { box-shadow: 0 0 0 3px #e7b52c, 0 0 18px rgba(231, 181, 44, 0.7) !important; transition: box-shadow 0.3s; }
+.motion-frost { filter: hue-rotate(160deg) saturate(0.6) brightness(1.15); transition: filter 0.3s; }
+.motion-crack { background: repeating-linear-gradient(115deg, #fbecc9 0 7px, #f1c9a8 7px 8px) !important; }
+
+/* Cash numerals: the roll is JS; the change floats off the number. */
+.cash-rolling { position: relative; display: inline-block; }
+.cash-float { position: absolute; right: 0; top: -2px; font-size: 0.72em; font-weight: 800; pointer-events: none; white-space: nowrap; animation: cash-float 1.1s ease-out forwards; }
+.cash-float.is-up { color: var(--c-ok); }
+.cash-float.is-down { color: var(--c-danger); }
+@keyframes cash-float { 0% { transform: translateY(4px); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-16px); opacity: 0; } }
+
+/* Round / bank break / milestone / game over banners, under the top bar. */
+.motion-banners { position: fixed; left: calc(var(--rail-w) + (100vw - var(--rail-w) - var(--dock-w)) / 2); top: 128px; transform: translateX(-50%); z-index: 55; display: grid; gap: 6px; justify-items: center; pointer-events: none; width: max-content; max-width: calc(100vw - 32px); }
+.motion-banner { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 999px; background: var(--c-surface); border: 2px solid var(--c-ink); font-weight: 800; font-size: 1.05rem; box-shadow: var(--shadow-lg); animation: motion-banner var(--hold, 1.6s) cubic-bezier(.2, .8, .3, 1) forwards; max-width: 100%; }
+.motion-banner > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.motion-banner.tone-danger { border-color: var(--c-danger); color: var(--c-danger); }
+.motion-banner.tone-gold { border-color: #d9a21c; background: #fff6dc; }
+.motion-banner.has-confetti { font-size: 1.3rem; padding: 12px 26px; }
+.motion-banner-icon { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--c-ink); color: #fffaf0; font-size: 0.8rem; flex: none; }
+.motion-banner.tone-danger .motion-banner-icon { background: var(--c-danger); }
+.motion-banner.tone-gold .motion-banner-icon { background: #d9a21c; color: var(--c-ink); }
+@keyframes motion-banner {
+  0% { transform: translateX(-60px) scale(0.9); opacity: 0; }
+  12% { transform: translateX(4px) scale(1.02); opacity: 1; }
+  20% { transform: none; }
+  85% { transform: none; opacity: 1; }
+  100% { transform: translateX(40px); opacity: 0; }
+}
+.motion-confetti { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.motion-confetti i { position: absolute; width: 7px; height: 11px; border-radius: 2px; background: var(--c-accent); animation: motion-confetti 1.4s cubic-bezier(.2, .7, .4, 1) calc(var(--i) * 40ms) both; }
+.motion-confetti i:nth-child(3n) { background: #d9a21c; }
+.motion-confetti i:nth-child(3n + 1) { background: var(--c-ok); }
+@keyframes motion-confetti {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  100% { transform: translate(calc((var(--i) - 7) * 22px), calc(60px + (var(--i) * 7px))) rotate(calc(var(--i) * 77deg)); opacity: 0; }
+}
+
+/* Phase stepper: the current step pops when it changes; rail "done" chip pops in. */
+.phase-steps li.is-now { animation: motion-pop 0.35s cubic-bezier(.3, 1.5, .55, 1); }
+.ppanel-ok { display: inline-block; animation: motion-pop 0.3s cubic-bezier(.3, 1.5, .55, 1); }
+@keyframes motion-pop { 0% { transform: scale(0.6); } 100% { transform: none; } }
+
+@media (max-width: 720px) {
+  .motion-banners { left: 50%; top: 118px; }
+  .motion-banner { font-size: 0.95rem; padding: 6px 14px; }
+  .motion-banner.has-confetti { font-size: 1.1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .motion-banner { animation: motion-banner-fade var(--hold, 1.6s) linear forwards !important; animation-duration: var(--hold, 1.6s) !important; }
+  .cash-float { animation-duration: 1.1s !important; animation-name: motion-fade-out !important; }
+  .motion-confetti { display: none; }
+}
+@keyframes motion-banner-fade { 0% { opacity: 0; } 8% { opacity: 1; } 88% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes motion-fade-out { 0% { opacity: 1; } 100% { opacity: 0; } }

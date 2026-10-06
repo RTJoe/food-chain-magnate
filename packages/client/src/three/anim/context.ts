@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import type { GameView, House, HouseId, PlayerId } from '@fcm/engine';
 import { houseBoardInfo } from '../../state/boardOverlays.js';
 import { showCaption } from '../../state/feedback.js';
+import { followAction, followFocus } from '../../state/interaction.js';
 import { APARTMENT_BADGE_Y, BADGE_SIZE, HOUSE_BADGE_Y, RURAL_BADGE_Y } from '../minis/buildings.js';
 import { releaseTree } from '../minis/ctx.js';
 import { buildDemandStack } from '../minis/tokens.js';
@@ -29,6 +30,9 @@ const CAPS: Record<ChoreoCtx['tier'], ChoreoCtx['caps']> = {
   medium: { vehicles: 3, confetti: 8, flights: 4, shadows: true },
   low: { vehicles: 2, confetti: 0, flights: 3, shadows: false },
 };
+
+/** Phases whose steps the follow camera may glide to. */
+const FOLLOW_PHASES = new Set<string>(['dinnertime', 'marketing', 'setup', 'gameOver']);
 
 /** How long a caption stays once shown (it never blocks input). */
 const CAPTION_HOLD_MS = 3800;
@@ -69,8 +73,30 @@ export function createChoreoCtx(d: ChoreoDeps): ChoreoCtx {
     caption(tl, at, c) {
       tl.call(at, () => showCaption(c, CAPTION_HOLD_MS));
     },
-    follow() {
-      // Follow-the-action camera (§1.6) is a later setting; the hook is here so choreographies call it.
+    follow(tl, at, ids) {
+      // Follow the action (§1.6): automatic phases only, never a player's own working turn. The
+      // camera skips it while the player has touched the camera recently.
+      if (!ids.length || !FOLLOW_PHASES.has(d.plan.phase ?? '')) return;
+      tl.call(
+        at,
+        () => {
+          if (!followAction.peek()) return;
+          const ps = ids.flatMap((id) => rec.byId(id));
+          if (!ps.length) return;
+          let x0 = Infinity;
+          let z0 = Infinity;
+          let x1 = -Infinity;
+          let z1 = -Infinity;
+          for (const p of ps) {
+            x0 = Math.min(x0, p.rect.x0);
+            z0 = Math.min(z0, p.rect.z0);
+            x1 = Math.max(x1, p.rect.x1);
+            z1 = Math.max(z1, p.rect.z1);
+          }
+          followFocus.value = { x0, z0, x1, z1, n: (followFocus.peek()?.n ?? 0) + 1 };
+        },
+        'tail',
+      );
     },
     actor(tl, kind, color = null, variant = null) {
       const a = pool.get(kind, color, variant);
@@ -94,8 +120,14 @@ function ghostDemand(ctx: ChoreoCtx, tl: Timeline, houseId: HouseId): GhostStack
   const h = ctx.prevView?.board.houses[houseId];
   const piece = ctx.rec.live.get(`house:${houseId}`);
   if (!h || !h.demand.length || !piece) return null;
-  // The real stack is still there (nothing consumed it): no ghost needed.
-  if (ctx.rec.live.has(`demand:${houseId}`)) return null;
+  // The real stack is still there (part of it sold): no ghost stack, but its roof plaque keeps
+  // the pre-batch counts until the beat lands (reconciler pendingPlaque).
+  if (ctx.rec.live.has(`demand:${houseId}`)) {
+    const release = ctx.rec.holdPlaque(houseId, h.demand);
+    tl.own(release);
+    const empty = new THREE.Group();
+    return { obj: empty, popAt: (at: number) => void tl.call(at, release) };
+  }
   const obj = buildDemandStack({ inst: ctx.stage.inst }, [...h.demand], { capacity: houseCapacity(h, houseBoardInfo.peek()[houseId]), badgeH: BADGE_H[h.kind] });
   obj.name = `ghost:demand:${houseId}`;
   // Pivot at the stack anchor so the pop shrinks in place.

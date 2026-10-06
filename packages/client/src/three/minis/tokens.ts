@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import type { DemandToken, FoodId } from '@fcm/engine';
 import { COLORS, FOOD_COLORS } from '../../theme.js';
-import { BADGE_MIN_PX, LABEL_MIN_PX, compactPlaqueTexture, makeSprite, miniPlaqueTexture, plaqueTexture } from '../labels.js';
+import { BADGE_MIN_PX, LABEL_MIN_PX, compactPlaqueTexture, makeSprite, miniPlaqueTexture, plaqueTexture, setSpriteTexture } from '../labels.js';
 import { solid, type MiniCtx } from './ctx.js';
 import { P, Shape, ball, box, cyl, extrude, lathe, miniGeo, puck, shade } from './kit.js';
 
@@ -156,6 +156,33 @@ export function buildDemandStack(ctx: MiniCtx, demand: DemandToken[], p: DemandP
   }
   g.userData.count = n;
   return g;
+}
+
+/** What a held plaque restores to (reconciler `holdPlaque`). */
+export interface PlaqueHold {
+  plaque: unknown;
+  visible: boolean;
+}
+
+/**
+ * Re-point a demand plaque sprite (masking, animation-plan §4.2): show `demand` (pre-batch
+ * content), hide it, or restore a `PlaqueHold`. Stage.layoutPlaques picks the form per frame
+ * from `userData.plaque`, so swapping it is enough.
+ */
+export function setPlaque(s: THREE.Sprite, to: PlaqueHold | { visible: false } | { demand: readonly DemandToken[]; capacity: number | null; noSeller?: boolean }): void {
+  if ('demand' in to) {
+    const content = { goods: demandGoods(to.demand), count: to.demand.length, capacity: to.capacity, noSeller: to.noSeller };
+    s.userData.plaque = { full: plaqueTexture(content), compact: compactPlaqueTexture(content), mini: miniPlaqueTexture(content), count: to.demand.length };
+    setSpriteTexture(s, s.userData.plaque.full);
+    s.visible = true;
+    return;
+  }
+  if ('plaque' in to) {
+    s.userData.plaque = to.plaque;
+    const pq = to.plaque as { full?: THREE.Texture } | undefined;
+    if (pq?.full) setSpriteTexture(s, pq.full);
+  }
+  s.visible = to.visible;
 }
 
 /** Stack offset from the badge anchor: a little lower, and behind the plaque on screen (Stage.behind). */

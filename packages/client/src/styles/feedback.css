@@ -92,3 +92,4 @@
 .kf-glyph rect { fill: #5b5866; }
 .kf-glyph.is-park rect { fill: #6fae54; }
 .kf-glyph .kf-arrow { fill: none; stroke: #f0a530; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sx-replay { gap: 6px; flex-wrap: wrap; margin-top: 6px; }

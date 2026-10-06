@@ -123,3 +123,46 @@ export const ghostOrientation = signal<CampaignOrientation | null>(null);
  * the good; it can change while a ghost is staged (it does not affect legality).
  */
 export const previewGood = signal<FoodId | null>(null);
+
+// ---------------------------------------------------------------------------
+// Animation hooks (animation-plan §1.6, §2.10, WP-C)
+// ---------------------------------------------------------------------------
+
+const FOLLOW_KEY = 'fcm.followAction';
+
+function loadFollow(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(FOLLOW_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * "Follow the action" (off by default, remembered per device): during automatic phases the camera
+ * glides to each step's pieces, unless the player touched the camera in the last few seconds.
+ */
+export const followAction = signal(loadFollow());
+
+export function setFollowAction(on: boolean): void {
+  followAction.value = on;
+  try {
+    globalThis.localStorage?.setItem(FOLLOW_KEY, on ? '1' : '0');
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** World rectangle the follow camera should frame next (written by the animator, read by the camera). */
+export const followFocus = signal<{ x0: number; z0: number; x1: number; z1: number; n: number } | null>(null);
+
+/**
+ * A board step landed money for a player (sale coins at the restaurant, coffee, marketing income).
+ * Cash counters pulse / roll on it; `n` makes repeated equal pulses distinct.
+ */
+export const cashPulse = signal<{ player: string; delta: number; n: number } | null>(null);
+
+let pulseN = 0;
+export function pulseCash(player: string, delta: number): void {
+  cashPulse.value = { player, delta, n: ++pulseN };
+}
