@@ -1,15 +1,20 @@
 /**
  * Gourmet guide (ux-plan §2.4, WP5): a campaign with nowhere to aim. Pick the guide number, the
- * good and the duration; the board stages the guide stand on the rim at once (one spot), so
- * Confirm is the only step left. Other campaign kinds use the base campaign flow.
+ * good and the duration (KX p27: 1-3 item counters); once the good is chosen the board stages the
+ * guide stand on the rim (one spot) and Launch confirms. A pick made before the good is chosen is
+ * held until the player launches it: choosing the good never launches by itself. Other campaign
+ * kinds use the base campaign flow.
  */
 import { useSignal } from '@preact/signals';
 import { useMemo } from 'preact/hooks';
 import type { FoodId, Placement } from '@fcm/engine';
+import { describePlacement } from '../../state/actions.js';
+import { onPick, pickStep } from '../../state/campaignRules.js';
 import { boardModeFor, type CampaignPlacementT } from '../../state/guidance.js';
 import { confirmPlacement, pendingPlacement, previewGood } from '../../state/interaction.js';
-import { catalog, myPlayer } from '../../state/store.js';
+import { catalog, myPlayer, view } from '../../state/store.js';
 import { Button, Stepper } from '../common.js';
+import { Icon } from '../icons.js';
 import { CampaignFlow } from './Campaign.js';
 import { commitPlacement, FlowHead, GoodChips, marketableFoods, NoSpots, PlacementRows, playerColor, useBoardMode, useMirror } from './shared.js';
 import type { FlowComponent, FlowProps } from './types.js';
@@ -27,18 +32,23 @@ export function KetchupGuideFlow({ legal, placements, onDone, onCancel }: FlowPr
   const duration = useSignal(maxDuration);
   const held = useSignal<Placement | null>(null);
   const chosen = guides.filter((g) => g.tileNumber === token.value);
-  const mode = useMemo(() => (chosen.length ? boardModeFor(legal, chosen, { color: playerColor(), tileNumber: token.value, label: `Gourmet guide #${token.value}` }) : null), [token.value, placements]);
-  const commit = (p: Placement, g = good.value) => {
-    if (!g) {
+  const step = pickStep(Boolean(good.value), held.value);
+  // The board (and its reach ghost) opens only once the good is chosen: no preview of a good the player has not picked.
+  const mode = useMemo(
+    () => (step === 'pickSpot' && chosen.length ? boardModeFor(legal, chosen, { color: playerColor(), tileNumber: token.value, label: `Gourmet guide #${token.value}` }) : null),
+    [token.value, placements, step],
+  );
+  const commit = (p: Placement) => {
+    const g = good.value;
+    if (onPick(Boolean(g)) === 'hold' || !g) {
       held.value = p;
       return;
     }
     if (commitPlacement(legal, p, { goods: [g], duration: duration.value })) onDone();
   };
-  useBoardMode(mode, { onPlacement: (p) => commit(p), onCancel });
+  useBoardMode(mode, { onPlacement: commit, onCancel });
   const setGood = (f: FoodId) => {
     good.value = f;
-    if (held.value) commit(held.value, f);
   };
 
   return (
@@ -71,14 +81,33 @@ export function KetchupGuideFlow({ legal, placements, onDone, onCancel }: FlowPr
               </label>
             )}
           </div>
-          {pendingPlacement.value && (
-            <div class="row">
-              <Button size="sm" variant="primary" icon="check" disabled={!good.value} onClick={confirmPlacement}>
-                {good.value ? `Place guide #${token.value}` : 'Choose a good first'}
-              </Button>
+          {held.value ? (
+            <div class="held-pick">
+              <span>
+                {Icon.pin({ size: 16 })} {describePlacement(held.value, view.value)}
+              </span>
+              {!good.value && <span class="org-warn small">Choose what to advertise.</span>}
+              <div class="row gap">
+                <Button size="sm" variant="ghost" onClick={() => (held.value = null)}>
+                  Pick again
+                </Button>
+                <Button size="sm" variant="primary" icon="check" disabled={!good.value} onClick={() => held.value && commit(held.value)}>
+                  Launch #{(held.value as CampaignPlacementT).tileNumber}
+                </Button>
+              </div>
             </div>
+          ) : (
+            <>
+              {pendingPlacement.value && good.value && (
+                <div class="row">
+                  <Button size="sm" variant="primary" icon="check" onClick={confirmPlacement}>
+                    Launch #{token.value}
+                  </Button>
+                </div>
+              )}
+              <PlacementRows placements={chosen} onPick={commit} />
+            </>
           )}
-          <PlacementRows placements={chosen} onPick={(p) => commit(p)} />
         </>
       )}
     </div>

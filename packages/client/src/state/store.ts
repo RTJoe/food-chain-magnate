@@ -178,6 +178,22 @@ function appendLog(v: GameView, s: number, events: readonly GameEvent[]): void {
   if (lines.length) log.value = [...log.value, ...lines].slice(-400);
 }
 
+/**
+ * A resumed local game (net/session.ts): rebuild the results strips and log lines of the moves
+ * replayed before the first snapshot, without animating them. Call before that snapshot arrives.
+ */
+export function restoreHistory(moves: readonly { seq: number; events: readonly GameEvent[]; view: GameView }[]): void {
+  if (!moves.length) return;
+  batch(() => {
+    let prev: GameView | null = null;
+    for (const m of moves) {
+      collectSummaries(prev, m.events);
+      appendLog(m.view, m.seq, m.events);
+      prev = m.view;
+    }
+  });
+}
+
 export function addLocalLog(text: string, icon: LogLine['icon'] = 'info'): void {
   log.value = [...log.value, { id: nextLogId++, seq: seq.value, round: view.value?.round ?? 0, icon, text, player: null }];
 }

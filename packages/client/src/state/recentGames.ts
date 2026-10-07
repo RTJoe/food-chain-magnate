@@ -1,9 +1,11 @@
 /**
  * Online rooms this browser has been in, kept in localStorage['fcm.games'] so the Home screen can
- * offer one-click resume ("Your games"). Updated by net/session.ts from room updates.
+ * offer one-click resume ("Your games"). Updated by net/session.ts from room updates. Also the
+ * saved hot-seat game (bottom of this file).
  */
 import { signal } from '@preact/signals';
-import type { RoomInfo, RoomStatus } from '@fcm/protocol';
+import type { Action, GameConfig, PlayerId } from '@fcm/engine';
+import type { BotLevel, RoomInfo, RoomStatus } from '@fcm/protocol';
 
 export interface RecentGame {
   /** Room code. */
@@ -59,4 +61,57 @@ export function rememberRoom(room: RoomInfo, myClientId: string | null): void {
 
 export function forgetRoom(id: string): void {
   if (recentGames.value.some((g) => g.id === id)) save(recentGames.value.filter((g) => g.id !== id));
+}
+
+// --- Hot-seat save ------------------------------------------------------------------------------
+
+/**
+ * The hot-seat game in progress on this device, kept in localStorage['fcm.hotseat'] after every
+ * move so a reload, a discarded tab or an accidental close can resume it (Home → Resume, or a
+ * reload on #/hotseat). Resume replays `actions` on `createGame(config, seed)`.
+ */
+export interface SavedHotseat {
+  v: 1;
+  config: GameConfig;
+  seed: number;
+  bots: Record<PlayerId, BotLevel>;
+  actions: Action[];
+  /** For the Home entry. */
+  round: number;
+  phase: string;
+  over: boolean;
+  savedAt: number;
+}
+
+export const HOTSEAT_KEY = 'fcm.hotseat';
+
+function loadHotseat(): SavedHotseat | null {
+  try {
+    const raw = globalThis.localStorage?.getItem(HOTSEAT_KEY);
+    const s = raw ? (JSON.parse(raw) as SavedHotseat) : null;
+    return s && s.v === 1 && s.config && Array.isArray(s.actions) && typeof s.seed === 'number' ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+export const savedHotseat = signal<SavedHotseat | null>(loadHotseat());
+
+export function saveHotseat(s: Omit<SavedHotseat, 'v' | 'savedAt'>): void {
+  const entry: SavedHotseat = { v: 1, ...s, savedAt: Date.now() };
+  savedHotseat.value = entry;
+  try {
+    globalThis.localStorage?.setItem(HOTSEAT_KEY, JSON.stringify(entry));
+  } catch {
+    /* storage full or blocked: the game still runs, it just cannot be resumed */
+  }
+}
+
+export function clearHotseat(): void {
+  savedHotseat.value = null;
+  try {
+    globalThis.localStorage?.removeItem(HOTSEAT_KEY);
+  } catch {
+    /* storage unavailable */
+  }
 }

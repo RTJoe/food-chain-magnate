@@ -161,17 +161,6 @@ export function seatIndex(view: GameView, id: PlayerId): number {
   return Math.max(0, view.config.players.findIndex((p) => p.id === id));
 }
 
-/** Salaried cards × $5 (busy and beach included; base.md §8). Display estimate; the engine computes the real total. */
-export function salaryEstimate(c: Catalog, p: PlayerState, firing: readonly Uid[] = []): number {
-  const fired = new Set(firing);
-  let n = 0;
-  for (const card of Object.values(p.employees)) {
-    if (fired.has(card.uid) || card.salaryFree) continue;
-    if (c.employees[card.employeeId]?.salary) n++;
-  }
-  return n * 5;
-}
-
 /** Cards that can be fired at Payday: everything but the CEO and busy marketeers (base.md §8). */
 export function fireable(p: PlayerState): Uid[] {
   const busy = new Set(busyUids(p));

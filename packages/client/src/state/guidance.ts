@@ -58,7 +58,9 @@ function attempt<T>(fn: () => T): T | undefined {
 
 export function promptFor(view: GameView, me: PlayerId | null, manifest: readonly ModuleManifest[]): Prompt {
   if (isToyManifest(manifest)) return toyEngine.derivePrompt(view, me);
-  return attempt(() => realEngine.derivePrompt(view, me)) ?? fallbackPrompt(view, me);
+  const pr = attempt(() => realEngine.derivePrompt(view, me)) ?? fallbackPrompt(view, me);
+  // The engine heads every pending choice "Decision needed": say which decision it is.
+  return pr.kind === 'choice' ? { ...pr, title: choiceTitle(pr.choice) } : pr;
 }
 
 const nameOf = (view: GameView, id: PlayerId) => view.players[id]?.name ?? id;
@@ -125,6 +127,34 @@ export function choiceTitle(c: PendingChoice): string {
       return 'Place a coffee shop';
     case 'continue':
       return 'Paused: continue when ready';
+  }
+}
+
+/** What the reserve cards do (base game vs Reserve Prices, KX p28). */
+export function reserveRule(options: readonly ReserveCard[]): string {
+  if (options[0]?.kind === 'price') {
+    return 'Secret. When the bank first breaks, it gains $200 per player, and the most common card sets the base unit price for the rest of the game (ties: $20 beats $10 and $5; $5 beats $10). CEO slots do not change.';
+  }
+  return 'Secret. When the bank first breaks, all cards are revealed: the bank gets the sum, and the most common choice sets everyone’s CEO slots.';
+}
+
+/** One line naming why a pending choice appeared (the milestone or card behind it). */
+export function choiceReason(c: PendingChoice): string | null {
+  switch (c.kind) {
+    case 'pizzaRadio':
+      return 'First pizza sold: place a 2-turn pizza radio on the tile of the house you sold to.';
+    case 'freeMailbox':
+      return 'First new restaurant: place a free eternal mailbox in that restaurant\u2019s block.';
+    case 'secondCampaign':
+      return 'First campaign manager used: you may add a second tile of the same type, good and duration.';
+    case 'extraMapTile':
+      return 'First lobbyist used: place one of the leftover map tiles.';
+    case 'freeway':
+      return 'First rural marketeer used: you may place a freeway.';
+    case 'coffeeShop':
+      return c.source === 'milestone' ? 'First coffee sold: place 1 coffee shop.' : 'You trained a barista: place 1 coffee shop.';
+    default:
+      return null;
   }
 }
 

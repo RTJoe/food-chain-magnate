@@ -16,6 +16,7 @@ import type { Board, Cell, Corner, Direction, FoodId, GameView, HouseId, RouteSt
 import { boardView } from '../../state/boardBridge.js';
 import { houseBoardInfo } from '../../state/boardOverlays.js';
 import { boardFeedback, type BoardFeedback, type DinnerOffer } from '../../state/feedback.js';
+import { scoreMath } from '../../state/offers.js';
 import { COLORS } from '../../theme.js';
 import { DELTA, DIRS, OPPOSITE, ROAD_TOP } from '../coords.js';
 import { playerColor, type Rect } from '../layout.js';
@@ -162,7 +163,7 @@ function chipAt(text: string, good: FoodId | null, bg: string, x: number, y: num
 }
 
 export const offerText = (o: Pick<DinnerOffer, 'unitPrice' | 'distance' | 'score' | 'canSupply' | 'won'>): string =>
-  `${o.won ? '✓ ' : ''}$${o.unitPrice}+${o.distance}=$${o.score}${o.canSupply ? '' : ' ✕'}`;
+  `${o.won ? '✓ ' : ''}${scoreMath(o, { compact: true })}${o.canSupply ? '' : ' ✕'}`;
 
 interface Anchors {
   house(id: string): { x: number; z: number; y: number } | null;

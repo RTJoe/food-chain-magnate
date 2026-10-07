@@ -2,6 +2,7 @@
 import type { FoodCounts, GameEvent, GameView, PlayerId } from '@fcm/engine';
 import type { Catalog } from './catalog.js';
 import { employeeName, foodName, milestoneName } from './catalog.js';
+import { collapseOffers, scoreMath } from './offers.js';
 import { phaseLabel, STAGE_LABELS } from './selectors.js';
 
 export type LogIcon = 'phase' | 'round' | 'hire' | 'train' | 'fire' | 'food' | 'cash' | 'board' | 'campaign' | 'milestone' | 'bank' | 'turn' | 'secret' | 'trophy' | 'info';
@@ -123,10 +124,13 @@ export function describeEvent(e: GameEvent, view: GameView, c: Catalog): Line | 
     case 'houseStayedHome':
       return T([e.houseId], L('info', `House ${view.board.houses[e.houseId]?.label ?? e.houseId} stays home: no seller`));
     case 'sale': {
-      // "$9 + 1" is what decided it; name the best losing offer when there was one.
-      const rival = e.candidates?.find((x) => x.player !== e.player && x.canSupply);
+      // "$9 + 1" is what decided it (plus modifiers: "$10 + 0 − 2 = $8"); name the best losing offer when there was one.
+      const ranked = collapseOffers(e.candidates ?? []);
+      const won = ranked.find((x) => x.player === e.player);
+      const math = won ? scoreMath(won) : `${money(e.unitPrice)} + ${e.distance}`;
+      const rival = ranked.find((x) => x.player !== e.player && x.canSupply);
       const vs = rival ? `, beating ${n(rival.player)} at ${money(rival.score)}` : '';
-      return T([e.houseId, e.restaurantId], L('cash', `${n(e.player)} sells to ${houseName(e.houseId)} for ${money(e.total)} (${money(e.unitPrice)} + ${e.distance}${vs})`, e.player));
+      return T([e.houseId, e.restaurantId], L('cash', `${n(e.player)} sells to ${houseName(e.houseId)} for ${money(e.total)} (${math}${vs})`, e.player));
     }
     case 'coffeeSold':
       return L('cash', `${n(e.player)} sells coffee for ${money(e.amount)}`, e.player);

@@ -72,6 +72,20 @@ export function salaryBreakdown(s: GameState, content: ContentIndex, player: Pla
   return s.config.modules.length ? pipe(readCtx(s), 'salaryTotal', bd, { player }) : bd;
 }
 
+/**
+ * Salary breakdown as if `uids` were fired first (Payday panel preview). Every discount, waiver
+ * and module hook applies, exactly as at settlement.
+ */
+export function salaryAfterFiring(s: GameState, content: ContentIndex, player: PlayerId, uids: readonly Uid[]): SalaryBreakdown {
+  const p = s.players[player];
+  if (!p || !uids.length) return salaryBreakdown(s, content, player);
+  const gone = new Set(uids);
+  const employees = Object.fromEntries(Object.entries(p.employees).filter(([u]) => !gone.has(u)));
+  const busy = Object.fromEntries(Object.entries(p.busy).filter(([u]) => !gone.has(u)));
+  const next: GameState = { ...s, players: { ...s.players, [player]: { ...p, employees, busy, beach: p.beach.filter((u) => !gone.has(u)) } } };
+  return salaryBreakdown(next, content, player);
+}
+
 // ---------------------------------------------------------------------------
 // Phase flow
 // ---------------------------------------------------------------------------
@@ -96,8 +110,8 @@ export function enterPayday(ctx: HookContext): void {
       if (ctx.content.employees[card.employeeId]?.ability.kind === 'cfo' && !p.busy[uid]) fireCard(ctx, id, uid, true);
     }
   }
-  // Players with nothing they could fire have nothing to decide.
-  const decided = queue.filter((id) => voluntarilyFireable(s.players[id] as PlayerState).length === 0);
+  // Players with nothing they could fire have nothing to decide (unless a module gives them a choice).
+  const decided = queue.filter((id) => voluntarilyFireable(s.players[id] as PlayerState).length === 0 && !runPipeline(ctx, 'paydayDecision', false, { player: id }));
   s.phase = { kind: 'payday', queue, idx: 0, decided };
   advance(ctx);
 }

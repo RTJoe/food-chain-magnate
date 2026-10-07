@@ -39,7 +39,7 @@ export { campaignReach, houseCellsReach, houseOutlook, placementProblem, rangeOv
  */
 export { contentFor } from './modules/registry.js';
 export { cardsAtWork, cardsInHand, cardPlace, ceoSlotsFor, defOf, isManager, managerSlots, ownsUnique } from './core/cards.js';
-export { SALARY, salaryBreakdown, salariedCards, voluntarilyFireable } from './rules/payday.js';
+export { SALARY, salaryAfterFiring, salaryBreakdown, salariedCards, voluntarilyFireable } from './rules/payday.js';
 export { submissionProblem, isOverfilled } from './rules/restructuring.js';
 export { freezerCapacity, stockOf } from './rules/cleanup.js';
 export { reserveOptions } from './rules/setup.js';

@@ -17,6 +17,7 @@ import { employeeName, foodName } from '../state/catalog.js';
 import { boardRenderer } from '../state/boardBridge.js';
 import { boardFeedback, campaignInfo, campaignSteps, currentBeat, dinnerFeedback, dinnerSteps, phaseCaption, requestReplay, type CampaignStep, type DinnerStep, type PhaseCaption } from '../state/feedback.js';
 import { reachPreview } from '../state/guidance.js';
+import { saleCaptionText, scoreTerms } from '../state/offers.js';
 import { cameraCommand, finishAnimations, select, selection } from '../state/interaction.js';
 import { catalog, me, summaries, view, type PhaseSummary } from '../state/store.js';
 import { Button, Cash, IconButton, PlayerBadge } from './common.js';
@@ -337,7 +338,7 @@ function DinnerDetail({ view: v, step: s }: { view: GameView; step: DinnerStep }
               <span class="sx-swatch" />
               <span>{nameOf(v, o.player)}</span>
               <span class="sx-math">
-                ${o.unitPrice} + {o.distance} = <b>${o.score}</b>
+                {scoreTerms(o)} = <b>${o.score}</b>
               </span>
               {o.won ? <span class="sx-tag">wins</span> : !o.canSupply ? <span class="sx-tag">can’t supply</span> : null}
             </li>
@@ -505,10 +506,8 @@ function Marketing({ view: v, events }: { view: GameView; events: GameEvent[] })
 
 function captionText(v: GameView, c: PhaseCaption, food: (g: string) => string): string {
   switch (c.kind) {
-    case 'sale': {
-      const others = c.others.map((o) => `${nameOf(v, o.player)} $${o.score}${o.canSupply ? '' : ' (no stock)'}`).join(', ');
-      return `${nameOf(v, c.player)} sells to house ${houseLabel(v, c.houseId)}: $${c.unitPrice} + ${c.distance} = $${c.unitPrice + c.distance}${others ? ` · beat ${others}` : ''}`;
-    }
+    case 'sale':
+      return saleCaptionText(c, (p) => nameOf(v, p), houseLabel(v, c.houseId));
     case 'stayedHome':
       return `House ${houseLabel(v, c.houseId)} stays home: no seller`;
     case 'campaign': {

@@ -2,8 +2,11 @@ import { useSignal } from '@preact/signals';
 import { ROOM_CODE_ALPHABET } from '@fcm/protocol';
 import { navigate } from '../state/router.js';
 import { connection, settings, updateSettings } from '../state/store.js';
-import { forgetRoom, recentGames, type RecentGame } from '../state/recentGames.js';
-import { createRoom, startOnline } from '../net/session.js';
+import type { Phase } from '@fcm/engine';
+import { clearHotseat, forgetRoom, recentGames, savedHotseat, type RecentGame } from '../state/recentGames.js';
+import { createRoom, resumeHotseat, startOnline } from '../net/session.js';
+import { hotseatEngine } from '../state/engine.js';
+import { phaseLabel } from '../state/selectors.js';
 import { Button, IconButton } from './common.js';
 import { Icon, Logo } from './icons.js';
 import { continueEntry } from './learn/index.js';
@@ -80,6 +83,34 @@ function YourGames() {
   );
 }
 
+/** The hot-seat game saved on this device (state/recentGames), with Resume and Discard. */
+function SavedHotseatGame() {
+  const g = savedHotseat.value;
+  if (!g) return null;
+  const names = g.config.players.map((p) => p.name).join(', ');
+  const where = g.over ? 'Game over' : `${g.round > 0 ? `Round ${g.round} · ` : ''}${phaseLabel({ kind: g.phase } as Phase)}`;
+  const resume = () => {
+    if (resumeHotseat(hotseatEngine(), g)) navigate({ name: 'hotseat' });
+  };
+  return (
+    <section class="home-games glass" aria-label="Hot-seat game" style={{ padding: '12px 18px', marginBottom: '18px' }}>
+      <h2 style={{ margin: '0 0 8px', fontSize: '1.05rem' }}>Hot-seat game on this device</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <span style={{ flex: '1 1 160px', minWidth: 0 }}>
+          <span>{names}</span>
+          <span class="muted" style={{ display: 'block', fontSize: '0.85rem' }}>
+            {where} · saved {ago(g.savedAt)}
+          </span>
+        </span>
+        <Button size="sm" variant={g.over ? 'secondary' : 'primary'} icon="arrowRight" data-resume-hotseat onClick={resume}>
+          {g.over ? 'View' : 'Resume'}
+        </Button>
+        <IconButton icon="x" label="Discard the saved hot-seat game" onClick={() => confirm('Discard the saved hot-seat game?') && clearHotseat()} />
+      </div>
+    </section>
+  );
+}
+
 export function Home() {
   const code = useSignal('');
   const creating = useSignal(false);
@@ -125,6 +156,7 @@ export function Home() {
         </label>
       </section>
 
+      <SavedHotseatGame />
       <YourGames />
 
       <div class="home-grid">

@@ -94,7 +94,7 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
 
   return (
     <article
-      class={`ppanel glass ${active ? 'is-active' : ''} ${isMe ? 'is-me' : ''} ${p.bankrupt ? 'is-bankrupt' : ''} ${bot ? 'is-bot' : ''}`}
+      class={`ppanel glass ${active ? 'is-active' : ''} ${isMe ? 'is-me' : ''} ${p.bankrupt ? 'is-bankrupt' : ''} ${bot ? 'is-bot' : ''} ${open.value ? 'is-open' : ''}`}
       style={{ '--pc': p.color }}
       data-flip={`panel:${id}`}
       data-tutorial={`rail-${id}`}

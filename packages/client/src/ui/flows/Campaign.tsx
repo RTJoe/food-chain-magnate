@@ -6,16 +6,18 @@
  */
 import { useSignal } from '@preact/signals';
 import { useEffect, useMemo } from 'preact/hooks';
-import type { CampaignKind, FoodId, GameView, MarketingTileDef, MilestoneId, Placement, PlacementSpec, PlayerId } from '@fcm/engine';
+import type { CampaignKind, FoodId, GameView, MarketingTileDef, Placement, PlacementSpec, PlayerId } from '@fcm/engine';
 import { describePlacement, needsGoods } from '../../state/actions.js';
 import { boardRenderer } from '../../state/boardBridge.js';
+import { eternalClaimLine, eternalLaunch, maxCampaignGoods, toggleGood } from '../../state/campaignRules.js';
 import type { Catalog } from '../../state/catalog.js';
-import { foodName } from '../../state/catalog.js';
+import { employeeName, foodName } from '../../state/catalog.js';
 import { boardModeFor, placementsByToken, placementsFor, problemAt, type CampaignPlacementT } from '../../state/guidance.js';
 import { inspectIds, previewGood } from '../../state/interaction.js';
 import { catalog, manifest, me, myPlayer, settings, view } from '../../state/store.js';
 import { Button, Pill, Stepper } from '../common.js';
 import { Icon } from '../icons.js';
+import { footprint } from '../Board2D.js';
 import { BoardHint, commitPlacement, FlowHead, GoodChips, listOnly, marketableFoods, NoSpots, PlacementRows, playerColor, useBoardMode, useMirror } from './shared.js';
 import type { FlowProps } from './types.js';
 
@@ -121,13 +123,6 @@ export function tokensFor(v: GameView, c: Catalog, who: PlayerId | null, spec: P
   return [...out.values()].sort((a, b) => a.number - b.number);
 }
 
-/** Whether `kind` campaigns launched by the player now become eternal (milestone effect). */
-function launchesEternal(c: Catalog, v: GameView, who: PlayerId | null, kind: CampaignKind): boolean {
-  const p = who ? v.players[who] : undefined;
-  if (!p) return false;
-  return Object.keys(p.milestones).some((id) => c.milestones[id as MilestoneId]?.effects.some((e) => e.kind === 'eternalCampaigns' && (!e.campaignKinds || e.campaignKinds.includes(kind))));
-}
-
 export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps) {
   const v = view.value;
   const c = catalog.value;
@@ -157,10 +152,10 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
   const usable = tokens.filter((t) => t.spots.length > 0);
 
   const token = useSignal<number | null>(usable.length === 1 ? (usable[0]?.number ?? null) : null);
-  const good = useSignal<FoodId | null>(null);
+  const picked = useSignal<FoodId[]>([]);
   const duration = useSignal(maxDuration);
   const held = useSignal<Placement | null>(null);
-  useMirror(good.value, (g) => (previewGood.value = g), null);
+  useMirror(picked.value[0] ?? null, (g) => (previewGood.value = g), null);
   // Second campaign: ring the first one while choosing.
   useEffect(() => {
     if (!firstCampaign) return;
@@ -169,18 +164,23 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
   }, [firstCampaign?.id]);
 
   const chosen = tokens.find((t) => t.number === token.value) ?? null;
+  // A brand manager's airplane may carry 2 different goods while First brand manager used is open (KX p18).
+  const maxGoods = v ? maxCampaignGoods(v, who, card?.employeeId, chosen?.kind ?? (kinds.length === 1 ? kinds[0] : null)) : 1;
+  const goods = picked.value.slice(0, maxGoods);
+  const good = goods[0] ?? null;
   const spots = chosen?.spots ?? [];
-  const boardSpots = useMemo(() => (boardRenderer.value === '3d' ? spots.filter((p) => !listOnly(p)) : []), [spots]);
+  // The 2D board takes picks with a footprint (billboards, mailboxes, radios); off-board kinds stay in the list there.
+  const boardSpots = useMemo(() => spots.filter((p) => (boardRenderer.value === '3d' ? !listOnly(p) : footprint(p) !== null)), [spots, boardRenderer.value]);
   const offBoard = spots.filter((p) => listOnly(p));
   const mode = useMemo(
     // The board opens once the good is chosen too, so the phone sheet never collapses over the good chips.
-    () => (chosen && boardSpots.length && !held.value && (!wantsGoods || good.value) ? boardModeFor(legal, boardSpots, { color: playerColor(), tileNumber: chosen.number, label: `#${chosen.number} ${KIND_LABEL[chosen.kind].toLowerCase()} ${tokenSize(chosen)}` }) : null),
-    [chosen?.number, boardSpots, held.value, good.value],
+    () => (chosen && boardSpots.length && !held.value && (!wantsGoods || good) ? boardModeFor(legal, boardSpots, { color: playerColor(), tileNumber: chosen.number, label: `#${chosen.number} ${KIND_LABEL[chosen.kind].toLowerCase()} ${tokenSize(chosen)}` }) : null),
+    [chosen?.number, boardSpots, held.value, good],
   );
 
-  const opts = () => ({ ...(good.value ? { goods: [good.value] } : {}), duration: duration.value });
+  const opts = () => ({ ...(goods.length ? { goods } : {}), duration: duration.value });
   const pick = (p: Placement) => {
-    if (wantsGoods && !good.value) {
+    if (wantsGoods && !good) {
       held.value = p;
       return;
     }
@@ -202,7 +202,8 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
   // List fallback: the chosen token's spots, or every spot grouped by token (placementList).
   const listAll = settings.value.placementList;
   const listFor = (list: CampaignPlacementT[]) => (listAll ? list : list.filter((p) => listOnly(p) || boardRenderer.value !== '3d'));
-  const eternal = chosen ? launchesEternal(c, v ?? ({} as GameView), who, chosen.kind) : false;
+  const launch = chosen && v ? eternalLaunch(c, v, who, chosen.kind, { employeeId: card?.employeeId ?? null, goods }) : { eternal: false, claims: null };
+  const eternal = launch.eternal;
 
   return (
     <div class="flow campaign-flow">
@@ -250,14 +251,18 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
       {wantsGoods && (
         <div class="flow-options">
           <span class="field-label">2 · Advertise</span>
-          <GoodChips foods={marketableFoods()} value={good.value} onChange={(f) => (good.value = f)} />
+          <GoodChips foods={marketableFoods()} value={goods} ordered={maxGoods > 1} onChange={(f) => (picked.value = toggleGood(goods, f, maxGoods))} />
+          {maxGoods > 1 && <p class="muted small">First brand manager used: this airplane may carry 2 different goods. A is marketed first, then B.</p>}
           {legal.actionType === 'work.placeCampaign' && (
             <label class="field-inline" data-tutorial="duration">
               <span class="field-label">Duration</span>
               {eternal ? (
-                <Pill tone="ok" icon="star">
-                  Eternal (milestone)
-                </Pill>
+                <>
+                  <Pill tone="ok" icon="star">
+                    Eternal (milestone)
+                  </Pill>
+                  {launch.claims && chosen && <span class="muted small">{eternalClaimLine(launch.claims, chosen.kind, card ? employeeName(c, card.employeeId) : 'marketeer')}</span>}
+                </>
               ) : maxDuration > 1 ? (
                 <>
                   <Stepper label="turns" value={duration.value} min={1} max={maxDuration} onChange={(n) => (duration.value = n)} />
@@ -276,12 +281,12 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
           <span>
             {Icon.pin({ size: 16 })} {describePlacement(held.value, v)}
           </span>
-          {!good.value && <span class="org-warn small">Choose what to advertise.</span>}
+          {!good && <span class="org-warn small">Choose what to advertise.</span>}
           <div class="row gap">
             <Button size="sm" variant="ghost" onClick={() => (held.value = null)}>
               Pick again
             </Button>
-            <Button size="sm" variant="primary" icon="check" disabled={wantsGoods && !good.value} onClick={() => held.value && pick(held.value)}>
+            <Button size="sm" variant="primary" icon="check" disabled={wantsGoods && !good} onClick={() => held.value && pick(held.value)}>
               Launch #{(held.value as CampaignPlacementT).tileNumber}
             </Button>
           </div>

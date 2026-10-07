@@ -4,7 +4,8 @@ import { useEffect } from 'preact/hooks';
 import type { PlayerId, Viewer } from '@fcm/engine';
 import { navigate } from '../state/router.js';
 import { connection, dismissToast, handoff, me, mode, prompt, reconnectAttempt, room, settings, toasts, updateSettings, view } from '../state/store.js';
-import { acceptHandoff, endSession, leaveRoom, reconnectNow, resync, setDevViewer, undo } from '../net/session.js';
+import { acceptHandoff, endSession, leaveRoom, reconnectNow, replacedElsewhere, resync, setDevViewer, undo } from '../net/session.js';
+import { connectionBanner, END_HOTSEAT_CONFIRM, hotseatAtRisk } from '../state/connection.js';
 import { Button, IconButton, PlayerBadge, Toggle } from './common.js';
 import { Icon, Logo } from './icons.js';
 import { Standings } from './PromptPanel.js';
@@ -28,19 +29,19 @@ export function Toasts() {
   );
 }
 
-/** Online only: connection lost / reconnecting. The game view stays visible but read-only. */
+/** Online only: connection lost / reconnecting, or the game was taken over by another tab. The game view stays visible but read-only. */
 export function ConnectionBanner() {
   if (mode.value !== 'online') return null;
   const s = connection.value;
-  if (s === 'open' || s === 'idle') return null;
-  const text = s === 'connecting' ? 'Connecting to the server…' : s === 'reconnecting' ? `Connection lost. Reconnecting${reconnectAttempt.value > 1 ? ` (attempt ${reconnectAttempt.value})` : ''}…` : 'Disconnected from the server.';
+  const b = connectionBanner(s, reconnectAttempt.value, s === 'closed' && replacedElsewhere());
+  if (!b) return null;
   return (
-    <div class={`conn-banner conn-${s}`} role="alert">
+    <div class={`conn-banner conn-${s} ${b.tone === 'info' ? 'conn-elsewhere' : ''}`} role="alert">
       {Icon.wifiOff({ size: 18 })}
-      <span>{text}</span>
-      {s !== 'connecting' && (
-        <Button size="sm" variant="secondary" onClick={() => reconnectNow()}>
-          Retry now
+      <span>{b.text}</span>
+      {b.action && (
+        <Button size="sm" variant={b.tone === 'info' ? 'primary' : 'secondary'} onClick={() => reconnectNow()}>
+          {b.action}
         </Button>
       )}
     </div>
@@ -125,7 +126,23 @@ export function leaveTable(): void {
   navigate(lesson ? { name: 'learn', lesson: null } : { name: 'home' });
 }
 
+/** Warn before a reload or navigation throws away a running hot-seat game (it lives only in memory). */
+function useHotseatUnloadGuard(): void {
+  const atRisk = hotseatAtRisk(mode.value, Boolean(view.value), prompt.value?.kind === 'gameOver');
+  useEffect(() => {
+    if (!atRisk) return;
+    const onUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onUnload);
+    return () => window.removeEventListener('beforeunload', onUnload);
+  }, [atRisk]);
+}
+
 export function GameMenu() {
+  // Always mounted with the table, so the unload guard lives here (before the closed-menu early return).
+  useHotseatUnloadGuard();
   if (!menuOpen.value) return null;
   const v = view.value;
   const close = () => (menuOpen.value = false);
@@ -151,7 +168,7 @@ export function GameMenu() {
         <Toggle checked={settings.value.placementList} onChange={(b) => updateSettings({ placementList: b })} label="List placements" description="Also show board spots as a list under placement prompts." />
         <GameMenuExtras />
         {m === 'dev' && v && <DevViewer viewers={['spectator', ...v.turnOrder]} />}
-        <Button variant="danger" icon="logout" onClick={() => leaveTable()}>
+        <Button variant="danger" icon="logout" onClick={() => (!hotseatAtRisk(m, Boolean(v), prompt.value?.kind === 'gameOver') || window.confirm(END_HOTSEAT_CONFIRM)) && leaveTable()}>
           {m === 'online' ? 'Leave the table' : m === 'tutorial' ? 'Leave the lesson' : 'End this game'}
         </Button>
       </div>

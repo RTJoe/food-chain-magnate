@@ -274,6 +274,9 @@ export class TutorialRunner {
         if (m.t === 'game.applied') {
           this.events = [...this.events, ...m.events];
           if (m.action.playerId === this.me) this.lastAction = m.action;
+          // A long checkpoint step (the guided game plays rounds 3 to the end in one step): save
+          // again at every new round, so a reload resumes near where the learner was.
+          if (m.events.some((e) => e.type === 'roundStarted')) this.resave();
           this.noteEventBeats(m.events);
           this.activity();
         } else if (m.t === 'game.rejected') {
@@ -282,6 +285,10 @@ export class TutorialRunner {
         this.queueEvaluate();
       }),
     );
+    // Closing or discarding the tab: keep the moves made since the last save.
+    const hide = () => this.resave();
+    window.addEventListener('pagehide', hide);
+    this.disposers.push(() => window.removeEventListener('pagehide', hide));
     // UI signals: count changes, then re-evaluate.
     this.disposers.push(
       effect(() => {
@@ -406,10 +413,22 @@ export class TutorialRunner {
     if (cam) this.frame(cam);
     this.applyEffects(step.onEnter);
     this.showTargets(step);
+    // An Inspect card left open from an earlier step must not cover this step's board target.
+    const sel = selection.peek();
+    const ids = tutorialHighlight.peek();
+    if (sel && ids.length && !ids.includes(sel.id)) select(null);
     if (step.replay) this.replay(step.replay);
     if (step.checkpoint || i === 0) saveCheckpoint(this.lesson.id, step.id, i, this.lesson.steps.length, this.actions);
     this.activity();
     this.queueEvaluate();
+  }
+
+  /** Save the current checkpoint step again with every move made so far (resume replays them into it). */
+  private resave(): void {
+    if (this.status.peek() !== 'steps') return;
+    const i = this.stepIndex.peek();
+    const step = this.lesson.steps[i];
+    if (step?.checkpoint) saveCheckpoint(this.lesson.id, step.id, i, this.lesson.steps.length, this.actions);
   }
 
   private finishSteps(): void {
@@ -812,7 +831,7 @@ export function targetClientRect(t: Target): { x: number; y: number; w: number; 
     return r.width || r.height ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
   }
   const v = storeView.peek();
-  const board = (globalThis as unknown as { __fcmBoard?: { project(x: number, z: number, y?: number): { x: number; y: number } } }).__fcmBoard;
+  const board = (globalThis as unknown as { __fcmBoard?: { project(x: number, z: number, y?: number): { x: number; y: number } } }).__fcmBoard ?? board2dProjection();
   if (!v || !board) return null;
   const rects = targetWorldRects(v, t);
   if (!rects.length) return null;
@@ -834,6 +853,15 @@ export function targetClientRect(t: Target): { x: number; y: number; w: number; 
       y1 = Math.max(y1, p.y);
     }
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/** The 2D board (no WebGL): board squares map to its SVG user units, so its screen matrix projects them. */
+function board2dProjection(): { project(x: number, z: number): { x: number; y: number } } | null {
+  if (typeof document === 'undefined') return null;
+  const svg = document.querySelector<SVGSVGElement>('.board2d svg');
+  const m = svg?.getScreenCTM();
+  if (!m) return null;
+  return { project: (x, z) => ({ x: m.a * x + m.c * z + m.e, y: m.b * x + m.d * z + m.f }) };
 }
 
 /** Open a lesson (Learn route). Disposes any lesson still open. */

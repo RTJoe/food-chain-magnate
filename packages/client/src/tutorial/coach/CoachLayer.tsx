@@ -41,13 +41,19 @@ function Coach({ runner: r, onExit }: { runner: TutorialRunner; onExit: () => vo
   const strip = useRef<HTMLElement>(null);
   const top = useStripOnTop(cuts, strip);
   // Desktop: an open Summary card (replay walkthroughs) sits where the strip docks; move beside it.
-  const beside = !top && openSummary.value !== null && typeof window !== 'undefined' && !window.matchMedia('(max-width: 860px)').matches;
+  const landscape = typeof window !== 'undefined' && window.matchMedia('(max-width: 1180px) and (max-height: 520px) and (orientation: landscape)').matches;
+  const beside = !top && !landscape && openSummary.value !== null && typeof window !== 'undefined' && !window.matchMedia('(max-width: 860px)').matches;
+  // Landscape phones: the board is small, so the card sits over the dock column whenever the step
+  // points at nothing in the dock (board steps, the quiz's tap questions, the lesson's end).
+  const dock = landscape ? document.querySelector('.dock')?.getBoundingClientRect() : undefined;
+  const inDock = (c: Cutout) => !!dock && c.x < dock.right && c.x + c.w > dock.left && c.y < dock.bottom && c.y + c.h > dock.top;
+  const overDock = landscape && (status !== 'steps' || !cuts.some(inDock));
   return (
     <>
       {cuts.length > 0 && <Spotlight cuts={cuts} pulse={hint > 0} />}
       <section
         ref={strip}
-        class={`coach-strip glass ${top ? 'is-top' : ''} ${beside ? 'is-beside' : ''} ${status !== 'steps' ? 'is-wide' : ''}`}
+        class={`coach-strip glass ${top && !overDock ? 'is-top' : ''} ${beside ? 'is-beside' : ''} ${overDock ? 'is-dock' : ''} ${status !== 'steps' ? 'is-wide' : ''}`}
         role="region"
         aria-label="Lesson coach"
         data-tutorial-strip
@@ -225,19 +231,26 @@ function useScrollTargets(targets: Target[], key: string): void {
   }, [key]);
 }
 
-/** Phones: the strip moves to the top when a target sits in its way (or the sheet is open). */
+/** Phones: the strip moves to the top when a target sits in its way (portrait: or the sheet is open). */
 function useStripOnTop(cuts: Cutout[], strip: { current: HTMLElement | null }): boolean {
   const top = useSignal(false);
   useEffect(() => {
     const el = strip.current;
     if (!el || typeof window === 'undefined') return;
     const phone = window.matchMedia('(max-width: 860px)').matches;
-    if (!phone) {
+    // Landscape phones keep the dock beside the board: only a low target (or an Inspect card
+    // over the board's corner) moves the strip.
+    const landscape = window.matchMedia('(max-width: 1180px) and (max-height: 520px) and (orientation: landscape)').matches;
+    if (!phone && !landscape) {
       top.value = false;
       return;
     }
     const h = window.innerHeight;
     const lowTarget = cuts.some((c) => !c.arrow && c.y + c.h > h * 0.55);
+    if (landscape) {
+      top.value = lowTarget;
+      return;
+    }
     top.value = sheetOpen.value || lowTarget || openSummary.value !== null;
   }, [JSON.stringify(cuts), sheetOpen.value, openSummary.value]);
   return top.value;

@@ -4,7 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { stateBuilder, type StateBuilder } from '../../src/testing/index.js';
-import { applyPaydayAction, enterPayday, isPaydayComplete, salaryBreakdown, validatePaydayAction } from '../../src/rules/payday.js';
+import { applyPaydayAction, enterPayday, isPaydayComplete, salaryAfterFiring, salaryBreakdown, validatePaydayAction } from '../../src/rules/payday.js';
+import { contentFor } from '../../src/modules/registry.js';
 import type { PaydayConfirm, PaydayFire } from '../../src/types/index.js';
 import { MAP, makeCtx, type TestCtx } from './c2ctx.js';
 
@@ -278,5 +279,33 @@ describe('Payday milestones', () => {
     expect(ctx.of('employeeFired')[0]).toMatchObject({ uid: 'cfo', forced: true });
     act(ctx, confirm('p1'));
     expect(ctx.of('salaryPaid')[0]).toMatchObject({ paid: 5 });
+  });
+});
+
+describe('salaryAfterFiring (Payday panel preview)', () => {
+  const content = contentFor([]);
+  it('applies First to Train: 4 salaried cards owe $5, firing one leaves $0 (not $15)', () => {
+    const s = base()
+      .card('p1', 'junior_vp', 'work', 'a')
+      .card('p1', 'burger_cook', 'beach', 'b')
+      .card('p1', 'pizza_cook', 'beach', 'c')
+      .card('p1', 'coach', 'beach', 'd')
+      .milestone('p1', 'first_train', 2)
+      .build();
+    expect(salaryBreakdown(s, content, 'p1').total).toBe(5);
+    expect(salaryAfterFiring(s, content, 'p1', ['a']).total).toBe(0);
+    expect(salaryAfterFiring(s, content, 'p1', []).total).toBe(5);
+    // The state itself is untouched.
+    expect(Object.keys(s.players.p1!.employees)).toContain('a');
+  });
+
+  it('applies the First Billboard waiver: firing the cook leaves $0', () => {
+    const s = base()
+      .card('p1', 'burger_cook', 'beach', 'cook')
+      .marketeerCampaign('brand_manager', 'bm', { owner: 'p1', kind: 'airplane', number: 4, goods: ['burger'], placement: PLANE, remaining: 2 })
+      .milestone('p1', 'first_billboard', 2)
+      .build();
+    expect(salaryBreakdown(s, content, 'p1').total).toBe(5);
+    expect(salaryAfterFiring(s, content, 'p1', ['cook']).total).toBe(0);
   });
 });

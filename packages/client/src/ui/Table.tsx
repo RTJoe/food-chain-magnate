@@ -3,9 +3,11 @@
  * overlay (mounted by main.tsx); while no 3D renderer is registered the overlay shows Board2D.
  * Desktop: player rail left, dock right. Mobile: compact rail on top, dock as a bottom sheet.
  */
-import { useEffect } from 'preact/hooks';
+import { useSignal } from '@preact/signals';
+import { useEffect, useRef } from 'preact/hooks';
 import { boardRenderer, interactionMode, isPickMode } from '../state/boardBridge.js';
 import { isMyTurn, me, mode, prompt, unreadChat, view } from '../state/store.js';
+import { currentBeat, phaseCaption } from '../state/feedback.js';
 import { undo } from '../net/session.js';
 import { Board2D, hasBoard } from './Board2D.js';
 import { BoardControls } from './BoardControls.js';
@@ -54,20 +56,52 @@ export function Table() {
   }, []);
 
   // Board pick modes collapse the phone sheet to the pick strip (and never reopen it while picking);
-  // otherwise jump to the Turn tab when it becomes my turn (or a pick ends on my turn).
+  // otherwise jump to the Turn tab when it becomes my turn (or a pick ends on my turn). On a phone
+  // (portrait: the sheet covers the board) the sheet also lowers when my turn ends, and waits for
+  // the board to finish animating (Marketing, Dinnertime, other players' moves) before it rises:
+  // the handle's "your turn" dot says a prompt is waiting meanwhile.
   const picking = isPickMode(interactionMode.value);
+  const narrow = useMedia(PHONE_QUERY);
+  const landscape = useMedia(LANDSCAPE_QUERY);
+  const sheetPhone = narrow && !landscape;
+  // Marketing / Dinnertime beats on the board (the caption pill shows them).
+  const autoPhase = phaseCaption.value !== null || currentBeat.value !== null;
+  const animating = useBoardAnimating() || autoPhase;
+  const mine = isMyTurn.value;
+  const openPending = useRef(false);
+  const wasMine = useRef(false);
   useEffect(() => {
-    if (picking) sheetOpen.value = false;
-    else if (isMyTurn.value) {
-      dockTab.value = 'turn';
-      sheetOpen.value = true;
+    if (!picking && mine) openPending.current = true;
+  }, [mine, v?.phase.kind, picking]);
+  // An automatic phase starts playing while the sheet is up (my Payday move ran Marketing straight
+  // into my Restructuring): lower it to show the board, and raise it again once the board is idle.
+  useEffect(() => {
+    if (!sheetPhone || !autoPhase || picking || !sheetOpen.peek()) return;
+    sheetOpen.value = false;
+    if (mine) openPending.current = true;
+  }, [autoPhase]);
+  useEffect(() => {
+    const ended = wasMine.current && !mine;
+    wasMine.current = mine;
+    if (picking) {
+      sheetOpen.value = false;
+      return;
     }
-  }, [isMyTurn.value, v?.phase.kind, picking]);
+    if (!mine) {
+      openPending.current = false;
+      if (ended && sheetPhone) sheetOpen.value = false;
+      return;
+    }
+    if (!openPending.current || (sheetPhone && animating)) return;
+    openPending.current = false;
+    dockTab.value = 'turn';
+    sheetOpen.value = true;
+  }, [mine, v?.phase.kind, picking, animating, sheetPhone]);
 
   if (!v) return null;
   const show2d = boardRenderer.value !== '3d' && hasBoard(v);
   return (
-    <div class={`table ${sheetOpen.value ? 'sheet-open' : ''} ${picking ? 'is-picking' : ''}`}>
+    <div class={`table ${sheetOpen.value ? 'sheet-open' : ''} ${picking ? 'is-picking' : ''} ${show2d ? 'is-2d' : ''}`}>
       <TopBar onMenu={() => (menuOpen.value = true)} />
       <ConnectionBanner />
       <div class="table-main">
@@ -86,6 +120,51 @@ export function Table() {
       {mode.value === 'tutorial' && <CoachLayer onExit={() => navigate({ name: 'learn', lesson: null })} />}
     </div>
   );
+}
+
+/** Phones: the dock is a bottom sheet over the board... */
+const PHONE_QUERY = '(max-width: 860px)';
+/** ...except on short landscape screens, where it is a side panel (styles/main.css, P6 block). */
+const LANDSCAPE_QUERY = '(max-width: 1180px) and (max-height: 520px) and (orientation: landscape)';
+
+function useMedia(query: string): boolean {
+  const mq = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(query) : null;
+  const on = useSignal(mq?.matches ?? false);
+  useEffect(() => {
+    if (!mq) return;
+    const f = () => (on.value = mq.matches);
+    f();
+    mq.addEventListener('change', f);
+    return () => mq.removeEventListener('change', f);
+  }, [query]);
+  return on.value;
+}
+
+/** The 3D board's running timeline (`data-anim` on its canvas, which e2e waits on too). */
+function useBoardAnimating(): boolean {
+  const on = useSignal(false);
+  useEffect(() => {
+    let mo: MutationObserver | null = null;
+    let watched: Element | null = null;
+    const attach = () => {
+      const c = document.querySelector('#board-root canvas');
+      if (c === watched) return;
+      mo?.disconnect();
+      watched = c;
+      on.value = c?.getAttribute('data-anim') === 'playing';
+      if (!c) return;
+      mo = new MutationObserver(() => (on.value = c.getAttribute('data-anim') === 'playing'));
+      mo.observe(c, { attributes: true, attributeFilter: ['data-anim'] });
+    };
+    attach();
+    // The 3D board mounts lazily after the first view.
+    const id = window.setInterval(attach, 1000);
+    return () => {
+      window.clearInterval(id);
+      mo?.disconnect();
+    };
+  }, []);
+  return on.value;
 }
 
 function Dock() {

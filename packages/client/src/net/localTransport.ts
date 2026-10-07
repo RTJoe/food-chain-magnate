@@ -13,7 +13,7 @@
  * Bots never get the device: handoffs only go to human seats, and while bots think the current
  * human keeps their view. Undo rewinds past bot moves made after the human's own move.
  */
-import type { Action, EngineApi, GameConfig, GameEvent, GameState, ModuleManifest, PlayerId, Viewer } from '@fcm/engine';
+import type { Action, EngineApi, GameConfig, GameEvent, GameState, GameView, ModuleManifest, PlayerId, Viewer } from '@fcm/engine';
 import { botBudgetMs, decisionSeed, fallbackAction, type BotLevel, type BotRequest } from '@fcm/ai';
 import type { ClientMessage, ServerMessage } from '@fcm/protocol';
 import { PROTOCOL_VERSION } from '@fcm/protocol';
@@ -45,6 +45,25 @@ export interface LocalTransportOptions {
   prelude?: Action[];
   /** Allow `game.undo` (default true; lessons turn it off so the recorded action list stays linear). */
   undo?: boolean;
+  /** Called after every applied or undone move (hot-seat saves the game with `saveData()`). */
+  onChange?: () => void;
+}
+
+/** What it takes to rebuild this game: `createGame(config, seed)` plus `actions`. Null for fixture states. */
+export interface LocalSaveData {
+  config: GameConfig;
+  seed: number;
+  actions: Action[];
+  round: number;
+  phase: string;
+  over: boolean;
+}
+
+/** One replayed prelude move, redacted for spectators (what every hot-seat player may see). */
+export interface ReplayedMove {
+  seq: number;
+  events: GameEvent[];
+  view: GameView;
 }
 
 export type ActResult = { ok: true; events: GameEvent[] } | { ok: false; code: string; message: string };
@@ -83,6 +102,11 @@ export class LocalTransport implements Transport {
   private botTimer: ReturnType<typeof setTimeout> | null = null;
   /** Every action applied since the start state (prelude included), in order. */
   private applied: Action[] = [];
+  /**
+   * The prelude's moves since the previous round began (a resumed game): the store rebuilds the
+   * results strips and log lines for them, which a snapshot alone does not carry.
+   */
+  replayed: ReplayedMove[] = [];
 
   constructor(private readonly opts: LocalTransportOptions) {}
 
@@ -119,6 +143,13 @@ export class LocalTransport implements Transport {
     return { ok: true, events: result.events };
   }
 
+  /** The game as config + seed + every action (prelude included), or null for a game started from a state. */
+  saveData(): LocalSaveData | null {
+    const s = this.state;
+    if (!s || this.opts.state || !this.opts.config) return null;
+    return { config: this.opts.config, seed: s.seed, actions: [...this.applied], round: s.round, phase: s.phase.kind, over: s.phase.kind === 'gameOver' };
+  }
+
   /** The bot seat deciding right now (null when none). */
   get thinking(): PlayerId | null {
     return this.botThinking;
@@ -132,11 +163,26 @@ export class LocalTransport implements Transport {
       this.manifest = [];
     }
     this.state = this.opts.state ?? this.opts.engine.createGame(this.requireConfig(), this.opts.seed ?? randomSeed());
+    // Keep the last two rounds' moves (states, not views: redacting every move would be wasted work).
+    let kept: { state: GameState; events: GameEvent[] }[] = [];
+    let roundAt = -1;
     for (const [i, a] of (this.opts.prelude ?? []).entries()) {
       const r = this.opts.engine.applyAction(this.state, a);
       if (!r.ok) throw new Error(`prelude action ${i} (${a.type}) rejected: ${r.message}`);
       this.state = r.state;
       this.applied.push(a);
+      if (r.events.some((e) => e.type === 'roundStarted')) {
+        if (roundAt >= 0) {
+          kept = kept.slice(roundAt);
+        }
+        roundAt = kept.length;
+      }
+      kept.push({ state: r.state, events: r.events });
+    }
+    try {
+      this.replayed = kept.map((k) => ({ seq: k.state.history.seq, events: this.redactEvents(k.events, 'spectator'), view: this.opts.engine.redactFor(k.state, 'spectator') }));
+    } catch {
+      this.replayed = [];
     }
     this.setStatus('open');
     this.emit({ t: 'welcome', clientId: 'local', sessionToken: '', serverVersion: 'local', protocol: PROTOCOL_VERSION, room: null });
@@ -254,6 +300,7 @@ export class LocalTransport implements Transport {
     this.emit({ t: 'game.applied', seq: this.seq, actionId: id, action: a, events, view: this.opts.engine.redactFor(this.state, this.viewer) });
     if (!this.opts.viewer) this.followAwaiting(false);
     this.scheduleBots();
+    this.opts.onChange?.();
   }
 
   // --- bots -------------------------------------------------------------------
@@ -375,6 +422,7 @@ export class LocalTransport implements Transport {
     this.emit({ t: 'game.undone', seq: this.seq, view: this.opts.engine.redactFor(this.state, this.viewer), by: top.by });
     if (!this.opts.viewer) this.followAwaiting(false);
     this.scheduleBots();
+    this.opts.onChange?.();
   }
 
   /**

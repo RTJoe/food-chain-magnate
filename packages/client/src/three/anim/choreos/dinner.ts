@@ -25,6 +25,7 @@ import { releaseTree } from '../../minis/ctx.js';
 import { buildDemandStack } from '../../minis/tokens.js';
 import { CARGO_SLOTS } from '../../minis/vehicles.js';
 import { makeChip, disposeOverlay } from '../../overlays/badges.js';
+import { collapseOffers } from '../../../state/offers.js';
 import { offerText, routeRibbon } from '../../overlays/feedback.js';
 import { houseCapacity } from '../../reconcile.js';
 import { ease } from '../../tween.js';
@@ -40,11 +41,13 @@ const MAX_CARGO = 4;
 const HOP = 0.24;
 const HOP_GAP = 0.08;
 
-function saleCaption(beat: Beat, e: Ev<'sale'>) {
+export function saleCaption(beat: Beat, e: Ev<'sale'>) {
   const considered = beatEvent(beat, 'houseConsidered');
-  const offers = considered?.offers ?? e.candidates ?? [];
+  const offers = collapseOffers(considered?.offers ?? e.candidates ?? []);
   const others = offers.filter((o) => o.player !== e.player).map((o) => ({ player: o.player, score: o.score, canSupply: o.canSupply }));
-  return { kind: 'sale' as const, houseId: e.houseId, player: e.player, unitPrice: e.unitPrice, distance: e.distance, total: e.total, others };
+  // The sale event has no score; the winner's offer carries it (modifiers included).
+  const score = offers.find((o) => o.player === e.player)?.score ?? e.unitPrice + e.distance;
+  return { kind: 'sale' as const, houseId: e.houseId, player: e.player, unitPrice: e.unitPrice, distance: e.distance, score, total: e.total, others };
 }
 
 const vehicleVariant = (ctx: ChoreoCtx) => (ctx.tier === 'low' ? 'lite' : null);
@@ -83,7 +86,7 @@ function ribbon(tl: Timeline, ctx: ChoreoCtx, pts: readonly P2[], color: string,
 function offerChips(tl: Timeline, ctx: ChoreoCtx, beat: Beat, winner: string | null, at: number, life: number): void {
   const considered = beatEvent(beat, 'houseConsidered');
   const sale = beatEvent(beat, 'sale');
-  const offers = considered?.offers ?? sale?.candidates ?? [];
+  const offers = collapseOffers(considered?.offers ?? sale?.candidates ?? []);
   if (offers.length < 2 && !(offers.length === 1 && !winner)) return;
   const seen = new Set<string>();
   for (const o of offers) {

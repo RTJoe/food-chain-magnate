@@ -16,12 +16,13 @@ import {
   pushToast,
   reconnectAttempt,
   resetStore,
+  restoreHistory,
   room,
   seq,
   settings,
   type Mode,
 } from '../state/store.js';
-import { forgetRoom, rememberRoom } from '../state/recentGames.js';
+import { clearHotseat, forgetRoom, rememberRoom, saveHotseat, type SavedHotseat } from '../state/recentGames.js';
 import { LocalTransport, type ActResult } from './localTransport.js';
 import { workerBotRunner } from './botRunner.js';
 import { SocketTransport } from './socketTransport.js';
@@ -63,7 +64,7 @@ function attach(t: Transport, m: Mode): void {
       connection.value = s;
       if (t instanceof SocketTransport) reconnectAttempt.value = t.attempt;
       if (s === 'closed' && t instanceof SocketTransport && t.replaced) {
-        pushToast('This game is open in another tab or window. Press "Retry now" to play here instead.', 'info', 8000);
+        pushToast('This game is open in another tab or window. Press "Use here" to play here instead.', 'info', 8000);
       }
       if (s === 'open' && t.kind === 'socket') hello(wasDown);
     }),
@@ -140,6 +141,9 @@ export function startOnline(joinRoom?: { id: string; spectate?: boolean }): void
   attach(t, 'online');
   t.connect();
 }
+
+/** True when the server closed this socket because another tab took the session (close code 4000). */
+export const replacedElsewhere = (): boolean => transport instanceof SocketTransport && transport.replaced;
 
 export function reconnectNow(): void {
   if (transport instanceof SocketTransport) transport.reconnectNow();
@@ -233,13 +237,56 @@ export const resync = () => send({ t: 'game.resync' });
 
 // --- Hot-seat and dev -------------------------------------------------------------
 
-/** Hot-seat game; `bots` marks seats played by bots (computed in a Web Worker). */
-export function startHotseat(engine: EngineApi, config: GameConfig, seed?: number, bots: Record<PlayerId, BotLevel> = {}): void {
+/** Hot-seat game; `bots` marks seats played by bots (computed in a Web Worker). `prelude` replays a saved game. */
+export function startHotseat(engine: EngineApi, config: GameConfig, seed?: number, bots: Record<PlayerId, BotLevel> = {}, prelude: Action[] = []): void {
   const withBots = Object.keys(bots).length > 0;
-  const t = new LocalTransport({ engine, config, ...(seed !== undefined ? { seed } : {}), handoff: true, ...(withBots ? { bots, botRunner: workerBotRunner() } : {}) });
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const save = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    const d = transport === t ? t.saveData() : null;
+    if (d) saveHotseat({ ...d, bots: { ...bots } });
+  };
+  const t: LocalTransport = new LocalTransport({
+    engine,
+    config,
+    ...(seed !== undefined ? { seed } : {}),
+    handoff: true,
+    ...(withBots ? { bots, botRunner: workerBotRunner() } : {}),
+    ...(prelude.length ? { prelude } : {}),
+    // Every move is saved (debounced; at once when the page hides) so a reload can resume.
+    onChange: () => {
+      if (!timer) timer = setTimeout(save, 400);
+    },
+  });
   attach(t, 'hotseat');
   localBots.value = { ...bots };
+  const hide = () => (timer || document.visibilityState === 'hidden' ? save() : undefined);
+  window.addEventListener('pagehide', hide);
+  document.addEventListener('visibilitychange', hide);
+  unsubs.push(() => {
+    window.removeEventListener('pagehide', hide);
+    document.removeEventListener('visibilitychange', hide);
+    if (timer) save();
+  });
   t.connect();
+  // Resumed: the phases already played this round get their results strips and log lines back.
+  restoreHistory(t.replayed);
+  save();
+}
+
+/** Resume the saved hot-seat game (state/recentGames). False (and the save dropped) when it no longer replays. */
+export function resumeHotseat(engine: EngineApi, saved: SavedHotseat): boolean {
+  try {
+    startHotseat(engine, saved.config, saved.seed, saved.bots, saved.actions);
+    return true;
+  } catch (e) {
+    console.warn('hot-seat resume failed', e);
+    endSession();
+    clearHotseat();
+    pushToast('The saved hot-seat game could not be restored', 'error');
+    return false;
+  }
 }
 
 export function startFixture(engine: EngineApi, state: GameState, viewer: Viewer): void {

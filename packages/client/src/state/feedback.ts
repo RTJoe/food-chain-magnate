@@ -9,6 +9,7 @@
 import { effect, signal } from '@preact/signals';
 import type { Campaign, CampaignId, FoodId, GameEvent, GameView, HouseId, PlayerId, RestaurantId, SaleCandidate } from '@fcm/engine';
 import { boardView } from './boardBridge.js';
+import { collapseOffers } from './offers.js';
 
 type Ev<T extends GameEvent['type']> = Extract<GameEvent, { type: T }>;
 
@@ -66,7 +67,7 @@ export const boardFeedback = signal<BoardFeedback | null>(null);
 
 /** Live caption while a phase animates (written by the 3D animator, shown by the overlay). */
 export type PhaseCaption = { key: number } & (
-  | { kind: 'sale'; houseId: HouseId; player: PlayerId; unitPrice: number; distance: number; total: number; others: { player: PlayerId; score: number; canSupply: boolean }[] }
+  | { kind: 'sale'; houseId: HouseId; player: PlayerId; unitPrice: number; distance: number; /** The winner's score (price + distance + modifiers). */ score: number; total: number; others: { player: PlayerId; score: number; canSupply: boolean }[] }
   | { kind: 'stayedHome'; houseId: HouseId }
   | { kind: 'campaign'; campaignId: CampaignId; number: number | null; owner: PlayerId | null; goods: FoodId[]; houses: HouseId[]; full: HouseId[] }
   | { kind: 'done'; phase: 'dinnertime' | 'marketing'; sales: number; stayedHome: number; campaigns: number }
@@ -126,7 +127,7 @@ const toOffer = (c: SaleCandidate, winner: PlayerId | null): DinnerOffer => ({
   won: c.player === winner,
 });
 
-/** Houses of a Dinnertime in resolution order, with every ranked offer and the outcome. */
+/** Houses of a Dinnertime in resolution order, with each chain's offer (variants collapsed, `collapseOffers`) and the outcome. */
 export function dinnerSteps(events: readonly GameEvent[]): DinnerStep[] {
   const out: DinnerStep[] = [];
   const at = new Map<HouseId, DinnerStep>();
@@ -142,14 +143,15 @@ export function dinnerSteps(events: readonly GameEvent[]): DinnerStep[] {
   for (const e of events) {
     if (e.type === 'houseConsidered') {
       const s = step(e.houseId);
-      if (e.offers?.length) s.offers = e.offers.map((o) => toOffer(o, null));
+      if (e.offers?.length) s.offers = collapseOffers(e.offers).map((o) => toOffer(o, null));
     } else if (e.type === 'sale') {
       const s = step(e.houseId);
       s.sale = e;
-      const ranked = s.offers.length ? s.offers : (e.candidates ?? []).map((o) => toOffer(o, null));
+      const ranked = s.offers.length ? s.offers : collapseOffers(e.candidates ?? []).map((o) => toOffer(o, null));
       s.offers = ranked.length
         ? ranked.map((o) => ({ ...o, won: o.player === e.player }))
-        : [{ player: e.player, restaurantId: e.restaurantId, unitPrice: e.unitPrice, distance: e.distance, score: e.unitPrice + e.distance, canSupply: true, won: true }];
+        : // No ranking in the events (older logs): the sale event carries no score, so modifiers are unknown.
+          [{ player: e.player, restaurantId: e.restaurantId, unitPrice: e.unitPrice, distance: e.distance, score: e.unitPrice + e.distance, canSupply: true, won: true }];
     } else if (e.type === 'houseStayedHome') {
       step(e.houseId).stayedHome = true;
     }

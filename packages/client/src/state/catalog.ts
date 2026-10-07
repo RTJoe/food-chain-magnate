@@ -44,6 +44,13 @@ export function buildCatalog(manifest: readonly ModuleManifest[], enabled: reado
       if (base) employees[id] = { ...base, ...patch, id };
     }
   }
+  // Module career paths (sushi / noodle cooks, fry chef, movie stars ...), merged as the engine does (registry contentFor).
+  for (const m of active) {
+    for (const [id, extra] of Object.entries(m.content.careerAdditions ?? {}) as [EmployeeId, EmployeeId[]][]) {
+      const def = employees[id];
+      if (def) employees[id] = { ...def, trainsInto: [...new Set([...def.trainsInto, ...extra])] };
+    }
+  }
   return { employees, milestones, foods, marketingTiles, tiles };
 }
 

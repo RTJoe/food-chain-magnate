@@ -230,6 +230,8 @@ export interface Hooks {
   freezerCapacity: PipelineHook<number, { player: PlayerId }>;
   /** Must a player who cannot pay salaries fire employees? (First trainer used: no, ketchup.md §3.) */
   forcedFiring: PipelineHook<boolean, { player: PlayerId }>;
+  /** Must Payday ask this player although nobody can be fired? (First beer sold: pay with goods, ketchup.md §3.) */
+  paydayDecision: PipelineHook<boolean, { player: PlayerId }>;
   /** Does an owned card cost salary this Payday? (eternal-radio brand director keeps it, ketchup.md §3.) */
   cardSalaried: PipelineHook<boolean, { player: PlayerId; uid: Uid }>;
   /** May a card at work be trained (First lemonade sold, ketchup.md §3)? Base: only beach cards. */

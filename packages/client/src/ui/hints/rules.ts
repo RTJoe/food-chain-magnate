@@ -6,7 +6,10 @@
 import type { EmployeeAbility, GameView, HouseOutlook, HouseId, PlayerId, PlayerState, Uid } from '@fcm/engine';
 import { employeeName, foodName, isManager, managerSlots, milestoneName, type Catalog } from '../../state/catalog.js';
 import { handUids, openSlots, placedUids, validateDraft, type OrgDraft, type OrgRules } from '../../state/orgChart.js';
-import { restructureCandidates, salaryEstimate, workStages } from '../../state/selectors.js';
+import { collapseOffers, scoreMath } from '../../state/offers.js';
+import { restructureCandidates, workStages } from '../../state/selectors.js';
+import { paydayFigures } from '../../state/payday.js';
+import { milestoneOpen } from '../../state/campaignRules.js';
 import type { CoachLevel } from './coach.js';
 
 export type HintId =
@@ -58,13 +61,6 @@ const abilityOf = (c: Catalog, p: PlayerState, u: Uid): EmployeeAbility | undefi
 function atWork(p: PlayerState): Uid[] {
   const s = p.structure;
   return [s.ceo, ...s.ceoSubs, ...s.ceoSubs.flatMap((m) => s.managerSubs[m] ?? [])];
-}
-
-function milestoneOpen(v: GameView, me: PlayerId, id: Parameters<typeof milestoneName>[1]): boolean {
-  const m = v.milestones[id];
-  if (!m || m.removed) return false;
-  // Same-round sharing: still claimable this round even if someone already has it.
-  return !m.claimedBy.includes(me) && (m.claimedBy.length === 0 || m.claimedRound === v.round);
 }
 
 // --- Restructuring ----------------------------------------------------------
@@ -131,7 +127,8 @@ function working(i: HintInput, p: PlayerState, out: Hint[]): void {
   const myTurn = v.turn?.player === p.id;
 
   if (!v.config.intro) {
-    const owed = Math.max(0, salaryEstimate(c, p) - (p.milestones.first_train ? 15 : 0));
+    // The engine's own salary total (discounts, waivers, module hooks).
+    const owed = paydayFigures(v, p.id).before;
     if (owed > p.cash) {
       out.push({
         id: 'salary_short',
@@ -187,12 +184,13 @@ function working(i: HintInput, p: PlayerState, out: Hint[]): void {
       if (!h.demand.length) continue;
       const o = i.outlook(hid);
       if (!o || !o.winner || o.winner === p.id) continue;
-      const mine = o.sellers.find((s) => s.player === p.id && s.canSupply);
-      const best = o.sellers.find((s) => s.player === o.winner);
+      const sellers = collapseOffers(o.sellers);
+      const mine = sellers.find((s) => s.player === p.id && s.canSupply);
+      const best = sellers.find((s) => s.player === o.winner);
       if (!mine || !best || mine.tier !== best.tier || mine.score - best.score !== 1) continue;
       const label = h.kind === 'rural' ? 'the rural area' : `house ${h.label}`;
       const rival = v.players[o.winner]?.name ?? o.winner;
-      out.push({ id: 'lose_by_one', level: 'full', key: `${v.round}:${hid}:${mine.score}:${best.score}`, text: `You lose ${label} to ${rival} by $1: ${money(best.unitPrice)} + ${best.distance} = ${best.score} against your ${money(mine.unitPrice)} + ${mine.distance} = ${mine.score}.`, term: 'winning_a_sale' });
+      out.push({ id: 'lose_by_one', level: 'full', key: `${v.round}:${hid}:${mine.score}:${best.score}`, text: `You lose ${label} to ${rival} by $1: ${scoreMath(best, { dollarScore: false })} against your ${scoreMath(mine, { dollarScore: false })}.`, term: 'winning_a_sale' });
       break;
     }
   }

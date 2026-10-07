@@ -3,11 +3,12 @@
  * Every panel works from the prompt and legal actions in the store, so hot-seat == online.
  */
 import { useSignal } from '@preact/signals';
-import type { Action, FoodCounts, FoodId, GameView, LegalAction, PendingChoice, PlayerId, PlayerState, Prompt, ReserveCard, Uid } from '@fcm/engine';
+import type { Action, FoodCounts, GameView, LegalAction, PendingChoice, PlayerId, PlayerState, Prompt, ReserveCard, Uid } from '@fcm/engine';
 import { foodName } from '../state/catalog.js';
-import { employeeIdOf, fireable, foodList, phaseLabel, salaryEstimate, standings } from '../state/selectors.js';
+import { employeeIdOf, fireable, phaseLabel, standings } from '../state/selectors.js';
+import { freezerRows, mustFireIfShort, paydayFigures, paydayLabel, salaryGoods } from '../state/payday.js';
 import { botSeats, catalog, isMyTurn, legal, manifest, me, mode, myPlayer, pending, prompt, room, view } from '../state/store.js';
-import { actionProblem } from '../state/guidance.js';
+import { actionProblem, choiceReason, reserveRule } from '../state/guidance.js';
 import { act, actChain, undo } from '../net/session.js';
 import { Button, Cash, EmployeeCard, Empty, PlayerBadge, Pill, Stepper } from './common.js';
 import { FoodIcon, Icon } from './icons.js';
@@ -191,7 +192,7 @@ function ReservePanel({ view: v, options }: { view: GameView; options: ReserveCa
   const done = Boolean(mine && v.submitted[mine]);
   return (
     <div class="reserve">
-      <p class="muted small">Secret. When the bank first breaks, all cards are revealed: the bank gets the sum, and the most common choice sets everyone’s CEO slots.</p>
+      <p class="muted small">{reserveRule(options)}</p>
       <div class="reserve-cards">
         {options.map((o, i) => {
           const on = chosen !== null && chosen.kind === o.kind && chosen.amount === o.amount && (o.kind !== 'standard' || (chosen.kind === 'standard' && chosen.ceoSlots === o.ceoSlots));
@@ -269,8 +270,7 @@ function OrderPanel({ view: v, free }: { view: GameView; free: number[] }) {
 // Payday
 // ---------------------------------------------------------------------------
 
-function FirePicker({ player: p, selected, onToggle, locked, canPick }: { player: PlayerState; selected: Uid[]; onToggle: (u: Uid) => void; locked?: boolean; canPick?: (u: Uid) => boolean }) {
-  const c = catalog.value;
+function FirePicker({ player: p, selected, onToggle, locked, canPick, salaried, rate }: { player: PlayerState; selected: Uid[]; onToggle: (u: Uid) => void; locked?: boolean; canPick?: (u: Uid) => boolean; salaried: readonly Uid[]; rate: number }) {
   const list = fireable(p).filter((u) => !canPick || selected.includes(u) || canPick(u));
   if (!list.length) return <Empty icon="users">Nobody can be fired (the CEO and busy marketeers stay).</Empty>;
   return (
@@ -288,7 +288,7 @@ function FirePicker({ player: p, selected, onToggle, locked, canPick }: { player
             selected={on}
             disabled={locked}
             onClick={() => onToggle(u)}
-            badge={c.employees[id]?.salary && !p.employees[u]?.salaryFree ? <span class="salary">$5</span> : undefined}
+            badge={salaried.includes(u) ? <span class="salary">${rate}</span> : undefined}
             footer={on ? <span class="emp-status st-fire">Fire</span> : undefined}
           />
         );
@@ -301,19 +301,26 @@ function PaydayPanel({ player: p, owed, mustFire }: { player: PlayerState; owed:
   const c = catalog.value;
   const all = legal.value;
   const selected = useSignal<Uid[]>([]);
+  const goods = useSignal<FoodCounts>({});
   const canFire = hasCompose(all, 'payday.fire');
   const canConfirm = hasCompose(all, 'payday.confirm') || Boolean(findReady(all, 'payday.confirm'));
-  const before = owed || salaryEstimate(c, p);
-  const after = salaryEstimate(c, p, selected.value);
   const toggle = (u: Uid) => (selected.value = selected.value.includes(u) ? selected.value.filter((x) => x !== u) : [...selected.value, u]);
   const n = selected.value.length;
   const v = view.value;
+  const mine = me.value;
+  // Engine figures (discounts, waivers, module hooks); the prompt's amount when the view cannot be evaluated.
+  const fig = v && mine ? paydayFigures(v, mine, selected.value, goods.value) : null;
+  const before = fig?.before ?? owed;
+  const after = fig?.after ?? owed;
+  const rate = fig?.rate ?? 5;
+  const payable = v && mine && canConfirm ? salaryGoods(v, mine) : [];
+  const goodsCap = fig?.salariedAfter ?? 0;
+  const goodsN = Object.values(goods.value).reduce<number>((a, x) => a + (x ?? 0), 0);
   const fireAction = (uids: Uid[]): Action => ({ type: 'payday.fire', playerId: p.id, uids });
   const problem = v && n ? actionProblem(v, me.value, fireAction(selected.value), manifest.value) : null;
   const canPick = (u: Uid) => !v || !actionProblem(v, me.value, fireAction([...selected.value, u]), manifest.value);
-  const owedNow = n ? after : before;
-  const pay = after > p.cash ? 'pay what I can' : `pay $${owedNow}`;
-  const payLabel = !canConfirm ? `Fire ${n}` : n ? `Fire ${n} and ${pay}` : pay.charAt(0).toUpperCase() + pay.slice(1);
+  const payLabel = paydayLabel({ n, canConfirm, after, cash: p.cash, goodsUsed: fig?.goodsUsed ?? 0, forcedFiring: v && mine ? mustFireIfShort(v, mine) : true });
+  const changed = n > 0 || goodsN > 0;
   return (
     <div class="payday">
       <div class="payday-sum">
@@ -323,15 +330,33 @@ function PaydayPanel({ player: p, owed, mustFire }: { player: PlayerState; owed:
         </span>
         <span>
           <span class="eyebrow">Salaries</span>
-          <Cash amount={selected.value.length ? after : before} size="lg" />
+          <Cash amount={changed ? after : before} size="lg" />
         </span>
-        {selected.value.length > 0 && <Pill tone="info">saves ${before - after}</Pill>}
+        {changed && before !== after && <Pill tone="info">saves ${before - after}</Pill>}
       </div>
       {mustFire && <p class="org-warn">{Icon.info({ size: 16 })} You cannot pay everyone: fire salaried staff until you can.</p>}
+      {payable.length > 0 && (
+        <div class="pay-goods">
+          <h4>
+            Pay with goods? <span class="muted small">First beer sold: 1 item pays 1 salary (not coffee).</span>
+          </h4>
+          <ul class="good-rows">
+            {payable.map(([f, have]) => (
+              <li key={f}>
+                <FoodIcon food={f} size={24} />
+                <span class="good-name">
+                  {foodName(c, f)} <span class="muted small">({have})</span>
+                </span>
+                <Stepper label={foodName(c, f)} value={goods.value[f] ?? 0} min={0} max={Math.min(have, (goods.value[f] ?? 0) + Math.max(0, goodsCap - goodsN))} onChange={(x) => (goods.value = { ...goods.value, [f]: x })} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {canFire && (
         <>
           <h4>Fire anyone? <span class="muted small">Tap cards to select, then pay in one step.</span></h4>
-          <FirePicker player={p} selected={selected.value} onToggle={toggle} canPick={canPick} />
+          <FirePicker player={p} selected={selected.value} onToggle={toggle} canPick={canPick} salaried={fig?.salaried ?? []} rate={rate} />
         </>
       )}
       {problem && <p class="org-error" role="alert">{problem}</p>}
@@ -345,16 +370,17 @@ function PaydayPanel({ player: p, owed, mustFire }: { player: PlayerState; owed:
             onClick={() => {
               const steps: Action[] = [];
               if (n > 0) steps.push(fireAction(selected.value));
-              if (canConfirm) steps.push({ type: 'payday.confirm', playerId: p.id });
+              if (canConfirm) steps.push(goodsN > 0 ? { type: 'payday.confirm', playerId: p.id, tokens: goods.value } : { type: 'payday.confirm', playerId: p.id });
               actChain(steps);
               selected.value = [];
+              goods.value = {};
             }}
           >
             {payLabel}
           </Button>
         )}
       </div>
-      <p class="muted small">Salaried cards cost $5 each, wherever they are (at work, on the beach or busy). Recruiters with unused hires add $5 discounts.</p>
+      <p class="muted small">Salaried cards cost ${rate} each, wherever they are (at work, on the beach or busy). Discounts (unused hires, milestones) are already counted.</p>
     </div>
   );
 }
@@ -366,28 +392,23 @@ function PaydayPanel({ player: p, owed, mustFire }: { player: PlayerState; owed:
 function FreezerPanel({ player: p, capacity }: { player: PlayerState; capacity: number }) {
   const c = catalog.value;
   const keep = useSignal<FoodCounts>({});
-  const goods = foodList(p.inventory);
-  const total = Object.values(keep.value).reduce((n, x) => n + (x ?? 0), 0);
+  const v = view.value;
+  const rows = v ? freezerRows(v, p.id, keep.value, capacity) : [];
+  const total = Object.values(keep.value).reduce<number>((n, x) => n + (x ?? 0), 0);
   return (
     <div class="freezer-panel">
-      <p class="muted small">Unsold goods are thrown away. Your freezer keeps up to {capacity} for next round.</p>
-      {goods.length === 0 ? (
+      <p class="muted small">Unsold goods are thrown away. Your freezer keeps up to {capacity} for next round, including goods you froze before.</p>
+      {rows.length === 0 ? (
         <Empty icon="snow">Nothing left to freeze.</Empty>
       ) : (
         <ul class="good-rows">
-          {goods.map(([f, n]) => (
+          {rows.map(({ food: f, n, frozen, max, note }) => (
             <li key={f}>
               <FoodIcon food={f} size={24} />
               <span class="good-name">
-                {foodName(c, f)} <span class="muted small">({n})</span>
+                {foodName(c, f)} <span class="muted small">({n}{frozen ? `, ${frozen} frozen` : ''}{note ? ` · ${note}` : ''})</span>
               </span>
-              <Stepper
-                label={foodName(c, f)}
-                value={keep.value[f] ?? 0}
-                min={0}
-                max={Math.min(n, (keep.value[f] ?? 0) + capacity - total)}
-                onChange={(x) => (keep.value = { ...keep.value, [f]: x })}
-              />
+              <Stepper label={foodName(c, f)} value={keep.value[f] ?? 0} min={0} max={max} onChange={(x) => (keep.value = { ...keep.value, [f]: x })} />
             </li>
           ))}
         </ul>
@@ -414,12 +435,11 @@ function ChoicePanel({ player: p, choice }: { player: PlayerState; choice: Pendi
   const decline = findReady(all, 'choice.decline');
   const picking = useSignal(false);
   const selected = useSignal<Uid[]>([]);
-  const tokens = useSignal<FoodCounts>({});
-  const c = catalog.value;
 
   if (choice.kind === 'forcedFire') {
-    const after = salaryEstimate(c, p, selected.value);
     const v = view.value;
+    const fig = v && me.value ? paydayFigures(v, me.value, selected.value) : null;
+    const after = fig?.after ?? choice.owed;
     const fire = (uids: Uid[]): Action => ({ type: 'payday.fire', playerId: p.id, uids });
     // The engine decides who may go (salaried only, busy marketeers last, no more than needed).
     const problem = v && selected.value.length ? actionProblem(v, me.value, fire(selected.value), manifest.value) : null;
@@ -429,7 +449,7 @@ function ChoicePanel({ player: p, choice }: { player: PlayerState; choice: Pendi
         <p class="org-warn">
           {Icon.info({ size: 16 })} You owe ${choice.owed} but have ${p.cash}. Fire salaried staff until you can pay.
         </p>
-        <FirePicker player={p} selected={selected.value} canPick={canPick} onToggle={(u) => (selected.value = selected.value.includes(u) ? selected.value.filter((x) => x !== u) : [...selected.value, u])} />
+        <FirePicker player={p} selected={selected.value} canPick={canPick} salaried={fig?.salaried ?? []} rate={fig?.rate ?? 5} onToggle={(u) => (selected.value = selected.value.includes(u) ? selected.value.filter((x) => x !== u) : [...selected.value, u])} />
         {problem && <p class="org-error" role="alert">{problem}</p>}
         <div class="row gap end">
           <span class="muted small">Salaries after: ${after}</span>
@@ -456,36 +476,10 @@ function ChoicePanel({ player: p, choice }: { player: PlayerState; choice: Pendi
     );
   }
 
-  if (choice.kind === 'payWithTokens') {
-    const goods = foodList(p.inventory);
-    return (
-      <div class="choice">
-        <p class="muted small">You may pay part of your ${choice.owed} salaries with goods ($5 each).</p>
-        <ul class="good-rows">
-          {goods.map(([f, n]) => (
-            <li key={f}>
-              <FoodIcon food={f as FoodId} size={24} />
-              <span class="good-name">{foodName(c, f)}</span>
-              <Stepper label={foodName(c, f)} value={tokens.value[f] ?? 0} min={0} max={n} onChange={(x) => (tokens.value = { ...tokens.value, [f]: x })} />
-            </li>
-          ))}
-        </ul>
-        <div class="row gap end">
-          {decline && (
-            <Button variant="ghost" disabled={busyNow()} onClick={() => act(decline.action)}>
-              Pay in cash
-            </Button>
-          )}
-          <Button variant="primary" icon="check" disabled={busyNow()} onClick={() => act({ type: 'payday.confirm', playerId: p.id, tokens: tokens.value })}>
-            Pay with goods
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
+  const reason = choiceReason(choice);
   return (
     <div class="choice">
+      {reason && <p class="muted small choice-reason">{reason}</p>}
       {place && picking.value ? (
         <PlacementFlow legal={place} onDone={() => (picking.value = false)} onCancel={() => (picking.value = false)} />
       ) : (

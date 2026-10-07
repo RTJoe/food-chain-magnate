@@ -6,12 +6,13 @@
 import type { ComponentChildren } from 'preact';
 import { useMemo } from 'preact/hooks';
 import type { Campaign, CampaignId, FoodId, GameView, HouseId, PlayerId, RestaurantId, SourceId } from '@fcm/engine';
-import { interactionMode, isPickMode } from '../state/boardBridge.js';
+import { boardRenderer, interactionMode, isPickMode } from '../state/boardBridge.js';
 import { foodName } from '../state/catalog.js';
 import { campaignReachIds, outlookFor, placementsFor } from '../state/guidance.js';
 import { cameraCommand, select, selectedOutlook, selection, type Selection } from '../state/interaction.js';
 import { catalog, legal, manifest, me, view } from '../state/store.js';
 import { humanize } from '../state/catalog.js';
+import { collapseOffers, scoreTerms } from '../state/offers.js';
 import { IconButton, PlayerBadge, Pill } from './common.js';
 import { FoodIcon, Icon } from './icons.js';
 import { KIND_LABEL } from './flows/Campaign.js';
@@ -41,7 +42,7 @@ function Head({ eyebrow, title, id, term }: { eyebrow: string; title: ComponentC
           {term && <WhatsThis id={term} />}
         </h3>
       </span>
-      <IconButton icon="recenter" label="Focus camera" onClick={() => (cameraCommand.value = { kind: 'focus', ids: [id] })} />
+      {boardRenderer.value === '3d' && <IconButton icon="recenter" label="Focus camera" onClick={() => (cameraCommand.value = { kind: 'focus', ids: [id] })} />}
       <IconButton icon="x" label="Close" onClick={() => select(null)} />
     </header>
   );
@@ -117,15 +118,15 @@ function HouseCard({ id, view: v }: { id: HouseId; view: GameView }) {
         <p class="muted small">No restaurant is connected by road.</p>
       ) : (
         <ul class="inspect-list" data-tutorial="inspect-sellers">
-          {o.sellers.map((s, i) => {
-            const wins = o.winner === s.player && o.sellers.findIndex((x) => x.player === s.player && x.canSupply) === i;
+          {collapseOffers(o.sellers).map((s) => {
+            // One row per chain (Kimchi / Sushi / Noodles variants collapsed): its supplying offer when it has one.
+            const wins = o.winner === s.player && s.canSupply;
             return (
               <li key={`${s.player}-${s.restaurantId}`} class={wins ? 'is-win' : ''}>
                 <button type="button" class="inspect-row" onClick={() => select({ kind: 'restaurant', id: s.restaurantId })}>
                   <PlayerBadge view={v} id={s.player} size={20} />
                   <span class="inspect-row-main">
-                    <b>{name(v, s.player)}</b> ${s.unitPrice} + {s.distance} = <b>${s.score}</b>
-                    {s.score !== s.unitPrice + s.distance && <span class="muted"> (with modifiers)</span>}
+                    <b>{name(v, s.player)}</b> {scoreTerms(s)} = <b>${s.score}</b>
                   </span>
                   {wins ? <span class="inspect-win">wins</span> : !s.canSupply && demand.length > 0 ? <span class="muted small">can’t supply</span> : null}
                 </button>

@@ -2,7 +2,9 @@
 import { useEffect } from 'preact/hooks';
 import { route, navigate } from '../state/router.js';
 import { connection, mode, room, view } from '../state/store.js';
-import { loadToken, resync, startOnline } from '../net/session.js';
+import { loadToken, resumeHotseat, resync, startOnline } from '../net/session.js';
+import { savedHotseat } from '../state/recentGames.js';
+import { hotseatEngine } from '../state/engine.js';
 import { Button } from './common.js';
 import { Home } from './Home.js';
 import { Logo } from './icons.js';
@@ -15,6 +17,8 @@ import { isRulesHash, RulesRoute } from './rules/RulesRoute.js';
 import { Table } from './Table.js';
 
 let lastRoomId: string | null = null;
+/** The page opened (or reloaded) on #/hotseat: resume the saved game there instead of the setup form. */
+let firstRoute = true;
 
 export function App() {
   const r = route.value;
@@ -23,6 +27,15 @@ export function App() {
   useEffect(() => {
     if (r.name === 'room' && mode.value === null && loadToken()) startOnline({ id: r.id });
   }, [r.name === 'room' ? r.id : null]);
+
+  // Reload (or a discarded tab coming back) on #/hotseat: pick the saved game up where it was.
+  // Coming from Home's "Set up a table" shows the setup form; Home has its own Resume entry.
+  useEffect(() => {
+    const first = firstRoute;
+    firstRoute = false;
+    const saved = savedHotseat.peek();
+    if (first && r.name === 'hotseat' && mode.value === null && saved && !saved.over) resumeHotseat(hotseatEngine(), saved);
+  }, []);
 
   // Follow the room we are in (created a room, or the server re-attached us to one).
   const roomId = room.value?.id ?? null;

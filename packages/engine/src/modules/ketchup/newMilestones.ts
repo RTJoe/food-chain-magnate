@@ -566,6 +566,8 @@ export const NEW_MILESTONES_MODULE: GameModule = {
       return { ...bd, rate, discounts, total: Math.max(0, bd.salaried * rate - off) };
     },
     forcedFiring: (must, ctx, { player }) => must && !has(ctx.state, player, 'ketchup:first_trainer_used'),
+    // First beer sold: a player with nobody to fire may still pay salaries with goods, so ask.
+    paydayDecision: (ask, ctx, { player }) => ask || (has(ctx.state, player, 'ketchup:first_beer_sold') && salariedCount(ctx.state, player) > 0 && payableStock(ctx.state, player) > 0),
     freezerCapacity: (cap, ctx, { player }) => (has(ctx.state, player, 'ketchup:first_coke_sold') ? Math.max(cap, 10) : cap),
     trainAtWork(ok, ctx, { player, uid, toEmployeeId }) {
       if (ok) return ok;
@@ -603,6 +605,13 @@ export const NEW_MILESTONES_MODULE: GameModule = {
 
 function salariedCount(s: GameState, player: PlayerId): number {
   return salariedCards(s, contentFor(s.config.modules), player).length;
+}
+
+/** Goods in stock (inventory + freezer) that can pay salaries (not coffee). */
+function payableStock(s: GameState, player: PlayerId): number {
+  const p = s.players[player];
+  if (!p) return 0;
+  return (Object.entries(stockOf(p)) as [FoodId, number][]).reduce((a, [g, n]) => a + (FOODS.find((f) => f.id === g)?.payableAsSalary ? n : 0), 0);
 }
 
 function tokenProblem(s: GameState, a: PaydayConfirm): string | null {

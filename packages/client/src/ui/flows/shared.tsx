@@ -141,15 +141,23 @@ export function BoardHint({ count, children }: { count: number; children?: Compo
 }
 
 /** Food chips for campaign goods (also the free mailbox). */
-export function GoodChips({ foods, value, onChange }: { foods: readonly FoodId[]; value: FoodId | null; onChange: (f: FoodId) => void }) {
+/**
+ * Good chips. `value` is one good, or the goods picked so far in order: with more than one allowed
+ * (`ordered`), each chosen chip shows its place (A is marketed first, then B; KX p18).
+ */
+export function GoodChips({ foods, value, onChange, ordered = false }: { foods: readonly FoodId[]; value: FoodId | null | readonly FoodId[]; onChange: (f: FoodId) => void; ordered?: boolean }) {
   const c = catalog.value;
+  const picked: readonly FoodId[] = Array.isArray(value) ? value : value ? [value as FoodId] : [];
   return (
     <div class="chip-row">
-      {foods.map((f) => (
-        <button key={f} type="button" class={`chip chip-food ${value === f ? 'is-on' : ''}`} data-tutorial={`good-${f}`} aria-pressed={value === f} onClick={() => onChange(f)}>
-          <FoodIcon food={f} size={18} /> {foodName(c, f)}
-        </button>
-      ))}
+      {foods.map((f) => {
+        const at = picked.indexOf(f);
+        return (
+          <button key={f} type="button" class={`chip chip-food ${at >= 0 ? 'is-on' : ''}`} data-tutorial={`good-${f}`} aria-pressed={at >= 0} onClick={() => onChange(f)}>
+            {ordered && at >= 0 && <><strong>{String.fromCharCode(65 + at)}</strong> </>}<FoodIcon food={f} size={18} /> {foodName(c, f)}
+          </button>
+        );
+      })}
     </div>
   );
 }

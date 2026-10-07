@@ -105,6 +105,12 @@ export class Stage {
   readonly onResize = new Set<() => void>();
   /** Objects with `userData.ambient` animate every frame. */
   readonly ambient = new Set<THREE.Object3D>();
+  /** Tier changes (settings, runtime step-down). */
+  readonly onTier = new Set<(t: Tier) => void>();
+  /** WebGL context lost (true) / restored (false). three/index.ts falls back to the 2D board. */
+  readonly onContext = new Set<(lost: boolean) => void>();
+  /** The WebGL context is lost and not restored yet. */
+  contextLost = false;
 
   private dirty = true;
   private raf = 0;
@@ -153,11 +159,12 @@ export class Stage {
     this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target);
 
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmrem.dispose();
-    this.scene.environment = this.env;
+    this.buildEnvironment();
     this.scene.environmentIntensity = 0.35;
+    // Phones drop the context of a backgrounded tab; GPU resets do too. preventDefault lets the
+    // browser restore it.
+    canvas.addEventListener('webglcontextlost', this.contextLostHandler, false);
+    canvas.addEventListener('webglcontextrestored', this.contextRestoredHandler, false);
 
     this.applyTier();
     this.ro = new ResizeObserver(() => this.resize());
@@ -165,6 +172,39 @@ export class Stage {
     this.resize();
     this.raf = requestAnimationFrame(this.frame);
   }
+
+  /** Image-based lighting: a one-off PMREM render. GPU-made, so it must be rebuilt after a context restore. */
+  private buildEnvironment(): void {
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+    this.scene.environment = this.env;
+  }
+
+  private contextLostHandler = (e: Event): void => {
+    e.preventDefault();
+    this.contextLost = true;
+    for (const f of this.onContext) f(true);
+  };
+
+  /**
+   * three.js re-uploads geometry and plain textures by itself, but the environment map (rendered on
+   * the GPU) comes back black, which darkens every material, and nothing redraws until something
+   * marks the frame dirty. Rebuild the environment and the shadow map, then draw.
+   */
+  private contextRestoredHandler = (): void => {
+    this.contextLost = false;
+    this.buildEnvironment();
+    this.sun.shadow.needsUpdate = true;
+    this.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material;
+      if (!m) return;
+      for (const x of Array.isArray(m) ? m : [m]) x.needsUpdate = true;
+    });
+    this.resize();
+    this.invalidate();
+    for (const f of this.onContext) f(false);
+  };
 
   /** Fit the sun's shadow camera to the board (plus rim and off-board pieces). */
   fitLight(w: number, h: number, extra = 0): void {
@@ -190,6 +230,7 @@ export class Stage {
     this.tier = t;
     this.applyTier();
     this.resize();
+    for (const f of this.onTier) f(t);
   }
 
   private applyTier(): void {
@@ -378,7 +419,7 @@ export class Stage {
         for (const o of this.ambient) (o.userData.animate as ((t: number) => void) | undefined)?.(this.clock);
       }
     }
-    if (!(this.dirty || tweening || ambientDue)) return;
+    if (!(this.dirty || tweening || ambientDue) || this.contextLost) return;
     this.dirty = false;
     this.updateSized();
     const t0 = performance.now();
@@ -400,6 +441,8 @@ export class Stage {
   dispose(): void {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
+    this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLostHandler, false);
+    this.renderer.domElement.removeEventListener('webglcontextrestored', this.contextRestoredHandler, false);
     this.tweens.finish();
     this.inst.dispose();
     this.env?.dispose();

@@ -434,6 +434,27 @@ describe('§3 First beer sold', () => {
     expect(r.state.players.p1).toMatchObject({ cash: 0, bankrupt: false, freezer: {} });
   });
 
+  it('§3 First beer sold: a holder with nobody to fire is still asked, so goods can pay salaries', () => {
+    const b = (beer: boolean) => {
+      let x = nb()
+        .marketeerCampaign('campaign_manager', 'cm', { owner: 'p1', kind: 'billboard', number: 11, goods: ['burger'], placement: { kind: 'board', x: 0, y: 0, w: 2, h: 2 }, remaining: 2 })
+        .card('p2', 'waitress', 'work')
+        .cash('p1', 0)
+        .inventory('p1', { beer: 1 })
+        .phase({ kind: 'dinnertime', houses: [], idx: 0 });
+      if (beer) x = x.milestone('p1', ID('first_beer_sold'));
+      return fromPhase(x.build()).state;
+    };
+    expect(b(false).awaiting.players).not.toContain('p1');
+    const s = b(true);
+    expect(s.phase.kind).toBe('payday');
+    expect(s.awaiting).toEqual({ kind: 'payday.fire', players: ['p1', 'p2'] });
+    const t = act(s, { type: 'payday.confirm', playerId: 'p1', tokens: { beer: 1 } });
+    const r = actE(t, { type: 'payday.confirm', playerId: 'p2' });
+    expect(r.events.find((e) => e.type === 'salaryPaid' && e.player === 'p1')).toMatchObject({ paid: 0 });
+    expect(r.events.some((e) => e.type === 'employeeFired' && e.player === 'p1')).toBe(false);
+  });
+
   it('§3 First beer sold: rejected without the milestone, for coffee, or beyond your stock', () => {
     expect(rejected(payday(false), { type: 'payday.confirm', playerId: 'p1', tokens: { beer: 1 } }).message).toMatch(/First beer sold/);
     const s = payday();
