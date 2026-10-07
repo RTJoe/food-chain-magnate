@@ -158,13 +158,13 @@ export const lesson04 = defineLesson({
     },
     {
       id: 'thrown-away',
-      say: (ctx) => {
-        const left = Object.values(ctx.view.players.p1?.inventory ?? {}).reduce((n, c) => n + (c ?? 0), 0);
-        return left === 0 ? 'Clean up threw your burger away: unsold food never keeps. Make food in the round you can sell it.' : 'Clean up throws unsold food away. Make food in the round you can sell it.';
-      },
+      say: (ctx) =>
+        ctx.view.milestones.first_throw_away?.claimedBy.includes('p1')
+          ? 'Clean up threw your burger away, and being first to throw food away won a milestone: a freezer. From the next Clean up it keeps up to 10 unsold items.'
+          : 'Clean up throws unsold food away unless you own a freezer. Make food in the round you can sell it.',
       show: [{ ui: 'rail-p1' }],
       until: { next: true },
-      glossary: 'cleanup',
+      glossary: 'freezer',
       nextLabel: 'Finish',
     },
   ],

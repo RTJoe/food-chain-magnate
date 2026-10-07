@@ -3,10 +3,12 @@
  * seats (with hashed session tokens), status, seed and the action log. Writes are debounced per
  * room and atomic (tmp + rename). On boot the server indexes every file, restores games in
  * progress and loads the rest on demand. Files are deleted after a retention period of inactivity.
+ * A game whose log no longer replays (engine rules change) is restored up to its last valid action;
+ * the original file is first copied to `<id>.<timestamp>.bak` (see `backup`, architecture §4.5).
  * Env: `FCM_DATA_DIR` (default `./data`), `FCM_PERSIST=0` disables,
  * `FCM_ROOM_RETENTION_DAYS` (30), `FCM_LOBBY_RETENTION_DAYS` (2, rooms whose game never started).
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { Action, GameConfig } from '@fcm/engine';
 import type { RoomConfig, RoomStatus, Seat } from '@fcm/protocol';
@@ -27,6 +29,8 @@ export interface PersistedSeat extends Seat {
 
 export interface PersistedRoom {
   version: 1;
+  /** `ENGINE_VERSION` that wrote the file (diagnostics; absent in older files). */
+  engineVersion?: string;
   id: string;
   createdAt: number;
   updatedAt: number;
@@ -50,6 +54,8 @@ export interface Persistence {
   load(id: string): PersistedRoom | null;
   /** Delete a room's file and drop any pending write. */
   delete(id: string): void;
+  /** Copy a room's file aside (kept, never loaded). Returns the backup path, or null. */
+  backup(id: string): string | null;
 }
 
 export class NullPersistence implements Persistence {
@@ -62,6 +68,9 @@ export class NullPersistence implements Persistence {
     return null;
   }
   delete(): void {}
+  backup(): string | null {
+    return null;
+  }
 }
 
 export class FilePersistence implements Persistence {
@@ -120,6 +129,20 @@ export class FilePersistence implements Persistence {
     }
     if (!SAFE_ID.test(id)) return;
     rmSync(join(this.dir, `${id}.json`), { force: true });
+  }
+
+  backup(id: string): string | null {
+    if (!SAFE_ID.test(id)) return null;
+    const file = join(this.dir, `${id}.json`);
+    if (!existsSync(file)) return null;
+    const dest = join(this.dir, `${id}.${new Date().toISOString().replace(/[:.]/g, '-')}.bak`);
+    try {
+      copyFileSync(file, dest);
+      return dest;
+    } catch (e) {
+      this.log(`persistence: could not back up room ${id}: ${(e as Error).message}`);
+      return null;
+    }
   }
 
   private read(f: string): PersistedRoom | null {

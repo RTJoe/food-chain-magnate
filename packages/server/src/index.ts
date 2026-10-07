@@ -3,7 +3,8 @@
  * /ws (architecture §4). Env: PORT (3000), HOST (0.0.0.0), FCM_DATA_DIR (./data),
  * FCM_PERSIST=0, FCM_ROOM_RETENTION_DAYS (30), FCM_LOBBY_RETENTION_DAYS (2), FCM_CLIENT_DIST, FCM_ENGINE=real|toy (default: real, falling back to the toy
  * engine while the real one is not implemented), FCM_BOT_DELAY_MS ("400-900" or a single number),
- * FCM_BOT_WORKERS (bot worker threads; default half the cores, 1–4).
+ * FCM_BOT_WORKERS (bot worker threads; default half the cores, 1–4), and the abuse limits in
+ * limits.ts (FCM_MSG_RATE, FCM_MAX_ROOMS, ...; README "Configuration").
  */
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -11,10 +12,11 @@ import { engine as realEngine, NotImplementedError, type EngineApi } from '@fcm/
 import { joinUrls } from './lanAddress.js';
 import { persistenceFromEnv, retentionFromEnv } from './persistence.js';
 import { botDelayFromEnv } from './botRunner.js';
-import { installShutdown, startServer } from './server.js';
+import { limitsFromEnv } from './limits.js';
+import { installCrashGuards, installShutdown, startServer } from './server.js';
 import { SERVER_VERSION } from './ws.js';
 
-export { installShutdown, startServer, type RunningServer, type ServerOptions } from './server.js';
+export { installCrashGuards, installShutdown, startServer, type RunningServer, type ServerOptions } from './server.js';
 export { SERVER_VERSION } from './ws.js';
 
 /** Engine selection. Swapping engines is this one function; everything else takes `EngineApi`. */
@@ -33,6 +35,7 @@ async function selectEngine(): Promise<EngineApi> {
 }
 
 async function main(): Promise<void> {
+  installCrashGuards();
   const port = Number(process.env.PORT ?? 3000);
   const host = process.env.HOST ?? '0.0.0.0';
   const retention = retentionFromEnv();
@@ -44,6 +47,7 @@ async function main(): Promise<void> {
     persistence: persistenceFromEnv(),
     retentionMs: retention.roomMs,
     lobbyRetentionMs: retention.lobbyMs,
+    limits: limitsFromEnv(),
     botRunner: 'worker',
     ...(Number(process.env.FCM_BOT_WORKERS) > 0 ? { botWorkers: Number(process.env.FCM_BOT_WORKERS) } : {}),
     ...botDelayFromEnv(),

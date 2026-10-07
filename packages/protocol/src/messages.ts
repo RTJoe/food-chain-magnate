@@ -11,8 +11,26 @@ export const PROTOCOL_VERSION = 1;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/** Envelope check only: known `type`, string `playerId` (server overwrites it from the seat). */
-export const ActionSchema = z.custom<Action>((v) => isObject(v) && isActionType(v.type) && typeof v.playerId === 'string', {
+/** Deepest JSON nesting accepted in an action (real ones are a few levels deep). */
+export const MAX_ACTION_DEPTH = 16;
+
+/** True if `v` nests at most `max` objects/arrays deep (iterative: safe on hostile input). */
+export function withinDepth(v: unknown, max: number): boolean {
+  const stack: [unknown, number][] = [[v, 0]];
+  while (stack.length) {
+    const [x, d] = stack.pop() as [unknown, number];
+    if (typeof x !== 'object' || x === null) continue;
+    if (d >= max) return false;
+    for (const child of Object.values(x)) stack.push([child, d + 1]);
+  }
+  return true;
+}
+
+/**
+ * Envelope check only: known `type`, string `playerId` (server overwrites it from the seat), bounded
+ * nesting. The engine validates the rest; the server also caps the serialized size.
+ */
+export const ActionSchema = z.custom<Action>((v) => isObject(v) && isActionType(v.type) && typeof v.playerId === 'string' && withinDepth(v, MAX_ACTION_DEPTH), {
   message: 'Unknown or malformed action',
 });
 const ViewSchema = z.custom<GameView>(isObject);

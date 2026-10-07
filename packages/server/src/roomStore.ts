@@ -16,6 +16,8 @@ export interface RoomEntry {
   lastActivity: number;
   /** Last real room activity (persisted as `updatedAt`; drives file retention). */
   updatedAt: number;
+  /** One-off message for each member on (re)connect, e.g. "rolled back after an update". */
+  notice?: { text: string; seen: Set<string> };
 }
 
 export function generateRoomCode(): string {

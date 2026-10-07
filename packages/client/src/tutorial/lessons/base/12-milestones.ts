@@ -10,8 +10,10 @@ import type { Action, GameView, LegalAction } from '@fcm/engine';
 import { town } from '@fcm/engine/testing';
 import { defineLesson, type StepCtx } from '../../dsl.js';
 import { claimed, placementsFor } from './late.js';
+import { reaches } from './07-marketing.js';
 
 const MK = 'p1-mk';
+const H18 = town({ round: 3 }).houseId(18);
 const BO_MK = 'p2-mk';
 
 /** Bo's billboard by house 5 (pizza): the first candidate whose tile and squares are free. */
@@ -34,9 +36,12 @@ function boBillboard(v: GameView, legal: LegalAction[]): Action {
   return { type: 'work.endTurn', playerId: 'p2' };
 }
 
-/** A burger billboard by house 18 (tile 14 when free), else any legal billboard. */
+/** Legal billboard spots that reach house 18 (the quiz asks about it). */
+const touching18 = (ctx: StepCtx) => placementsFor(ctx, { kind: 'campaign', cardUid: MK, campaignKind: 'billboard' }).filter((p) => p.kind === 'campaign' && reaches(ctx.view, ctx.me, p).includes(H18));
+
+/** A burger billboard by house 18 (tile 14 when free). */
 function adaBillboard(ctx: StepCtx): Action[] {
-  const all = placementsFor(ctx, { kind: 'campaign', cardUid: MK, campaignKind: 'billboard' });
+  const all = touching18(ctx);
   const pick = all.find((p) => p.kind === 'campaign' && p.tileNumber === 14 && p.placement.kind === 'board' && p.placement.x === 3 && p.placement.y === 8) ?? all[0];
   if (!pick || pick.kind !== 'campaign') return [];
   return [{ type: 'work.placeCampaign', playerId: ctx.me, cardUid: MK, campaignKind: 'billboard', tileNumber: pick.tileNumber, goods: ['burger'], placement: pick.placement, duration: 2, ...(pick.from ? { from: pick.from } : {}) }];
@@ -83,13 +88,13 @@ export const lesson12 = defineLesson({
     },
     {
       id: 'billboard',
-      say: 'Back in the Turn tab, tap your Marketing Trainee and place any billboard for burgers. Being first claims First Billboard Campaign.',
-      show: [{ ui: `work-card-${MK}` }, { ui: 'milestone-first_billboard' }],
-      allow: { actions: [{ type: 'work.placeCampaign', where: (a) => a.type === 'work.placeCampaign' && a.campaignKind === 'billboard' && a.goods.length === 1 && a.goods[0] === 'burger' }] },
+      say: 'Back in the Turn tab, tap your Marketing Trainee and place a burger billboard touching house 18. Being first claims First Billboard Campaign.',
+      show: [{ ui: `work-card-${MK}` }, { house: 18 }, { ui: 'milestone-first_billboard' }],
+      allow: { actions: [{ type: 'work.placeCampaign', where: (a, v) => a.type === 'work.placeCampaign' && a.campaignKind === 'billboard' && a.goods.length === 1 && a.goods[0] === 'burger' && reaches(v, a.playerId, { kind: 'campaign', campaignKind: a.campaignKind, tileNumber: a.tileNumber, placement: a.placement, ...(a.from ? { from: a.from } : {}) }).includes(H18) }] },
       until: { event: 'milestoneClaimed', where: (e) => e.type === 'milestoneClaimed' && e.player === 'p1' && e.milestoneId === 'first_billboard' },
       solution: adaBillboard,
       then: (ctx) => `Stamped: First Billboard${claimed(ctx.events, 'p1', 'first_burger_marketed') ? ' and First Burger Marketed are' : ' is'} yours for the rest of the game.`,
-      hint: { say: 'Turn tab → Marketing Trainee → pick a billboard token, Burger, then a spot.', show: [{ ui: `work-card-${MK}` }] },
+      hint: { say: 'Turn tab → Marketing Trainee → pick a billboard token, Burger, then a spot touching house 18.', show: [{ ui: `work-card-${MK}` }] },
       glossary: 'first_billboard',
     },
     {

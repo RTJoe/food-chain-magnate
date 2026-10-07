@@ -261,7 +261,8 @@ export class Room {
       for (let i = this.seats.length; i < next.seatCount; i++) this.seats.push(makeSeat(i));
     }
     this.config = next;
-    for (const s of this.seats) s.ready = false;
+    // Humans confirm the new settings; bots are always ready.
+    for (const s of this.seats) s.ready = s.bot !== null;
     return OK;
   }
 

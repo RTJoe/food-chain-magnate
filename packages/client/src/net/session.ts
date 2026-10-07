@@ -62,6 +62,9 @@ function attach(t: Transport, m: Mode): void {
       const wasDown = connection.value === 'reconnecting';
       connection.value = s;
       if (t instanceof SocketTransport) reconnectAttempt.value = t.attempt;
+      if (s === 'closed' && t instanceof SocketTransport && t.replaced) {
+        pushToast('This game is open in another tab or window. Press "Retry now" to play here instead.', 'info', 8000);
+      }
       if (s === 'open' && t.kind === 'socket') hello(wasDown);
     }),
     t.onMessage((incoming) => {

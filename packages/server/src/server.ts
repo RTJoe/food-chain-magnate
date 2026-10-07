@@ -8,6 +8,7 @@ import { WebSocketServer } from 'ws';
 import type { EngineApi } from '@fcm/engine';
 import { inlineBotRunner, type BotDelay, type BotRunner } from '@fcm/session';
 import { WorkerBotRunner } from './botRunner.js';
+import type { Limits } from './limits.js';
 import { FilePersistence, NullPersistence, type Persistence } from './persistence.js';
 import { ROOM_IDLE_TTL_MS, RoomStore } from './roomStore.js';
 import { SessionRegistry } from './sessions.js';
@@ -42,6 +43,8 @@ export interface ServerOptions {
   botWorkers?: number;
   /** Delay before a bot moves (default 400–900 ms; 0 in tests). */
   botDelay?: BotDelay;
+  /** Abuse limits (default `DEFAULT_LIMITS`; the CLI reads them from env, see limits.ts). */
+  limits?: Partial<Limits>;
   now?: () => number;
   log?: (msg: string) => void;
 }
@@ -73,6 +76,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     idleTtlMs: opts.idleTtlMs ?? ROOM_IDLE_TTL_MS,
     ...(opts.retentionMs !== undefined ? { retentionMs: opts.retentionMs } : {}),
     ...(opts.lobbyRetentionMs !== undefined ? { lobbyRetentionMs: opts.lobbyRetentionMs } : {}),
+    ...(opts.limits ? { limits: opts.limits } : {}),
   });
   const restored = hub.restore(persistence.loadAll());
   if (restored) log(`restored ${restored} room(s)`);
@@ -80,16 +84,27 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const http = createServer(staticHandler(opts.clientDist, { gzip: opts.gzip ?? true }));
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
   http.on('upgrade', (req, socket, head) => {
-    const path = new URL(req.url ?? '/', 'http://x').pathname;
+    // Untrusted input: a malformed target (e.g. `GET //`) makes `new URL` throw. Drop that socket only.
+    let path: string;
+    try {
+      path = new URL(req.url ?? '/', 'http://x').pathname;
+    } catch {
+      path = '';
+    }
     if (path !== '/ws') {
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => hub.attach(ws));
+    try {
+      wss.handleUpgrade(req, socket, head, (ws) => hub.guard('attach', () => hub.attach(ws)));
+    } catch (e) {
+      log(`upgrade failed: ${(e as Error).message}`);
+      socket.destroy();
+    }
   });
 
-  const heartbeat = setInterval(() => hub.heartbeat(), opts.heartbeatMs ?? 15_000);
-  const tick = setInterval(() => hub.tick(), opts.tickMs ?? 5_000);
+  const heartbeat = setInterval(() => hub.guard('heartbeat', () => hub.heartbeat()), opts.heartbeatMs ?? 15_000);
+  const tick = setInterval(() => hub.guard('tick', () => hub.tick()), opts.tickMs ?? 5_000);
   heartbeat.unref();
   tick.unref();
 
@@ -121,6 +136,22 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     }));
 
   return { port, host, hub, close };
+}
+
+/** The bits of `process` that `installCrashGuards` uses (injectable for tests). */
+export interface CrashTarget {
+  on(event: 'uncaughtException' | 'unhandledRejection', listener: (e: unknown) => void): unknown;
+}
+
+/**
+ * Last resort: log an escaped exception or rejection instead of exiting. One bad room must not take
+ * every other game down (and crash-loop under `restart: unless-stopped`). Every known callback is
+ * already guarded; this only catches what slips through.
+ */
+export function installCrashGuards(proc: CrashTarget = process, log: (msg: string) => void = console.error): void {
+  const report = (kind: string) => (e: unknown) => log(`${kind} (kept running): ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+  proc.on('uncaughtException', report('uncaught exception'));
+  proc.on('unhandledRejection', report('unhandled rejection'));
 }
 
 /** The bits of `process` that `installShutdown` uses (injectable for tests). */

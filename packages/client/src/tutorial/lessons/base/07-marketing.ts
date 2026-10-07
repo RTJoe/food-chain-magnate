@@ -23,7 +23,7 @@ const TOKEN = 14;
 type CampaignPick = Extract<Placement, { kind: 'campaign' }>;
 
 /** Houses a would-be billboard reaches (engine preview on the learner's view). */
-function reaches(view: GameView, me: PlayerId, p: CampaignPick): string[] {
+export function reaches(view: GameView, me: PlayerId, p: CampaignPick): string[] {
   try {
     const q = { kind: p.campaignKind, placement: p.placement, owner: me, goods: ['burger' as const], tileNumber: p.tileNumber };
     return engine.campaignReach(pseudoState(view, me), q).houses.map((h) => h.houseId);

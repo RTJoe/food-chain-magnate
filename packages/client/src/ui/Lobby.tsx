@@ -122,7 +122,7 @@ function LobbyRoom({ room: r }: { room: RoomInfo }) {
           <h1 class="room-code">{r.id}</h1>
         </div>
         <Pill tone={connection.value === 'open' ? 'ok' : 'warn'} icon={connection.value === 'open' ? 'wifi' : 'wifiOff'}>
-          {connection.value === 'open' ? 'Connected' : 'Reconnecting'}
+          {connection.value === 'open' ? 'Connected' : connection.value === 'closed' ? 'Disconnected' : 'Reconnecting'}
         </Pill>
       </header>
 

@@ -299,9 +299,11 @@ Server → Client: `welcome`, `error`, `pong`, `room.update { room }`, `game.sna
 
 Server issues a 128-bit `sessionToken`, stored in `localStorage['fcm.session']`. Reconnect re-attaches seat and sends snapshot. Action ids are idempotent. Host can kick a seat so another device takes it over. Spectators get spectator views.
 
+One live socket per session: a newer `hello` closes the older socket with code `4000` ("session opened elsewhere"). The client treats 4000 as terminal (status `closed`, a toast says the game is open in another tab) and only reconnects when the user presses "Retry now", so two tabs never fight over a session. The transport ignores events from any socket that is no longer its current one.
+
 ### 4.4 Server-authoritative handling
 
-Validate message → set `playerId` from seat → check `expectedSeq` → `applyAction` → log, persist, fan out per-viewer views.
+Validate message → set `playerId` from seat → check `expectedSeq` → `applyAction` → build the per-viewer fan-out → commit (state, log) → persist, send. The fan-out is built before the commit, so a redaction bug rejects the move instead of leaving the server ahead of its clients and its file. Bot moves go through the same path; a bot move that throws is logged, the bot pauses and is retried on the next change (at most 3 times per seq), and the process never sees the exception. Socket `close`/`error` handlers and the heartbeat/tick timers are wrapped too, and the CLI installs `uncaughtException`/`unhandledRejection` handlers that log instead of exiting.
 
 ### 4.4b Bot seats
 
@@ -310,6 +312,24 @@ A seat may hold a bot (`Seat.bot: 'easy' | 'medium' | 'hard'`): always ready and
 ### 4.5 Persistence
 
 `data/rooms/<id>.json` = `{ id, createdAt, config, seed, seats, status, actions[] }`, debounced writes. On boot every file is indexed, seat-holder sessions are re-created from their token hashes, games in progress are loaded and the rest load on demand. A seat's token hash is kept across writes even when its session is not in memory; a seat whose hash is lost can be reclaimed by joining under its name. Files are deleted after `FCM_ROOM_RETENTION_DAYS` (30) without activity, lobbies whose game never started after `FCM_LOBBY_RETENTION_DAYS` (2). SIGTERM/SIGINT flush before exit. Env: `FCM_DATA_DIR`, `FCM_PERSIST=0`, `PORT` (3000), `HOST` (0.0.0.0).
+
+**Saves that no longer replay.** A game is stored as its action log, and restore replays it with the engine in the running build. A rules fix can make a logged move illegal. Such a game is never dropped. Strategy: replay up to the last valid action (`replayLog(..., { onFailure: 'truncate' })`, `GameSession.replayFailure`):
+
+1. The original file is copied to `<id>.<timestamp>.bak` next to it (never loaded, never deleted by retention).
+2. The server logs `hub: ROLLBACK room <id>: ... Kept k of n actions; original saved as ...`, with the engine version that wrote the file (`engineVersion`, stored in every save) and the one running now.
+3. The game continues from move k; the truncated log is written back, and each member gets a one-off system chat line on (re)connect saying the game was rolled back.
+
+We chose replay-to-prefix over storing a state snapshot: the snapshot's shape changes with the engine too, and a stale state that the new engine misreads fails later and less visibly, while a replayed prefix is always a state the current rules can reach. The cost is losing the moves after the first illegal one, so check before deploying: `node packages/server/dist/checkSaves.js` (in Docker: `docker compose build && docker compose run --rm --no-deps fcm node packages/server/dist/checkSaves.js && docker compose up -d`) replays every save in `FCM_DATA_DIR`, lists the ones that would roll back and exits 1 if any would. Back up the data volume before a deploy that changes `packages/engine`.
+
+### 4.6 Abuse limits
+
+Untrusted input is bounded so one client cannot exhaust memory, disk or the process. Defaults are far above normal play; each has an env var (README).
+
+- Upgrade requests with a malformed target are dropped (socket only). Frames are capped at 256 KB.
+- Room options must match their real shape (`{ module: { field: scalar | scalar[] } }`, short strings, few keys); actions may nest at most 16 levels (`MAX_ACTION_DEPTH`), must serialize to at most `FCM_MAX_ACTION_BYTES` (8 KB), and a game's log holds at most `FCM_MAX_GAME_ACTIONS` (20 000). Extra fields inside an action are still passed to the engine and stored (action shapes are engine-owned); the byte cap bounds them.
+- Per connection, token buckets: every message (`FCM_MSG_RATE` 20/s, burst `FCM_MSG_BURST` 60; over the limit messages are dropped with one `RATE_LIMITED`, and 100 drops in a row close the socket with 1008), new sessions and rooms (`FCM_CREATE_BURST` 10, one more every `FCM_CREATE_REFILL_MS` 30 s), `game.resync` (`FCM_RESYNC_BURST` 5, one every `FCM_RESYNC_REFILL_MS` 2 s). Chat keeps its own 8 per 5 s limit.
+- Whole server: at most `FCM_MAX_SESSIONS` (20 000) sessions (when full, roomless sessions unseen for 10 min are dropped first) and `FCM_MAX_ROOMS` (5 000) rooms in memory or on disk; beyond that `hello`/`room.create` get `RATE_LIMITED`.
+- Send backpressure: a socket with more than `FCM_MAX_BUFFERED_KB` (4096) unsent is terminated rather than buffered further; the client reconnects and resyncs.
 
 ## 5. Client
 

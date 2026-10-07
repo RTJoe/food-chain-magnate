@@ -77,7 +77,7 @@ export const lesson11 = defineLesson({
       until: { view: (v) => v.pending[0]?.kind === 'forcedFire' && v.pending[0].player === 'p1' },
       solution: [{ type: 'payday.confirm', playerId: 'p1' }],
       then: 'Bo decided at the same time. Salaries are paid only once everyone has decided.',
-      hint: { say: 'Press "Pay what I can" at the bottom of the Payday panel.', show: [{ ui: 'payday-confirm' }] },
+      hint: { say: 'Press the pay button at the bottom of the Payday panel.', show: [{ ui: 'payday-confirm' }] },
       glossary: 'payday',
     },
     {
@@ -195,7 +195,7 @@ export const lesson11 = defineLesson({
     pass: 2,
     questions: [
       { kind: 'choice', q: 'Does a salaried card on the beach cost salary?', options: ['Yes, $5', 'No, only cards at work'], answer: 0, why: 'Salaries are paid for every salaried card you own: at work, on the beach or busy.' },
-      { kind: 'choice', q: 'You owe $15 and have $12. Your cards: Burger Cook ($), Waitress, Kitchen Trainee. What must you do?', options: ['Nothing, pay what you can', 'Fire the Burger Cook', 'Fire the Waitress'], answer: 1, why: 'You must fire salaried cards until you can pay; the Waitress has no salary.' },
+      { kind: 'choice', q: 'You owe $15 and have $12. Your cards: three Burger Cooks ($), a Waitress, a Kitchen Trainee. What must you do?', options: ['Nothing: pay the $12 you have', 'Fire one Burger Cook', 'Fire the Waitress'], answer: 1, why: 'You must pay in full, so fire until you can. One Burger Cook drops $15 to $10; the Waitress has no salary.' },
       { kind: 'tap', q: 'Tap the house that bought your burgers.', target: { house: 2 }, why: 'House 2, on your tile, 0 borders away.' },
     ],
   },

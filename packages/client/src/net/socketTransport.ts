@@ -3,6 +3,10 @@
  * origin, buffers while not open, reconnects with exponential backoff and jitter, and keeps the
  * connection warm with pings. The session layer sends `hello` on every (re)open: status listeners
  * run before the send buffer is flushed, so `hello` always goes first.
+ *
+ * Only the current socket's events count: a replaced socket's late `close` must not clear the new
+ * one or schedule another connect. Close code 4000 means another tab took this session over; we
+ * stop (status `closed`, `replaced`) instead of taking it back, until `reconnectNow()`.
  */
 import { parseServerMessage, type ClientMessage, type ServerMessage } from '@fcm/protocol';
 import type { ConnectionStatus, Transport, Unsubscribe } from './transport.js';
@@ -16,6 +20,9 @@ export interface SocketTransportOptions {
   /** Injected for tests. */
   WebSocketImpl?: typeof WebSocket;
 }
+
+/** Server close code: this session was opened on another socket (another tab or window). */
+export const CLOSE_REPLACED = 4000;
 
 export function defaultSocketUrl(): string {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -34,6 +41,7 @@ export class SocketTransport implements Transport {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private closedForGood = false;
+  private replacedElsewhere = false;
   private readonly opts: Required<Omit<SocketTransportOptions, 'WebSocketImpl' | 'url'>> & { url: string; WS: typeof WebSocket };
 
   constructor(opts: SocketTransportOptions = {}) {
@@ -58,7 +66,9 @@ export class SocketTransport implements Transport {
     }
     this.ws = ws;
     ws.onopen = () => {
+      if (this.ws !== ws) return;
       this.attempt = 0;
+      this.replacedElsewhere = false;
       this.setStatus('open');
       const queued = this.buffer;
       this.buffer = [];
@@ -66,28 +76,46 @@ export class SocketTransport implements Transport {
       this.startPing();
     };
     ws.onmessage = (e) => {
+      if (this.ws !== ws) return;
       const msg = parseServerMessage(String(e.data));
       if (!msg) return;
       for (const l of [...this.msgListeners]) l(msg);
     };
-    ws.onclose = () => {
+    ws.onclose = (e) => {
+      if (this.ws !== ws) return;
       this.ws = null;
       this.stopPing();
       if (this.closedForGood) this.setStatus('closed');
-      else this.scheduleRetry();
+      else if (e?.code === CLOSE_REPLACED) {
+        // Another tab has this session now. Retrying would take it back and start a tug of war.
+        this.replacedElsewhere = true;
+        this.attempt = 0;
+        this.setStatus('closed');
+      } else this.scheduleRetry();
     };
     ws.onerror = () => {
       /* onclose follows */
     };
   }
 
-  /** Retry now (e.g. "Reconnect" button); resets the backoff. */
+  /** The server closed us because this session was opened in another tab (see `CLOSE_REPLACED`). */
+  get replaced(): boolean {
+    return this.replacedElsewhere;
+  }
+
+  /** Retry now (e.g. "Reconnect" / "Use here" button); resets the backoff. */
   reconnectNow(): void {
     if (this.closedForGood) return;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
-    this.ws?.close();
+    this.stopPing();
+    const old = this.ws;
     this.ws = null;
+    if (old) {
+      // Its late events must not touch the new socket.
+      old.onopen = old.onmessage = old.onclose = old.onerror = null;
+      old.close();
+    }
     this.connect();
   }
 

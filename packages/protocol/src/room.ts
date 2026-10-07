@@ -8,12 +8,22 @@ export const RoomCode = z.string().regex(/^[A-HJ-NP-Z2-9]{5}$/);
 export const RoomStatus = z.enum(['lobby', 'playing', 'finished']);
 export type RoomStatus = z.infer<typeof RoomStatus>;
 
+/**
+ * Module options are bounded to their real shape, `{ [module]: { [field]: scalar | scalar[] } }`
+ * (engine `ModuleOptionsMap`). Anything deeper or larger is rejected: the config is stored, cloned
+ * and broadcast, so an unbounded one could exhaust memory or the stack.
+ */
+const OptionKey = z.string().max(64);
+const OptionScalar = z.union([z.string().max(64), z.number(), z.boolean()]);
+const OptionFields = z.record(OptionKey, z.union([OptionScalar, z.array(OptionScalar).max(64)])).refine((o) => Object.keys(o).length <= 16);
+const ModuleOptionsShape = z.record(OptionKey, OptionFields).refine((o) => Object.keys(o).length <= 32);
+
 /** Lobby-editable game settings (host only). Becomes the engine `GameConfig` at start. */
 export const RoomConfig = z.object({
   /** 2–6 seats. */
   seatCount: z.number().int().min(2).max(6),
-  modules: z.array(z.custom<ModuleId>((v) => typeof v === 'string')),
-  options: z.custom<ModuleOptions>((v) => typeof v === 'object' && v !== null && !Array.isArray(v)),
+  modules: z.array(z.custom<ModuleId>((v) => typeof v === 'string' && v.length <= 64)).max(32),
+  options: z.custom<ModuleOptions>((v) => ModuleOptionsShape.safeParse(v).success),
   intro: z.boolean(),
   introMilestones: z.boolean(),
 });

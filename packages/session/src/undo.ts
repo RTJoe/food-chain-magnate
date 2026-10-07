@@ -72,24 +72,53 @@ export class UndoTracker {
   }
 }
 
+/** Where a log stopped replaying (`replayLog` with `onFailure: 'truncate'`). */
+export interface ReplayFailure {
+  /** Index of the first action that no longer applies; the log keeps `index` actions. */
+  index: number;
+  /** Length of the log that was replayed. */
+  total: number;
+  message: string;
+}
+
+export interface ReplayOptions {
+  /**
+   * `throw` (default): a rejected action is an error. `truncate`: keep the longest valid prefix and
+   * report where it stopped (restoring saves after an engine rules change, architecture §4.5).
+   */
+  onFailure?: 'throw' | 'truncate';
+}
+
 /** Replay a full log step by step, recovering undo flags and the latest checkpoint. */
 export function replayLog(
   engine: EngineApi,
   initial: GameState,
   actions: Action[],
-): { state: GameState; log: LoggedAction[]; undo: UndoTracker; events: GameEvent[][] } {
+  opts: ReplayOptions = {},
+): { state: GameState; log: LoggedAction[]; undo: UndoTracker; events: GameEvent[][]; failure: ReplayFailure | null } {
   let state = initial;
   const undo = new UndoTracker(initial);
   const log: LoggedAction[] = [];
   const events: GameEvent[][] = [];
   for (const action of actions) {
-    const r = engine.applyAction(state, action);
-    if (!r.ok) throw new Error(`replay: action #${log.length} (${action.type}) rejected: ${r.code} ${r.message}`);
+    let message: string | null = null;
+    let r: ReturnType<EngineApi['applyAction']> | null = null;
+    try {
+      r = engine.applyAction(state, action);
+      if (!r.ok) message = `${r.code} ${r.message}`;
+    } catch (e) {
+      message = `threw ${(e as Error).message}`;
+    }
+    if (message !== null || !r || !r.ok) {
+      const text = `replay: action #${log.length} (${action?.type}) rejected: ${message}`;
+      if (opts.onFailure !== 'truncate') throw new Error(text);
+      return { state, log, undo, events, failure: { index: log.length, total: actions.length, message: text } };
+    }
     state = r.state;
     const entry = { action, undoable: r.undoable };
     log.push(entry);
     undo.record(entry, log.length, state);
     events.push(r.events);
   }
-  return { state, log, undo, events };
+  return { state, log, undo, events, failure: null };
 }

@@ -7,7 +7,7 @@
 import type { Action, EngineApi, GameConfig, GameEvent, GameState, GameView, ModuleManifest, PlayerId, Viewer } from '@fcm/engine';
 import { decisionSeed, fallbackAction, type BotLevel, type BotRequest } from '@fcm/ai';
 import { ActionSchema, type ServerMessage, type ServerMessageOf } from '@fcm/protocol';
-import { replayLog, UndoTracker, type LoggedAction } from './undo.js';
+import { replayLog, UndoTracker, type LoggedAction, type ReplayFailure } from './undo.js';
 
 export interface AudienceMember {
   clientId: string;
@@ -49,6 +49,11 @@ export interface GameSessionOptions {
   actions?: Action[];
   /** Seats played by bots (player id → level). Fixed for the game. */
   bots?: Record<PlayerId, BotLevel>;
+  /**
+   * What to do when `actions` no longer replays (an engine rules change made a logged move
+   * illegal): `throw` (default) or `truncate` to the longest valid prefix (see `replayFailure`).
+   */
+  onReplayFailure?: 'throw' | 'truncate';
 }
 
 /** Outcome of a bot move (`submitBotAction`). */
@@ -76,6 +81,8 @@ export class GameSession {
   private readonly recent = new Map<string, IdOutcome>();
   readonly manifest: ModuleManifest[];
   readonly bots: Readonly<Record<PlayerId, BotLevel>>;
+  /** Set when the persisted log was truncated on restore (`onReplayFailure: 'truncate'`). */
+  readonly replayFailure: ReplayFailure | null;
 
   constructor(opts: GameSessionOptions) {
     this.engine = opts.engine;
@@ -83,7 +90,8 @@ export class GameSession {
     this.seed = opts.seed;
     this.bots = { ...(opts.bots ?? {}) };
     const initial = this.engine.createGame(opts.config, opts.seed);
-    const r = replayLog(this.engine, initial, opts.actions ?? []);
+    const r = replayLog(this.engine, initial, opts.actions ?? [], { onFailure: opts.onReplayFailure ?? 'throw' });
+    this.replayFailure = r.failure;
     this.state = r.state;
     this.log = r.log;
     this.undo = r.undo;
@@ -158,11 +166,10 @@ export class GameSession {
     }
     if (!r.ok || !chosen) return { out: [], applied: false, fellBack, message: `${message ?? ''}; fallback rejected: ${r.ok ? '' : r.message}` };
     const applied = { ...chosen, playerId: by } as Action;
-    this.state = r.state;
-    const entry: LoggedAction = { action: applied, undoable: r.undoable };
-    this.log.push(entry);
-    this.undo.record(entry, this.log.length, this.state);
-    return { out: this.fanOutApplied(applied, r.events, `bot:${by}`, `bot-${this.seq}`, audience), applied: true, fellBack, ...(message ? { message } : {}) };
+    // Build the fan-out first: if it throws, nothing is committed (state, log and clients agree).
+    const out = this.fanOutApplied(r.state, applied, r.events, `bot:${by}`, `bot-${this.seq + 1}`, audience);
+    this.commit(r.state, { action: applied, undoable: r.undoable });
+    return { out, applied: true, fellBack, ...(message ? { message } : {}) };
   }
 
   canUndo(by: PlayerId): boolean {
@@ -204,12 +211,10 @@ export class GameSession {
     }
     if (!r.ok) return this.remember(key, { kind: 'rejected', code: r.code, message: r.message }, reject);
 
-    this.state = r.state;
-    const entry: LoggedAction = { action, undoable: r.undoable };
-    this.log.push(entry);
-    this.undo.record(entry, this.log.length, this.state);
+    const out = this.fanOutApplied(r.state, action, r.events, sender, req.id, audience);
+    this.commit(r.state, { action, undoable: r.undoable });
     this.remember(key, { kind: 'applied', seq: this.seq }, () => []);
-    return this.fanOutApplied(action, r.events, sender, req.id, audience);
+    return out;
   }
 
   /** Handle `game.undo`: undo `by`'s last undoable action and broadcast `game.undone`. */
@@ -224,19 +229,28 @@ export class GameSession {
       return reject('ENGINE_ERROR', (e as Error).message);
     }
     if (!r.ok) return reject(r.code, r.message);
+    const views = this.viewCache(r.state);
+    const out: Outbound[] = audience.map((a) => ({ to: a.clientId, msg: { t: 'game.undone', seq: r.log.length, view: views(a.viewer), by } }));
     this.state = r.state;
     this.log = r.log;
-    const views = this.viewCache();
-    return audience.map((a) => ({ to: a.clientId, msg: { t: 'game.undone', seq: this.seq, view: views(a.viewer), by } }));
+    return out;
   }
 
-  private fanOutApplied(action: Action, events: GameEvent[], sender: string, actionId: string, audience: AudienceMember[]): Outbound[] {
-    const views = this.viewCache();
+  private commit(next: GameState, entry: LoggedAction): void {
+    this.state = next;
+    this.log.push(entry);
+    this.undo.record(entry, this.log.length, next);
+  }
+
+  /** The `game.applied` messages for an action that takes the game to `next` (not yet committed). */
+  private fanOutApplied(next: GameState, action: Action, events: GameEvent[], sender: string, actionId: string, audience: AudienceMember[]): Outbound[] {
+    const views = this.viewCache(next);
+    const seq = this.seq + 1;
     return audience.map((a) => ({
       to: a.clientId,
       msg: {
         t: 'game.applied',
-        seq: this.seq,
+        seq,
         actionId: a.clientId === sender ? actionId : null,
         action: redactAction(action, a.viewer),
         events: this.engine.redactEvents(events, a.viewer),
@@ -246,11 +260,11 @@ export class GameSession {
   }
 
   /** One redaction per distinct viewer (many spectators share one view). */
-  private viewCache(): (v: Viewer) => GameView {
+  private viewCache(state: GameState = this.state): (v: Viewer) => GameView {
     const cache = new Map<Viewer, GameView>();
     return (v) => {
       let view = cache.get(v);
-      if (!view) cache.set(v, (view = this.view(v)));
+      if (!view) cache.set(v, (view = this.engine.redactFor(state, v)));
       return view;
     };
   }

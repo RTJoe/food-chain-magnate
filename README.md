@@ -44,8 +44,16 @@ Server settings (environment variables):
 | `FCM_LOBBY_RETENTION_DAYS` | 2 | Same, for lobbies whose game never started |
 | `FCM_BOT_DELAY_MS` | `400-900` | How long a bot waits before moving (a range or one number) |
 | `FCM_BOT_WORKERS` | half the cores (1–4) | Worker threads that compute bot moves |
+| `FCM_MSG_RATE` / `FCM_MSG_BURST` | 20 / 60 | Messages per second (and burst) one connection may send |
+| `FCM_CREATE_BURST` / `FCM_CREATE_REFILL_MS` | 10 / 30000 | New sessions and rooms one connection may create (burst, then one per interval) |
+| `FCM_RESYNC_BURST` / `FCM_RESYNC_REFILL_MS` | 5 / 2000 | Full-state resyncs one connection may request (burst, then one per interval) |
+| `FCM_MAX_SESSIONS` | 20000 | Sessions the server keeps in memory |
+| `FCM_MAX_ROOMS` | 5000 | Rooms the server keeps (in memory or on disk) |
+| `FCM_MAX_ACTION_BYTES` | 8192 | Largest accepted game action |
+| `FCM_MAX_GAME_ACTIONS` | 20000 | Longest action log per game |
+| `FCM_MAX_BUFFERED_KB` | 4096 | Unsent data after which a slow connection is dropped (it reconnects) |
 
-Rooms are saved as `{config, seed, actions}` and replayed when the server restarts, so games survive a restart.
+Rooms are saved as `{config, seed, actions}` and replayed when the server restarts, so games survive a restart. If an update makes a saved move illegal, that game is rolled back to its last valid move (the original file is kept as `<id>.<timestamp>.bak`). Before deploying, `node packages/server/dist/checkSaves.js` lists the saves that would roll back (docs/architecture.md §4.5).
 
 ### Hot-seat (one device)
 

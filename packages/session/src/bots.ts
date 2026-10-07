@@ -28,6 +28,11 @@ export const inlineBotRunner: BotRunner = (req) =>
 /** Delay before a bot moves: a fixed number or a random range (ms). */
 export type BotDelay = number | { min: number; max: number };
 export const DEFAULT_BOT_DELAY: BotDelay = { min: 400, max: 900 };
+/**
+ * A bot move that throws (engine or redaction bug) is logged and the bot pauses; each later `poke`
+ * retries, up to this many failures at the same seq. Then the room waits for a human change.
+ */
+export const MAX_BOT_FAILURES = 3;
 
 export interface Timers {
   set(fn: () => void, ms: number): unknown;
@@ -62,6 +67,9 @@ export class BotDriver {
   private timer: unknown = null;
   private disposed = false;
   private idleWaiters: (() => void)[] = [];
+  /** Seq of the last failed bot move and how many times it failed. */
+  private failedAt: number | null = null;
+  private failures = 0;
   private readonly timers: Timers;
 
   constructor(
@@ -82,6 +90,7 @@ export class BotDriver {
     const player = this.game.awaitedBot();
     if (!player || (this.opts.active && !this.opts.active())) return this.settle();
     const seq = this.game.seq;
+    if (this.failedAt === seq && this.failures >= MAX_BOT_FAILURES) return this.settle();
     this.setThinking(player);
     // Thinking starts now and overlaps the human-feeling delay: the move lands after whichever
     // takes longer (a 2 s Hard search is not followed by another 0.4-0.9 s wait).
@@ -90,7 +99,12 @@ export class BotDriver {
     let result: { action: Action | null } | null = null;
     const land = () => {
       if (this.disposed || !waited || !result) return;
-      this.finish(player, seq, result.action);
+      // Runs from a timer or a promise callback: nothing may escape (it would crash the process).
+      try {
+        this.finish(player, seq, result.action);
+      } catch (e) {
+        this.fail(player, e);
+      }
     };
     if (!waited)
       this.timer = this.timers.set(() => {
@@ -115,7 +129,8 @@ export class BotDriver {
         result = { action: null };
         land();
       },
-    );
+    )
+      .catch((e: unknown) => this.fail(player, e));
   }
 
   /** Resolves once no bot is thinking and the game is not waiting on a (running) bot. For tests. */
@@ -144,6 +159,16 @@ export class BotDriver {
     else this.settle();
   }
 
+  /** A bot move threw: log it, stop thinking and wait for the next poke (bounded retries). */
+  private fail(player: PlayerId, e: unknown): void {
+    const seq = this.game.seq;
+    this.failures = this.failedAt === seq ? this.failures + 1 : 1;
+    this.failedAt = seq;
+    this.opts.log?.(`bots: ${player} move failed at seq ${seq} (${this.failures}/${MAX_BOT_FAILURES}): ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+    this.setThinking(null);
+    this.settle();
+  }
+
   private restart(): void {
     this.setThinking(null);
     this.poke();
@@ -158,6 +183,7 @@ export class BotDriver {
   private isIdle(): boolean {
     if (this.disposed) return true;
     if (this.thinkingFor) return false;
+    if (this.failedAt === this.game.seq) return true;
     return !this.game.awaitedBot() || Boolean(this.opts.active && !this.opts.active());
   }
 
