@@ -6,19 +6,19 @@
         "id": "p1",
         "name": "Ada",
         "chain": "fried_geese_donkey",
-        "color": "#b8352a"
+        "color": "#a6449c"
       },
       {
         "id": "p2",
         "name": "Bo",
         "chain": "golden_duck_diner",
-        "color": "#f2cf3f"
+        "color": "#f8e03c"
       },
       {
         "id": "p3",
         "name": "Cy",
         "chain": "santa_maria_pizza",
-        "color": "#2b62b8"
+        "color": "#e4845a"
       }
     ],
     "modules": [],
@@ -123,7 +123,7 @@
       "id": "p1",
       "name": "Ada",
       "chain": "fried_geese_donkey",
-      "color": "#b8352a",
+      "color": "#a6449c",
       "cash": 62,
       "employees": {
         "card-1": {
@@ -204,7 +204,7 @@
       "id": "p2",
       "name": "Bo",
       "chain": "golden_duck_diner",
-      "color": "#f2cf3f",
+      "color": "#f8e03c",
       "cash": 41,
       "employees": {
         "card-2": {
@@ -278,7 +278,7 @@
       "id": "p3",
       "name": "Cy",
       "chain": "santa_maria_pizza",
-      "color": "#2b62b8",
+      "color": "#e4845a",
       "cash": 18,
       "employees": {
         "card-3": {

@@ -40,12 +40,13 @@ import {
   selectionRelated,
   type SelectionKind,
 } from '../state/interaction.js';
+import { BOARD } from '../boardPalette.js';
 import { COLORS } from '../theme.js';
 import { BoardKeyScope } from './keyScope.js';
 import type { CameraController, PointerInfo } from './camera.js';
 import { DELTA, DIRS } from './coords.js';
 import { campaignAnchor, cellsToRect, freewayAnchor, gardenRect, parkMultiplier, placementCells, placementHitRect, rectCenter, rectOf, type Rect } from './layout.js';
-import { makeChip } from './overlays/badges.js';
+import { blockedTexture, makeChip } from './overlays/badges.js';
 import { APARTMENT_BADGE_Y, HOUSE_BADGE_Y, buildGarden, buildHouse } from './minis/buildings.js';
 import { owned, releaseTree, type MiniCtx } from './minis/ctx.js';
 import { buildFreeway, buildLobbyistRoad, buildPark } from './minis/ketchup.js';
@@ -117,10 +118,10 @@ export class Interaction {
     private readonly cam: CameraController,
     private readonly rec: Reconciler,
   ) {
-    this.hlMat = new THREE.MeshBasicMaterial({ color: COLORS.highlightLegal, transparent: true, opacity: 0.32, toneMapped: false, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    this.hlMat = new THREE.MeshBasicMaterial({ color: BOARD.legal, transparent: true, opacity: 0.4, toneMapped: false, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
     this.cursorMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: COLORS.highlightBad, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }),
+      new THREE.MeshBasicMaterial({ map: blockedTexture(), transparent: true, opacity: 0.88, toneMapped: false, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }),
     );
     this.cursorMesh.visible = false;
     this.cursorMesh.renderOrder = 3;
@@ -335,7 +336,7 @@ export class Interaction {
       const outer = owned(new THREE.CircleGeometry(DOT_R, 20).rotateX(-Math.PI / 2));
       const inner = owned(new THREE.CircleGeometry(DOT_R * 0.55, 16).rotateX(-Math.PI / 2));
       // Ink ring, player-colour centre: reads on grass and lots whatever the colour.
-      const om = new THREE.InstancedMesh(outer, owned(new THREE.MeshBasicMaterial({ color: COLORS.ink, toneMapped: false, depthWrite: false, transparent: true, opacity: 0.7 })), dots.length);
+      const om = new THREE.InstancedMesh(outer, owned(new THREE.MeshBasicMaterial({ color: COLORS.ink, toneMapped: false, depthWrite: false, transparent: true, opacity: 0.92 })), dots.length);
       const im = new THREE.InstancedMesh(inner, owned(new THREE.MeshBasicMaterial({ color, toneMapped: false, depthWrite: false, transparent: true, opacity: 0.98 })), dots.length);
       const m = new THREE.Matrix4();
       dots.forEach(([x, z], i) => {
@@ -361,7 +362,7 @@ export class Interaction {
       g.add(dm);
     }
     if (areas.size) {
-      this.hlMat.color.set(COLORS.highlightLegal);
+      this.hlMat.color.set(BOARD.legal);
       const am = instancedQuads([...areas.values()], this.hlMat, HL_Y, 0.04);
       am.renderOrder = 2;
       am.name = 'legal:areas';

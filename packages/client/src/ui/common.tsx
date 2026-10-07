@@ -44,7 +44,7 @@ export function Cash({ amount, size = 'md' }: { amount: number; size?: 'sm' | 'm
   );
 }
 
-/** Label colour on a seat colour: white or ink, whichever reads better (Mustard, Pickle, Grape take ink). */
+/** Label colour on a seat colour: white or ink, whichever reads better (white on Fried Geese, ink on the lighter chains). */
 const badgeInk = (color: string | undefined, idx: number): string => (color?.startsWith('#') && color.length === 7 ? inkOn(color) : `var(--player-${idx}-ink, #fff)`);
 
 /**

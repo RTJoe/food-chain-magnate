@@ -5,7 +5,7 @@ import { COLORS } from '../../theme.js';
 import { FREEWAY } from '../anim/path.js';
 import { dirAngle } from '../coords.js';
 import { makeBadge, signTexture } from '../labels.js';
-import { tree, bush } from './buildings.js';
+import { PLASTIC, plasticPen, plasticTree, type Pen as PlasticPen } from './buildings.js';
 import { blob, face, solid, type MiniCtx } from './ctx.js';
 import { P, Shape, ball, box, cone, cyl, extrude, miniGeo, playerPalette, shade } from './kit.js';
 
@@ -13,55 +13,57 @@ import { P, Shape, ball, box, cone, cyl, extrude, miniGeo, playerPalette, shade 
 // Park
 // ---------------------------------------------------------------------------
 
+type Pen = PlasticPen & { shape: Shape };
+
+/** Park bench (seat, back, two legs) at (x, z), facing +z unless `rot`. */
+function parkBench(pen: Pen, x: number, z: number, rot = 0): void {
+  const b = new Shape();
+  const bp = plasticPen(b, PLASTIC.park);
+  bp(box(0.34, 0.035, 0.12, 0), 0.04, { at: [0, 0.1, 0] });
+  bp(box(0.34, 0.1, 0.03, 0), 0.04, { at: [0, 0.14, -0.06] });
+  for (const dx of [-0.13, 0.13]) bp(box(0.03, 0.1, 0.1, 0), -0.1, { at: [dx, 0, 0] });
+  pen.shape.addShape(b, { at: [x, 0.09, z], rot: [0, rot, 0] });
+}
+
+/** Park in SE monochrome park green: plate, lawn, path, round trees, a bench (a pond on big parks). */
 function parkShape(w: number, h: number): Shape {
   const s = new Shape();
-  s.add(box(w - 0.1, 0.06, h - 0.1, 0.03), P.lot, { jitter: 0 });
-  s.add(box(w - 0.24, 0.03, h - 0.24, 0.01), COLORS.park, { at: [0, 0.06, 0], jitter: 0 });
-  // Winding path (two segments).
-  s.add(box(w - 0.3, 0.012, 0.16, 0.005), P.stone, { at: [0, 0.09, h > 1.5 ? 0.15 : 0.0], rot: [0, 0.12, 0] });
-  if (h > 1.5) s.add(box(0.16, 0.012, h * 0.45, 0.005), P.stone, { at: [0.2, 0.09, -h * 0.2] });
-  // Pond.
+  const pen = Object.assign(plasticPen(s, PLASTIC.park), { shape: s });
+  pen(box(w - 0.15, 0.06, h - 0.15, 0.02), -0.03, { jitter: 0 });
+  pen(box(w - 0.3, 0.03, h - 0.3, 0), 0, { at: [0, 0.06, 0], jitter: 0 });
+  // Winding path (two segments), embossed lighter.
+  pen(box(w - 0.3, 0.012, 0.16, 0), 0.08, { at: [0, 0.09, h > 1.5 ? 0.15 : 0.0], rot: [0, 0.12, 0], jitter: 0 });
+  if (h > 1.5) pen(box(0.16, 0.012, h * 0.45, 0), 0.08, { at: [0.2, 0.09, -h * 0.2], jitter: 0 });
+  // Pond: a glossy disc with a raised rim.
   if (w * h >= 4) {
-    s.add(cyl(0.34, 0.36, 0.02, 10), COLORS.water, { at: [-w / 4, 0.09, -h / 4], scale: [1.3, 1, 1], mat: 'glass' });
-    s.add(cyl(0.38, 0.4, 0.015, 10), P.stone, { at: [-w / 4, 0.085, -h / 4], scale: [1.3, 1, 1] });
+    pen(cyl(0.4, 0.42, 0.03, 10), 0.04, { at: [-w / 4, 0.09, -h / 4], scale: [1.3, 1, 1] });
+    pen(cyl(0.34, 0.34, 0.006, 10), -0.12, { at: [-w / 4, 0.12, -h / 4], scale: [1.3, 1, 1], mat: 'glass', jitter: 0 });
   }
-  // Trees.
   const spots: [number, number, number][] =
     w * h >= 4
       ? [
-          [w / 3, -h / 3, 1.15],
-          [-w / 3 + 0.05, h / 3, 1.0],
-          [w / 3 - 0.05, h / 3 - 0.05, 0.85],
-          [0.05, -h / 3 - 0.05, 0.75],
+          [w / 3, -h / 3, 1.3],
+          [-w / 3 + 0.05, h / 3, 1.15],
+          [w / 3 - 0.05, h / 3 - 0.05, 1.0],
         ]
       : [
-          [-w / 3, 0.05, 1.0],
-          [w / 3, -0.05, 0.9],
-          [0, -0.18, 0.7],
+          [-w / 3, 0.05, 1.15],
+          [w / 3, -0.05, 1.05],
+          [0.05, -0.2, 0.85],
         ];
-  spots.forEach(([x, z, sz], i) => tree(s, x, z, sz, i % 2 ? P.leafLight : P.leaf));
-  bush(s, -w / 2 + 0.25, -h / 2 + 0.25, 0.1);
-  bush(s, w / 2 - 0.22, 0.05, 0.09, P.leaf);
-  // Bench + lamp.
-  s.add(box(0.3, 0.04, 0.1, 0.01), P.wood, { at: [-0.05, 0.16, h > 1.5 ? 0.42 : 0.28] });
-  s.add(box(0.3, 0.1, 0.03, 0.01), P.wood, { at: [-0.05, 0.2, h > 1.5 ? 0.48 : 0.34] });
-  s.add(cyl(0.015, 0.015, 0.45, 4), P.steelDark, { at: [0.3, 0.09, h > 1.5 ? 0.42 : 0.3] });
-  s.add(ball(0.04, 0), '#fff3a8', { at: [0.3, 0.56, h > 1.5 ? 0.42 : 0.3], mat: 'glow' });
-  // Flowers.
-  for (let i = 0; i < 6; i++)
-    s.add(ball(0.04, 0), ['#e25b8b', '#fff3a8', '#f08a3c'][i % 3]!, {
-      at: [((i * 0.37) % 1 - 0.5) * (w - 0.5), 0.11, (((i * 0.61) % 1) - 0.5) * (h - 0.5)],
-    });
+  for (const [x, z, sz] of spots) plasticTree(pen, x, z, sz, 0.09);
+  parkBench(pen, -0.05, h > 1.5 ? 0.45 : 0.3);
   return s;
 }
 
 /**
  * Park on exactly its squares (I, T and L lobbyist parks), in coordinates relative to the centre
  * of its bounding box: one lawn joined across neighbouring squares, a path linking the squares, a
- * tree per square, a pond on the busiest square of a big park, a bench and a lamp.
+ * tree per square, a pond on the busiest square of a big park, a bench.
  */
 function parkCellsShape(cells: readonly [number, number][], w: number, h: number): Shape {
   const s = new Shape();
+  const pen = Object.assign(plasticPen(s, PLASTIC.park), { shape: s });
   const has = (x: number, z: number) => cells.some(([cx, cz]) => cx === x && cz === z);
   const ctr = (x: number, z: number): [number, number] => [x + 0.5 - w / 2, z + 0.5 - h / 2];
   const degree = (x: number, z: number) => [has(x + 1, z), has(x - 1, z), has(x, z + 1), has(x, z - 1)].filter(Boolean).length;
@@ -69,35 +71,29 @@ function parkCellsShape(cells: readonly [number, number][], w: number, h: number
   cells.forEach(([x, z], i) => {
     const [cx, cz] = ctr(x, z);
     const e = (open: boolean, m: number) => (open ? 0 : m);
-    const lot = (m: number, y: number, hgt: number, col: string) => {
+    const lot = (m: number, y: number, hgt: number, tint: number) => {
       const x0 = cx - 0.5 + e(has(x - 1, z), m);
       const x1 = cx + 0.5 - e(has(x + 1, z), m);
       const z0 = cz - 0.5 + e(has(x, z - 1), m);
       const z1 = cz + 0.5 - e(has(x, z + 1), m);
-      s.add(box(x1 - x0, hgt, z1 - z0, 0), col, { at: [(x0 + x1) / 2, y, (z0 + z1) / 2], jitter: 0 });
+      pen(box(x1 - x0, hgt, z1 - z0, 0), tint, { at: [(x0 + x1) / 2, y, (z0 + z1) / 2], jitter: 0 });
     };
-    lot(0.05, 0, 0.06, P.lot);
-    lot(0.12, 0.06, 0.03, COLORS.park);
+    lot(0.075, 0, 0.06, -0.03);
+    lot(0.15, 0.06, 0.03, 0);
     // Path to the east / south neighbour (each link once).
-    if (has(x + 1, z)) s.add(box(1.0, 0.012, 0.14, 0.005), P.stone, { at: [cx + 0.5, 0.09, cz], jitter: 0 });
-    if (has(x, z + 1)) s.add(box(0.14, 0.012, 1.0, 0.005), P.stone, { at: [cx, 0.09, cz + 0.5], jitter: 0 });
+    if (has(x + 1, z)) pen(box(1.0, 0.012, 0.14, 0), 0.08, { at: [cx + 0.5, 0.09, cz], jitter: 0 });
+    if (has(x, z + 1)) pen(box(0.14, 0.012, 1.0, 0), 0.08, { at: [cx, 0.09, cz + 0.5], jitter: 0 });
     const pond = cells.length >= 4 && x === hub[0] && z === hub[1];
     if (pond) {
-      s.add(cyl(0.26, 0.28, 0.02, 10), COLORS.water, { at: [cx, 0.095, cz], mat: 'glass' });
-      s.add(cyl(0.3, 0.32, 0.015, 10), P.stone, { at: [cx, 0.09, cz] });
+      pen(cyl(0.3, 0.32, 0.03, 10), 0.04, { at: [cx, 0.09, cz] });
+      pen(cyl(0.25, 0.25, 0.006, 10), -0.12, { at: [cx, 0.12, cz], mat: 'glass', jitter: 0 });
     } else {
       const k = (i * 0.37) % 1;
-      tree(s, cx + (k - 0.5) * 0.4, cz - 0.22, 0.85 + k * 0.3, i % 2 ? P.leafLight : P.leaf);
-      bush(s, cx + 0.28, cz + 0.28, 0.08, P.leaf);
+      plasticTree(pen, cx + (k - 0.5) * 0.4, cz - 0.18, 0.95 + k * 0.3, 0.09);
     }
-    s.add(ball(0.04, 0), ['#e25b8b', '#fff3a8', '#f08a3c'][i % 3]!, { at: [cx - 0.28, 0.11, cz + 0.3] });
   });
-  // Bench + lamp on the first square.
   const [bx, bz] = ctr(cells[0]![0], cells[0]![1]);
-  s.add(box(0.3, 0.04, 0.1, 0.01), P.wood, { at: [bx - 0.05, 0.16, bz + 0.2] });
-  s.add(box(0.3, 0.1, 0.03, 0.01), P.wood, { at: [bx - 0.05, 0.2, bz + 0.26] });
-  s.add(cyl(0.015, 0.015, 0.45, 4), P.steelDark, { at: [bx + 0.3, 0.09, bz + 0.12] });
-  s.add(ball(0.04, 0), '#fff3a8', { at: [bx + 0.3, 0.56, bz + 0.12], mat: 'glow' });
+  parkBench(pen, bx - 0.05, bz + 0.26);
   return s;
 }
 
@@ -109,9 +105,9 @@ export function buildPark(ctx: MiniCtx, p: { w: number; h: number; cells?: reado
       const sq = new THREE.Group();
       sq.position.set(x + 0.5 - p.w / 2, 0, z + 0.5 - p.h / 2);
       g.add(sq);
-      blob(ctx, sq, 1, 1, true, 0.4);
+      blob(ctx, sq, 1.05, 1.05, true, 0.6);
     }
-    solid(ctx, g, miniGeo(`parkCells:${p.w}x${p.h}:${key}`, () => parkCellsShape(p.cells!, p.w, p.h)));
+    solid(ctx, g, miniGeo(`parkCells:se:${p.w}x${p.h}:${key}`, () => parkCellsShape(p.cells!, p.w, p.h)));
     return g;
   }
   const g = new THREE.Group();
@@ -121,8 +117,8 @@ export function buildPark(ctx: MiniCtx, p: { w: number; h: number; cells?: reado
   g.add(body);
   const w = Math.max(p.w, p.h);
   const h = Math.min(p.w, p.h);
-  blob(ctx, body, w, h, true, 0.4);
-  solid(ctx, body, miniGeo(`park:${w}:${h}`, () => parkShape(w, h)));
+  blob(ctx, body, w + 0.05, h + 0.05, true, 0.6);
+  solid(ctx, body, miniGeo(`park:se:${w}:${h}`, () => parkShape(w, h)));
   return g;
 }
 

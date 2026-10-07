@@ -8,7 +8,7 @@ import { createRoom, resumeHotseat, startOnline } from '../net/session.js';
 import { hotseatEngine } from '../state/engine.js';
 import { phaseLabel } from '../state/selectors.js';
 import { Button, IconButton } from './common.js';
-import { Icon, Logo } from './icons.js';
+import { Icon, LogoLockup } from './icons.js';
 import { continueEntry } from './learn/index.js';
 import { hasLearnProgress, learnProgress } from '../tutorial/progress.js';
 import './learn/learn.css';
@@ -132,12 +132,11 @@ export function Home() {
     <main class="home">
       <div class="home-bg" aria-hidden="true" />
       <header class="home-hero">
-        <Logo size={72} />
-        <div>
-          <p class="eyebrow">Online · Hot-seat · 2–6 players</p>
-          <h1>Food Chain Magnate</h1>
-          <p class="lede">Build a fast-food empire. Hire, train and market your way to the top of the town’s food chain.</p>
-        </div>
+        <h1 class="home-title">
+          <LogoLockup />
+        </h1>
+        <p class="home-strap">Online · Hot-seat · 2–6 players</p>
+        <p class="lede">Build a fast-food empire. Hire, train and market your way to the top of the town’s food chain.</p>
       </header>
 
       <LearnBanner />
@@ -171,7 +170,7 @@ export function Home() {
         </article>
 
         <form class="home-card glass" onSubmit={onJoin}>
-          <span class="home-card-icon tone-blue">{Icon.link({ size: 24 })}</span>
+          <span class="home-card-icon tone-teal">{Icon.link({ size: 24 })}</span>
           <h2>Join a room</h2>
           <p class="muted">Enter the 5-letter room code shown in the host’s lobby.</p>
           <input
@@ -189,7 +188,7 @@ export function Home() {
         </form>
 
         <article class="home-card glass">
-          <span class="home-card-icon tone-mustard">{Icon.device({ size: 24 })}</span>
+          <span class="home-card-icon tone-teal-dark">{Icon.device({ size: 24 })}</span>
           <h2>Hot-seat</h2>
           <p class="muted">Play on one device and pass it around. Private choices stay hidden between turns.</p>
           <Button variant="secondary" size="lg" icon="arrowRight" onClick={() => navigate({ name: 'hotseat' })}>

@@ -1,0 +1,8 @@
+Self-hosted web fonts (latin subset, woff2, from the @fontsource 5.3.0 packages). Served locally so the
+game works on a LAN without internet access.
+
+Lilita One         Copyright (c) 2011 Juan Montoreano, Reserved Font Name "Lilita One"   SIL OFL 1.1 (OFL-1.1.txt)
+Barlow             Copyright 2017 The Barlow Project Authors (github.com/jpt/barlow)     SIL OFL 1.1 (OFL-1.1.txt)
+Barlow Condensed   Copyright 2017 The Barlow Project Authors (github.com/jpt/barlow)     SIL OFL 1.1 (OFL-1.1.txt)
+Rye                Copyright (c) 2012 Sorkin Type Co, Reserved Font Name "Rye"           SIL OFL 1.1 (OFL-1.1.txt)
+Yellowtail         Copyright (c) 2011 Brian J. Bonislawsky DBA Astigmatic (AOETI)        Apache License 2.0 (Apache-2.0.txt)

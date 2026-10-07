@@ -1,226 +1,125 @@
 /**
- * Restaurant (2x2) and coffee shop (1x1). Built with the entrance at the SE corner and rotated
- * to the real entrance corner. Original "streamline diner" design: rounded entrance corner, window
- * band, player-colour roof and striped awning, tall round sign on the entrance corner.
+ * Restaurant (2x2) and coffee shop (1x1). Restaurants are the Special Edition chain minis
+ * (`chains.ts`): one plastic colour, a silhouette per chain, the entrance corner cut at 45° with a
+ * WELCOME strip, the wordmark decal on the roof sign and a roof slot for the drive-in and
+ * coming-soon signs. Built with the entrance at the SE corner and rotated to the real one.
  */
 import * as THREE from 'three';
-import type { Corner, RestaurantStatus } from '@fcm/engine';
+import type { ChainId, Corner, RestaurantStatus } from '@fcm/engine';
 import { cornerAngle } from '../coords.js';
-import { BADGE_MIN_PX, makeBadge, signTexture } from '../labels.js';
+import { BADGE_MIN_PX, makeBadge } from '../labels.js';
 import { blob, face, solid, type MiniCtx } from './ctx.js';
-import { P, Shape, ball, box, cone, cyl, extrude, lathe, miniGeo, playerPalette, puck, shade } from './kit.js';
+import {
+  CHAINS,
+  CORAL,
+  DERELICT_GREY,
+  SLOT_SIGN,
+  WELCOME_AT,
+  chainForColor,
+  comingSoonTexture,
+  driveInTexture,
+  fenceGeo,
+  isChainId,
+  restaurantShape,
+  slotSignGeo,
+  totemGeo,
+  welcomeTexture,
+  wordmarkTexture,
+} from './chains.js';
+import { P, Shape, ball, box, cyl, extrude, lathe, miniGeo, playerPalette, puck } from './kit.js';
 
 export interface RestaurantParams {
   color: string;
   status: RestaurantStatus;
   entrance: Corner;
   driveIn: boolean;
-  /** Owner mark (the player's initial, as in the panels) on the sign and the owner badge. */
+  /** Owner mark (the player's initial, as in the panels) on the owner badge. */
   mark: string;
+  /** The owner's chain (view.players[owner].chain). Without it the chain follows the seat colour. */
+  chain?: ChainId;
 }
 
-const CYL_R = 0.38;
-
-/** Body footprint: union of two boxes and a cylinder that rounds the SE corner. */
-function bodyParts(s: Shape, h: number, grow: number, c: string | THREE.Color, y: number, mat: 'body' | 'glass' = 'body'): void {
-  const x0 = -0.82 - grow;
-  const z0 = -0.8 - grow;
-  const cx = 0.2;
-  const cz = 0.16;
-  const r = CYL_R + grow;
-  // Box A: full width, back part.
-  s.add(box(cx + r - x0, h, cz - z0, 0.03), c, { at: [(x0 + cx + r) / 2, y, (z0 + cz) / 2], mat, jitter: 0 });
-  // Box B: front-left part.
-  s.add(box(cx - x0, h, r, 0.03), c, { at: [(x0 + cx) / 2, y, cz + r / 2], mat, jitter: 0 });
-  // Rounded corner.
-  s.add(cyl(r, r, h, 14), c, { at: [cx, y, cz], mat, jitter: 0 });
+/** The chain a restaurant is drawn as. */
+export function restaurantChain(p: { color: string; chain?: string }): ChainId {
+  return isChainId(p.chain) ? p.chain : chainForColor(p.color);
 }
 
-function restaurantShape(color: string, status: RestaurantStatus): Shape {
-  const pal = playerPalette(color);
-  const derelict = status === 'derelict';
-  const base = derelict ? '#8f8b88' : pal.base;
-  const dark = derelict ? '#6c6866' : pal.dark;
-  const wall = derelict ? '#b9b3aa' : P.cream;
-  const s = new Shape();
-  // Base and forecourt.
-  s.add(box(1.86, 0.07, 1.86, 0.035), P.lot, { jitter: 0 });
-  s.add(box(1.0, 0.012, 0.5, 0.005), P.stone, { at: [0.5, 0.07, 0.72], rot: [0, -Math.PI / 4, 0] });
-  // Walls, window band and chrome stripe.
-  bodyParts(s, 0.74, 0, wall, 0.08);
-  if (derelict) {
-    bodyParts(s, 0.2, 0.012, '#8a7a66', 0.34);
-  } else {
-    bodyParts(s, 0.22, 0.012, P.windowDark, 0.33, 'glass');
-    bodyParts(s, 0.07, 0.02, base, 0.18);
-    bodyParts(s, 0.03, 0.022, '#e6e9ee', 0.6);
-  }
-  // Roof slab + trim.
-  bodyParts(s, 0.1, 0.08, dark, 0.82);
-  bodyParts(s, 0.05, 0.1, base, 0.86);
-  // Door on the rounded corner (facing SE).
-  const a = Math.PI / 4;
-  const dx = 0.2 + Math.sin(a) * (CYL_R + 0.01);
-  const dz = 0.16 + Math.cos(a) * (CYL_R + 0.01);
-  s.add(box(0.3, 0.46, 0.05, 0.015), derelict ? '#6e4a2f' : '#f4f6f8', { at: [dx, 0.08, dz], rot: [0, a, 0] });
-  s.add(box(0.22, 0.38, 0.06, 0.01), derelict ? '#5a3c26' : P.window, { at: [dx, 0.1, dz], rot: [0, a, 0], mat: derelict ? 'body' : 'glass' });
-  if (!derelict) {
-    // Striped awning around the rounded corner.
-    for (let i = 0; i < 6; i++) {
-      const t = (i + 0.5) / 6;
-      const ang = -0.15 + t * (Math.PI / 2 + 0.3);
-      const rr = CYL_R + 0.13;
-      s.add(box(0.15, 0.04, 0.3, 0.01), i % 2 ? P.white : base, {
-        at: [0.2 + Math.sin(ang) * rr, 0.66, 0.16 + Math.cos(ang) * rr],
-        rot: [0.45, ang, 0],
-        jitter: 0,
-      });
-    }
-    // Side awnings over the window bands.
-    for (let i = 0; i < 5; i++) {
-      s.add(box(0.2, 0.035, 0.24, 0.01), i % 2 ? P.white : base, { at: [-0.7 + i * 0.2, 0.66, 0.66], rot: [0.45, 0, 0], jitter: 0 });
-      s.add(box(0.24, 0.035, 0.2, 0.01), i % 2 ? P.white : base, { at: [0.71, 0.66, -0.66 + i * 0.2], rot: [0, 0, -0.45], jitter: 0 });
-    }
-    // Rooftop units.
-    s.add(box(0.36, 0.2, 0.3, 0.03), P.steel, { at: [-0.4, 0.91, -0.42], mat: 'metal' });
-    s.add(cyl(0.06, 0.06, 0.18, 6), P.steelDark, { at: [-0.05, 0.91, -0.5] });
-    // Planters by the door.
-    for (const [x, z] of [
-      [0.82, 0.26],
-      [0.26, 0.82],
-    ] as const) {
-      s.add(box(0.18, 0.12, 0.18, 0.03), dark, { at: [x, 0.07, z] });
-      s.add(ball(0.1, 0), P.leafLight, { at: [x, 0.24, z] });
-    }
-  } else {
-    // Boards across the door and a weed.
-    s.add(box(0.4, 0.05, 0.03, 0.005), P.wood, { at: [dx, 0.3, dz + 0.02], rot: [0, a, 0.5] });
-    s.add(box(0.4, 0.05, 0.03, 0.005), P.wood, { at: [dx, 0.3, dz + 0.02], rot: [0, a, -0.5] });
-    s.add(cone(0.08, 0.16, 5), '#7c9a52', { at: [0.8, 0.07, 0.5] });
-  }
-  // Bins at the back.
-  s.add(box(0.22, 0.2, 0.16, 0.03), '#4c6a5a', { at: [-0.7, 0.07, -0.88] });
-  return s;
+/** Height of a chain's restaurant mini (for picking and badge anchors). */
+export function restaurantHeight(chain: ChainId): number {
+  return CHAINS[chain].height;
 }
 
-function signPole(color: string): Shape {
-  const pal = playerPalette(color);
-  const s = new Shape();
-  s.add(box(0.2, 0.06, 0.2, 0.02), P.steelDark, { jitter: 0 });
-  s.add(cyl(0.035, 0.045, 1.22, 6), '#d8dce2', { at: [0, 0.06, 0], mat: 'metal' });
-  // Round sign: rim in player colour, cream face, decal on both sides (added separately).
-  s.add(puck(0.36, 0.1, 16, 0.025), pal.dark, { at: [0, 1.48, -0.05], rot: [Math.PI / 2, 0, 0] });
-  s.add(puck(0.3, 0.12, 16, 0.02), pal.base, { at: [0, 1.48, -0.06], rot: [Math.PI / 2, 0, 0] });
-  // Star on top.
-  s.add(
-    extrude('star', starShape, 0.06, 0.01),
-    '#f8d24a',
-    { at: [0, 1.9, 0], scale: 0.13 },
-  );
-  return s;
-}
-
-function starShape(): THREE.Shape {
-  const sh = new THREE.Shape();
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 ? 0.45 : 1;
-    const a = (i / 10) * Math.PI * 2 + Math.PI / 2;
-    const x = Math.cos(a) * r;
-    const y = Math.sin(a) * r;
-    if (i === 0) sh.moveTo(x, y);
-    else sh.lineTo(x, y);
-  }
-  sh.closePath();
-  return sh;
-}
-
-function scaffoldShape(color: string): Shape {
-  const pal = playerPalette(color);
-  const s = new Shape();
-  s.add(box(1.86, 0.07, 1.86, 0.035), '#d8c9a3', { jitter: 0 });
-  s.add(box(1.5, 0.02, 1.4, 0.01), '#c7b48a', { at: [-0.1, 0.07, -0.1] });
-  // Foundations.
-  s.add(box(1.4, 0.1, 1.3, 0.02), '#c9c4bb', { at: [-0.12, 0.07, -0.15] });
-  // Scaffold poles and rails.
-  const xs = [-0.86, -0.12, 0.62];
-  const zs = [-0.84, -0.15, 0.54];
-  for (const x of xs) for (const z of zs) if (x !== -0.12 || z !== -0.15) s.add(cyl(0.025, 0.025, 1.0, 5), '#e8a530', { at: [x, 0.07, z], jitter: 0 });
-  for (const y of [0.45, 0.98]) {
-    for (const z of [-0.84, 0.54]) s.add(box(1.5, 0.035, 0.035, 0), '#e8a530', { at: [-0.12, y, z], jitter: 0 });
-    for (const x of [-0.86, 0.62]) s.add(box(0.035, 0.035, 1.4, 0), '#e8a530', { at: [x, y, -0.15], jitter: 0 });
-  }
-  // Planks.
-  s.add(box(1.5, 0.03, 0.22, 0.005), P.wood, { at: [-0.12, 0.46, 0.66] });
-  s.add(box(0.22, 0.03, 1.4, 0.005), P.wood, { at: [0.74, 0.46, -0.15] });
-  // Materials pile and a cone.
-  s.add(box(0.3, 0.12, 0.2, 0.02), '#c9c4bb', { at: [0.7, 0.07, 0.78] });
-  s.add(box(0.24, 0.1, 0.16, 0.02), pal.base, { at: [0.7, 0.19, 0.78] });
-  s.add(cone(0.08, 0.2, 8), '#f08a3c', { at: [0.4, 0.07, 0.85] });
-  return s;
-}
-
-const ghostWalls = new Map<string, THREE.Material>();
-function ghostWall(color: string): THREE.Material {
-  let m = ghostWalls.get(color);
-  if (!m) {
-    m = new THREE.MeshStandardMaterial({ color: shade(color, 0.6), transparent: true, opacity: 0.42, roughness: 0.5, depthWrite: false, flatShading: true });
-    ghostWalls.set(color, m);
-  }
-  return m;
+/** `#rrggbb` at a fraction of its value (coming soon: 85 %). */
+function dim(css: string, v: number): string {
+  const n = Number.parseInt(css.slice(1), 16);
+  const ch = (sh: number) => Math.round(((n >> sh) & 255) * v);
+  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0')}`;
 }
 
 export function buildRestaurant(ctx: MiniCtx, p: RestaurantParams): THREE.Group {
+  const chain = restaurantChain(p);
+  const spec = CHAINS[chain];
+  const derelict = p.status === 'derelict';
+  const soon = p.status === 'comingSoon';
+  const plastic = derelict ? DERELICT_GREY : soon ? dim(p.color, 0.85) : p.color.toLowerCase();
   const g = new THREE.Group();
   const body = new THREE.Group();
   body.name = 'body';
   body.rotation.y = cornerAngle(p.entrance);
   g.add(body);
   blob(ctx, body, 2.2, 2.2, true, 0.8);
-  const pal = playerPalette(p.color);
-  if (p.status === 'comingSoon') {
-    solid(ctx, body, miniGeo(`scaffold:${p.color}`, () => scaffoldShape(p.color)));
-    // Translucent future building.
-    const ghostGeo = miniGeo('restaurantGhostVolume', () => {
-      const s = new Shape();
-      bodyParts(s, 0.82, 0, '#ffffff', 0.17);
-      return s;
-    });
-    const m = new THREE.Mesh(ghostGeo, ctx.ghost ?? ghostWall(p.color));
-    m.renderOrder = 2;
-    body.add(m);
-    // "SOON" banner on the scaffold front.
-    const banner = face(ctx, body, signTexture('SOON', pal.base, '#fffaf0'), 0.9, 0.34);
-    banner.position.set(-0.12, 0.72, 0.575);
-    const back = face(ctx, body, signTexture('SOON', pal.base, '#fffaf0'), 0.9, 0.34);
-    back.position.set(0.645, 0.72, -0.15);
-    back.rotation.y = Math.PI / 2;
-  } else {
-    solid(ctx, body, miniGeo(`restaurant:${p.status}:${p.color}`, () => restaurantShape(p.color, p.status)));
+  solid(ctx, body, miniGeo(`restaurant:${chain}:${plastic}`, () => restaurantShape(chain, plastic)));
+
+  // WELCOME strip, flat on the plate along the chamfer, reading from the entrance.
+  const w = face(ctx, body, welcomeTexture(plastic), 0.58, 0.11);
+  w.rotation.set(-Math.PI / 2, Math.PI / 4, 0, 'YXZ');
+  w.position.set(WELCOME_AT[0], WELCOME_AT[1] + 0.002, WELCOME_AT[2]);
+
+  if (!derelict) {
+    const sg = spec.sign;
+    const f = face(ctx, body, wordmarkTexture(chain, plastic), sg.w, sg.h);
+    f.name = 'wordmark';
+    f.position.set(...sg.at);
+    f.rotation.y = sg.yaw;
   }
-  if (p.status !== 'derelict') {
-    const sign = new THREE.Group();
-    sign.name = 'sign';
-    sign.position.set(0.8, 0, 0.8);
-    sign.rotation.y = Math.PI / 4;
-    body.add(sign);
-    solid(ctx, sign, miniGeo(`sign:${p.color}`, () => signPole(p.color)));
-    const tex = signTexture(p.mark, pal.base, '#fffaf0');
-    for (const side of [1, -1]) {
-      const f = face(ctx, sign, tex, 0.5, 0.19, true);
-      f.position.set(0, 1.48, side > 0 ? 0.072 : -0.072);
-      if (side < 0) f.rotation.y = Math.PI;
-      if (p.status === 'comingSoon') {
-        f.material = ctx.ghost ?? faceGhost(tex);
-      }
-    }
+  if (soon) {
+    solid(ctx, body, fenceGeo(), { castShadow: false });
+    slotSign(ctx, body, spec.slot, 'soon');
+  } else if (p.driveIn && p.status === 'open') {
+    slotSign(ctx, body, spec.slot, 'driveIn');
+    addDriveIn(ctx, g);
   }
-  if (p.driveIn && p.status === 'open') addDriveIn(ctx, g, p.color);
-  if (p.status !== 'derelict' && p.mark) {
-    // Over the sign pole (front corner), clear of the roof-centre anchor used by sale chips.
-    const v = new THREE.Vector3(0.8, 2.05, 0.8).applyAxisAngle(new THREE.Vector3(0, 1, 0), body.rotation.y);
+  if (!derelict && p.mark) {
+    // Above the entrance corner, clear of the roof-centre anchor used by sale chips.
+    const v = new THREE.Vector3(0.62, spec.height + 0.38, 0.62).applyAxisAngle(new THREE.Vector3(0, 1, 0), body.rotation.y);
     addOwnerBadge(g, p.mark, p.color, v.x, v.y, v.z);
   }
   return g;
+}
+
+/** Turn-order totem (art bible §6.13): the chain's roof feature on a 0.5 column, ~1.2 tall. */
+export function buildTotem(ctx: MiniCtx, p: { chain: ChainId; color: string }): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'totem';
+  blob(ctx, g, 0.8, 0.8, true, 0.7);
+  solid(ctx, g, totemGeo(p.chain, p.color.toLowerCase()));
+  return g;
+}
+
+/** The drive-in or coming-soon board standing in the roof slot, decal on both sides. */
+function slotSign(ctx: MiniCtx, body: THREE.Object3D, at: [number, number, number, number], kind: 'driveIn' | 'soon'): void {
+  const o = new THREE.Group();
+  o.name = kind === 'soon' ? 'soonSign' : 'driveInSign';
+  o.position.set(at[0], at[1], at[2]);
+  o.rotation.y = at[3];
+  body.add(o);
+  solid(ctx, o, slotSignGeo(kind));
+  const tex = kind === 'soon' ? comingSoonTexture() : driveInTexture();
+  for (const side of [1, -1]) {
+    const f = face(ctx, o, tex, SLOT_SIGN.w - 0.02, SLOT_SIGN.h - 0.02);
+    f.position.set(0, SLOT_SIGN.y + SLOT_SIGN.h / 2, side * 0.0195);
+    if (side < 0) f.rotation.y = Math.PI;
+  }
 }
 
 /**
@@ -244,22 +143,12 @@ function lightColor(hex: string): boolean {
   return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b > 0.3;
 }
 
-const faceGhosts = new Map<string, THREE.Material>();
-function faceGhost(tex: THREE.Texture): THREE.Material {
-  let m = faceGhosts.get(tex.uuid);
-  if (!m) {
-    m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, toneMapped: false, depthWrite: false });
-    faceGhosts.set(tex.uuid, m);
-  }
-  return m;
-}
-
-/** Drive-in markers: an outward arrow on every corner of the footprint. */
-function addDriveIn(ctx: MiniCtx, g: THREE.Group, color: string): void {
-  const geo = miniGeo(`driveArrow:${color}`, () => {
+/** Drive-in markers: an outward arrow on every corner of the footprint (white, coral outline). */
+function addDriveIn(ctx: MiniCtx, g: THREE.Group): void {
+  const geo = miniGeo('driveArrow:sign', () => {
     const s = new Shape();
-    s.add(extrude('arrow', arrowShape, 0.03, 0.008), playerPalette(color).base, { rot: [-Math.PI / 2, 0, 0], scale: 0.22, jitter: 0 });
-    s.add(extrude('arrow', arrowShape, 0.03, 0.008), P.white, { at: [0, -0.012, 0], rot: [-Math.PI / 2, 0, 0], scale: 0.27, jitter: 0 });
+    s.add(extrude('arrow', arrowShape, 0.03, 0.008), P.white, { rot: [-Math.PI / 2, 0, 0], scale: 0.22, jitter: 0, mat: 'plastic' });
+    s.add(extrude('arrow', arrowShape, 0.03, 0.008), CORAL, { at: [0, -0.012, 0], rot: [-Math.PI / 2, 0, 0], scale: 0.28, jitter: 0, mat: 'plastic' });
     return s;
   });
   for (const c of ['NW', 'NE', 'SE', 'SW'] as Corner[]) {

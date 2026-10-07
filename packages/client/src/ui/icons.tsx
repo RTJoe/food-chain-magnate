@@ -174,22 +174,48 @@ export function FoodIcon({ food, size = 22 }: { food: FoodId; size?: number }) {
   );
 }
 
-/** Original wordmark badge: a diner sign with a tray. */
+/**
+ * Logo mark: a chrome-rimmed coral roundel with "FC" and three chrome wing rules (our own
+ * lettering after the rulebook lockup; docs/art-bible.md §3). Used where the full lockup is too big.
+ */
 export function Logo({ size = 44 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" class="logo-mark">
       <defs>
-        <linearGradient id="lg-sign" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#ef6a55" />
-          <stop offset="1" stop-color="#c8402f" />
+        <linearGradient id="lm-chrome" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#f6f7f8" />
+          <stop offset="0.45" stop-color="#d8d9dc" />
+          <stop offset="1" stop-color="#8f9197" />
+        </linearGradient>
+        <linearGradient id="lm-coral" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#f26a73" />
+          <stop offset="0.55" stop-color="#e53d49" />
+          <stop offset="1" stop-color="#c22f3b" />
         </linearGradient>
       </defs>
-      <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#lg-sign)" />
-      <path d="M14 38h36a18 14 0 0 0-36 0z" fill="#f8ebc2" />
-      <rect x="11" y="39" width="42" height="4.5" rx="2.25" fill="#fffaf0" />
-      <circle cx="32" cy="22" r="2.6" fill="#fffaf0" />
-      <path d="M20 49h24" stroke="#f8ebc2" stroke-width="3" stroke-linecap="round" />
-      <path d="M22 31c3-3 6-4 10-4" stroke="#e8b730" stroke-width="2.4" stroke-linecap="round" fill="none" />
+      <circle cx="32" cy="32" r="31" fill="url(#lm-chrome)" />
+      <circle cx="32" cy="32" r="26.5" fill="url(#lm-coral)" stroke="#fdfcfa" stroke-width="1.6" />
+      <text x="32" y="36.5" text-anchor="middle" font-family="'Lilita One', 'Barlow Condensed', sans-serif" font-size="23" fill="#7d1a24" opacity="0.55">FC</text>
+      <text x="31" y="35" text-anchor="middle" font-family="'Lilita One', 'Barlow Condensed', sans-serif" font-size="23" fill="#fdfcfa">FC</text>
+      <path d="M13 42h38M16 45.5h32M20 49h24" stroke="#fdfcfa" stroke-width="1.6" stroke-linecap="round" opacity="0.9" />
     </svg>
+  );
+}
+
+/**
+ * The full logo lockup: "FOOD CHAIN" in heavy rounded caps with a bevel, "Magnate" in teal script
+ * between chrome wing rules (our own lettering after the rulebook back cover). Text, so it scales
+ * and reads as "Food Chain Magnate".
+ */
+export function LogoLockup({ class: cls = '' }: { class?: string }) {
+  return (
+    <span class={`lockup ${cls}`}>
+      <span class="lockup-top">Food Chain</span>{' '}
+      <span class="lockup-row">
+        <span class="lockup-rule" aria-hidden="true" />
+        <span class="lockup-script">Magnate</span>
+        <span class="lockup-rule" aria-hidden="true" />
+      </span>
+    </span>
   );
 }

@@ -121,12 +121,12 @@ export function dinnerPolyline(b: Board, route: { from: RouteStart; path: Cell[]
   return pts;
 }
 
-/** Solid ribbon with a light outline along `pts` (owner colour). */
+/** Solid ribbon with an ink outline along `pts` (owner colour): 3:1 or better on print and asphalt. */
 export function routeRibbon(pts: readonly P2[], color: string, width = 0.34): THREE.Group {
   const g = new THREE.Group();
   g.name = 'dinnerRoute';
   if (pts.length < 2) return g;
-  const edge = new THREE.Mesh(ribbonGeometry(pts, width + 0.12, ROUTE_Y), flatMat(COLORS.surface, 0.95));
+  const edge = new THREE.Mesh(ribbonGeometry(pts, width + 0.12, ROUTE_Y), flatMat(COLORS.ink, 0.9));
   edge.renderOrder = 7;
   const body = new THREE.Mesh(ribbonGeometry(pts, width, ROUTE_Y + 0.004), flatMat(color, 0.95));
   body.renderOrder = 8;

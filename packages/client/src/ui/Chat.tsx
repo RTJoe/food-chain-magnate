@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import { chat, chatOpen, room, unreadChat } from '../state/store.js';
 import { sendChat } from '../net/session.js';
 import { Empty, IconButton } from './common.js';
+import { playerColorFor } from '../theme.js';
 
 export function ChatBox({ compact }: { compact?: boolean }) {
   const text = useSignal('');
@@ -16,7 +17,7 @@ export function ChatBox({ compact }: { compact?: boolean }) {
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight });
   }, [lines.length]);
-  const colorOf = (seat: number | null) => (seat === null ? 'var(--c-ink-muted)' : (room.value?.seats[seat]?.color ?? 'var(--c-ink-muted)'));
+  const colorOf = (seat: number | null) => (seat === null ? 'var(--c-ink-muted)' : (playerColorFor(room.value?.seats[seat]?.color)?.dark ?? 'var(--c-ink-muted)'));
   return (
     <div class={`chat ${compact ? 'is-compact' : ''}`}>
       <ol class="chat-list" ref={list} aria-live="polite">

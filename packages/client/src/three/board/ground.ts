@@ -1,20 +1,26 @@
 /**
- * Static board: table, rim with edge markers and tile coordinates, one grass slab per 5x5 tile
- * (groove + light lip + shader seam line between tiles, ux-plan §3.4), per-square colour
- * variation, optional square grid and small grass tufts on empty squares.
+ * Static board (docs/art-bible.md §5): a dark wood table, a cream coordinate band with a chrome
+ * edge carrying the tile names, and one printed card slab per 5x5 map tile (off-white speckled
+ * print, faint square grid, small bevel, cardboard sides) butted together with a hairline gap.
+ * The seam line itself is a shader (seams.ts) so it keeps a minimum width on screen. The printed
+ * plates under the minis are in decals.ts (rebuilt with occupancy, through `buildTufts`).
  */
 import * as THREE from 'three';
 import type { Board } from '@fcm/engine';
-import { COLORS } from '../../theme.js';
+import { BOARD } from '../../boardPalette.js';
 import { RIM, hash2 } from '../coords.js';
-import { Shape, box, color, cone, mats, shade } from '../minis/kit.js';
+import { Shape, box, mats, shade } from '../minis/kit.js';
+import { buildPlateDecals } from './decals.js';
 import { buildRimLabels, buildSeams, type SeamLayer } from './seams.js';
+import { groundTileTexture, woodTexture } from './textures.js';
 
-/** Groove between tile slabs (world units). */
-export const TILE_GAP = 0.12;
-/** Raised light lip around each tile's top edge. */
-const LIP_W = 0.07;
-const LIP_H = 0.014;
+/** Hairline gap between tile slabs (world units). */
+export const TILE_GAP = 0.02;
+/** Card thickness. */
+const SLAB_H = 0.12;
+/** Cream coordinate band: inner and outer distance from the map edge. */
+const BAND_IN = 0.6;
+const BAND_OUT = 2.0;
 
 export interface GroundLayer {
   group: THREE.Group;
@@ -28,6 +34,12 @@ export function groundSignature(b: Board): string {
   return `${b.w}x${b.h}|${b.tiles.map((t) => `${t.row},${t.col}`).join(';')}`;
 }
 
+/** Texture size for the tile print: smaller on phones (coarse pointer) to save memory. */
+function groundPx(): number {
+  const coarse = typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches ?? false);
+  return coarse ? 512 : 1024;
+}
+
 export function buildGround(b: Board): GroundLayer {
   const group = new THREE.Group();
   group.name = 'ground';
@@ -35,102 +47,79 @@ export function buildGround(b: Board): GroundLayer {
   const W = b.w;
   const H = b.h;
 
-  // Table under the board.
-  const tableGeo = new THREE.CircleGeometry(Math.max(W, H) * 2.4 + 20, 48).rotateX(-Math.PI / 2);
-  const tableMat = new THREE.MeshStandardMaterial({ color: color('#e3d6b8'), roughness: 0.95, metalness: 0 });
+  // Wood table under everything (UVs scaled so the grain stays ~6 squares per repeat).
+  const R = Math.max(W, H) * 2.4 + 20;
+  const tableGeo = new THREE.CircleGeometry(R, 48).rotateX(-Math.PI / 2);
+  const uv = tableGeo.attributes.uv!;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * R * 2) / 6, (uv.getY(i) * R * 2) / 6);
+  const tableMat = new THREE.MeshStandardMaterial({ map: woodTexture(), color: 0xffffff, roughness: 0.62, metalness: 0, envMapIntensity: 0.5 });
   const table = new THREE.Mesh(tableGeo, tableMat);
-  table.position.set(W / 2, -0.42, H / 2);
+  table.position.set(W / 2, -SLAB_H - 0.002, H / 2);
   table.receiveShadow = true;
   table.name = 'table';
   group.add(table);
   disposables.push(tableGeo, tableMat);
 
-  // Board body: base + raised rim frame.
+  // Coordinate band: cream frame with a chrome edge on both sides, ticks per square, pegs per tile.
   const s = new Shape();
-  const OW = W + RIM * 2;
-  const OH = H + RIM * 2;
-  s.add(box(OW, 0.36, OH, 0.14), shade(COLORS.lot, -0.18), { at: [W / 2, -0.42, H / 2], jitter: 0 });
-  s.add(box(W + 0.3, 0.08, H + 0.3, 0.02), shade(COLORS.tileEdge, -0.42), { at: [W / 2, -0.15, H / 2], jitter: 0 });
-  const rimC = COLORS.lot;
-  const rw = RIM - 0.1;
-  // Four frame pieces (top at y = 0.06).
-  s.add(box(OW - 0.06, 0.42, rw, 0.07), rimC, { at: [W / 2, -0.36, -0.1 - rw / 2], jitter: 0 });
-  s.add(box(OW - 0.06, 0.42, rw, 0.07), rimC, { at: [W / 2, -0.36, H + 0.1 + rw / 2], jitter: 0 });
-  s.add(box(rw, 0.42, H + 0.2, 0.07), rimC, { at: [-0.1 - rw / 2, -0.36, H / 2], jitter: 0 });
-  s.add(box(rw, 0.42, H + 0.2, 0.07), rimC, { at: [W + 0.1 + rw / 2, -0.36, H / 2], jitter: 0 });
-  // Inner lip (darker band hugging the play area).
-  const lip = shade(COLORS.tileEdge, -0.1);
-  s.add(box(W + 0.36, 0.05, 0.12, 0.02), lip, { at: [W / 2, 0.02, -0.12], jitter: 0 });
-  s.add(box(W + 0.36, 0.05, 0.12, 0.02), lip, { at: [W / 2, 0.02, H + 0.12], jitter: 0 });
-  s.add(box(0.12, 0.05, H + 0.36, 0.02), lip, { at: [-0.12, 0.02, H / 2], jitter: 0 });
-  s.add(box(0.12, 0.05, H + 0.36, 0.02), lip, { at: [W + 0.12, 0.02, H / 2], jitter: 0 });
-  // Edge markers: a tick per square along each side, a bigger peg at tile boundaries.
-  const tick = shade(COLORS.lot, -0.22);
-  const peg = shade(COLORS.tileEdge, -0.3);
-  for (let x = 0; x < W; x++) {
-    for (const z of [-0.45, H + 0.45]) s.add(box(0.1, 0.02, 0.22, 0.01), tick, { at: [x + 0.5, 0.06, z], jitter: 0 });
+  const bandW = BAND_OUT - BAND_IN;
+  const bandMid = (BAND_IN + BAND_OUT) / 2;
+  const bandY = -SLAB_H;
+  const bandH = SLAB_H + 0.02;
+  const rim = BOARD.rim;
+  const chrome = BOARD.chrome;
+  const chromeD = BOARD.chromeShade;
+  // North / south pieces span the corners; west / east fit between them.
+  for (const z of [-bandMid, H + bandMid]) s.add(box(W + BAND_OUT * 2, bandH, bandW, 0.02), rim, { at: [W / 2, bandY, z], jitter: 0 });
+  for (const x of [-bandMid, W + bandMid]) s.add(box(bandW, bandH, H + BAND_IN * 2, 0.02), rim, { at: [x, bandY, H / 2], jitter: 0 });
+  const edge = (len: number, at: [number, number, number], alongX: boolean, c: THREE.Color | string) =>
+    s.add(alongX ? box(len, bandH + 0.025, 0.07, 0.015) : box(0.07, bandH + 0.025, len, 0.015), c, { at, jitter: 0 });
+  for (const d of [BAND_IN, BAND_OUT]) {
+    const c = d === BAND_IN ? chromeD : chrome;
+    edge(W + d * 2, [W / 2, bandY, -d], true, c);
+    edge(W + d * 2, [W / 2, bandY, H + d], true, c);
+    edge(H + d * 2 - 0.07, [-d, bandY, H / 2], false, c);
+    edge(H + d * 2 - 0.07, [W + d, bandY, H / 2], false, c);
   }
-  for (let y = 0; y < H; y++) {
-    for (const x of [-0.45, W + 0.45]) s.add(box(0.22, 0.02, 0.1, 0.01), tick, { at: [x, 0.06, y + 0.5], jitter: 0 });
-  }
-  for (let x = 0; x <= W; x += b.tileSize) for (const z of [-0.45, H + 0.45]) s.add(box(0.12, 0.05, 0.12, 0.02), peg, { at: [x, 0.06, z], jitter: 0 });
-  for (let y = 0; y <= H; y += b.tileSize) for (const x of [-0.45, W + 0.45]) s.add(box(0.12, 0.05, 0.12, 0.02), peg, { at: [x, 0.06, y], jitter: 0 });
+  const top = bandY + bandH;
+  const tick = shade(BOARD.rimInk, 0.25);
+  const peg = shade(BOARD.rimInk, 0);
+  for (let x = 0; x < W; x++) for (const z of [-BAND_IN - 0.2, H + BAND_IN + 0.2]) s.add(box(0.05, 0.006, 0.2, 0), tick, { at: [x + 0.5, top, z], jitter: 0 });
+  for (let y = 0; y < H; y++) for (const x of [-BAND_IN - 0.2, W + BAND_IN + 0.2]) s.add(box(0.2, 0.006, 0.05, 0), tick, { at: [x, top, y + 0.5], jitter: 0 });
+  for (let x = 0; x <= W; x += b.tileSize) for (const z of [-BAND_IN - 0.25, H + BAND_IN + 0.25]) s.add(box(0.07, 0.008, 0.36, 0), peg, { at: [x, top, z], jitter: 0 });
+  for (let y = 0; y <= H; y += b.tileSize) for (const x of [-BAND_IN - 0.25, W + BAND_IN + 0.25]) s.add(box(0.36, 0.008, 0.07, 0), peg, { at: [x, top, y], jitter: 0 });
+  // Dark base under the tiles: what shows through the hairline gaps.
+  s.add(box(W + 0.04, 0.02, H + 0.04, 0), shade(BOARD.core, -0.45), { at: [W / 2, -SLAB_H - 0.001, H / 2], jitter: 0 });
+  const frameGeo = s.build();
+  disposables.push(frameGeo);
+  const frame = new THREE.Mesh(frameGeo, mats().body);
+  frame.receiveShadow = true;
+  frame.name = 'board';
+  group.add(frame);
 
-  // Tiles (ux-plan §3.4): each 5x5 tile is a separate slab with a 0.12 groove between tiles
-  // (gap floor in tileEdge), a light raised lip around its top edge, and per-square grass tops.
-  const ts = b.tileSize;
-  const grass = color(COLORS.grass);
-  const side = shade(COLORS.grass, -0.25);
-  const lipC = color(COLORS.tileEdge);
-  const half = TILE_GAP / 2;
-  const inner = half + LIP_W;
-  for (const t of b.tiles) {
-    const x0 = t.col * ts;
-    const y0 = t.row * ts;
-    const cx = x0 + ts / 2;
-    const cz = y0 + ts / 2;
-    s.add(box(ts - TILE_GAP, 0.09, ts - TILE_GAP, 0.03), side, { at: [cx, -0.1, cz], jitter: 0 });
-    // Lip: four chamfered strips standing LIP_H above the grass.
-    const L = ts - TILE_GAP;
-    s.add(box(L, LIP_H + 0.02, LIP_W, 0.012), lipC, { at: [cx, -0.02, y0 + half + LIP_W / 2], jitter: 0 });
-    s.add(box(L, LIP_H + 0.02, LIP_W, 0.012), lipC, { at: [cx, -0.02, y0 + ts - half - LIP_W / 2], jitter: 0 });
-    s.add(box(LIP_W, LIP_H + 0.02, L - LIP_W * 2, 0.012), lipC, { at: [x0 + half + LIP_W / 2, -0.02, cz], jitter: 0 });
-    s.add(box(LIP_W, LIP_H + 0.02, L - LIP_W * 2, 0.012), lipC, { at: [x0 + ts - half - LIP_W / 2, -0.02, cz], jitter: 0 });
-    for (let dy = 0; dy < ts; dy++)
-      for (let dx = 0; dx < ts; dx++) {
-        const x = x0 + dx;
-        const y = y0 + dy;
-        const j = (hash2(x, y, 7) - 0.5) * 0.07 + ((x + y) % 2 ? 0.012 : -0.012);
-        const c = grass.clone().multiplyScalar(1 + j);
-        const inset = (edge: boolean) => (edge ? inner : 0);
-        const wx = 1 - inset(dx === 0) - inset(dx === ts - 1);
-        const wz = 1 - inset(dy === 0) - inset(dy === ts - 1);
-        s.add(box(wx, 0.02, wz, 0), c, {
-          at: [x + 0.5 + (inset(dx === 0) - inset(dx === ts - 1)) / 2, -0.02, y + 0.5 + (inset(dy === 0) - inset(dy === ts - 1)) / 2],
-          jitter: 0,
-        });
-      }
-  }
-  // Tile coordinates on the rim (columns A, B, ... north and south; rows 1, 2, ... west and east).
-  const labels = buildRimLabels(b);
+  // Tile slabs: printed top (shared texture, turned / mirrored per tile) and cardboard sides.
+  const tiles = buildTileSlabs(b);
+  disposables.push(tiles.geometry);
+  const topMat = new THREE.MeshStandardMaterial({ map: groundTileTexture(groundPx()), roughness: 0.86, metalness: 0, envMapIntensity: 0.45 });
+  const sideMat = new THREE.MeshStandardMaterial({ color: BOARD.core, roughness: 0.95, metalness: 0, envMapIntensity: 0.3 });
+  disposables.push(topMat, sideMat);
+  const slabs = new THREE.Mesh(tiles.geometry, [topMat, sideMat]);
+  slabs.receiveShadow = true;
+  slabs.name = 'tiles';
+  group.add(slabs);
+
+  // Tile coordinates on the band (columns A, B, ... north and south; rows 1, 2, ... west and east).
+  const labels = buildRimLabels(b, bandMid, top + 0.004);
   group.add(labels.group);
   disposables.push(labels);
 
-  const geo = s.build();
-  disposables.push(geo);
-  const mesh = new THREE.Mesh(geo, mats().body);
-  mesh.receiveShadow = true;
-  mesh.castShadow = false;
-  mesh.name = 'board';
-  group.add(mesh);
-
-  // Optional square grid.
+  // Optional square grid (darker than the print grid, for counting squares).
   const pts: number[] = [];
   for (let x = 0; x <= W; x++) pts.push(x, 0.004, 0, x, 0.004, H);
   for (let y = 0; y <= H; y++) pts.push(0, 0.004, y, W, 0.004, y);
   const gridGeo = new THREE.BufferGeometry();
   gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  const gridMat = new THREE.LineBasicMaterial({ color: shade(COLORS.grass, -0.45), transparent: true, opacity: 0.35, depthWrite: false });
+  const gridMat = new THREE.LineBasicMaterial({ color: BOARD.seam, transparent: true, opacity: 0.55, depthWrite: false });
   const grid = new THREE.LineSegments(gridGeo, gridMat);
   grid.visible = false;
   grid.name = 'grid';
@@ -154,31 +143,71 @@ export function buildGround(b: Board): GroundLayer {
   };
 }
 
-/** Grass tufts on some empty squares (instanced, rebuilt when occupancy changes). */
-export function buildTufts(b: Board): THREE.InstancedMesh | null {
-  const spots: [number, number, number][] = [];
-  for (let y = 0; y < b.h; y++)
-    for (let x = 0; x < b.w; x++) {
-      const c = b.cells[y]?.[x];
-      if (!c || c.kind !== 'empty') continue;
-      const r = hash2(x, y, 3);
-      if (r < 0.32) spots.push([x + 0.2 + hash2(x, y, 4) * 0.6, y + 0.2 + hash2(x, y, 5) * 0.6, r]);
+/** One merged geometry: per tile a textured top (group 0) and four sides (group 1). */
+function buildTileSlabs(b: Board): { geometry: THREE.BufferGeometry } {
+  const ts = b.tileSize;
+  const g = TILE_GAP / 2;
+  const topPos: number[] = [];
+  const topNor: number[] = [];
+  const topUv: number[] = [];
+  const topIdx: number[] = [];
+  const sidePos: number[] = [];
+  const sideNor: number[] = [];
+  const sideIdx: number[] = [];
+  for (const t of b.tiles) {
+    const x0 = t.col * ts + g;
+    const z0 = t.row * ts + g;
+    const x1 = (t.col + 1) * ts - g;
+    const z1 = (t.row + 1) * ts - g;
+    // Orientation of the shared print: 4 turns x mirror, from the tile's position.
+    const v = Math.floor(hash2(t.col, t.row, 11) * 8);
+    const k = v % 4;
+    const flip = v >= 4;
+    const base = topPos.length / 3;
+    for (const [lx, lz] of [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ] as const) {
+      topPos.push(lx ? x1 : x0, 0, lz ? z1 : z0);
+      topNor.push(0, 1, 0);
+      let u = flip ? 1 - lx : lx;
+      let w = 1 - lz;
+      for (let i = 0; i < k; i++) [u, w] = [1 - w, u];
+      topUv.push(u, w);
     }
-  if (!spots.length) return null;
-  const s = new Shape();
-  s.add(cone(0.05, 0.13, 4), shade(COLORS.grass, -0.2), { at: [0, -0.01, 0], rot: [0, 0, 0.2] });
-  s.add(cone(0.04, 0.1, 4), shade(COLORS.grass, -0.12), { at: [0.06, -0.01, 0.03], rot: [0, 0, -0.3] });
-  s.add(cone(0.035, 0.09, 4), shade(COLORS.grass, -0.28), { at: [-0.04, -0.01, 0.05], rot: [0.3, 0, 0] });
-  const geo = s.build();
-  const mesh = new THREE.InstancedMesh(geo, mats().body, spots.length);
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  spots.forEach(([x, z, r], i) => {
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r * 40);
-    m.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(1, 0.8 + r, 1));
-    mesh.setMatrixAt(i, m);
-  });
-  mesh.name = 'tufts';
-  mesh.receiveShadow = true;
-  return mesh;
+    topIdx.push(base, base + 3, base + 2, base, base + 2, base + 1);
+    const y0 = -SLAB_H;
+    const quad = (a: [number, number, number], bb: [number, number, number], c: [number, number, number], d: [number, number, number], n: [number, number, number]) => {
+      const s0 = sidePos.length / 3;
+      for (const p of [a, bb, c, d]) {
+        sidePos.push(...p);
+        sideNor.push(...n);
+      }
+      sideIdx.push(s0, s0 + 1, s0 + 2, s0, s0 + 2, s0 + 3);
+    };
+    quad([x0, y0, z1], [x1, y0, z1], [x1, 0, z1], [x0, 0, z1], [0, 0, 1]);
+    quad([x1, y0, z0], [x0, y0, z0], [x0, 0, z0], [x1, 0, z0], [0, 0, -1]);
+    quad([x1, y0, z1], [x1, y0, z0], [x1, 0, z0], [x1, 0, z1], [1, 0, 0]);
+    quad([x0, y0, z0], [x0, y0, z1], [x0, 0, z1], [x0, 0, z0], [-1, 0, 0]);
+  }
+  const n = topPos.length / 3;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute([...topPos, ...sidePos], 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute([...topNor, ...sideNor], 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute([...topUv, ...new Array((sidePos.length / 3) * 2).fill(0)], 2));
+  geo.setIndex([...topIdx, ...sideIdx.map((i) => i + n)]);
+  geo.addGroup(0, topIdx.length, 0);
+  geo.addGroup(topIdx.length, sideIdx.length, 1);
+  geo.computeBoundingSphere();
+  return { geometry: geo };
+}
+
+/**
+ * Printed plates under the minis (houses, gardens, apartments, parks, drink suppliers). Rebuilt
+ * when occupancy changes (the reconciler's "tufts" layer; the grass tufts went with the grass).
+ */
+export function buildTufts(b: Board): THREE.InstancedMesh | null {
+  return buildPlateDecals(b);
 }

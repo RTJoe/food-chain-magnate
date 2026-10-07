@@ -10,3 +10,7 @@ docs/rules/source/
 test-results/
 playwright-report/
 packages/ai/runs/
+
+# Third-party reference photos for the art bible (research only, not shipped)
+docs/art/refs/
+docs/art/current/

@@ -1,20 +1,24 @@
 /**
- * Tile seams (ux-plan §3.4 layer 2): a shader line on every map tile edge, drawn just above the
- * grass (roads and minis cover it). The line has a world width (0.05, 0.09 in top view) and a
- * minimum width in pixels, so it stays visible at any zoom and on phones. High contrast doubles the
- * width and tints every other tile 4%.
+ * Tile seams (ux-plan §3.4 layer 2, art bible §5): a hairline on every map tile edge, drawn just
+ * above the tile print (roads and minis cover it; `buildRoadSeams` draws the same line across the
+ * roads, in ink). The line has a world width (0.03 tilted, 0.05 in top view) and a minimum width
+ * of 1.25 css px, so tile borders stay countable at any zoom and on phones. High contrast doubles
+ * the width, draws it in ink and tints every other tile 6%.
  *
- * Also: tile coordinate labels on the rim (columns A, B, ...; rows 1, 2, ...).
+ * Also: tile coordinate labels on the coordinate band (columns A, B, ...; rows 1, 2, ...).
  */
 import * as THREE from 'three';
 import type { Board } from '@fcm/engine';
+import { BOARD } from '../../boardPalette.js';
 import { COLORS } from '../../theme.js';
-import { RIM } from '../coords.js';
-import { shade } from '../minis/kit.js';
+import { ROAD_TOP } from '../coords.js';
+import { color } from '../minis/kit.js';
 
-/** Seam line colour: tileEdge darkened (≥ 3:1 against grass). */
-export const SEAM_COLOR = shade(COLORS.tileEdge, -0.58);
+/** Seam line colour (3:1 or better against the tile print). */
+export const SEAM_COLOR = color(BOARD.seam);
 const SEAM_Y = 0.016;
+/** Shared by every seam material, so the road seams follow the ground seams' style. */
+const shared = { uTop: { value: 0 }, uHC: { value: 0 } };
 const EXT = 0.2;
 
 export interface SeamLayer {
@@ -59,7 +63,8 @@ void main() {
   float t = uHC * 0.06 * vParity * inside;
   float alpha = max(a * 0.92, t);
   if (alpha < 0.002) discard;
-  vec3 c = mix(uTint, uColor, a / max(a + t, 1e-5));
+  vec3 line = mix(uColor, uTint, uHC);
+  vec3 c = mix(uTint, line, a / max(a + t, 1e-5));
   gl_FragColor = vec4(c, alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -94,17 +99,38 @@ export function buildSeams(b: Board): SeamLayer {
   geo.setAttribute('aLocal', new THREE.Float32BufferAttribute(local, 2));
   geo.setAttribute('aParity', new THREE.Float32BufferAttribute(parity, 1));
   geo.setIndex(idx);
-  const mat = new THREE.ShaderMaterial({
+  const mat = seamMaterial(ts, SEAM_COLOR, 1);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'seams';
+  mesh.renderOrder = 1;
+  mesh.frustumCulled = false;
+  return {
+    mesh,
+    setTop(t) {
+      shared.uTop.value = Math.min(1, Math.max(0, t));
+    },
+    setHighContrast(on) {
+      shared.uHC.value = on ? 1 : 0;
+    },
+    dispose() {
+      geo.dispose();
+      mat.dispose();
+    },
+  };
+}
+
+function seamMaterial(ts: number, c: THREE.Color, tint: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
     vertexShader: vert,
     fragmentShader: frag,
     uniforms: {
-      uColor: { value: SEAM_COLOR.clone() },
-      uTint: { value: shade(COLORS.ink, 0) },
+      uColor: { value: c.clone() },
+      uTint: { value: color(COLORS.ink).multiplyScalar(tint) },
       uSize: { value: ts },
       uHalf: { value: 0.03 },
       uHalfTop: { value: 0.05 },
-      uTop: { value: 0 },
-      uHC: { value: 0 },
+      uTop: shared.uTop,
+      uHC: shared.uHC,
       uMinPx: { value: 1.25 },
     },
     transparent: true,
@@ -113,18 +139,63 @@ export function buildSeams(b: Board): SeamLayer {
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
   });
+}
+
+/** A road crossing a tile border: the border square pair's shared edge. */
+export interface SeamCrossing {
+  /** World point on the seam, at the road's centre line. */
+  x: number;
+  z: number;
+  /** Seam runs along z (a vertical border, road E-W) or along x. */
+  alongZ: boolean;
+}
+
+/**
+ * The seam line across roads (ink on asphalt, 3:1 or better), same width rules as on the print.
+ * Drawn just above the road surface; zebras and dashes keep clear of it.
+ */
+export function buildRoadSeams(ts: number, crossings: readonly SeamCrossing[]): { mesh: THREE.Mesh; dispose(): void } | null {
+  if (!crossings.length) return null;
+  const pos: number[] = [];
+  const local: number[] = [];
+  const parity: number[] = [];
+  const idx: number[] = [];
+  const E = 0.25;
+  for (const c of crossings) {
+    const base = pos.length / 3;
+    // Local coordinates of a tile whose west (or north) edge is the seam: d = |l.x| (or |l.y|).
+    const quad: [number, number, number, number][] = c.alongZ
+      ? [
+          [c.x - E, c.z - 0.5, -E, 2],
+          [c.x + E, c.z - 0.5, E, 2],
+          [c.x + E, c.z + 0.5, E, 3],
+          [c.x - E, c.z + 0.5, -E, 3],
+        ]
+      : [
+          [c.x - 0.5, c.z - E, 2, -E],
+          [c.x + 0.5, c.z - E, 3, -E],
+          [c.x + 0.5, c.z + E, 3, E],
+          [c.x - 0.5, c.z + E, 2, E],
+        ];
+    for (const [x, z, lx, lz] of quad) {
+      pos.push(x, ROAD_TOP + 0.004, z);
+      local.push(lx, lz);
+      parity.push(0);
+    }
+    idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('aLocal', new THREE.Float32BufferAttribute(local, 2));
+  geo.setAttribute('aParity', new THREE.Float32BufferAttribute(parity, 1));
+  geo.setIndex(idx);
+  const mat = seamMaterial(ts, color(BOARD.seamOnRoad), 0.6);
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.name = 'seams';
-  mesh.renderOrder = 1;
+  mesh.name = 'roadSeams';
+  mesh.renderOrder = 2;
   mesh.frustumCulled = false;
   return {
     mesh,
-    setTop(t) {
-      mat.uniforms.uTop!.value = Math.min(1, Math.max(0, t));
-    },
-    setHighContrast(on) {
-      mat.uniforms.uHC!.value = on ? 1 : 0;
-    },
     dispose() {
       geo.dispose();
       mat.dispose();
@@ -142,41 +213,57 @@ export const tileName = (row: number, col: number): string => `${tileColName(col
 
 const labelTex = new Map<string, THREE.Texture>();
 function rimLabelTexture(text: string): THREE.Texture {
-  let t = labelTex.get(text);
-  if (t) return t;
+  const hit = labelTex.get(text);
+  if (hit) return hit;
   const c = document.createElement('canvas');
   c.width = 128;
   c.height = 128;
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = `#${shade(COLORS.lot, -0.42).getHexString()}`;
-  ctx.font = '800 92px ui-rounded, "SF Pro Rounded", system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, 64, 70);
-  t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  labelTex.set(text, t);
-  return t;
+  const draw = () => {
+    ctx.clearRect(0, 0, 128, 128);
+    ctx.fillStyle = BOARD.rimInk;
+    ctx.font = `700 104px ${LABEL_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 64, 70);
+  };
+  draw();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  labelTex.set(text, tex);
+  // Barlow Condensed may still be loading: redraw once it is there (next frame picks it up).
+  const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+  if (fonts && !fonts.check(`700 104px ${LABEL_FONT}`))
+    void fonts
+      .load(`700 104px ${LABEL_FONT}`)
+      .then(() => {
+        draw();
+        tex.needsUpdate = true;
+      })
+      .catch(() => undefined);
+  return tex;
 }
 
-export function buildRimLabels(b: Board): { group: THREE.Group; setYaw(yaw: number): void; dispose(): void } {
+const LABEL_FONT = '"Barlow Condensed", "Arial Narrow", system-ui, sans-serif';
+
+/** `off`: distance of the label centres from the map edge; `y`: height of the band top. */
+export function buildRimLabels(b: Board, off: number, y: number): { group: THREE.Group; setYaw(yaw: number): void; dispose(): void } {
   const group = new THREE.Group();
   group.name = 'rimLabels';
   const ts = b.tileSize;
-  const geo = new THREE.PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2);
+  const geo = new THREE.PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2);
   const mats: THREE.Material[] = [];
   const add = (text: string, x: number, z: number) => {
     const mat = new THREE.MeshBasicMaterial({ map: rimLabelTexture(text), transparent: true, depthWrite: false, toneMapped: false });
     mats.push(mat);
     const m = new THREE.Mesh(geo, mat);
-    m.position.set(x, 0.065, z);
+    m.position.set(x, y, z);
     m.renderOrder = 1;
     group.add(m);
   };
   const cols = Math.round(b.w / ts);
   const rows = Math.round(b.h / ts);
-  const off = RIM * 0.5;
   for (let c = 0; c < cols; c++) {
     add(tileColName(c), c * ts + ts / 2, -off);
     add(tileColName(c), c * ts + ts / 2, b.h + off);

@@ -10,6 +10,7 @@ import { Button, FoodChips, PlayerBadge } from './common.js';
 import { RollingCash } from './motion.js';
 import { Icon } from './icons.js';
 import { BotBadge } from './bots.js';
+import { CHAIN_NAMES, playerColorFor } from '../theme.js';
 import { lessonSeatWaiting } from '../tutorial/runner.js';
 
 export function PlayerPanels() {
@@ -91,11 +92,12 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
   const submitted = v.submitted[id];
   const simultaneous = v.phase.kind === 'restructuring' || v.phase.kind === 'setup.reserve' || v.phase.kind === 'cleanup';
   const restaurantsOnBoard = Object.values(v.board.restaurants).filter((r) => r.owner === id).length;
+  const felt = playerColorFor(p.color)?.felt;
 
   return (
     <article
       class={`ppanel glass ${active ? 'is-active' : ''} ${isMe ? 'is-me' : ''} ${p.bankrupt ? 'is-bankrupt' : ''} ${bot ? 'is-bot' : ''} ${open.value ? 'is-open' : ''}`}
-      style={{ '--pc': p.color }}
+      style={{ '--pc': p.color, ...(felt ? { '--pf': felt } : {}) }}
       data-flip={`panel:${id}`}
       data-tutorial={`rail-${id}`}
       onMouseEnter={() => (inspectIds.value = playerPieceIds(v, id))}
@@ -106,6 +108,7 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
         <span class="ppanel-name">
           <b>{p.name}</b>
           {bot && <BotBadge level={bot} thinking={thinking} />}
+          {p.chain && <span class="ppanel-chain">{CHAIN_NAMES[p.chain]}</span>}
           <span class="ppanel-sub">
             {connected !== null && <span class={`dot ${connected ? 'is-on' : 'is-off'}`} aria-label={connected ? 'Online' : 'Offline'} />}
             {isMe ? 'You' : `#${rank} in cash`}

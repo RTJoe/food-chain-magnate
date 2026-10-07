@@ -27,6 +27,25 @@ const PLAQUE_FULL_PPU = 50;
 
 export type Tier = 'high' | 'medium' | 'low';
 
+/**
+ * Light rig (art bible §5): warm key from the upper left, cool fill from the right, warm hemisphere
+ * ambient, ACES at exposure 1.0. Intensities tuned against the SE photos (se-board-tiles-houses-
+ * minis, se-full-board-3x3): the print renders off-white (~#e4e1db), the asphalt warm grey and
+ * the burgundy / green plastics true. The room environment stays low (0.15): its white sheen is
+ * what washed the plastics out to dusty pink.
+ */
+const LIGHT = {
+  key: '#fff4e0',
+  keyI: 2.4,
+  fill: '#dfe9f0',
+  fillI: 0.5,
+  ambient: '#f3eee2',
+  ambientGround: '#c9bfae',
+  ambientI: 0.85,
+  env: 0.15,
+  exposure: 1.0,
+} as const;
+
 const TIER_ORDER: Tier[] = ['high', 'medium', 'low'];
 
 /** Graphics preference: 'auto' guesses from the device and steps down on slow frames. */
@@ -98,6 +117,8 @@ export class Stage {
   readonly tweens = new Tweens();
   readonly sun: THREE.DirectionalLight;
   readonly hemi: THREE.HemisphereLight;
+  /** Cool fill from the right (no shadows). */
+  readonly fill: THREE.DirectionalLight;
   tier: Tier;
 
   /** Called every frame before rendering with (dt, time) in seconds. */
@@ -125,8 +146,9 @@ export class Stage {
     this.tier = tier;
     this.renderer = new THREE.WebGLRenderer({ antialias: tier !== 'low', powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.NeutralToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    // Art bible §5: ACES at exposure 1.0 so the single-colour plastics do not blow out.
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = LIGHT.exposure;
     this.renderer.setClearColor(COLORS.paper);
     const canvas = this.renderer.domElement;
     canvas.style.display = 'block';
@@ -151,16 +173,20 @@ export class Stage {
       this.overlay.add(g);
     }
 
-    this.hemi = new THREE.HemisphereLight('#fff3dc', '#b49b78', 1.25);
+    // Art bible §5 light rig: warm key from the upper left (the sun, casts shadows), cool fill from
+    // the right, warm ambient.
+    this.hemi = new THREE.HemisphereLight(LIGHT.ambient, LIGHT.ambientGround, LIGHT.ambientI);
     this.scene.add(this.hemi);
-    this.sun = new THREE.DirectionalLight('#fff1d6', 2.3);
+    this.fill = new THREE.DirectionalLight(LIGHT.fill, LIGHT.fillI);
+    this.scene.add(this.fill, this.fill.target);
+    this.sun = new THREE.DirectionalLight(LIGHT.key, LIGHT.keyI);
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.025;
     this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target);
 
     this.buildEnvironment();
-    this.scene.environmentIntensity = 0.35;
+    this.scene.environmentIntensity = LIGHT.env;
     // Phones drop the context of a backgrounded tab; GPU resets do too. preventDefault lets the
     // browser restore it.
     canvas.addEventListener('webglcontextlost', this.contextLostHandler, false);
@@ -213,6 +239,8 @@ export class Stage {
     const r = Math.hypot(w, h) / 2 + RIM + extra;
     this.sun.position.set(cx - r * 0.55, r * 1.6, cz - r * 0.9);
     this.sun.target.position.set(cx, 0, cz);
+    this.fill.position.set(cx + r * 1.2, r * 0.9, cz + r * 0.2);
+    this.fill.target.position.set(cx, 0, cz);
     const cam = this.sun.shadow.camera;
     cam.left = -r;
     cam.right = r;
@@ -251,7 +279,7 @@ export class Stage {
     }
     this.inst.setShadows(shadows);
     // Without shadow maps the contact blobs carry the grounding; lift the fill a little.
-    this.hemi.intensity = shadows ? 1.25 : 1.55;
+    this.hemi.intensity = shadows ? LIGHT.ambientI : LIGHT.ambientI * 1.25;
     // Materials must recompile when the shadow setup changes.
     this.scene.traverse((o) => {
       const m = (o as THREE.Mesh).material;

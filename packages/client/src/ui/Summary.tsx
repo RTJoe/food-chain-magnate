@@ -23,6 +23,7 @@ import { catalog, me, summaries, view, type PhaseSummary } from '../state/store.
 import { Button, Cash, IconButton, PlayerBadge } from './common.js';
 import { FoodIcon, Icon } from './icons.js';
 import { openSummary, seenSummary, sheetOpen } from './uiState.js';
+import { inkOn, playerColorFor } from '../theme.js';
 import '../styles/feedback.css';
 
 type Ev<T extends GameEvent['type']> = Extract<GameEvent, { type: T }>;
@@ -33,6 +34,11 @@ const TITLES: Record<string, string> = { dinnertime: 'Dinnertime results', payda
 const nameOf = (v: GameView, id: PlayerId | null | undefined) => (id ? (v.players[id]?.name ?? id) : 'Someone');
 const houseLabel = (v: GameView, id: string) => v.board.houses[id]?.label ?? id;
 const colorOf = (v: GameView, id: PlayerId | null | undefined) => (id ? v.players[id]?.color : undefined) ?? '#8f8b88';
+/** Seat colour as CSS vars: --sx-c (fill, border), --sx-on (label on the fill), --sx-ink (seat-coloured text, 4.5:1 on surface). */
+const sxVars = (v: GameView, id: PlayerId | null | undefined) => {
+  const c = colorOf(v, id);
+  return { '--sx-c': c, '--sx-on': c.startsWith('#') && c.length === 7 ? inkOn(c) : '#fffaf0', '--sx-ink': playerColorFor(c)?.dark ?? 'var(--c-ink)' };
+};
 
 /** Results strip for the newest unseen summary (or one opened from the log), plus the live phase caption. */
 export function SummaryCard() {
@@ -269,7 +275,7 @@ function Dinner({ view: v, events }: { view: GameView; events: GameEvent[] }) {
               key={s.houseId}
               type="button"
               class={`sx-chip ${on ? 'is-on' : ''} ${s.sale ? '' : 'is-home'}`}
-              style={s.sale ? { '--sx-c': colorOf(v, s.sale.player) } : undefined}
+              style={s.sale ? sxVars(v, s.sale.player) : undefined}
               title={s.sale ? `${nameOf(v, s.sale.player)} sells $${s.sale.total}` : 'Stayed home'}
               onClick={() => go(i)}
             >
@@ -334,7 +340,7 @@ function DinnerDetail({ view: v, step: s }: { view: GameView; step: DinnerStep }
       {s.offers.length > 0 && (
         <ul class="sx-offers">
           {s.offers.map((o) => (
-            <li key={o.player} class={`${o.won ? 'is-won' : ''} ${o.canSupply ? '' : 'is-out'}`} style={{ '--sx-c': colorOf(v, o.player) }}>
+            <li key={o.player} class={`${o.won ? 'is-won' : ''} ${o.canSupply ? '' : 'is-out'}`} style={sxVars(v, o.player)}>
               <span class="sx-swatch" />
               <span>{nameOf(v, o.player)}</span>
               <span class="sx-math">
@@ -445,7 +451,7 @@ function Marketing({ view: v, events }: { view: GameView; events: GameEvent[] })
                 key={st.campaignId}
                 type="button"
                   class={`sx-chip ${on ? 'is-on' : ''} ${st.drops.length ? '' : 'is-home'}`}
-                style={cm ? { '--sx-c': colorOf(v, cm.owner) } : undefined}
+                style={cm ? sxVars(v, cm.owner) : undefined}
                 onClick={() => go(i)}
               >
                 {cm?.number != null ? `#${cm.number}` : i + 1}
@@ -531,7 +537,7 @@ function CaptionPill({ view: v }: { view: GameView }) {
   const who = c.kind === 'sale' ? c.player : c.kind === 'campaign' ? c.owner : null;
   return (
     // Visual only: re-keyed per caption, so not a live region. Results are announced from the summaries (Table.tsx).
-    <div key={c.key} class={`phase-caption glass is-${c.kind}`} style={who ? { '--sx-c': colorOf(v, who) } : undefined}>
+    <div key={c.key} class={`phase-caption glass is-${c.kind}`} style={who ? sxVars(v, who) : undefined}>
       {c.kind === 'campaign' || (c.kind === 'done' && c.phase === 'marketing') ? Icon.marketing({ size: 16 }) : Icon.dinner({ size: 16 })}
       <span>{captionText(v, c, (g) => foodName(cat, g as never).toLowerCase())}</span>
     </div>

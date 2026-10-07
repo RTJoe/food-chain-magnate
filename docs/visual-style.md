@@ -6,31 +6,62 @@ Colour tokens live in `packages/client/src/theme.ts` and are shared by CSS (`--c
 
 ## Palette
 
-UI
+UI (docs/art-bible.md §2: the rulebook's flat print colours)
 
 | Token | Hex | Use |
 |---|---|---|
-| paper | `#f4ead5` | page background |
-| surface | `#fffaf0` | panels, cards |
-| surfaceSunk | `#ebdfc6` | wells, inactive chips |
-| ink | `#2b2a33` | text |
-| inkMuted | `#5f5b68` | secondary text (5.0:1 on surfaceSunk, 5.5:1 on paper) |
-| line | `#d4c6a8` | borders |
-| accent / accentHover | `#c4402f` / `#a93526` | primary buttons (white text 5.1:1), accent text (4.9:1 on surface) |
-| focus | `#2f7fc4` | focus rings and selection outlines only (3:1 or more on every surface); never text |
-| link | `#255f92` | link text and text buttons (6.4:1 on surface, 5.1:1 on surfaceSunk) |
-| ok / warn / danger | `#2f7a46` / `#e8a530` / `#c0392b` | status (ok: white text 5.3:1, as text 5.0:1) |
+| paper | `#f7f5ed` | page background, with a fractal-noise grain and a corner vignette (CSS `--paper-grain`, `--paper-vignette`) |
+| surface | `#fdfcfa` | cards, panels (never `#fff`) |
+| surfaceSunk / surfaceWell | `#e9e7dd` / `#d9d7cc` | wells, inactive chips / recessed tray slots |
+| panelTeal | `#e9f1ed` | "TV panel" fill (dock, dialogs, Home cards) with a 2 px `teal` outline |
+| panelGreen | `#edf5e4` | tutorial and rules asides |
+| ink | `#262626` | text (13.9:1 on paper) |
+| inkMuted | `#5c5c5c` | secondary text (5.4:1 on surfaceSunk) |
+| line / lineMid / lineStrong | `#cfcac0` / `#b5b0a5` / `#8f8a80` | hairlines / visible borders (2.6:1) / borders that must meet 3:1 (inputs) |
+| labelBar | `#8a8a86` | "FOR EXAMPLE:" bars, white italic caps (large text only) |
+| accent (coralInk) / accentHover / accentShadow | `#c9303c` / `#b8262f` / `#8e2a45` | primary buttons, active tab, active phase ribbon, selected chips (white text 5.3:1); accent text (5.2:1 on surface) |
+| coral | `#e53d49` | logo, script titles (`h1`), ribbons, numbered circles: large text and non-text only (4.0:1) |
+| coralSoft | `#f37368` | backgrounds only |
+| teal | `#508488` | panel outlines, header bands, icons: large text and non-text only |
+| tealInk / tealDark | `#356a80` / `#2b6a6e` | teal text, links, secondary buttons, eyebrows (4.8:1 on surfaceSunk) |
+| cyan / cream / posterYellow | `#2deedd` / `#fcea98` / `#f0f04b` | billboard faces / tray felt, player setup / decorative |
+| chromeLight / chrome / chromeMid / chromeShade | `#e6e7ea` / `#d8d9dc` / `#c2c4c9` / `#9a9ca2` | chrome trays: dock tab strip, rail-card rims, round icon buttons |
+| focus | `#356a80` | focus rings and selection outlines (3:1 or more on every surface) |
+| link | `#356a80` | link text and text buttons |
+| ok / warn / danger | `#2f7a3f` / `#e8a530` / `#aa3839` | status (ok: white text 5.3:1; danger: white 6.3:1) |
+
+Type (self-hosted woff2 in `packages/client/public/fonts`, `src/styles/fonts.css`; no CDN): Barlow
+(body), Barlow Condensed 600/700 (headings, buttons, tabs, numbers, cash; caps, tracked), Yellowtail
+(screen titles, chain wordmarks), Lilita One (logo lockup), Rye (banknotes). Radii: 10 px panels,
+6 px buttons and chips, 4 px tiles; no pill buttons.
 
 Contrast rule: text meets WCAG AA (4.5:1) on the background it sits on; focus rings and other
 non-text cues meet 3:1. `packages/client/test/a11y.test.ts` checks the token pairs (`contrast()` in
 theme.ts), so a token change that breaks AA fails the tests. Do not dim text with `opacity` to show
 a state (done steps): use inkMuted plus a non-colour cue (a check mark, a strike-through) instead.
 
-Board
+Board. The map tile print (art bible §2, §5) lives in `packages/client/src/boardPalette.ts`
+(`BOARD`), shared by the 3D board and the 2D board; it reads a token from `theme.ts` when one of the
+same name exists.
+
+| BOARD | Hex | Use |
+|---|---|---|
+| ground / speck / grid | `#f5f2e8` / `#dcd8cc` / `#e3dfd3` | off-white tile print, speckles, faint square grid |
+| bevel / core | `#cfcac0` / `#a8a398` | chamfered tile edge, cardboard sides |
+| seam | `#8f8a80` | tile seam hairline on the print (3.1:1) |
+| seamOnRoad | `#2f2d30` | the seam across roads and in the 2D board (3.1:1 on road) |
+| road / roadEdge / roadDash | `#7c787b` / `#d9c35c` / `#f4f4f2` | asphalt, yellow kerb lines, white dashes and zebras |
+| bridge / bridgeDark | `#8fd3a8` / `#5fae80` | lattice bridges |
+| houseTile, apartmentTile / gardenTile / parkTile | `#b2658e` / `#5fb843` / `#537938` | printed plates under the minis |
+| beer / lemonade / soda | `#3e8e4d` / `#e8cf3a` / `#d8262a` | printed drink suppliers |
+| table / rim | `#6b4a2f` / `#ebe2c8` | wood table, cream coordinate band (chrome edge) |
+| legal / bad / edge | `#2b8a7e` / `#aa3839` / `#ffffff` | legal-area tint, blocked square, white edge of range and blocked marks |
+
+Older theme tokens still used by minis and UI:
 
 | Token | Hex | Use |
 |---|---|---|
-| grass | `#a6d27c` | empty squares |
+| grass | `#a6d27c` | (no longer the board ground) |
 | lot | `#e9dfc4` | building plots, board rim |
 | road | `#5b5a63` | asphalt |
 | roadLine | `#f4ead5` | centre dashes (tile-edge crossings at midpoints) |
@@ -42,24 +73,27 @@ Board
 | highlightLegal | `#ffc531` | tint on every legal spot during a board pick (mustard: reads on grass and asphalt) |
 | shadow | `#1f1d26` | dimming of tiles outside the road range |
 
-Players (seat order; six for Ketchup)
+Players (seat order = chain order; six for Ketchup). Base is the chain's plastic colour (minis, UI
+badges), print the flat tile colour, felt the chrome-tray felt (rail cards).
 
-| # | Name | Base | Dark | Light |
-|---|---|---|---|---|
-| 0 | Ketchup | `#b8352a` | `#8a2419` | `#f5d5d0` |
-| 1 | Mustard | `#f2cf3f` | `#7a5c0c` | `#fbf0c4` |
-| 2 | Blueberry | `#2b62b8` | `#1f4a8a` | `#d6e2f5` |
-| 3 | Pickle (teal) | `#5cc7b2` | `#1f6b5c` | `#d4f1eb` |
-| 4 | Grape (orchid) | `#d77fc9` | `#86397a` | `#f6def2` |
-| 5 | Tangerine | `#ef8a2f` | `#9c4c10` | `#fce2cc` |
+| # | Chain (seat name) | Base | Dark | Light | Felt | Print |
+|---|---|---|---|---|---|---|
+| 0 | Fried Geese & Donkey | `#a6449c` | `#5a1f55` | `#e8d0e3` | `#bf96bc` | `#612e57` |
+| 1 | Golden Duck Diner | `#f8e03c` | `#6b5300` | `#fcf5cc` | `#fce36c` | `#fded75` |
+| 2 | Santa Maria Pizza | `#e4845a` | `#8a3a20` | `#f7dfd4` | `#f0aa9a` | `#d47a86` |
+| 3 | Xango Blues Bar | `#6c9fe0` | `#24497a` | `#dae6f4` | `#8fb1f2` | `#007ab2` |
+| 4 | Gluttony Inc. | `#c8d79c` | `#3f5a12` | `#f0f3e3` | `#e4f0c0` | `#7c9a1c` |
+| 5 | Siap Faji | `#9cd9cf` | `#1f5d55` | `#e6f4f0` | `#b4e0c9` | `#86c2be` |
 
 The seat colours are tuned for colour-blind players: simulated protanopia, deuteranopia and
-tritanopia (Machado 2009) keep every pair at CIEDE2000 distance 10.8 or more for six seats, and
-13.1 or more for five (the earlier palette fell to 4.1: Blueberry and Grape merged for
-deuteranopes, Ketchup and Pickle turned the same olive). `dark` is a text colour (4.5:1 on `light`,
-surface and white). Badge labels use white or ink, whichever reads better on `base` (`inkOn`).
-Keep `base` in sync with the session's `SEAT_COLORS` and the engine's `DEFAULT_PLAYER_COLORS`; the
-client maps the earlier palette (older servers, saved games) to these seats (`seatColor`).
+tritanopia (Machado 2009) keep every pair of bases at CIEDE2000 distance 12.9 or more for six
+seats and for five (worst pair: Santa Maria and Gluttony under deuteranopia; the art bible's
+unadjusted plastics fell to 8.6, Fried Geese and Xango). Print colours keep 15.6 or more, felts 9.1
+or more. `a11y.test.ts` checks the bases (`minCvdDistance`). `dark` is a text colour (4.5:1 on
+`light`, surface and white); felt only ever carries ink text. Badge labels use white or ink,
+whichever reads better on `base` (`inkOn`: white on Fried Geese, ink on the rest). Keep `base` in
+sync with the session's `SEAT_COLORS`, the engine's `DEFAULT_PLAYER_COLORS` and the AI bench; the
+client maps both earlier palettes (older servers, saved games) to these seats (`seatColor`).
 
 Player colour appears on restaurant roofs and awnings, campaign frames, coffee shops, busy-marketeer chips and UI badges. Colour is never the only cue: each seat has one mark (`playerMark`: the name's initial, two letters when initials clash) shown on its UI badges and on its restaurant and coffee-shop signs and vans.
 
@@ -103,15 +137,19 @@ Pieces
 
 ## Tile seams
 
-Map tiles are separate 5 x 5 slabs so the tile boundary (which the rules count, e.g. "2 borders") is visible in both the tilted and the top view. Three layers, from `three/board/ground.ts` and `three/board/seams.ts`:
+Map tiles are printed card slabs (5 x 5 units, 0.12 thick) butted together, so the tile boundary (which the rules count, e.g. "2 borders") is visible in both the tilted and the top view. From `three/board/ground.ts`, `seams.ts`, `roads.ts` and `textures.ts`:
 
 | Layer | Value |
 |---|---|
-| Groove | 0.12 units between slabs (`TILE_GAP`); the gap floor is `tileEdge` darkened 42%. |
-| Lip | Light raised strip around each tile's top edge: 0.07 wide, 0.014 high, `tileEdge`. |
-| Seam line | Shader line on every tile edge at y 0.016, colour `tileEdge` darkened 58% (at least 3:1 against grass), alpha 0.92. Half-width 0.03 tilted, 0.05 in top view (blended by tilt). Never thinner than 1.25 px, so it survives zoom-out and phones. Roads and minis cover it. |
-| High contrast | Seam width doubles and every other tile (checkerboard by row + col) is tinted 6% in ink. Follows the high-contrast setting. |
-| Rim | Frame around the board with a tick per square and a peg (`tileEdge` darkened 30%) at each tile boundary; column letters A, B, ... and row numbers on the rim, turned with the camera yaw. |
+| Print | One canvas texture per tile (1024 px, 512 on phones), turned and mirrored per tile: `ground` with speckles, smudges, the faint `grid`, and a 0.07 `bevel` at the edge. Sides in `core`. |
+| Gap | 0.02 units between slabs (`TILE_GAP`) over a dark base. |
+| Seam line | Shader line on every tile edge at y 0.016, `seam`, alpha 0.92. Half-width 0.03 tilted, 0.05 in top view (blended by tilt). Never thinner than 1.25 px, so it survives zoom-out and phones. Across roads the same shader draws it in `seamOnRoad` just above the asphalt. |
+| Roads | Flat printed squares at `ROAD_TOP`: one texture per shape (end, straight, corner, T, cross) with lengthwise streaks and yellow kerb lines (inset 0.05, 0.06 wide, stopped at junctions), white dashes (0.25 on / 0.25 off, 0.04 wide), a six-bar zebra on each side of every tile border a road crosses, a faint manhole on crossings. Roads run off the map edge open. |
+| Bridges | Pale green steel through truss (X-braced sides and overhead bracing) on piers, deck at `BRIDGE_TOP` 0.56 with open steel ramps; the lower road runs on in the deck's shade. |
+| Plates | Printed house / apartment / garden / park plates and drink-supplier spots under the minis (`decals.ts`, one atlas). |
+| High contrast | Seam width doubles, the line turns ink and every other tile (checkerboard by row + col) is tinted 6% in ink. Follows the high-contrast setting. |
+| Table and band | Dark wood table (canvas grain). A cream band 0.6-2.0 units out from the map, chrome edges, a tick per square and a peg at each tile boundary; column letters A, B, ... and row numbers in Barlow Condensed, turned with the camera yaw. |
+| Light | Warm key `#fff4e0` 2.4 from the upper left (shadows), cool fill `#dfe9f0` 0.5 from the right, hemisphere ambient `#f3eee2` 0.85 plus the room environment at 0.15 (more sheen washes the plastics out); ACES tone mapping at exposure 1.0. Tuned so the print, asphalt and plastics match the SE photos. |
 
 ## Roof plaques (house demand)
 
@@ -129,9 +167,9 @@ Drawn flat just above the ground by `three/overlays/`, one layer per kind (range
 
 | Overlay | Style |
 |---|---|
-| Legal spots | `highlightLegal`, opacity 0.32 pulsing by +-0.08. Illegal square under the pointer: `highlightBad` at 0.45 and a reason in the pointer hint. A staged spot gets a `focus` ring; the hovered piece in idle gets a `surface` ring. |
-| Road range | Road squares within range tinted by distance in tile borders: 0 = alpha 0.62, 1 = 0.42, 2 or more = 0.24. Start markers (disc with `surface` ring and centre pip, radius 0.26) on the roads a range begins on. Tiles with no road in range dimmed with `shadow` at 0.15. |
-| Reach (campaigns) | Ring 0.14 thick around each reached house, radius 0.62 of its footprint, alpha 0.9, pulsing scale +8% and alpha 0.55-0.95; a "+1" chip with the good. Houses already at capacity: grey ring and a "full" chip. Airplane / band reach: whole band tinted at 0.14. |
+| Legal spots | A dot per spot: `ink` ring at 0.92 (3.5:1 on road) round a player-colour centre; map-tile and off-board areas tinted `legal` at 0.4. Illegal square under the pointer: `bad` with a white edge and a white X at 0.88 (3:1 on print and asphalt) and a reason in the pointer hint. A staged spot gets a `focus` ring; the hovered piece in idle gets a `surface` ring. |
+| Road range | Road squares within range: a white edge (4.4:1 on the asphalt) round a colour fill whose alpha steps by distance in tile borders: 0 = 0.9, 1 = 0.68, 2 or more = 0.48. Start markers (disc with `surface` ring and centre pip, radius 0.26) on the roads a range begins on. Tiles with no road in range dimmed with `shadow` at 0.15. |
+| Reach (campaigns) | Ring 0.14 thick on an `ink` outline around each reached house, radius 0.62 of its footprint, alpha 0.9, pulsing scale +8% and alpha 0.55-0.95; a "+1" chip with the good. Houses already at capacity: grey ring and a "full" chip. Airplane / band reach: whole band tinted at 0.14. |
 | Route candidates | Faint: 0.24 wide, 0.5 alpha, on an ink hairline (0.30 wide, 0.28 alpha). Active: 0.56 wide, solid colour at 0.99 on a `surface` edge (+0.12, 0.98) and an `ink` outline (+0.22, 0.92), raised to y 0.11, with animated chevrons (ink or `surface`, whichever contrasts), a start marker, a tick with a running count on each tile border crossed, and a drink chip on each source collected. |
 | Selection | Inspected piece: `focus` ring. Related pieces (sellers, reaching campaigns, reached houses): `focus` at 0.45. Rail-panel hover (`inspectIds`): `ink` at 0.6. Candidate footprints of a staged campaign / pick: fill 0.6 with an `ink` (0.9) and `surface` outline. |
 

@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import type { FoodId } from '@fcm/engine';
+import { BOARD } from '../../boardPalette.js';
 import { COLORS } from '../../theme.js';
 import { LABEL_MIN_PX, badgeTexture, chipTexture, makeSprite } from '../labels.js';
 
@@ -75,4 +76,32 @@ export function disposeOverlay(root: THREE.Object3D): void {
     const mat = m.material;
     if (mat) for (const x of Array.isArray(mat) ? mat : [mat]) x.dispose();
   });
+}
+
+let blocked: THREE.CanvasTexture | null = null;
+/**
+ * The "can't go here" square under the cursor: planning red with a white edge and a white X, so it
+ * keeps 3:1 against both the off-white print (red) and the asphalt (white edge).
+ */
+export function blockedTexture(): THREE.CanvasTexture {
+  if (blocked) return blocked;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  g.fillStyle = BOARD.edge;
+  g.fillRect(0, 0, 128, 128);
+  g.fillStyle = BOARD.bad;
+  g.fillRect(10, 10, 108, 108);
+  g.strokeStyle = BOARD.edge;
+  g.lineWidth = 10;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(44, 44);
+  g.lineTo(84, 84);
+  g.moveTo(84, 44);
+  g.lineTo(44, 84);
+  g.stroke();
+  blocked = new THREE.CanvasTexture(c);
+  blocked.colorSpace = THREE.SRGBColorSpace;
+  return blocked;
 }

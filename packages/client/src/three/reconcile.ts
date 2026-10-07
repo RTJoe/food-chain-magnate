@@ -24,7 +24,7 @@ import {
   buildRadio,
   type CampaignVisual,
 } from './minis/marketing.js';
-import { buildCoffeeShop, buildRestaurant } from './minis/restaurant.js';
+import { buildCoffeeShop, buildRestaurant, restaurantChain, restaurantHeight } from './minis/restaurant.js';
 import { buildDemandStack, demandKey, setPlaque, type PlaqueHold } from './minis/tokens.js';
 import { campaignAnchor, cellsToRect, freewayAnchor, houseFacing, ownerMark, parkMultiplier, playerColor, rectCenter, rectOf, ruralCenter, RURAL_SIZE, type Rect } from './layout.js';
 import { makeChip } from './overlays/badges.js';
@@ -452,16 +452,18 @@ function collect(view: GameView, b: Board, info: Record<string, HouseBoardInfo>)
     const mark = ownerMark(view, r.owner);
     const driveIn = !!r.driveIn;
     const rect = rectOf(r.x, r.y, 2, 2);
+    // Each chain has its own model (art bible §6.1); the seat colour decides when the view has no chain.
+    const chain = restaurantChain({ color, chain: view.players[r.owner]?.chain });
     items.push({
       key: `restaurant:${r.id}`,
       id: r.id,
       kind: 'restaurant',
-      sig: `${color}:${r.status}:${r.entrance}:${driveIn}:${mark}:${r.x},${r.y}`,
+      sig: `${chain}:${color}:${r.status}:${r.entrance}:${driveIn}:${mark}:${r.x},${r.y}`,
       rect,
-      height: 1.6,
+      height: restaurantHeight(chain) + 0.1,
       x: r.x + 1,
       z: r.y + 1,
-      build: (c) => buildRestaurant(c, { color, status: r.status, entrance: r.entrance, driveIn, mark }),
+      build: (c) => buildRestaurant(c, { color, chain, status: r.status, entrance: r.entrance, driveIn, mark }),
     });
   }
 

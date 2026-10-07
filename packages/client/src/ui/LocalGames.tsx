@@ -72,7 +72,7 @@ export function HotseatSetup() {
           </div>
           <ul class="seat-list">
             {Array.from({ length: n }, (_, i) => (
-              <li key={i} class="seat">
+              <li key={i} class="seat" style={{ '--pc': PLAYER_COLORS[i]?.base ?? '#888888' }}>
                 <SeatBadge name={names.value[i] ?? '?'} color={PLAYER_COLORS[i]?.base ?? '#888'} size={34} />
                 <input
                   class="input"

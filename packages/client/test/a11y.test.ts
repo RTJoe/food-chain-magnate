@@ -3,8 +3,9 @@
  * its shared mark, where board keyboard shortcuts may act (WCAG 2.1.1 / 2.1.4), and the
  * screen-reader announcements.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { COLORS, contrast, inkOn, PLAYER_COLORS, seatColor } from '../src/theme.js';
+import { COLORS, contrast, inkOn, PLAYER_COLORS, playerColorFor, seatColor } from '../src/theme.js';
 import { boardOwnsEscape, boardOwnsKey, type BoardKeyEnv, type KeyLike } from '../src/three/keyScope.js';
 import { summaryAnnouncement, turnAnnouncement } from '../src/state/announce.js';
 import { playerMark } from '../src/state/selectors.js';
@@ -32,14 +33,30 @@ describe('theme token contrast (WCAG AA text)', () => {
     ['link on sunk', COLORS.link, COLORS.surfaceSunk],
     ['white on danger (.btn-danger)', WHITE, COLORS.danger],
     ['surface on danger (toast-error)', COLORS.surface, COLORS.danger],
-    ['surface on ink (toasts, active tab)', COLORS.surface, COLORS.ink],
+    ['surface on ink (toasts, pointer hints)', COLORS.surface, COLORS.ink],
+    ['ink on panelTeal (dock, dialogs, home cards)', COLORS.ink, COLORS.panelTeal],
+    ['muted on panelTeal', COLORS.inkMuted, COLORS.panelTeal],
+    ['tealInk on panelTeal (.pill-info, home card titles)', COLORS.tealInk, COLORS.panelTeal],
+    ['tealInk on surface (.btn-secondary, eyebrows)', COLORS.tealInk, COLORS.surface],
+    ['tealInk on paper (.home-strap)', COLORS.tealInk, COLORS.paper],
+    ['accent on panelTeal (.prompt.is-mine h2)', COLORS.accent, COLORS.panelTeal],
+    ['ok on panelTeal', COLORS.ok, COLORS.panelTeal],
+    ['ink on chrome strip bottom (.dock-tab)', COLORS.ink, COLORS.chromeMid],
+    ['white on accent (.dock-tab.is-on, .chip.is-on)', WHITE, COLORS.accent],
   ];
   it.each(pairs)('%s', (_label, fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(AA);
   });
 
   it('focus rings keep 3:1 against the surfaces (non-text contrast)', () => {
-    for (const bg of [COLORS.surface, COLORS.paper, COLORS.surfaceSunk, WHITE]) expect(contrast(COLORS.focus, bg)).toBeGreaterThanOrEqual(3);
+    for (const bg of [COLORS.surface, COLORS.paper, COLORS.surfaceSunk, COLORS.panelTeal, WHITE]) expect(contrast(COLORS.focus, bg)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('coral and teal (large-text colours) never colour .btn, .chip or body text', () => {
+    const css = readFileSync(new URL('../src/styles/main.css', import.meta.url), 'utf8');
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => [m[1]!.trim(), m[2]!] as const);
+    const bad = rules.filter(([sel, body]) => /(^|[\s,])(\.btn|\.chip|body|:root)\b/.test(sel) && /(^|;|\s)color:\s*var\(--c-(coral|teal)\)/.test(body));
+    expect(bad.map(([sel]) => sel)).toEqual([]);
   });
 
   it('contrast() matches known WCAG values', () => {
@@ -56,11 +73,25 @@ describe('seat palette', () => {
     expect(contrast(inkOn(p.base), p.base)).toBeGreaterThanOrEqual(AA);
   });
 
-  it('maps the earlier palette (older servers, saved games) to the current seats', () => {
+  it('felt (rail cards) carries ink text', () => {
+    for (const p of PLAYER_COLORS) expect(contrast(COLORS.ink, p.felt)).toBeGreaterThanOrEqual(AA);
+  });
+
+  it('maps the earlier palettes (older servers, saved games) to the current seats', () => {
     expect(seatColor('#d94f3d')).toBe(PLAYER_COLORS[0]!.base);
     expect(seatColor('#9B5FC0')).toBe(PLAYER_COLORS[4]!.base);
+    expect(seatColor('#b8352a')).toBe(PLAYER_COLORS[0]!.base);
+    expect(seatColor('#EF8A2F')).toBe(PLAYER_COLORS[5]!.base);
+    expect(playerColorFor('#5cc7b2')?.id).toBe('xango_blues_bar');
+    expect(playerColorFor(PLAYER_COLORS[2]!.base)?.id).toBe('santa_maria_pizza');
     expect(seatColor('#123456')).toBe('#123456');
     expect(seatColor(undefined)).toBeUndefined();
+  });
+
+  it('seats stay apart under protanopia, deuteranopia and tritanopia (CIEDE2000, Machado 2009)', () => {
+    const bases = PLAYER_COLORS.map((p) => p.base);
+    expect(minCvdDistance(bases)).toBeGreaterThanOrEqual(12.5);
+    expect(minCvdDistance(bases.slice(0, 5))).toBeGreaterThanOrEqual(12.5);
   });
 
   it('one mark per seat: initial, two letters on a clash, then the seat number', () => {
@@ -152,3 +183,55 @@ describe('announcements', () => {
     expect(turnAnnouncement({ phaseChanged: false, phase: 'x', turnStarted: false, title: null })).toBeNull();
   });
 });
+
+// --- Colour-vision deficiency helper: Machado et al. 2009 (severity 1) in linear RGB, CIEDE2000 ---------------
+
+const CVD: Record<string, number[][]> = {
+  protanopia: [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],
+  deuteranopia: [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.01182, 0.04294, 0.968881]],
+  tritanopia: [[1.255528, -0.076749, -0.178779], [-0.078411, 0.930809, 0.147602], [0.004733, 0.691367, 0.3039]],
+};
+
+function simulatedLab(hexColor: string, m: number[][]): [number, number, number] {
+  const lin = [1, 3, 5].map((i) => {
+    const c = Number.parseInt(hexColor.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const [r, g, b] = m.map((row) => Math.min(1, Math.max(0, row[0]! * lin[0]! + row[1]! * lin[1]! + row[2]! * lin[2]!))) as [number, number, number];
+  const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : ((24389 / 27) * t + 16) / 116);
+  const x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+  const y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+function ciede2000([L1, a1, b1]: number[], [L2, a2, b2]: number[]): number {
+  const rad = Math.PI / 180;
+  const Cb = (Math.hypot(a1!, b1!) + Math.hypot(a2!, b2!)) / 2;
+  const G = 0.5 * (1 - Math.sqrt(Cb ** 7 / (Cb ** 7 + 25 ** 7)));
+  const a1p = (1 + G) * a1!, a2p = (1 + G) * a2!;
+  const C1 = Math.hypot(a1p, b1!), C2 = Math.hypot(a2p, b2!);
+  const hue = (b: number, a: number) => (a === 0 && b === 0 ? 0 : (Math.atan2(b, a) / rad + 360) % 360);
+  const h1 = hue(b1!, a1p), h2 = hue(b2!, a2p);
+  let dh = C1 * C2 === 0 ? 0 : h2 - h1;
+  if (dh > 180) dh -= 360;
+  else if (dh < -180) dh += 360;
+  const dH = 2 * Math.sqrt(C1 * C2) * Math.sin((dh * rad) / 2);
+  const Lb = (L1! + L2!) / 2, Cbp = (C1 + C2) / 2;
+  const hb = C1 * C2 === 0 ? h1 + h2 : Math.abs(h1 - h2) > 180 ? (h1 + h2 + (h1 + h2 < 360 ? 360 : -360)) / 2 : (h1 + h2) / 2;
+  const T = 1 - 0.17 * Math.cos((hb - 30) * rad) + 0.24 * Math.cos(2 * hb * rad) + 0.32 * Math.cos((3 * hb + 6) * rad) - 0.2 * Math.cos((4 * hb - 63) * rad);
+  const Sl = 1 + (0.015 * (Lb - 50) ** 2) / Math.sqrt(20 + (Lb - 50) ** 2), Sc = 1 + 0.045 * Cbp, Sh = 1 + 0.015 * Cbp * T;
+  const Rt = -Math.sin(2 * 30 * Math.exp(-(((hb - 275) / 25) ** 2)) * rad) * 2 * Math.sqrt(Cbp ** 7 / (Cbp ** 7 + 25 ** 7));
+  const [dl, dc, dhh] = [(L2! - L1!) / Sl, (C2 - C1) / Sc, dH / Sh];
+  return Math.sqrt(dl ** 2 + dc ** 2 + dhh ** 2 + Rt * dc * dhh);
+}
+
+/** Smallest CIEDE2000 distance between any two colours under simulated protanopia, deuteranopia and tritanopia. */
+export function minCvdDistance(colors: string[]): number {
+  let min = Infinity;
+  for (const m of Object.values(CVD)) {
+    const labs = colors.map((c) => simulatedLab(c, m));
+    for (let i = 0; i < labs.length; i++) for (let j = i + 1; j < labs.length; j++) min = Math.min(min, ciede2000(labs[i]!, labs[j]!));
+  }
+  return min;
+}

@@ -49,10 +49,15 @@ export function buildReach(b: Board, data: ReachOverlayData, target: (houseId: s
     const cx = (t.rect.x0 + t.rect.x1) / 2;
     const cz = (t.rect.z0 + t.rect.z1) / 2;
     const rad = Math.max(t.rect.x1 - t.rect.x0, t.rect.z1 - t.rect.z0) * 0.62;
+    // Ink outline under the colour ring: a pale chain colour still reads on the off-white print.
+    const outline = new THREE.Mesh(new THREE.RingGeometry(rad - 0.04, rad + 0.18, 48).rotateX(-Math.PI / 2), flatMat(COLORS.ink, 0.85));
+    outline.position.y = -0.001;
+    outline.renderOrder = 4;
     const ring = new THREE.Mesh(new THREE.RingGeometry(rad, rad + 0.14, 48).rotateX(-Math.PI / 2), flatMat(isFull ? '#8f8b88' : color, 0.9));
     ring.position.set(cx, 0.09, cz);
     ring.renderOrder = 5;
     ring.userData.base = 0.9;
+    ring.add(outline);
     rings.push(ring);
     g.add(ring);
     const chip = isFull ? makeChip('full', null, '#8f8b88') : makeChip('+1', data.good, color);

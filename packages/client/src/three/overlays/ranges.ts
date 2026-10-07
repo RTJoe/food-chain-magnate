@@ -1,17 +1,20 @@
 /**
- * Range overlay (ux-plan §3.2): road squares within range in the player colour at three alpha
- * levels by distance (0, 1, 2+ tile borders), start markers on the road squares a range begins
- * on, and map tiles with no road in range dimmed 15%.
+ * Range overlay (ux-plan §3.2): road squares within range in the player colour inside a white
+ * edge (the mark keeps 3:1 against the asphalt whatever the colour), at three alpha levels by
+ * distance (0, 1, 2+ tile borders), start markers on the road squares a range begins on, and map
+ * tiles with no road in range dimmed 15%.
  */
 import * as THREE from 'three';
 import type { Board } from '@fcm/engine';
 import type { RangeOverlayData } from '../../state/boardOverlays.js';
+import { BOARD } from '../../boardPalette.js';
 import { COLORS } from '../../theme.js';
 import { ROAD_TOP } from '../coords.js';
 import { flatMat, quads, startMarker } from './badges.js';
 import { startRoads } from './fallback.js';
 
-export const RANGE_ALPHA = [0.62, 0.42, 0.24] as const;
+/** Fill opacity by distance; over the white edge's inner square, so the steps stay apart. */
+export const RANGE_ALPHA = [0.9, 0.68, 0.48] as const;
 const Y = ROAD_TOP + 0.01;
 
 export function buildRange(b: Board, data: RangeOverlayData): THREE.Group {
@@ -21,8 +24,16 @@ export function buildRange(b: Board, data: RangeOverlayData): THREE.Group {
   const inRange = data.roads.filter((r) => r.distance <= data.range);
   const levels: { x0: number; z0: number; x1: number; z1: number }[][] = [[], [], []];
   for (const r of inRange) levels[Math.min(2, Math.max(0, r.distance))]!.push({ x0: r.x, z0: r.y, x1: r.x + 1, z1: r.y + 1 });
+  // White edge under each square (4.4:1 against the asphalt), the colour fill inside it.
+  const all = levels.flat();
+  const edge = quads(all, flatMat(BOARD.edge, 0.95), Y - 0.0005, 0.03);
+  if (edge) {
+    edge.renderOrder = 4;
+    edge.name = 'range:edge';
+    g.add(edge);
+  }
   levels.forEach((rects, i) => {
-    const m = quads(rects, flatMat(color, RANGE_ALPHA[i]!), Y + i * 0.0005, 0.04);
+    const m = quads(rects, flatMat(color, RANGE_ALPHA[i]!), Y + i * 0.0005, 0.1);
     if (m) {
       m.renderOrder = 4;
       m.name = `range:${i}`;

@@ -10,8 +10,9 @@ import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { COLORS, PLAYER_COLORS, hex } from '../../theme.js';
 
-export type MatKind = 'body' | 'glass' | 'glow' | 'metal';
-const MAT_ORDER: MatKind[] = ['body', 'glass', 'glow', 'metal'];
+/** `plastic`: the SE miniature finish (art bible §6: matte plastic with a slight sheen). */
+export type MatKind = 'body' | 'glass' | 'glow' | 'metal' | 'plastic';
+const MAT_ORDER: MatKind[] = ['body', 'glass', 'glow', 'metal', 'plastic'];
 
 // ---------------------------------------------------------------------------
 // Colour helpers
@@ -310,6 +311,7 @@ export function mats(): Record<MatKind, THREE.Material> {
       glass: new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.18, metalness: 0.15, envMapIntensity: 1.3 }),
       glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
       metal: new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.38, metalness: 0.6, envMapIntensity: 1 }),
+      plastic: new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.55, metalness: 0, envMapIntensity: 0.7 }),
     };
   }
   return materials;

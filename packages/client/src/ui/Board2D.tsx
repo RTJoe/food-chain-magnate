@@ -17,6 +17,7 @@
 import { effect, untracked, useSignal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import type { Board, CellKind, Direction, FoodId, GameView, Placement } from '@fcm/engine';
+import { BOARD } from '../boardPalette.js';
 import { COLORS, FOOD_COLORS } from '../theme.js';
 import { describePlacement } from '../state/actions.js';
 import { emitPick, interactionMode, isPickMode, type InteractionMode } from '../state/boardBridge.js';
@@ -43,17 +44,18 @@ import { watchTableInset } from '../state/tableInset.js';
 import { view } from '../state/store.js';
 import { FoodIcon } from './icons.js';
 
+/** Square fills (art bible §5): the tile print; houses, gardens and parks get their printed plates on top. */
 const CELL_FILL: Record<CellKind, string> = {
-  empty: COLORS.grass,
-  road: COLORS.road,
-  house: COLORS.houseWall,
-  garden: COLORS.garden,
-  apartment: COLORS.apartment,
-  drink: COLORS.lot,
-  restaurant: COLORS.lot,
-  campaign: COLORS.lot,
-  coffeeShop: COLORS.lot,
-  park: COLORS.park,
+  empty: 'url(#b2d-ground)',
+  road: BOARD.road,
+  house: BOARD.houseTile,
+  garden: BOARD.gardenTile,
+  apartment: BOARD.apartmentTile,
+  drink: 'url(#b2d-ground)',
+  restaurant: 'url(#b2d-ground)',
+  campaign: 'url(#b2d-ground)',
+  coffeeShop: 'url(#b2d-ground)',
+  park: BOARD.parkTile,
 };
 
 export interface Rect {
@@ -333,6 +335,220 @@ function Good({ food, x, y, s }: { food: FoodId; x: number; y: number; s: number
   );
 }
 
+// --- Map print (art bible §5): the 2D board draws the tiles as printed ----------------------------
+
+const DIR4: readonly Direction[] = ['N', 'E', 'S', 'W'];
+const OPP4: Record<Direction, Direction> = { N: 'S', S: 'N', E: 'W', W: 'E' };
+
+/** Drawn links of a road square: adjacent roads connect unless capped; roads run off the map edge open; a bridge square draws its N-S road. */
+function roadLinks2D(b: Board, x: number, y: number): Direction[] {
+  const r = b.cells[y]?.[x]?.road;
+  if (!r) return [];
+  const on = (cx: number, cy: number) => cx >= 0 && cy >= 0 && cx < b.w && cy < b.h;
+  let links = DIR4.filter((d) => {
+    const o = b.cells[y + ARROW[d][1]]?.[x + ARROW[d][0]]?.road;
+    return !!o && !r.capped?.includes(d) && !o.capped?.includes(OPP4[d]);
+  });
+  if (r.bridge) links = links.filter((d) => d === 'N' || d === 'S');
+  for (const d of DIR4) if (!links.includes(d) && !on(x + ARROW[d][0], y + ARROW[d][1]) && links.includes(OPP4[d])) links = [...links, d];
+  return links;
+}
+
+/** Ground print (speckles, faint square grid, bevel) for one 5x5 tile, as an SVG pattern. */
+function GroundPattern() {
+  const specks: [number, number, number][] = [];
+  let h = 7;
+  const rnd = () => ((h = (h * 16807) % 2147483647) - 1) / 2147483646;
+  for (let i = 0; i < 26; i++) specks.push([rnd() * 5, rnd() * 5, 0.025 + rnd() * 0.03]);
+  return (
+    <defs>
+      <pattern id="b2d-ground" patternUnits="userSpaceOnUse" width={5} height={5}>
+        <rect width={5} height={5} fill={BOARD.ground} />
+        {[1, 2, 3, 4].map((i) => (
+          <g key={i}>
+            <rect x={i - 0.012} y={0} width={0.024} height={5} fill={BOARD.grid} />
+            <rect x={0} y={i - 0.012} width={5} height={0.024} fill={BOARD.grid} />
+          </g>
+        ))}
+        {specks.map(([x, y, r], i) => (
+          <circle key={i} cx={x} cy={y} r={r} fill={i % 5 ? BOARD.speck : '#b9b4a8'} />
+        ))}
+        <rect x={0.035} y={0.035} width={4.93} height={4.93} fill="none" stroke={BOARD.bevel} stroke-width={0.07} />
+      </pattern>
+    </defs>
+  );
+}
+
+/** Yellow kerb lines, white dashes and zebra crossings over the asphalt squares. */
+function RoadMarks({ b }: { b: Board }) {
+  const yellow: string[] = [];
+  const white: string[] = [];
+  const tileOf = (x: number, y: number) => `${Math.floor(x / 5)},${Math.floor(y / 5)}`;
+  const isRoad = (x: number, y: number) => !!b.cells[y]?.[x]?.road && x >= 0 && y >= 0 && x < b.w && y < b.h;
+  const rect = (out: string[], x: number, y: number, w: number, h: number) => out.push(`M${x} ${y}h${w}v${h}h${-w}z`);
+  const I = 0.05;
+  const W = 0.06;
+  for (let y = 0; y < b.h; y++)
+    for (let x = 0; x < b.w; x++) {
+      const r = b.cells[y]?.[x]?.road;
+      if (!r || r.underConstruction) continue;
+      const links = roadLinks2D(b, x, y);
+      const has = (d: Direction) => links.includes(d);
+      const n = links.length;
+      const junction = n >= 3;
+      // Kerb lines on closed sides (lines stop at junctions), inner corners on turns.
+      if (!has('N')) rect(yellow, x + (has('W') ? 0 : I), y + I, 1 - (has('W') ? 0 : I) - (has('E') ? 0 : I), W);
+      if (!has('S')) rect(yellow, x + (has('W') ? 0 : I), y + 1 - I - W, 1 - (has('W') ? 0 : I) - (has('E') ? 0 : I), W);
+      if (!has('W')) rect(yellow, x + I, y + (has('N') ? 0 : I), W, 1 - (has('N') ? 0 : I) - (has('S') ? 0 : I));
+      if (!has('E')) rect(yellow, x + 1 - I - W, y + (has('N') ? 0 : I), W, 1 - (has('N') ? 0 : I) - (has('S') ? 0 : I));
+      if (n === 2 && !(has('N') && has('S')) && !(has('E') && has('W'))) {
+        const sx = has('E') ? 1 - I - W : I;
+        const sy = has('S') ? 1 - I - W : I;
+        rect(yellow, x + sx, y + (has('S') ? sy : 0), W, has('S') ? 1 - sy : sy + W);
+        rect(yellow, x + (has('E') ? sx : 0), y + sy, has('E') ? 1 - sx : sx + W, W);
+      }
+      for (const d of links) {
+        const nx = x + ARROW[d][0];
+        const ny = y + ARROW[d][1];
+        const seam = isRoad(nx, ny) && tileOf(x, y) !== tileOf(nx, ny);
+        const [dx, dy] = ARROW[d];
+        if (seam) {
+          // Zebra: six bars across the road, near the tile border.
+          for (let i = 0; i < 6; i++) {
+            const a = -0.33 + i * 0.132;
+            const cx = x + 0.5 + dx * 0.31 + (dy ? a : 0);
+            const cy = y + 0.5 + dy * 0.31 + (dx ? a : 0);
+            rect(white, cx - (dx ? 0.1 : 0.04), cy - (dy ? 0.1 : 0.04), dx ? 0.2 : 0.08, dy ? 0.2 : 0.08);
+          }
+        } else if (!junction && !r.bridge) {
+          const cx = x + 0.5 + dx * 0.25;
+          const cy = y + 0.5 + dy * 0.25;
+          rect(white, cx - (dx ? 0.125 : 0.02), cy - (dy ? 0.125 : 0.02), dx ? 0.25 : 0.04, dy ? 0.25 : 0.04);
+        }
+      }
+    }
+  const bridges: [number, number][] = [];
+  for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) if (b.cells[y]?.[x]?.road?.bridge) bridges.push([x, y]);
+  return (
+    <g class="b2d-roadmarks" aria-hidden="true" pointer-events="none">
+      <path d={yellow.join('')} fill={BOARD.roadEdge} />
+      <path d={white.join('')} fill={BOARD.roadDash} />
+      {bridges.map(([x, y]) => (
+        <g key={`${x},${y}`}>
+          <rect x={x - 0.15} y={y + 0.1} width={1.3} height={0.8} fill={BOARD.road} />
+          <rect x={x - 0.15} y={y + 0.17} width={1.3} height={0.05} fill={BOARD.roadEdge} />
+          <rect x={x - 0.15} y={y + 0.78} width={1.3} height={0.05} fill={BOARD.roadEdge} />
+          <path
+            d={`M${x - 0.15} ${y + 0.1}h1.3v0.8h-1.3z M${x - 0.15} ${y + 0.1}L${x + 0.28} ${y + 0.9}M${x + 0.28} ${y + 0.1}L${x - 0.15} ${y + 0.9}M${x + 0.28} ${y + 0.1}L${x + 0.72} ${y + 0.9}M${x + 0.72} ${y + 0.1}L${x + 0.28} ${y + 0.9}M${x + 0.72} ${y + 0.1}L${x + 1.15} ${y + 0.9}M${x + 1.15} ${y + 0.1}L${x + 0.72} ${y + 0.9}M${x + 0.28} ${y + 0.1}v0.8M${x + 0.72} ${y + 0.1}v0.8`}
+            fill="none"
+            stroke={BOARD.bridge}
+            stroke-width={0.06}
+          />
+          <rect x={x - 0.15} y={y + 0.06} width={1.3} height={0.06} fill={BOARD.bridgeDark} />
+          <rect x={x - 0.15} y={y + 0.88} width={1.3} height={0.06} fill={BOARD.bridgeDark} />
+        </g>
+      ))}
+    </g>
+  );
+}
+
+/** Printed house square: magenta plate, a painted house on its lawn, the number top right. */
+function HousePrint({ r, label }: { r: Rect; label: string }) {
+  const { x, y } = r;
+  return (
+    <g pointer-events="none">
+      <rect x={x + 0.04} y={y + 0.04} width={r.w - 0.08} height={r.h - 0.08} fill={BOARD.houseTile} />
+      <rect x={x + 0.04} y={y + 0.04} width={r.w - 0.08} height={r.h - 0.08} fill="none" stroke="#7d3c62" stroke-width={0.08} opacity={0.6} />
+      <ellipse cx={x + 1} cy={y + 1.35} rx={0.8} ry={0.32} fill="#7cc35a" />
+      <rect x={x + 1.2} y={y + 1.1} width={0.22} height={0.75} fill="#c9c6bd" />
+      <rect x={x + 0.42} y={y + 0.86} width={0.9} height={0.5} fill="#f6f4ee" stroke="#9a978f" stroke-width={0.03} />
+      <path d={`M${x + 0.32} ${y + 0.9}L${x + 0.87} ${y + 0.5}L${x + 1.42} ${y + 0.9}z`} fill="#55575c" />
+      <rect x={x + 0.8} y={y + 1.04} width={0.14} height={0.32} fill="#7a5a3a" />
+      <text x={x + r.w - 0.3} y={y + 0.34} class="b2d-label" style={{ fill: '#ffffff', fontSize: '0.46px', fontFamily: '"Barlow Condensed", "Arial Narrow", sans-serif', fontWeight: 700 }}>
+        {label}
+      </text>
+    </g>
+  );
+}
+
+/** Printed apartment block (Ketchup π / 9¾): magenta plate, pink brick block, white script name. */
+function ApartmentPrint({ r, label }: { r: Rect; label: string }) {
+  const { x, y } = r;
+  return (
+    <g pointer-events="none">
+      <rect x={x + 0.04} y={y + 0.04} width={r.w - 0.08} height={r.h - 0.08} fill={BOARD.apartmentTile} />
+      <rect x={x + 0.45} y={y + 0.45} width={r.w - 0.9} height={r.h - 0.9} fill="#d98aa6" stroke="#7d3c62" stroke-width={0.05} />
+      {Array.from({ length: 12 }, (_, i) => (
+        <rect key={i} x={x + 0.65 + (i % 4) * 0.45} y={y + 0.65 + Math.floor(i / 4) * 0.45} width={0.22} height={0.22} fill="#f6f4ee" opacity={0.8} />
+      ))}
+      <text x={x + r.w / 2} y={y + r.h - 0.25} class="b2d-label" style={{ fill: '#ffffff', fontSize: '0.5px', fontStyle: 'italic' }}>
+        {label}
+      </text>
+    </g>
+  );
+}
+
+/** Printed garden: green plate, hedge ring, a white gate and a path. */
+function GardenPrint({ r }: { r: Rect }) {
+  return (
+    <g pointer-events="none">
+      <rect x={r.x + 0.04} y={r.y + 0.04} width={r.w - 0.08} height={r.h - 0.08} fill={BOARD.gardenTile} />
+      <rect x={r.x + 0.12} y={r.y + 0.12} width={r.w - 0.24} height={r.h - 0.24} fill="none" stroke="#3f8a2c" stroke-width={0.1} />
+      <circle cx={r.x + r.w / 2} cy={r.y + r.h / 2} r={0.16} fill="#e98bb8" opacity={0.75} />
+      <rect x={r.x + r.w / 2 - 0.12} y={r.y + r.h - 0.17} width={0.24} height={0.06} fill="#f4f1e6" />
+    </g>
+  );
+}
+
+/** Printed park: dark green plate with round trees and a bench. */
+function ParkPrint({ r }: { r: Rect }) {
+  return (
+    <g pointer-events="none">
+      <rect x={r.x + 0.04} y={r.y + 0.04} width={r.w - 0.08} height={r.h - 0.08} fill={BOARD.parkTile} />
+      <circle cx={r.x + r.w * 0.3} cy={r.y + r.h * 0.32} r={Math.min(r.w, r.h) * 0.17} fill="#7fae52" stroke="#2f4f1e" stroke-width={0.04} />
+      <circle cx={r.x + r.w * 0.68} cy={r.y + r.h * 0.6} r={Math.min(r.w, r.h) * 0.2} fill="#7fae52" stroke="#2f4f1e" stroke-width={0.04} />
+      <rect x={r.x + r.w * 0.2} y={r.y + r.h * 0.74} width={r.w * 0.3} height={0.08} fill="#a2794c" />
+    </g>
+  );
+}
+
+/** Printed drink supplier: beer keg with a hop badge, lemon crates, or a red soda machine. */
+function DrinkPrint({ x, y, drink }: { x: number; y: number; drink: string }) {
+  if (drink === 'beer')
+    return (
+      <g pointer-events="none">
+        <rect x={x + 0.18} y={y + 0.28} width={0.64} height={0.44} rx={0.2} fill={BOARD.beer} stroke="#24502d" stroke-width={0.04} />
+        <rect x={x + 0.32} y={y + 0.28} width={0.05} height={0.44} fill="#24502d" />
+        <rect x={x + 0.63} y={y + 0.28} width={0.05} height={0.44} fill="#24502d" />
+        <circle cx={x + 0.5} cy={y + 0.5} r={0.09} fill="#f4f1e6" />
+        <path d={`M${x + 0.1} ${y + 0.85}L${x + 0.26} ${y + 0.2}M${x + 0.2} ${y + 0.85}L${x + 0.36} ${y + 0.2}`} stroke="#8a6440" stroke-width={0.03} />
+      </g>
+    );
+  if (drink === 'lemonade')
+    return (
+      <g pointer-events="none">
+        <rect x={x + 0.14} y={y + 0.42} width={0.4} height={0.34} fill="#b98a52" stroke="#6e4c26" stroke-width={0.03} />
+        <rect x={x + 0.46} y={y + 0.52} width={0.4} height={0.34} fill="#b98a52" stroke="#6e4c26" stroke-width={0.03} />
+        {[0.24, 0.36, 0.46, 0.56, 0.68, 0.78].map((cx, i) => (
+          <circle key={i} cx={x + cx} cy={y + (i < 3 ? 0.4 : 0.5)} r={0.07} fill={BOARD.lemonade} stroke="#9c8418" stroke-width={0.02} />
+        ))}
+        <rect x={x + 0.2} y={y + 0.12} width={0.5} height={0.16} fill="#f4f1e6" stroke="#9c8418" stroke-width={0.02} />
+      </g>
+    );
+  return (
+    <g pointer-events="none">
+      <rect x={x + 0.26} y={y + 0.12} width={0.48} height={0.76} rx={0.06} fill={BOARD.soda} stroke="#7d1214" stroke-width={0.04} />
+      <rect x={x + 0.33} y={y + 0.2} width={0.34} height={0.32} fill="#f4f1e6" />
+      <path d={`M${x + 0.36} ${y + 0.66}q0.07 -0.08 0.14 0t0.14 0`} fill="none" stroke="#f4f1e6" stroke-width={0.04} />
+    </g>
+  );
+}
+
+/** The wood table around the map, with a faint grain. */
+const TABLE_BG = `repeating-linear-gradient(0deg, rgba(46, 30, 18, 0.12) 0 1px, transparent 1px 7px, rgba(138, 100, 64, 0.1) 7px 8px, transparent 8px 19px), ${BOARD.table}`;
+
+const DRINK_NAME: Record<string, string> = { beer: 'Beer', lemonade: 'Lemonade', soft_drink: 'Soda' };
+
 export function Board2D() {
   const v = view.value;
   const mode = interactionMode.value;
@@ -568,7 +784,7 @@ export function Board2D() {
   const p = pad.value;
 
   return (
-    <div class="board2d" ref={rootRef} aria-label="Board (2D)" style={{ padding: `${p.top}px ${p.right}px ${p.bottom}px ${p.left}px` }}>
+    <div class="board2d" ref={rootRef} aria-label="Board (2D)" style={{ padding: `${p.top}px ${p.right}px ${p.bottom}px ${p.left}px`, background: TABLE_BG }}>
       <svg
         ref={svgRef}
         viewBox={`${x0} ${y0} ${x1 - x0} ${y1 - y0}`}
@@ -596,18 +812,27 @@ export function Board2D() {
           hoverKey.value = null;
         }}
       >
-        <rect x={-0.5} y={-0.5} width={b.w + 1} height={b.h + 1} rx={0.4} fill={COLORS.lot} />
+        <GroundPattern />
+        <rect x={-0.62} y={-0.62} width={b.w + 1.24} height={b.h + 1.24} rx={0.12} fill={BOARD.rim} stroke={BOARD.chromeShade} stroke-width={0.08} />
         <g class="b2d-map">
           {b.cells.map((row, y) =>
-            row.map((cell, x) => <rect key={`${x},${y}`} x={x} y={y} width={1} height={1} fill={cell.road?.underConstruction ? COLORS.warn : CELL_FILL[cell.kind] ?? COLORS.grass} />),
+            row.map((cell, x) => <rect key={`${x},${y}`} x={x} y={y} width={1.01} height={1.01} fill={cell.road?.underConstruction ? BOARD.gravel : CELL_FILL[cell.kind] ?? CELL_FILL.empty} />),
           )}
         </g>
-        {Array.from({ length: b.cols + 1 }, (_, i) => (
-          <line key={`c${i}`} x1={i * 5} y1={0} x2={i * 5} y2={b.h} stroke={COLORS.tileEdge} stroke-width={0.06} />
-        ))}
-        {Array.from({ length: b.rows + 1 }, (_, i) => (
-          <line key={`r${i}`} x1={0} y1={i * 5} x2={b.w} y2={i * 5} stroke={COLORS.tileEdge} stroke-width={0.06} />
-        ))}
+        <RoadMarks b={b} />
+        {Object.values(b.houses).map((h) => {
+          const g = h.garden ? bbox(h.garden.cells) : null;
+          return g ? <GardenPrint key={`g-${h.id}`} r={g} /> : null;
+        })}
+        {/* Tile seams: a hairline of at least 1.25 px at any zoom (rules count tile borders). */}
+        <g class="b2d-seams" aria-hidden="true" pointer-events="none">
+          {Array.from({ length: b.cols + 1 }, (_, i) => (
+            <line key={`c${i}`} x1={i * 5} y1={0} x2={i * 5} y2={b.h} stroke={BOARD.seamOnRoad} stroke-width={1.25} vector-effect="non-scaling-stroke" />
+          ))}
+          {Array.from({ length: b.rows + 1 }, (_, i) => (
+            <line key={`r${i}`} x1={0} y1={i * 5} x2={b.w} y2={i * 5} stroke={BOARD.seamOnRoad} stroke-width={1.25} vector-effect="non-scaling-stroke" />
+          ))}
+        </g>
         {/* Square numbers on the rim (list rows say "at x,y") and tile names (lessons say "tile B2"). */}
         <g class="b2d-axis" aria-hidden="true">
           {Array.from({ length: b.w }, (_, i) => (
@@ -639,7 +864,7 @@ export function Board2D() {
         {range && (
           <g class="b2d-range" aria-hidden="true">
             {range.roads.map((r) => (
-              <rect key={`${r.x},${r.y}`} x={r.x + 0.1} y={r.y + 0.1} width={0.8} height={0.8} rx={0.15} fill={range.color ?? COLORS.focus} />
+              <rect key={`${r.x},${r.y}`} x={r.x + 0.08} y={r.y + 0.08} width={0.84} height={0.84} rx={0.12} fill={range.color ?? COLORS.focus} stroke={BOARD.edge} stroke-width={0.07} style={{ opacity: 0.85 }} />
             ))}
           </g>
         )}
@@ -654,7 +879,7 @@ export function Board2D() {
               const h = Object.values(b.houses).find((x) => x.kind === 'rural');
               return (
                 <>
-                  <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={0.4} fill={COLORS.grass} stroke={COLORS.garden} stroke-width={0.12} />
+                  <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={0.2} fill="#67ae86" stroke="#3f7a5a" stroke-width={0.12} />
                   <text x={r.x + r.w / 2} y={r.y + 0.6} class="b2d-label">
                     Rural area
                   </text>
@@ -672,10 +897,9 @@ export function Board2D() {
           if (!r) return null;
           return (
             <g key={h.id} class="b2d-piece" data-id={h.id} onClick={() => tapPiece(h.id, 'house')}>
-              <rect x={r.x + 0.08} y={r.y + 0.08} width={r.w - 0.16} height={r.h - 0.16} rx={0.15} fill={h.kind === 'apartment' ? COLORS.apartment : COLORS.houseWall} stroke={COLORS.houseRoof} stroke-width={0.12} />
-              <text x={r.x + r.w / 2} y={r.y + r.h / 2 + 0.05} class="b2d-label">
-                {h.label}
-              </text>
+              <title>{h.kind === 'apartment' ? `Apartments ${h.label}` : `House ${h.label}`}</title>
+              <rect x={r.x} y={r.y} width={r.w} height={r.h} fill="transparent" />
+              {h.kind === 'apartment' ? <ApartmentPrint r={r} label={h.label} /> : <HousePrint r={r} label={h.label} />}
               {h.demand.slice(0, 6).map((d, i) => (
                 <circle key={i} cx={r.x + 0.3 + (i % 3) * 0.5} cy={r.y + r.h - 0.3 - Math.floor(i / 3) * 0.4} r={0.18} fill={FOOD_COLORS[d.good] ?? COLORS.ink} stroke={COLORS.ink} stroke-width={0.04} />
               ))}
@@ -684,8 +908,9 @@ export function Board2D() {
         })}
         {Object.values(b.drinkSources).map((s) => (
           <g key={s.id} class="b2d-piece" data-id={s.id} onClick={() => tapPiece(s.id, 'source')}>
-            <circle cx={s.x + 0.5} cy={s.y + 0.5} r={0.42} fill={COLORS.surface} stroke={COLORS.ink} stroke-width={0.06} />
-            <Good food={s.drink as FoodId} x={s.x + 0.5} y={s.y + 0.5} s={0.62} />
+            <title>{`${DRINK_NAME[s.drink] ?? s.drink} supplier`}</title>
+            <rect x={s.x} y={s.y} width={1} height={1} fill="transparent" />
+            <DrinkPrint x={s.x} y={s.y} drink={s.drink} />
           </g>
         ))}
         {Object.values(b.campaigns).map((cp) => {
@@ -735,17 +960,24 @@ export function Board2D() {
             return (
               <g key={e.id} class="b2d-piece" data-id={e.id} onClick={tap}>
                 {e.cells.map((q) => (
-                  <rect key={`${q.x},${q.y}`} x={q.x + 0.06} y={q.y + 0.06} width={0.88} height={0.88} rx={0.2} fill={COLORS.park} stroke={COLORS.garden} stroke-width={0.08} />
+                  <ParkPrint key={`${q.x},${q.y}`} r={{ x: q.x, y: q.y, w: 1, h: 1 }} />
                 ))}
+                <rect x={e.x} y={e.y} width={e.w} height={e.h} fill="transparent" />
               </g>
             );
-          if (e.kind === 'park') return <rect key={e.id} class="b2d-piece" data-id={e.id} onClick={tap} x={e.x + 0.06} y={e.y + 0.06} width={e.w - 0.12} height={e.h - 0.12} rx={0.2} fill={COLORS.park} stroke={COLORS.garden} stroke-width={0.08} />;
+          if (e.kind === 'park')
+            return (
+              <g key={e.id} class="b2d-piece" data-id={e.id} onClick={tap}>
+                <rect x={e.x} y={e.y} width={e.w} height={e.h} fill="transparent" />
+                <ParkPrint r={{ x: e.x, y: e.y, w: e.w, h: e.h }} />
+              </g>
+            );
           if (e.kind === 'roadworks') return <circle key={e.id} class="b2d-piece" data-id={e.id} onClick={tap} cx={e.x + 0.5} cy={e.y + 0.5} r={0.25} fill={COLORS.warn} />;
           if (e.kind === 'lobbyistRoad')
             return (
               <g key={e.id} class="b2d-piece" data-id={e.id} onClick={tap}>
                 {e.cells.map((q) => (
-                  <rect key={`${q.x},${q.y}`} x={q.x + 0.04} y={q.y + 0.04} width={0.92} height={0.92} fill={e.underConstruction ? COLORS.warn : COLORS.road} stroke={colorOf(e.owner)} stroke-width={0.08} />
+                  <rect key={`${q.x},${q.y}`} x={q.x + 0.04} y={q.y + 0.04} width={0.92} height={0.92} fill={e.underConstruction ? BOARD.gravel : BOARD.road} stroke={colorOf(e.owner)} stroke-width={0.08} />
                 ))}
                 {e.arrows.map((a, i) => {
                   const [dx, dy] = ARROW[a.dir];
@@ -757,7 +989,7 @@ export function Board2D() {
             );
           if (e.kind === 'freeway') {
             const r = freewayRect(b, e.side, e.offset);
-            return <rect key={e.id} class="b2d-piece" data-id={e.id} onClick={tap} x={r.x} y={r.y} width={r.w} height={r.h} rx={0.15} fill={COLORS.road} stroke={colorOf(e.owner)} stroke-width={0.12} />;
+            return <rect key={e.id} class="b2d-piece" data-id={e.id} onClick={tap} x={r.x} y={r.y} width={r.w} height={r.h} rx={0.15} fill={BOARD.road} stroke={colorOf(e.owner)} stroke-width={0.12} />;
           }
           return null;
         })}
@@ -826,7 +1058,7 @@ export function Board2D() {
               {on && shown && (shown.kind === 'restaurant' || shown.kind === 'moveRestaurant') && (
                 <circle cx={shown.x + 0.3 + (CORNER[shown.entrance]?.[0] ?? 0) * 1.4} cy={shown.y + 0.3 + (CORNER[shown.entrance]?.[1] ?? 0) * 1.4} r={0.24} fill={COLORS.surface} stroke={COLORS.ink} stroke-width={0.06} />
               )}
-              {extra && <rect class="b2d-ghost-extra" x={extra.x + 0.08} y={extra.y + 0.08} width={extra.w - 0.16} height={extra.h - 0.16} rx={0.15} fill={COLORS.garden} />}
+              {extra && <rect class="b2d-ghost-extra" x={extra.x + 0.08} y={extra.y + 0.08} width={extra.w - 0.16} height={extra.h - 0.16} rx={0.15} fill={BOARD.gardenTile} />}
               {tile && (
                 <text x={s.rect.x + s.rect.w / 2} y={s.rect.y + s.rect.h / 2} class="b2d-label">
                   {tile}
