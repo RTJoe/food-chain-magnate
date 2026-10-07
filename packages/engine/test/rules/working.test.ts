@@ -5,7 +5,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Action, Cell, GameState, Uid } from '../../src/index.js';
-import { applyAction, legalActions, legalPlacements, validateAction } from '../../src/index.js';
+import { applyAction, clone, legalActions, legalPlacements, validateAction } from '../../src/index.js';
+import type { TileDef } from '../../src/types/content.js';
+import { growBoard, onMap } from '../../src/map/grid.js';
+import { contentFor } from '../../src/modules/registry.js';
 import { act, actE, newGame, rejected, throughSetup, workingTurn } from '../helpers/game.js';
 
 const base = (): GameState => throughSetup(newGame(2));
@@ -354,6 +357,26 @@ describe('3g restaurants (base.md §6.7)', () => {
     expect(p1Restaurant(m)).toMatchObject({ x: 8, y: 8, driveIn: true });
     expect(m.board.cells[3]?.[3]?.kind).toBe('empty');
     expect(m.board.cells[8]?.[8]?.kind).toBe('restaurant');
+  });
+
+  it('§6.7: a restaurant must stand on map squares; off-map squares of a grown board are refused (DLX p25)', () => {
+    // A Lobbyists extra tile grows the board north of column 0 only, leaving squares on no tile.
+    const g = clone(base());
+    const ids = { nextId: g.nextId };
+    growBoard(g.board, contentFor(g.config.modules).tiles.B as TileDef, -1, 0, 0, ids);
+    g.nextId = ids.nextId;
+    const { s, work } = workingTurn(g, 'p1', { work: ['regional_manager'] });
+    const rm = work[0] as Uid;
+    expect([{ x: 6, y: 3 }, { x: 7, y: 4 }].some((c) => onMap(s.board, c))).toBe(false);
+    const spot = { x: 6, y: 3, entrance: 'SE' as const };
+    expect(rejected(s, { type: 'work.placeRestaurant', playerId: 'p1', cardUid: rm, ...spot }).message).toMatch(/on the map/);
+    expect(rejected(s, { type: 'work.moveRestaurant', playerId: 'p1', cardUid: rm, restaurantId: p1Restaurant(s).id, ...spot }).message).toMatch(/on the map/);
+    const footprint = (p: { x: number; y: number }) => [0, 1].flatMap((dx) => [0, 1].map((dy) => ({ x: p.x + dx, y: p.y + dy })));
+    for (const kind of ['restaurant', 'moveRestaurant'] as const) {
+      const list = legalPlacements(s, 'p1', { kind, cardUid: rm }) as { x: number; y: number }[];
+      expect(list.length).toBeGreaterThan(0);
+      expect(list.filter((p) => !footprint(p).every((c) => onMap(s.board, c)))).toEqual([]);
+    }
   });
 
   it('§6.7: at most 3 restaurants per chain', () => {

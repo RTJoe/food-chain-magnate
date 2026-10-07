@@ -16,7 +16,7 @@ import type { Corner, GameState, PlayerId, ReserveCard } from '../types/state.js
 import type { Placement } from '../types/view.js';
 import type { EngineCtx } from '../core/context.js';
 import { OK, reject, type Check } from '../core/errors.js';
-import { CORNERS, allEmpty, cellAt, cornerCell, entranceOutside, inBounds, paint, restaurantCells, tileOf } from '../map/grid.js';
+import { CORNERS, allEmpty, cellAt, cornerCell, entranceOutside, onMap, paint, restaurantCells, tileOf } from '../map/grid.js';
 import { roadAt } from '../map/pathfinding.js';
 import { pipe } from '../modules/registry.js';
 import { readCtx } from '../core/context.js';
@@ -32,7 +32,8 @@ export function restaurantSpotProblem(s: GameState, x: number, y: number, entran
   if (!CORNERS.includes(entrance)) return 'Bad entrance corner';
   if (!Number.isInteger(x) || !Number.isInteger(y)) return 'Bad coordinates';
   const cells = restaurantCells(x, y);
-  if (!cells.every((c) => inBounds(s.board, c))) return 'Restaurant must be on the map';
+  // Every square must be a map square: off-map squares of a grown board are not (DLX p25).
+  if (!cells.every((c) => onMap(s.board, c))) return 'Restaurant must be on the map';
   const free = cells.every((c) => {
     const cell = cellAt(s.board, c);
     return cell?.kind === 'empty' || (cell?.occupant !== null && cell?.occupant !== undefined && ignore.includes(cell.occupant));

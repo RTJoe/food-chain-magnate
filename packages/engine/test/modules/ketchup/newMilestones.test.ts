@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Action, Cell, GameState, MilestoneId, ModuleId, PlayerId, Uid } from '../../../src/index.js';
-import { legalActions, legalPlacements } from '../../../src/index.js';
+import { legalActions, legalPlacements, validateAction } from '../../../src/index.js';
 import { contentFor } from '../../../src/modules/registry.js';
 import { NEW_MILESTONES } from '../../../src/modules/ketchup/newMilestones.js';
 import { BASE_MILESTONE_IDS, type StateBuilder } from '../../../src/testing/stateBuilder.js';
@@ -348,6 +348,18 @@ describe('§3 First lemonade sold', () => {
     const t = act(s, { type: 'work.train', playerId: 'p1', trainerUid: tr, targetUid: mt, toEmployeeId: 'junior_vp' });
     expect(t.players.p1?.employees[mt]?.employeeId).toBe('junior_vp');
     expect(t.players.p1?.structure.ceoSubs).toContain(mt);
+  });
+
+  it('§3 First lemonade sold: legal actions offer training cards at work, same colour only, never the trainer or the CEO (KX p18)', () => {
+    const trains = (st: GameState) => legalActions(st, 'p1').flatMap((l) => (l.kind === 'ready' && l.action.type === 'work.train' ? [l.action] : []));
+    const { s, work, ceo } = workingTurn(game(), 'p1', { work: ['trainer', 'management_trainee'], milestones: [ID('first_lemonade_sold')] });
+    const [tr, mt] = work as [Uid, Uid];
+    const offered = trains(s);
+    expect(offered.map((a) => [a.targetUid, a.toEmployeeId])).toEqual([[mt, 'junior_vp']]);
+    expect(offered.some((a) => a.targetUid === tr || a.targetUid === ceo)).toBe(false);
+    for (const a of offered) expect(validateAction(s, a).ok).toBe(true);
+    const without = workingTurn(game(), 'p1', { work: ['trainer', 'management_trainee'] });
+    expect(trains(without.s)).toEqual([]);
   });
 
   it('§3 First lemonade sold: without the milestone cards at work cannot be trained', () => {

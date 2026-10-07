@@ -17,6 +17,7 @@ import { airplaneReach, billboardReach, campaignCells, mailboxReach, radioReach 
 import { fieldAt, playerRouteStarts, routeStartRoads, validateRoadRoute } from '../../src/map/pathfinding.js';
 import { tileOf } from '../../src/map/grid.js';
 import { throughSetup, newGame, workingTurn } from '../helpers/game.js';
+import { MAP } from './c2ctx.js';
 
 const camps = (s: GameState) => Object.values(s.board.campaigns) as Campaign[];
 const campOf = (s: GameState, kind: Campaign['kind']) => camps(s).find((c) => c.kind === kind) as Campaign;
@@ -129,6 +130,56 @@ describe('houseOutlook (base.md §7)', () => {
     const reached = campaignReach(s, { kind: 'billboard', placement: bb.placement }).houses.map((h) => h.houseId);
     for (const id of reached) expect(houseOutlook(s, id)?.campaigns).toContain(bb.id);
     expect(houseOutlook(s, 'nope')).toBeNull();
+  });
+});
+
+describe('houseOutlook forecasts the whole Dinnertime (DLX p26–28)', () => {
+  const sb = () => stateBuilder({ players: 2 }).tiles(MAP).round(3);
+  const dinnerWinners = (s: GameState) => {
+    const ctx = makeCtx(clone(s));
+    runDinnertime(ctx);
+    return Object.fromEntries(ctx.events.flatMap((e) => (e.type === 'sale' ? [[e.houseId, e.player]] : [])));
+  };
+
+  it('houses resolve in number order: an earlier house uses up the goods (DLX p26–27)', () => {
+    const b = sb().restaurant('p1', 3, 3, 'NW').restaurant('p2', 5, 3, 'NW').inventory('p1', { burger: 1 }).inventory('p2', { burger: 1 }).demand(2, ['burger']).demand(10, ['burger']);
+    const s = b.build();
+    const [h2, h10] = [b.houseId(2), b.houseId(10)];
+    expect(dinnerWinners(s)).toEqual({ [h2]: 'p1', [h10]: 'p2' });
+    expect(houseOutlook(s, h2)?.winner).toBe('p1');
+    const o10 = houseOutlook(s, h10);
+    expect(o10?.winner).toBe('p2');
+    // p1 is nearer house 10 but its only burger went to house 2.
+    expect(o10?.sellers.find((x) => x.player === 'p1')?.canSupply).toBe(false);
+  });
+
+  it("counts the drive-ins a later player's local manager will open (DLX p25, p17)", () => {
+    const b = sb()
+      .restaurant('p1', 8, 8, 'NW')
+      .restaurant('p2', 6, 3, 'SE')
+      .card('p2', 'local_manager', 'work')
+      .inventory('p1', { burger: 1 })
+      .inventory('p2', { burger: 1 })
+      .demand(2, ['burger'])
+      .turnOrder(['p1', 'p2'])
+      .phase({ kind: 'working', player: 'p1', idx: 0 })
+      .turn({ player: 'p1', stage: 'recruit' } as never);
+    const s = b.build();
+    const h2 = b.houseId(2);
+    // Without the drive-in p1 would win (2 borders against 3); p2's sign opens when its turn starts.
+    expect(Object.values(s.board.restaurants).find((r) => r.owner === 'p2')?.driveIn).toBeFalsy();
+    expect(houseOutlook(s, h2)?.winner).toBe('p2');
+    const p1Turn = engine.applyAction(s, { type: 'work.endTurn', playerId: 'p1' });
+    if (!p1Turn.ok) throw new Error(p1Turn.message);
+    const end = engine.applyAction(p1Turn.state, { type: 'work.endTurn', playerId: 'p2' });
+    if (!end.ok) throw new Error(end.message);
+    expect(end.events.find((e) => e.type === 'sale' && e.houseId === h2)).toMatchObject({ player: 'p2' });
+  });
+
+  it('applies First to Lower Prices claimed at the start of Dinnertime (DLX p28)', () => {
+    const b = sb().restaurant('p1', 3, 3, 'NW').restaurant('p2', 5, 3, 'NW').card('p1', 'pricing_manager', 'work').inventory('p1', { burger: 1 }).inventory('p2', { burger: 1 }).demand(2, ['burger']);
+    const s = b.build();
+    expect(houseOutlook(s, b.houseId(2))?.sellers.find((x) => x.player === 'p1')?.unitPrice).toBe(8);
   });
 });
 

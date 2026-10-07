@@ -70,8 +70,10 @@ export type Placement =
       bordersUsed?: number;
     }
   | { kind: 'coffeeShop'; x: number; y: number; moveFrom?: string }
-  | { kind: 'lobbyistRoad'; cells: Cell[]; arrows: { from: Cell; dir: Direction }[]; from: RouteStart }
-  | { kind: 'park'; x: number; y: number; w: number; h: number; from: RouteStart }
+  /** `piece`: lobbyist road tile id ('2', '4' straight, 'L3' corner); cells in path order. */
+  | { kind: 'lobbyistRoad'; cells: Cell[]; arrows: { from: Cell; dir: Direction }[]; from: RouteStart; piece?: string }
+  /** x, y, w, h = bounding box; `cells` = the squares; `piece`: park tile id ('I', 'T', 'L'). */
+  | { kind: 'park'; x: number; y: number; w: number; h: number; from: RouteStart; cells?: Cell[]; piece?: string }
   | { kind: 'freeway'; side: Direction; offset: number }
   | { kind: 'mapTile'; row: number; col: number; rotation: Rotation; templateId?: TileTemplateId }
   | { kind: 'pizzaRadio'; x: number; y: number }

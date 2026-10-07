@@ -18,14 +18,18 @@ import type { Timeline } from '../timeline.js';
 
 export const isReduced = (ctx: ChoreoCtx) => ctx.mode === 'reduced';
 
-interface Base {
+export interface Base {
   p: THREE.Vector3;
   r: THREE.Euler;
   s: THREE.Vector3;
 }
-const baseOf = (o: THREE.Object3D): Base => ({ p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() });
-const restore = (o: THREE.Object3D, b: Base) => {
-  o.position.copy(b.p);
+export const baseOf = (o: THREE.Object3D): Base => ({ p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() });
+/**
+ * Put back the channels the helpers animate (height, rotation, scale). x / z stay where they are:
+ * the reconciler may have moved the piece meanwhile (the board re-bases on a Ketchup map tile).
+ */
+export const restore = (o: THREE.Object3D, b: Base) => {
+  o.position.y = b.p.y;
   o.rotation.copy(b.r);
   o.scale.copy(b.s);
 };

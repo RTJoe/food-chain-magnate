@@ -1035,7 +1035,7 @@ export function buildGhost(ctx: MiniCtx, b: Board, p: Placement, color: string):
     case 'freeMailbox':
       return at(buildMailbox(ctx, { color, goods: [], number: 0, remaining: 0, eternal: false, w: 1, h: 1 }), p.x + 0.5, p.y + 0.5);
     case 'park':
-      return at(buildPark(ctx, { w: p.w, h: p.h }), p.x + p.w / 2, p.y + p.h / 2);
+      return at(buildPark(ctx, { w: p.w, h: p.h, ...(p.cells ? { cells: p.cells.map((c): [number, number] => [c.x - p.x, c.y - p.y]) } : {}) }), p.x + p.w / 2, p.y + p.h / 2);
     case 'lobbyistRoad': {
       const r = placementHitRect(b, p)!;
       const [x, z] = rectCenter(r);
@@ -1082,7 +1082,7 @@ function instancedQuads(rects: readonly Rect[], mat: THREE.Material, y: number, 
 function parkPricePreview(b: Board, p: Extract<Placement, { kind: 'park' }>): THREE.Group {
   const g = new THREE.Group();
   g.name = 'park-prices';
-  const parks = [...Object.values(b.entities).flatMap((e) => (e.kind === 'park' ? [{ x: e.x, y: e.y, w: e.w, h: e.h }] : [])), { x: p.x, y: p.y, w: p.w, h: p.h }];
+  const parks = [...Object.values(b.entities).flatMap((e) => (e.kind === 'park' ? [e] : [])), p];
   for (const h of Object.values(b.houses)) {
     const next = parkMultiplier(b, h, parks);
     if (next <= parkMultiplier(b, h)) continue;

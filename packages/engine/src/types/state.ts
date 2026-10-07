@@ -447,7 +447,8 @@ export type ModuleEntity =
   /** ketchup.md §4: 1x1, entrances on all sides, max 1 per tile. */
   | { kind: 'coffeeShop'; id: EntityId; owner: PlayerId; x: number; y: number }
   /** ketchup.md §2 park tile or tile Z printed park. */
-  | { kind: 'park'; id: EntityId; x: number; y: number; w: number; h: number; printed: boolean }
+  /** x, y, w, h = bounding box; `cells` = the squares when the park is not a full rectangle. */
+  | { kind: 'park'; id: EntityId; x: number; y: number; w: number; h: number; printed: boolean; cells?: Cell[] }
   /** ketchup.md §2 lobbyist road tile; arrows mark the connection ends. */
   | {
       kind: 'lobbyistRoad';

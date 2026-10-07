@@ -16,7 +16,7 @@ import { CameraController } from './camera.js';
 import { Interaction, type HoverInfo } from './interaction.js';
 import { Reconciler } from './reconcile.js';
 import { guessTier, Stage, type Tier } from './scene.js';
-import { chainMark, contentRect, frameRect, hasRural, playerColor } from './layout.js';
+import { boardFrameKey, contentRect, frameRect, ownerMark, playerColor } from './layout.js';
 import { setActorMarks } from './minis/vehiclesActors.js';
 
 /** The parts of the client store the scene reads. The store module satisfies this. */
@@ -104,6 +104,8 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
   const overlays = new OverlayLayer(stage, rec);
   inter.routeAt = (p) => overlays.pickRoute(cam.rayAt(p.x, p.y));
   let boardKey = '';
+  let boardGrid = '';
+  let boardRural = '';
   let lastView: GameView | null = null;
   let lastMe: PlayerId | null = null;
   let vanColors = '';
@@ -221,13 +223,21 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
       // must not cut a running Dinnertime short.
       const jumped = !prevView || !view || prevView.round !== view.round || prevView.phase.kind !== view.phase.kind;
       if (!events.length && view !== prevView && (me !== prevMe || jumped)) anim.finish();
-      const air = b ? [...new Set(Object.values(b.campaigns).flatMap((c) => (c.placement.kind === 'airplane' ? [c.placement.side] : [])))].sort().join('') : '';
-      const key = b ? `${b.w}x${b.h}:${b.tiles.map((t) => t.id).join(',')}:${hasRural(b)}:${air}` : '';
+      const fk = b ? boardFrameKey(b) : null;
+      // The board re-bases its coordinates (Ketchup extra map tile): a running animation would
+      // put the pieces it moves back at their old spots, so it ends first.
+      if (fk && boardKey && fk.grid !== boardGrid) anim.finish();
+      const key = fk?.key ?? '';
       const res = rec.sync(view, events.length > 0);
       if (key !== boardKey) {
         const first = boardKey === '';
+        const moved = !first && !res.boardChanged && fk?.grid === boardGrid && fk.rural !== boardRural;
         boardKey = key;
+        boardGrid = fk?.grid ?? '';
+        boardRural = fk?.rural ?? '';
         if (b) cam.setContent(contentRect(b), first || res.boardChanged, inset, frameRect(b));
+        // The rural area moved to the first freeway's side: glide to the new home framing.
+        if (moved && boardRural) cam.reset();
         seamStyle();
       }
       if (view && view.players) {
@@ -235,7 +245,7 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
         if (colors.join() !== vanColors) {
           vanColors = colors.join();
           // Vehicle decals: chain mark by colour (vans built later pick it up; variant stays null).
-          setActorMarks(Object.fromEntries(Object.keys(view.players).map((id) => [playerColor(view, id), chainMark(view.players[id]?.chain, id)])));
+          setActorMarks(Object.fromEntries(Object.keys(view.players).map((id) => [playerColor(view, id), ownerMark(view, id)])));
           anim.pool.prewarm('van', colors, 2);
         }
       }

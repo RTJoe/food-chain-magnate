@@ -120,6 +120,9 @@ export function allEmpty(board: Board, cells: Cell[]): boolean {
   });
 }
 
+/** A park's squares: its `cells`, else its bounding box. */
+export const parkCells = (e: { x: number; y: number; w: number; h: number; cells?: Cell[] }): Cell[] => (e.cells?.length ? e.cells : rect(e.x, e.y, e.w, e.h));
+
 /** A square on a placed tile (false off the board and on the empty squares of a grown board). */
 export const onMap = (board: Board, c: Cell): boolean => (cellAt(board, c)?.tile ?? '') !== '';
 
@@ -315,6 +318,7 @@ export function stampTile(board: Board, def: TileDef, tr: number, tc: number, ro
       w: Math.max(...xs) - Math.min(...xs) + 1,
       h: Math.max(...ys) - Math.min(...ys) + 1,
       printed: true,
+      cells: cells.map((c) => ({ x: c.x, y: c.y })),
     };
     for (const c of cells) {
       const cell = cellAt(board, c);

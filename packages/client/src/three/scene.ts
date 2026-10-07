@@ -29,14 +29,52 @@ export type Tier = 'high' | 'medium' | 'low';
 
 const TIER_ORDER: Tier[] = ['high', 'medium', 'low'];
 
-export function guessTier(): Tier {
-  if (typeof window === 'undefined') return 'medium';
+/** Graphics preference: 'auto' guesses from the device and steps down on slow frames. */
+export type GraphicsPref = 'auto' | Tier;
+const GRAPHICS_KEY = 'fcm.graphics';
+
+/** The stored graphics preference (a settings control writes it with `setGraphicsPref`). */
+export function graphicsPref(): GraphicsPref {
+  try {
+    const v = globalThis.localStorage?.getItem(GRAPHICS_KEY);
+    return v === 'high' || v === 'medium' || v === 'low' ? v : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+export function setGraphicsPref(p: GraphicsPref): void {
+  try {
+    if (p === 'auto') globalThis.localStorage?.removeItem(GRAPHICS_KEY);
+    else globalThis.localStorage?.setItem(GRAPHICS_KEY, p);
+  } catch {
+    /* storage blocked: the choice lasts for this page only */
+  }
+}
+
+/** A tier forced by `?tier=` or the stored preference; null = automatic. */
+export function forcedTier(): Tier | null {
+  if (typeof window === 'undefined') return null;
   const q = new URLSearchParams(window.location.search).get('tier');
   if (q === 'high' || q === 'medium' || q === 'low') return q;
+  const p = graphicsPref();
+  return p === 'auto' ? null : p;
+}
+
+/**
+ * Starting tier. Phones and tablets start on medium: browsers clamp `hardwareConcurrency` (every
+ * iPhone reports few cores), so core counts cannot tell a capable phone from a weak one. Only a
+ * reported low memory starts on low; otherwise the runtime step-down (`watchPerf`) finds it.
+ */
+export function guessTier(): Tier {
+  if (typeof window === 'undefined') return 'medium';
+  const forced = forcedTier();
+  if (forced) return forced;
   const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
   const cores = navigator.hardwareConcurrency ?? 4;
-  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
-  if (coarse) return cores >= 8 && mem >= 4 ? 'medium' : 'low';
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  if (mem !== undefined && mem < 3) return 'low';
+  if (coarse) return 'medium';
   return cores >= 4 ? 'high' : 'medium';
 }
 
@@ -161,7 +199,11 @@ export class Stage {
     r.shadowMap.type = THREE.PCFShadowMap;
     this.sun.castShadow = shadows;
     const size = this.tier === 'high' ? 2048 : 1024;
-    if (this.sun.shadow.mapSize.x !== size) {
+    if (!shadows) {
+      // Free the shadow render target when shadows turn off (a runtime step-down to low).
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+    } else if (this.sun.shadow.mapSize.x !== size) {
       this.sun.shadow.mapSize.set(size, size);
       this.sun.shadow.map?.dispose();
       this.sun.shadow.map = null;
@@ -181,7 +223,7 @@ export class Stage {
   private resize(): void {
     const w = Math.max(1, this.el.clientWidth);
     const h = Math.max(1, this.el.clientHeight);
-    const cap = this.tier === 'high' ? 2 : this.tier === 'medium' ? 1.5 : 1;
+    const cap = this.tier === 'high' ? 2 : 1.5;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
@@ -348,7 +390,7 @@ export class Stage {
   private watchPerf(renderMs: number, dt: number): void {
     const slow = renderMs > 22 || dt > 0.045;
     this.slowFrames = slow ? this.slowFrames + 1 : Math.max(0, this.slowFrames - 2);
-    if (this.slowFrames > 90) {
+    if (this.slowFrames > 90 && !forcedTier()) {
       this.slowFrames = 0;
       const i = TIER_ORDER.indexOf(this.tier);
       if (i < TIER_ORDER.length - 1) this.setTier(TIER_ORDER[i + 1]!);

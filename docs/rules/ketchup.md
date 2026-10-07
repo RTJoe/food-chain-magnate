@@ -78,7 +78,10 @@ Plus combined rules: Noodles + Sushi + Kimchi priority (p31–32).
 **Action — sub-step "3f½" between Place houses & gardens (3f) and Place or move restaurants (3g):** place 1 road tile or 1 park tile on empty squares, adjacent to a road square within road range 2 of any of your entrance corners (DLX p15). [TYPE-IMPACT: new phase-3 step.]
 - Roads may not hang off the map edge (DLX p15). Parks: DLX states no overhang rule; "on empty squares" implies on the map. Medium.
 - Tiles are limited; when gone the lobbyist does nothing.
-- Road and park tile footprints: **not stated or measurable in DLX**. The component picture (p15) shows road tiles 1 square wide in at least two lengths and park tiles as long narrow strips of several lengths. Low — see `questions.md` Q-K1.
+- Road and park tiles (`questions.md` Q-K1, resolved): KX-DLX printed p15 (PDF p16) component photo shows a 2-square road (under-construction side, outward arrow at each end), a 2-square road (finished side) and a 4-square road, and 4 park tiles: one 1x4 strip and three non-rectangular 4-square pieces. Full set, from the licensed OnlineBoardGamers implementation's component scans, consistent with that photo:
+  - **8 roads:** 4 straight 2-square, 2 straight 4-square, 2 corner 3-square (an L with two 2-square arms). Each has its two arrows at its free ends, pointing outward.
+  - **4 parks:** tetrominoes I (1x4), T, L, L. "Either side of a Park tile can be used" (p15), so the mirrored L is allowed. Any rotation.
+  - The Road Route Example 1 drawing (printed p16) shows a 3-square straight road beside a 4-square one; no 3-square straight tile exists, so the drawing is taken as schematic. Medium-High.
 
 **Roads (DLX p15–16):**
 - Placed "under construction" side up. **One** arrow must point to either (A) any of your entrance corners, or (B) an orthogonally adjacent road square within road distance 2 of any of your entrance corners. The other arrow may point anywhere (or at an empty square). A road connected only to your entrance is legal (JD 2422153; matches A).
@@ -138,10 +141,11 @@ Card count: 17 (DLX p18–19). Base milestones are not used with this module.
   - Empty square, orthogonally adjacent to a road, on a tile with no coffee shop (max 1 per tile, all players combined).
   - Via training: within road range 2 of one of your restaurants or coffee shops. Via milestone: anywhere.
   - If all 3 of yours are on the map, you may instead move one.
-- **Dinnertime coffee:** first choose the restaurant exactly as normal, ignoring coffee entirely. If the house eats out, it follows a shortest route (in tiles crossed) to that restaurant. It buys 1 coffee at each restaurant entrance or coffee shop of a chain that has coffee, adjacent to the route, other than the destination restaurant. Each location sells at most 1 per house. No U-turns.
+- **Dinnertime coffee:** first choose the restaurant exactly as normal, ignoring coffee entirely. If the house eats out, it follows a shortest route (in tiles crossed) to that chain: to any of its open restaurants at the winning distance (KX p12 Example 1, p14 Example 3). It buys 1 coffee at each restaurant entrance or coffee shop of a chain that has coffee, adjacent to the route, other than the route's own end restaurant (another restaurant of the same chain on the way can sell). Each location sells at most 1 per house. A route may trace road squares again and go round loops (DLX p10 Backtracking; KX p13 Example 2, p14 Example 4); only an immediate U-turn is forbidden.
   - Among shortest routes: take the one selling the most coffee. Within a tile, the route bends as far as needed to pass more coffee if that does not add distance (DLX example 4).
   - If several shortest routes tie on coffee, only the locations common to **all** tied routes sell; the undecided parts sell nothing.
-  - Price per coffee = seller's unit price, including garden (and park) multipliers and bonuses from cards. Not a drink for milestone bonuses. CFO applies.
+  - Price per coffee = seller's unit price, including garden (and park) multipliers and bonuses from cards. Not a drink for milestone bonuses, and not food or drink for "First to Throw Away Food or Drink" (KX p10). CFO applies.
+  - Fry Chefs: a chain selling coffee to a house gets its Fry Chef bonus once for that house, however many coffees; not again if it also served the meal (JD BGG 2342129, 3087088).
 - **First coffee sold:** first player(s) to sell coffee each place 1 coffee shop in the Cleanup of that round, in turn order, normal placement rules, no range limit (DLX p11). [TYPE-IMPACT: a Cleanup sub-step.]
 - Selling coffee is mandatory for the house: 1 per passed location with coffee; the destination restaurant never sells coffee (DLX p11).
 
@@ -209,6 +213,7 @@ House without a garden: 1. exact + kimchi, 2. noodles + kimchi, 3. exact, 4. noo
 **Rules (KX p13; DLX p21):**
 - Train a fry chef from any cook (burger, pizza, sushi, noodle). It is a kitchen (green) card. Salary: yes (DLX p21 card image, High).
 - Each fry chef at work: +$10 per sale (per house, apartment or rural area sold to), regardless of item count. Not unit price; no effect on house choice. Multiple fry chefs stack. CFO applies (income).
+- Coffee sales count: once per house a chain sells coffee to, not again for the chain that served the meal (JD BGG 2342129; see §4).
 - Example: 3 burgers at $20, 2 fry chefs → $60 + $20 = $80.
 
 ---

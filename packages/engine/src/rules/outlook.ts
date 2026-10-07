@@ -11,14 +11,16 @@
  * - `rangeOverlay(state, player, cardUid?, from?)`: road squares within a card's road range, by
  *   distance, from open-restaurant entrances and coffee shops (or one `from`).
  * - `houseOutlook(state, houseId)`: capacity, demand, connected sellers ranked as Dinnertime ranks
- *   them, the would-be winner, and the campaigns that reach the house.
+ *   them, the would-be winner (from a forecast of the whole Dinnertime), and the campaigns that
+ *   reach the house.
  * - `placementProblem(state, player, spec, candidate)`: why a placement is illegal (null = legal),
  *   via the same validation as the action it would become.
  */
 import type { Action, RouteStart } from '../types/actions.js';
 import type { Campaign, CampaignId, Cell, GameState, House, HouseId, PlayerId, Uid } from '../types/state.js';
 import type { CampaignReachPreview, CampaignReachQuery, HouseOutlook, Placement, PlacementSpec, RangeOverlay } from '../types/view.js';
-import { readCtx, type EngineCtx } from '../core/context.js';
+import { makeCtx, readCtx, type EngineCtx } from '../core/context.js';
+import { clone } from '../core/clone.js';
 import { defOf } from '../core/cards.js';
 import { validateAction } from '../core/reducer.js';
 import { contentFor } from '../modules/registry.js';
@@ -26,7 +28,8 @@ import { campaignArea, campaignReach as baseCampaignReach } from '../map/reach.j
 import { distanceField, playerRouteStarts, roadAt, routeStartRoads } from '../map/pathfinding.js';
 import { baseDemandCapacity, campaignRunOrder } from './marketing.js';
 import { hasMilestone, runPipeline } from './pricing.js';
-import { rankedCandidates } from './dinnertime.js';
+import { rankedCandidates, runDinnertime } from './dinnertime.js';
+import { openDriveIns } from './working/stages.js';
 import { buyerStats } from './working/buyDrinks.js';
 
 const PREVIEW_ID = '__preview';
@@ -85,23 +88,80 @@ export function houseCellsReach(state: GameState, cells: Cell[], garden?: Cell[]
   });
 }
 
-/** Capacity, sellers and campaigns for one house (base.md §7, §9). Prices are as of now. */
+type OutlookSeller = HouseOutlook['sellers'][number];
+interface ForecastHouse {
+  sellers: OutlookSeller[];
+  winner: PlayerId | null;
+}
+
+const forecasts = new WeakMap<GameState, Map<HouseId, ForecastHouse> | null>();
+
+/**
+ * What Dinnertime would do if it ran on `state` now (memoised per state object): a copy gets the
+ * drive-ins every local/regional manager at work will open (base.md §6.3a), then the real
+ * Dinnertime runs on it — First to Lower Prices at its start, houses in ascending number, each
+ * winner's goods used up before the next house is ranked (DLX p26–28). Null if it cannot run.
+ */
+function dinnerForecast(state: GameState): Map<HouseId, ForecastHouse> | null {
+  if (forecasts.has(state)) return forecasts.get(state) ?? null;
+  let out: Map<HouseId, ForecastHouse> | null = null;
+  try {
+    const sim = clone(state);
+    const ctx = makeCtx(sim);
+    for (const id of sim.turnOrder) if (!sim.players[id]?.bankrupt) openDriveIns(ctx, id);
+    runDinnertime(ctx);
+    out = new Map();
+    for (const e of ctx.events) {
+      if (e.type === 'houseConsidered') {
+        const house = sim.board.houses[e.houseId];
+        const waitresses = new Map(house ? rankedCandidates(ctx, house).map((r) => [r.candidate.player, r.candidate.waitresses]) : []);
+        const sellers = (e.offers ?? []).map((o) => ({
+          player: o.player,
+          restaurantId: o.restaurantId,
+          unitPrice: o.unitPrice,
+          distance: o.distance,
+          score: o.score,
+          tier: o.tier,
+          waitresses: waitresses.get(o.player) ?? 0,
+          canSupply: o.canSupply,
+        }));
+        out.set(e.houseId, { sellers, winner: null });
+      } else if (e.type === 'sale') {
+        const f = out.get(e.houseId);
+        if (f) f.winner = e.player;
+      }
+    }
+  } catch {
+    out = null;
+  }
+  forecasts.set(state, out);
+  return out;
+}
+
+/**
+ * Capacity, sellers and campaigns for one house (base.md §7, §9). For a house with demand the
+ * sellers and winner are those Dinnertime would produce if it ran now (`dinnerForecast`):
+ * `canSupply` counts only the stock left after the earlier houses. Otherwise sellers are ranked at
+ * current prices.
+ */
 export function houseOutlook(state: GameState, houseId: HouseId): HouseOutlook | null {
   const house = state.board.houses[houseId];
   if (!house) return null;
   const ctx = readCtx(state);
-  const ranked = rankedCandidates(ctx, house);
-  const sellers = ranked.map(({ candidate: c, canSupply }) => ({
-    player: c.player,
-    restaurantId: c.restaurantId,
-    unitPrice: c.unitPrice,
-    distance: c.distance,
-    score: c.score,
-    tier: c.tier,
-    waitresses: c.waitresses,
-    canSupply,
-  }));
-  const winner = house.demand.length ? (sellers.find((x) => x.canSupply)?.player ?? null) : null;
+  const forecast = house.demand.length ? dinnerForecast(state)?.get(houseId) : undefined;
+  const sellers =
+    forecast?.sellers ??
+    rankedCandidates(ctx, house).map(({ candidate: c, canSupply }) => ({
+      player: c.player,
+      restaurantId: c.restaurantId,
+      unitPrice: c.unitPrice,
+      distance: c.distance,
+      score: c.score,
+      tier: c.tier,
+      waitresses: c.waitresses,
+      canSupply,
+    }));
+  const winner = house.demand.length ? (forecast ? forecast.winner : (sellers.find((x) => x.canSupply)?.player ?? null)) : null;
   const campaigns = campaignRunOrder(state).filter((cid) => {
     const camp = state.board.campaigns[cid];
     return camp ? reachOf(ctx, camp).includes(houseId) : false;

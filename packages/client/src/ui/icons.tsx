@@ -85,7 +85,9 @@ export type IconName = keyof typeof Icon;
 
 /** Good tokens: each good has its own silhouette (docs/visual-style.md: never colour alone). */
 export function FoodIcon({ food, size = 22 }: { food: FoodId; size?: number }) {
-  const c = `var(--food-${food.replace(/_/g, '-')})`;
+  // The soda can is the red of the 3D token and plaque glyph (labels.ts drawFood); the theme writes
+  // `--food-soft_drink` (underscore), so the kebab-case var would be unset and the can black.
+  const c = food === 'soft_drink' ? '#b8352c' : `var(--food-${food.replace(/_/g, '-')}, var(--food-${food}))`;
   const stroke = 'rgba(43,42,51,.55)';
   const body = (() => {
     switch (food) {

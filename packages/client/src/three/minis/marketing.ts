@@ -4,8 +4,7 @@
  */
 import * as THREE from 'three';
 import type { FoodId } from '@fcm/engine';
-import { COLORS } from '../../theme.js';
-import { makeBadge, posterTexture } from '../labels.js';
+import { BADGE_MIN_PX, badgeSprite, campaignBadgeTexture, posterTexture } from '../labels.js';
 import { blob, face, mesh, owned, solid, type MiniCtx } from './ctx.js';
 import { P, Shape, ball, box, cone, cyl, extrude, lathe, miniGeo, playerPalette, puck, shade, torus } from './kit.js';
 
@@ -24,23 +23,24 @@ function padShape(s: Shape, w: number, d: number, color: string): void {
   s.add(box(w - 0.26, 0.012, d - 0.26, 0.004), P.lot, { at: [0, 0.06, 0], jitter: 0 });
 }
 
-/** Number badge + duration pips (or an infinity badge for eternal campaigns). */
+/**
+ * Camera-facing marker (advertised good + campaign number, never smaller on screen than a house
+ * badge; "N ∞" for eternal campaigns) + duration pips.
+ */
 export function addCampaignMarker(ctx: MiniCtx, parent: THREE.Object3D, v: CampaignVisual, top: number, pipAnchor: [number, number]): void {
   const pal = playerPalette(v.color);
-  const badge = makeBadge(String(v.number), { bg: pal.base, fg: '#fffaf0', ring: pal.dark }, 0.44);
+  const badge = badgeSprite(campaignBadgeTexture(v.number, v.goods, pal.base, pal.dark, v.eternal), 0.44);
   badge.position.set(0, top, 0);
   badge.name = 'badge';
+  badge.userData.minPx = BADGE_MIN_PX;
+  badge.userData.obstacle = true;
   parent.add(badge);
   const pips = new THREE.Group();
   pips.name = 'pips';
   pips.position.set(pipAnchor[0], 0.06, pipAnchor[1]);
   parent.add(pips);
-  if (v.eternal) {
-    const inf = makeBadge('∞', { bg: '#f8d24a', fg: COLORS.ink, ring: COLORS.ink }, 0.3);
-    inf.position.set(0.32, top - 0.02, 0);
-    inf.name = 'eternal';
-    parent.add(inf);
-  } else {
+  // Eternal campaigns show ∞ in the marker instead of pips.
+  if (!v.eternal) {
     const geo = pipGeo(v.color);
     for (let i = 0; i < Math.min(v.remaining, 6); i++) {
       const o = new THREE.Group();
@@ -141,21 +141,23 @@ export function buildGiantBillboard(ctx: MiniCtx, v: CampaignVisual): THREE.Grou
 // Mailbox
 // ---------------------------------------------------------------------------
 
-function mailboxShape(color: string): Shape {
+export function mailboxShape(color: string): Shape {
   const pal = playerPalette(color);
   const s = new Shape();
-  s.add(cyl(0.04, 0.05, 0.42, 6), P.woodDark, { at: [0, 0.06, 0] });
-  s.add(box(0.26, 0.04, 0.4, 0.01), P.woodDark, { at: [0, 0.46, 0] });
-  // Body: box + half-cylinder dome (classic rural postbox, chunky).
-  s.add(box(0.3, 0.2, 0.5, 0.03), pal.base, { at: [0, 0.5, 0] });
-  s.add(cyl(0.15, 0.15, 0.5, 10), pal.base, { at: [0, 0.7, 0.25], rot: [Math.PI / 2, 0, 0] });
-  s.add(puck(0.15, 0.03, 10, 0.01), pal.dark, { at: [0, 0.7, 0.26], rot: [Math.PI / 2, 0, 0] });
-  s.add(box(0.12, 0.02, 0.02, 0.005), P.white, { at: [0, 0.66, 0.28] });
-  // Flag.
-  s.add(box(0.025, 0.36, 0.025, 0), '#e2e2e2', { at: [0.17, 0.52, -0.08] });
-  s.add(box(0.02, 0.12, 0.17, 0.01), '#f8d24a', { at: [0.17, 0.76, -0.01] });
-  // Letters peeking out.
-  s.add(box(0.2, 0.02, 0.14, 0.004), P.white, { at: [0, 0.64, 0.3], rot: [0.5, 0, 0] });
+  // Post + base plate (the printed token: a red rural mailbox on a wooden post).
+  s.add(puck(0.1, 0.03, 8, 0.01), P.woodDark, { at: [0, 0.06, 0] });
+  s.add(box(0.07, 0.42, 0.07, 0.01), P.wood, { at: [0, 0.06, 0] });
+  s.add(box(0.24, 0.04, 0.42, 0.01), P.woodDark, { at: [0, 0.46, 0] });
+  // Body: straight sides with a half-round roof along its length (door at +z).
+  s.add(box(0.3, 0.26, 0.5, 0.02), pal.base, { at: [0, 0.5, 0] });
+  s.add(cyl(0.15, 0.15, 0.5, 14), pal.base, { at: [0, 0.76, -0.25], rot: [Math.PI / 2, 0, 0] });
+  // Door: a darker arch-topped panel with a handle.
+  s.add(box(0.28, 0.25, 0.02, 0.01), pal.dark, { at: [0, 0.505, 0.25] });
+  s.add(puck(0.14, 0.02, 14, 0.005), pal.dark, { at: [0, 0.76, 0.25], rot: [Math.PI / 2, 0, 0] });
+  s.add(box(0.1, 0.03, 0.03, 0.01), P.white, { at: [0, 0.72, 0.275] });
+  // Flag on the side (raised: mail inside).
+  s.add(box(0.025, 0.46, 0.025, 0), '#e2e2e2', { at: [0.165, 0.5, -0.215] });
+  s.add(box(0.02, 0.1, 0.16, 0.01), '#f8d24a', { at: [0.17, 0.86, -0.15] });
   return s;
 }
 
@@ -167,18 +169,21 @@ export function buildMailbox(ctx: MiniCtx, v: CampaignVisual & { w: number; h: n
     padShape(s, v.w, v.h, v.color);
     return s;
   }));
+  // Long axis east-west, slightly turned, so one side poster faces the default camera.
+  const k = Math.min(v.w, v.h) > 1 ? 1.7 : 1;
   const box_ = new THREE.Group();
-  box_.rotation.y = -0.35;
+  box_.rotation.y = -Math.PI / 2 + 0.3;
+  box_.scale.setScalar(k);
   g.add(box_);
   solid(ctx, box_, miniGeo(`mailbox:${v.color}`, () => mailboxShape(v.color)));
-  // Food poster on the side of the mailbox.
-  const icon = face(ctx, box_, posterTexture(v.goods, playerPalette(v.color).dark, 1.4), 0.32, 0.22);
-  icon.position.set(0.152, 0.61, 0.02);
-  icon.rotation.y = Math.PI / 2;
-  const icon2 = face(ctx, box_, posterTexture(v.goods, playerPalette(v.color).dark, 1.4), 0.32, 0.22);
-  icon2.position.set(-0.152, 0.61, 0.02);
-  icon2.rotation.y = -Math.PI / 2;
-  addCampaignMarker(ctx, g, v, 1.18, [v.w / 2 - 0.2, v.h / 2 - 0.2]);
+  // Food poster on both sides of the mailbox.
+  const tex = posterTexture(v.goods, playerPalette(v.color).dark, 1.7);
+  for (const side of [1, -1]) {
+    const icon = face(ctx, box_, tex, 0.36, 0.235);
+    icon.position.set(side * 0.157, 0.635, 0.035);
+    icon.rotation.y = (side * Math.PI) / 2;
+  }
+  addCampaignMarker(ctx, g, v, 0.92 * k + 0.3, [v.w / 2 - 0.2, v.h / 2 - 0.2]);
   return g;
 }
 
@@ -186,34 +191,41 @@ export function buildMailbox(ctx: MiniCtx, v: CampaignVisual & { w: number; h: n
 // Radio tower
 // ---------------------------------------------------------------------------
 
-function radioShape(color: string): Shape {
+/** Radio mast centre on its 1x1 pad (the hut sits front-left). */
+export const MX = 0.12;
+export const MZ = -0.1;
+
+export function radioShape(color: string): Shape {
   const pal = playerPalette(color);
   const s = new Shape();
-  // Hut.
-  s.add(box(0.36, 0.26, 0.3, 0.03), P.cream, { at: [-0.22, 0.06, 0.22] });
-  s.add(box(0.42, 0.05, 0.36, 0.02), pal.dark, { at: [-0.22, 0.32, 0.22] });
-  s.add(box(0.12, 0.18, 0.02, 0.005), P.woodDark, { at: [-0.22, 0.06, 0.38] });
-  // Lattice mast: three tapering legs with bands.
+  // Hut (door on its west side, so the front stays free for the poster).
+  s.add(box(0.4, 0.28, 0.24, 0.03), P.cream, { at: [-0.2, 0.06, 0.24] });
+  s.add(box(0.46, 0.05, 0.3, 0.02), pal.dark, { at: [-0.2, 0.34, 0.24] });
+  s.add(box(0.02, 0.18, 0.1, 0.005), P.woodDark, { at: [-0.405, 0.06, 0.24] });
+  // Lattice mast (the printed token: a tapering tower in bands): three legs that lean in and
+  // meet under the beacon, braced by alternating owner-colour / white rings.
   const H = 1.6;
+  const R = 0.2;
+  const lean = Math.atan2(R - 0.012, H);
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2;
-    const r = 0.17;
-    s.add(cyl(0.012, 0.022, H, 4), '#d9dde3', {
-      at: [Math.cos(a) * r, 0.06, Math.sin(a) * r],
-      rot: [Math.sin(a) * 0.1, 0, -Math.cos(a) * 0.1],
+    s.add(cyl(0.012, 0.024, H, 4), '#d9dde3', {
+      at: [MX + Math.cos(a) * R, 0.06, MZ + Math.sin(a) * R],
+      rot: [-Math.sin(a) * lean, 0, Math.cos(a) * lean],
       mat: 'metal',
       jitter: 0,
     });
   }
-  for (let k = 0; k < 6; k++) {
-    const y = 0.16 + k * 0.26;
-    const r = 0.17 * (1 - (y - 0.06) / (H * 1.12));
-    s.add(torus(r, 0.012, 3), k % 2 ? '#e8e8e8' : pal.base, { at: [0, y, 0], jitter: 0 });
+  const bands = 6;
+  for (let k = 0; k < bands; k++) {
+    const y = 0.2 + k * 0.25;
+    const r = R * (1 - (y - 0.06) / H);
+    s.add(torus(r, 0.016 + 0.004 * (1 - k / bands), 3), k % 2 ? '#f4f4f4' : pal.base, { at: [MX, y, MZ], jitter: 0 });
   }
-  s.add(cyl(0.012, 0.012, 0.3, 4), '#d9dde3', { at: [0, H, 0] });
-  s.add(ball(0.05, 0), '#e25b4b', { at: [0, H + 0.32, 0], mat: 'glow' });
-  // Dish.
-  s.add(lathe([[0, 0], [0.12, 0.03], [0.16, 0.08]], 8), '#eeeeee', { at: [0.08, 1.0, 0.05], rot: [Math.PI / 2, 0.6, 0] });
+  s.add(cyl(0.012, 0.012, 0.3, 4), '#d9dde3', { at: [MX, H + 0.04, MZ] });
+  s.add(ball(0.055, 0), '#e25b4b', { at: [MX, H + 0.36, MZ], mat: 'glow' });
+  // Dish on the mast.
+  s.add(lathe([[0, 0], [0.11, 0.03], [0.15, 0.08]], 8), '#eeeeee', { at: [MX + 0.07, 0.95, MZ + 0.06], rot: [Math.PI / 2, 0.6, 0] });
   return s;
 }
 
@@ -230,7 +242,7 @@ export function buildRadio(ctx: MiniCtx, v: CampaignVisual & { w: number; h: num
   const pal = playerPalette(v.color);
   const rings = new THREE.Group();
   rings.name = 'radioRings';
-  rings.position.y = 1.92;
+  rings.position.set(MX, 1.96, MZ);
   g.add(rings);
   for (let i = 0; i < 3; i++) {
     const m = new THREE.Mesh(
@@ -242,8 +254,8 @@ export function buildRadio(ctx: MiniCtx, v: CampaignVisual & { w: number; h: num
   }
   g.userData.ambient = 'radio';
   // Small poster on the hut.
-  const icon = face(ctx, g, posterTexture(v.goods, pal.base, 1.2), 0.26, 0.2);
-  icon.position.set(-0.22, 0.2, 0.39);
+  const icon = face(ctx, g, posterTexture(v.goods, pal.base, 1.45), 0.32, 0.22);
+  icon.position.set(-0.2, 0.2, 0.367);
   addCampaignMarker(ctx, g, v, 2.35, [v.w / 2 - 0.2, -v.h / 2 + 0.2]);
   return g;
 }

@@ -47,7 +47,7 @@ export function actionFromPlacement(legal: PlacementLegal, p: Placement, me: Pla
     case 'lobbyistRoad':
       return { type: 'ketchup:lobbyists.placeRoad', playerId: me, cardUid, cells: p.cells, arrows: p.arrows, from: p.from };
     case 'park':
-      return { type: 'ketchup:lobbyists.placePark', playerId: me, cardUid, x: p.x, y: p.y, w: p.w, h: p.h, from: p.from };
+      return { type: 'ketchup:lobbyists.placePark', playerId: me, cardUid, x: p.x, y: p.y, w: p.w, h: p.h, ...(p.cells ? { cells: p.cells } : {}), from: p.from };
     case 'freeway':
       return { type: 'ketchup:ruralMarketeers.placeFreeway', playerId: me, choiceId, side: p.side, offset: p.offset };
     case 'mapTile':

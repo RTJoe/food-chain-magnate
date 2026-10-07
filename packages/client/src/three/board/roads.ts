@@ -21,12 +21,29 @@ export function roadShape(links: readonly Direction[]): RoadShape {
   return (has('N') && has('S')) || (has('E') && has('W')) ? 'straight' : 'corner';
 }
 
+const OPP: Record<Direction, Direction> = { N: 'S', S: 'N', E: 'W', W: 'E' };
+
+/**
+ * Drawn links of a road square: every orthogonally adjacent road square connects, across tile
+ * borders too, unless either side is capped (rules: "all edges of orthogonally-adjacent road
+ * squares are considered connected ... regardless of how the art might look"). Boards built by
+ * the test helpers only link tile borders at the midpoint, so the stored `links` are not used.
+ */
+export function roadLinks(b: Board, x: number, y: number): Direction[] {
+  const r = b.cells[y]?.[x]?.road;
+  if (!r) return [];
+  return DIRS.filter((d) => {
+    const o = b.cells[y + DELTA[d][1]]?.[x + DELTA[d][0]]?.road;
+    return !!o && !r.capped?.includes(d) && !o.capped?.includes(OPP[d]);
+  });
+}
+
 export function roadSignature(b: Board): string {
   const parts: string[] = [];
   for (let y = 0; y < b.h; y++)
     for (let x = 0; x < b.w; x++) {
       const r = b.cells[y]?.[x]?.road;
-      if (r) parts.push(`${x},${y}:${[...r.links].sort().join('')}${r.bridge ? 'b' : ''}${r.underConstruction ? 'u' : ''}`);
+      if (r) parts.push(`${x},${y}:${roadLinks(b, x, y).join('')}${r.bridge ? 'b' : ''}${r.underConstruction ? 'u' : ''}`);
     }
   return `${b.w}x${b.h}|${parts.join(';')}`;
 }
@@ -64,17 +81,18 @@ export function buildRoads(b: Board): RoadLayer {
     for (let x = 0; x < b.w; x++) {
       const r = b.cells[y]?.[x]?.road;
       if (!r) continue;
-      let links = r.links.length ? [...r.links] : DIRS.filter((d) => isRoad(x + DELTA[d][0], y + DELTA[d][1]));
+      let links = roadLinks(b, x, y);
       const cx = x + 0.5;
       const cz = y + 0.5;
       const tint = (hash(x, y) - 0.5) * 0.06;
       asphalt.push({ x: cx, z: cz, ang: 0, color: (r.underConstruction ? gravelC : asphaltC).clone().multiplyScalar(1 + tint) });
       if (r.bridge) {
-        bridgeDeck(bridges, cx, cz);
+        // E-W deck on top (seen side-on from the default camera), N-S road underneath.
+        bridgeDeck(bridges, cx, cz, rampLen(b, x, y, -1), rampLen(b, x, y, 1));
         bridgeCount++;
-        links = links.filter((d) => d === 'E' || d === 'W');
+        links = links.filter((d) => d === 'N' || d === 'S');
       }
-      for (const d of DIRS) if (!links.includes(d) && !(r.bridge && (d === 'N' || d === 'S'))) kerbs.push({ x: cx, z: cz, ang: ANG[d] });
+      for (const d of DIRS) if (!links.includes(d)) kerbs.push({ x: cx, z: cz, ang: ANG[d] });
       // Kerb posts on corners between two linked sides when the diagonal is not road.
       const pairs: [Direction, Direction, number, number][] = [
         ['N', 'E', 1, -1],
@@ -97,9 +115,9 @@ export function buildRoads(b: Board): RoadLayer {
         for (const d of links) {
           const nx = x + DELTA[d][0];
           const ny = y + DELTA[d][1];
-          const nr = b.cells[ny]?.[nx]?.road;
+          const ns = roadShape(roadLinks(b, nx, ny));
           // Crossing on the arm only if the neighbour continues straight (not another junction).
-          if (nr && roadShape(nr.links) !== 'tee' && roadShape(nr.links) !== 'cross')
+          if (ns !== 'none' && ns !== 'tee' && ns !== 'cross')
             zebras.push({ x: cx + DELTA[d][0] * 0.36, z: cz + DELTA[d][1] * 0.36, ang: ANG[d] });
         }
       }
@@ -207,59 +225,109 @@ function mergeBoxes(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return out;
 }
 
-/** N–S overpass deck over an E–W road; ramps reach half a square into the N and S neighbours. */
-function bridgeDeck(s: Shape, cx: number, cz: number): void {
-  const top = 0.34;
+/** Deck height of an overpass (world units above the ground). */
+export const BRIDGE_TOP = 0.66;
+
+/** Ramp run west (-1) / east (+1) of the overpass at (x, y): a full square over a straight road, else half. */
+function rampLen(b: Board, x: number, y: number, sx: -1 | 1): number {
+  const n = b.cells[y]?.[x + sx]?.road;
+  const nl = roadLinks(b, x + sx, y);
+  return n && !n.bridge && nl.length === 2 && nl.includes('E') && nl.includes('W') ? 1.0 : 0.5;
+}
+
+/**
+ * Height of the overpass road surface above the ground road at world (x, z), for traffic on the
+ * upper (E-W) road; 0 away from decks and ramps.
+ */
+export function bridgeLift(b: Board, x: number, z: number): number {
+  const by = Math.floor(z);
+  if (Math.abs(z - (by + 0.5)) > 0.45) return 0;
+  for (let bx = Math.floor(x) - 1; bx <= Math.floor(x) + 1; bx++) {
+    if (!b.cells[by]?.[bx]?.road?.bridge) continue;
+    const dx = x - (bx + 0.5);
+    const rise = BRIDGE_TOP - ROAD_TOP;
+    if (Math.abs(dx) <= 0.5) return rise;
+    const len = rampLen(b, bx, by, dx < 0 ? -1 : 1);
+    const k = 1 - (Math.abs(dx) - 0.5) / len;
+    if (k > 0) return rise * k;
+  }
+  return 0;
+}
+
+/**
+ * E–W overpass over a N–S road (the one road crossing that does not connect). A raised light
+ * concrete deck with dark fascia, abutments, and ramps that run down over `rampW` / `rampE`
+ * squares of the neighbouring road; the lower road shows a dark band where it passes under.
+ */
+function bridgeDeck(s: Shape, cx: number, cz: number, rampW: number, rampE: number): void {
+  const top = BRIDGE_TOP;
   const hw = 0.42;
-  const deck = '#9b958c';
-  // Ramps (solid embankments) north and south.
-  for (const sz of [-1, 1]) {
-    const z0 = cz + sz * 0.5;
-    const z1 = cz + sz * 1.0;
+  const deck = '#d6d0c4';
+  const fascia = '#8a847a';
+  const wall = '#bdb6a9';
+  // Ramps (solid embankments with retaining walls) west and east.
+  for (const [sx, len] of [[-1, rampW], [1, rampE]] as const) {
+    const x0 = cx + sx * 0.5;
     s.add(
-      hull(`ramp:${sz}`, [
-        [-hw, 0, 0],
-        [hw, 0, 0],
-        [-hw, top, 0],
-        [hw, top, 0],
-        [-hw, 0, sz * 0.5],
-        [hw, 0, sz * 0.5],
-        [-hw, ROAD_TOP + 0.005, sz * 0.5],
-        [hw, ROAD_TOP + 0.005, sz * 0.5],
+      hull(`rampE:${sx}:${len}`, [
+        [0, 0, -hw],
+        [0, 0, hw],
+        [0, top, -hw],
+        [0, top, hw],
+        [sx * len, 0, -hw],
+        [sx * len, 0, hw],
+        [sx * len, ROAD_TOP + 0.005, -hw],
+        [sx * len, ROAD_TOP + 0.005, hw],
       ]),
-      P.stone,
-      { at: [cx, 0, z0], jitter: 0 },
+      wall,
+      { at: [x0, 0, cz], jitter: 0 },
     );
-    void z1;
     s.add(
-      hull(`rampTop:${sz}`, [
-        [-hw + 0.06, top + 0.004, 0],
-        [hw - 0.06, top + 0.004, 0],
-        [-hw + 0.06, ROAD_TOP + 0.012, sz * 0.5],
-        [hw - 0.06, ROAD_TOP + 0.012, sz * 0.5],
-        [-hw + 0.06, top - 0.01, 0],
-        [hw - 0.06, top - 0.01, 0],
-        [-hw + 0.06, ROAD_TOP, sz * 0.5],
-        [hw - 0.06, ROAD_TOP, sz * 0.5],
+      hull(`rampTopE:${sx}:${len}`, [
+        [0, top + 0.004, -hw + 0.06],
+        [0, top + 0.004, hw - 0.06],
+        [sx * len, ROAD_TOP + 0.012, -hw + 0.06],
+        [sx * len, ROAD_TOP + 0.012, hw - 0.06],
+        [0, top - 0.01, -hw + 0.06],
+        [0, top - 0.01, hw - 0.06],
+        [sx * len, ROAD_TOP, -hw + 0.06],
+        [sx * len, ROAD_TOP, hw - 0.06],
       ]),
       COLORS.road,
-      { at: [cx, 0, z0], jitter: 0 },
+      { at: [x0, 0, cz], jitter: 0 },
     );
+    // Parapet down the ramp (a sloped kerb on each side).
+    for (const sz of [-1, 1])
+      s.add(
+        hull(`rampRail:${sx}:${sz}:${len}`, [
+          [0, top - 0.02, sz * (hw - 0.06)],
+          [0, top - 0.02, sz * hw],
+          [0, top + 0.08, sz * (hw - 0.06)],
+          [0, top + 0.08, sz * hw],
+          [sx * len, ROAD_TOP, sz * (hw - 0.06)],
+          [sx * len, ROAD_TOP, sz * hw],
+          [sx * len, ROAD_TOP + 0.06, sz * (hw - 0.06)],
+          [sx * len, ROAD_TOP + 0.06, sz * hw],
+        ]),
+        P.kerb,
+        { at: [x0, 0, cz], jitter: 0 },
+      );
+    // Abutment pier face where the lower road passes.
+    s.add(box(0.08, top - 0.1, hw * 2 + 0.06, 0.01), wall, { at: [x0 - sx * 0.02, 0, cz], jitter: 0 });
   }
-  // Deck slab with girder, asphalt top and parapets.
-  s.add(box(hw * 2, 0.08, 1.0, 0.015), deck, { at: [cx, top - 0.08, cz], jitter: 0 });
-  s.add(box(hw * 2 - 0.12, 0.012, 1.0, 0), COLORS.road, { at: [cx, top, cz], jitter: 0 });
-  s.add(box(0.05, 0.006, 0.26, 0), COLORS.roadLine, { at: [cx, top + 0.012, cz - 0.25], jitter: 0 });
-  s.add(box(0.05, 0.006, 0.26, 0), COLORS.roadLine, { at: [cx, top + 0.012, cz + 0.25], jitter: 0 });
-  for (const sx of [-1, 1]) {
-    s.add(box(0.06, 0.1, 2.0, 0.015), P.kerb, { at: [cx + sx * (hw - 0.03), top - 0.01, cz], jitter: 0 });
-    s.add(box(0.03, 0.03, 1.2, 0.008), '#e25b4b', { at: [cx + sx * (hw - 0.03), top + 0.09, cz], jitter: 0 });
+  // Deck slab: light concrete with a darker fascia band on both long sides, asphalt on top.
+  s.add(box(1.04, 0.12, hw * 2, 0.015), deck, { at: [cx, top - 0.12, cz], jitter: 0 });
+  for (const sz of [-1, 1]) {
+    s.add(box(1.06, 0.14, 0.03, 0.008), fascia, { at: [cx, top - 0.16, cz + sz * (hw + 0.005)], jitter: 0 });
+    s.add(box(1.04, 0.08, 0.06, 0.015), P.kerb, { at: [cx, top - 0.02, cz + sz * (hw - 0.03)], jitter: 0 });
+    s.add(box(1.04, 0.025, 0.03, 0.008), '#e25b4b', { at: [cx, top + 0.075, cz + sz * (hw - 0.03)], jitter: 0 });
   }
-  // Under-deck shadow strip on the lower road.
-  s.add(box(0.05, top - 0.12, 0.1, 0.01), shade(P.stone, -0.15), { at: [cx - hw + 0.03, ROAD_TOP, cz - 0.45], jitter: 0 });
-  s.add(box(0.05, top - 0.12, 0.1, 0.01), shade(P.stone, -0.15), { at: [cx + hw - 0.03, ROAD_TOP, cz - 0.45], jitter: 0 });
-  s.add(box(0.05, top - 0.12, 0.1, 0.01), shade(P.stone, -0.15), { at: [cx - hw + 0.03, ROAD_TOP, cz + 0.45], jitter: 0 });
-  s.add(box(0.05, top - 0.12, 0.1, 0.01), shade(P.stone, -0.15), { at: [cx + hw - 0.03, ROAD_TOP, cz + 0.45], jitter: 0 });
+  s.add(box(1.0, 0.012, hw * 2 - 0.12, 0), COLORS.road, { at: [cx, top, cz], jitter: 0 });
+  s.add(box(0.26, 0.006, 0.05, 0), COLORS.roadLine, { at: [cx - 0.25, top + 0.012, cz], jitter: 0 });
+  s.add(box(0.26, 0.006, 0.05, 0), COLORS.roadLine, { at: [cx + 0.25, top + 0.012, cz], jitter: 0 });
+  // The lower road in the deck's shade: dark under the deck, a softer band on each side.
+  s.add(box(0.84, 0.004, hw * 2, 0), '#3a3940', { at: [cx, ROAD_TOP + 0.003, cz], jitter: 0 });
+  for (const sz of [-1, 1]) s.add(box(0.84, 0.004, 0.08, 0), '#3f3e46', { at: [cx, ROAD_TOP + 0.003, cz + sz * (hw + 0.04)], jitter: 0 });
 }
 
 function hash(x: number, y: number): number {

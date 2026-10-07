@@ -216,7 +216,22 @@ export function ketchupFixture(): GameState {
     .restaurant('p3', 10, 13, 'NW')
     .entity({ kind: 'coffeeShop', id: 'ent-cs-p1', owner: 'p1', x: 16, y: 3 })
     .entity({ kind: 'coffeeShop', id: 'ent-cs-p3', owner: 'p3', x: 0, y: 13 })
-    .entity({ kind: 'park', id: 'ent-park-1', x: 3, y: 13, w: 2, h: 1, printed: false })
+    .entity({
+      kind: 'park',
+      id: 'ent-park-1',
+      x: 3,
+      y: 13,
+      w: 3,
+      h: 2,
+      printed: false,
+      // An L park tile (questions.md Q-K1), mirrored side up.
+      cells: [
+        { x: 3, y: 13 },
+        { x: 4, y: 13 },
+        { x: 5, y: 13 },
+        { x: 3, y: 14 },
+      ],
+    })
     .entity({
       kind: 'lobbyistRoad',
       id: 'ent-road-1',

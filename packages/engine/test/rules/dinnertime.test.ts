@@ -330,12 +330,20 @@ describe('after the houses (base.md §7)', () => {
 });
 
 describe('Dinnertime milestones', () => {
-  it('First to Lower Prices: claimed at the start of Dinnertime by every chain with a pricing/discount/luxuries manager at work, even with no sales', () => {
-    const ctx = dine(base(3).card('p1', 'pricing_manager', 'work').card('p2', 'discount_manager', 'beach').card('p3', 'luxuries_manager', 'work'));
+  it('First to Lower Prices: claimed at the start of Dinnertime by every chain with a pricing/discount manager at work, even with no sales (DLX p28)', () => {
+    const ctx = dine(base(3).card('p1', 'pricing_manager', 'work').card('p2', 'discount_manager', 'beach').card('p3', 'discount_manager', 'work'));
     expect(Object.keys(ctx.state.players.p1?.milestones ?? {})).toContain('first_lower_prices');
     expect(ctx.state.players.p2?.milestones.first_lower_prices).toBeUndefined();
     expect(ctx.state.players.p3?.milestones.first_lower_prices).toBeDefined();
     expect(ctx.state.milestones.first_lower_prices?.claimedBy).toEqual(['p1', 'p3']);
+  });
+
+  it('First to Lower Prices: a luxuries manager alone does not claim it; one beside a pricing manager does not prevent it (DLX p28, p35)', () => {
+    const alone = dine(base(2).card('p1', 'luxuries_manager', 'work'));
+    expect(alone.state.players.p1?.milestones.first_lower_prices).toBeUndefined();
+    expect(alone.state.milestones.first_lower_prices?.claimedBy ?? []).toEqual([]);
+    const both = dine(base(2).card('p2', 'pricing_manager', 'work').card('p2', 'luxuries_manager', 'work'));
+    expect(both.state.milestones.first_lower_prices?.claimedBy).toEqual(['p2']);
   });
 
   it('First to Lower Prices applies to the same Dinnertime (−$1)', () => {

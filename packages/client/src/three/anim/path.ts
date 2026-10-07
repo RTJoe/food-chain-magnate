@@ -25,6 +25,8 @@ export interface Follow {
   at(s: number, out?: Pose): Pose;
   /** Arc length of the point on the path nearest to (x, z) (cart pickups, stops). */
   nearest(x: number, z: number): number;
+  /** Root height at arc length `s` on paths that climb (the freeway ramp); `y` when absent. */
+  yAt?(s: number): number;
 }
 
 /** Lane offset to the right of travel (roads are 0.78 wide; WP-B ground vehicles are up to 0.46 wide, so head-on vans just clear each other). */
@@ -35,6 +37,46 @@ export const CORNER = 0.32;
 export const ROAD_Y = 0.05;
 /** Air lanes. */
 export const AIR_Y = { zeppelin: 2.2, airplane: 2.5 } as const;
+/** Freeway deck (minis/ketchup.ts): ramp run and rise from the board edge, then a flat platform. */
+export const FREEWAY = { run: 3.2, rise: 0.95, platform: 0.8 } as const;
+/** Root height of a vehicle on the rural area tile. */
+const RURAL_Y = 0.1;
+const FW_TOP = ROAD_Y + FREEWAY.rise + 0.02;
+
+/**
+ * Root height of a vehicle `d` units past the board edge on a freeway: up the deck, flat on the
+ * platform, then a short drop on to the rural tile.
+ */
+export function freewayY(d: number): number {
+  const ramp = FREEWAY.run + 0.05;
+  const top = ramp + FREEWAY.platform - 0.05;
+  if (d <= 0) return ROAD_Y;
+  if (d <= ramp) return ROAD_Y + (FW_TOP - ROAD_Y) * (d / ramp);
+  if (d <= top) return FW_TOP;
+  const k = Math.min(1, (d - top) / 0.7);
+  return FW_TOP + (RURAL_Y - FW_TOP) * k * k * (3 - 2 * k);
+}
+
+/** Ground height for a freeway leaving the board at `edge` heading `dir` (unit). */
+export function freewayGround(edge: P2, dir: P2): (x: number, z: number) => number {
+  return (x, z) => freewayY((x - edge[0]) * dir[0] + (z - edge[1]) * dir[1]);
+}
+
+/** `f` with a height that follows the ground under it: `h(x, z)` gives the root height. */
+export function withHeight(f: Follow, h: (x: number, z: number) => number): Follow {
+  const p: Pose = { x: 0, z: 0, yaw: 0 };
+  return {
+    length: f.length,
+    y: f.y,
+    at: (s, out) => f.at(s, out),
+    nearest: (x, z) => f.nearest(x, z),
+    yAt: (s) => {
+      f.at(s, p);
+      return h(p.x, p.z);
+    },
+  };
+}
+
 /** Arc-length table resolution. */
 const STEP = 0.05;
 

@@ -6,6 +6,7 @@ import type { Direction, Rotation, TileTemplateId } from '../types/content.js';
 import type { Board, BoardCell, Cell, CellKind, House, RoadCell } from '../types/state.js';
 import { allocId } from '../core/ids.js';
 import { TEST_TILE_GRIDS } from './tileGrids.js';
+import { parkCells } from '../map/grid.js';
 
 export interface LayoutEntry {
   templateId: TileTemplateId;
@@ -188,7 +189,7 @@ export function buildBoard(layout: LayoutEntry[][], ids: { nextId: number }): Bo
   }
   for (const s of Object.values(board.drinkSources)) setOccupant(board, s, s.id);
   for (const e of Object.values(board.entities)) {
-    if (e.kind === 'park') for (const c of rect(e.x, e.y, e.w, e.h)) setOccupant(board, c, e.id);
+    if (e.kind === 'park') for (const c of parkCells(e)) setOccupant(board, c, e.id);
   }
   return board;
 }

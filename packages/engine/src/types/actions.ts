@@ -195,10 +195,13 @@ export interface LobbyistPlaceRoad extends A<'ketchup:lobbyists.placeRoad'> {
 /** ketchup.md §2: park tile. */
 export interface LobbyistPlacePark extends A<'ketchup:lobbyists.placePark'> {
   cardUid: Uid;
+  /** Bounding box of the park. */
   x: number;
   y: number;
   w: number;
   h: number;
+  /** The park's squares (one orientation of a park tile). Without it, the first legal piece that fills the box. */
+  cells?: Cell[];
   from: RouteStart;
 }
 /** ketchup.md §2 First lobbyist used: resolves an `extraMapTile` choice with one of the leftover tiles. */

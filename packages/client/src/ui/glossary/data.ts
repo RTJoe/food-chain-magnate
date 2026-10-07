@@ -1652,7 +1652,7 @@ const MODULES: GlossaryEntry[] = [
 ];
 
 const KETCHUP_EMPLOYEES: GlossaryEntry[] = [
-  emp({ id: 'fry_chef', term: 'Fry Chef', short: 'Salary $5. Trained from any cook. Adds $10 to every sale (per house, not per item) while at work.', example: '3 burgers at $20 with two Fry Chefs at work: $60 + $20 = $80.', related: ['module_fry_chefs', 'burger_cook', 'pizza_cook'], rule: R.kFry }, 'ketchup:fry_chef', 'ketchup:fryChefs'),
+  emp({ id: 'fry_chef', term: 'Fry Chef', short: 'Salary $5. Trained from any cook, it adds $10 to every sale while at work: once per house, not per item, coffee included.', example: '3 burgers at $20 with two Fry Chefs at work: $60 + $20 = $80.', related: ['module_fry_chefs', 'burger_cook', 'pizza_cook'], rule: R.kFry }, 'ketchup:fry_chef', 'ketchup:fryChefs'),
   emp({ id: 'kimchi_master', term: 'Kimchi Master', short: 'Entry level, salary $5, 1x. Makes 1 kimchi at the end of every Clean up, which you keep for next round.', example: 'Next Dinnertime that kimchi makes one house pick you over a cheaper rival.', related: ['kimchi', 'module_kimchi'], rule: R.kKimchi }, 'ketchup:kimchi_master', 'ketchup:kimchi'),
   emp({ id: 'sushi_cook', term: 'Sushi Cook', short: 'Salary $5. Makes 2 sushi. Trained from a Kitchen Trainee.', example: '2 sushi feed one garden house that wants 2 items.', related: ['sushi', 'sushi_chef', 'kitchen_trainee'], rule: R.kSushi }, 'ketchup:sushi_cook', 'ketchup:sushi'),
   emp({ id: 'sushi_chef', term: 'Sushi Chef', short: 'Salary $5, 1x. Makes 5 sushi.', example: 'Enough to win a full garden house of 5 demand.', related: ['sushi', 'sushi_cook'], rule: R.kSushi }, 'ketchup:sushi_chef', 'ketchup:sushi'),

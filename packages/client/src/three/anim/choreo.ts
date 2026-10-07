@@ -46,6 +46,8 @@ export interface SaleTrip {
   house: P2;
   /** Leaves the board (Ketchup rural area). */
   offBoard: boolean;
+  /** Root height under (x, z) when the trip climbs (freeway); flat road otherwise. */
+  ground?: (x: number, z: number) => number;
 }
 
 export interface BuyTrip {
@@ -136,8 +138,14 @@ export function followClip(actor: THREE.Object3D, f: Follow, dur: number, opts: 
       yaw = null;
     },
     update: (k, raw) => {
-      f.at(s0 + (s1 - s0) * k, pose);
-      actor.position.set(pose.x, f.y, pose.z);
+      const s = s0 + (s1 - s0) * k;
+      f.at(s, pose);
+      actor.position.set(pose.x, f.yAt ? f.yAt(s) : f.y, pose.z);
+      if (f.yAt) {
+        // Pitch the nose (+x) with the slope in the direction of travel.
+        const dy = (f.yAt(s + 0.06) - f.yAt(s - 0.06)) / 0.12;
+        body.rotation.z = Math.atan(s1 >= s0 ? dy : -dy);
+      }
       // Heading lag: ease the yaw toward the tangent (shortest way round).
       const target = s1 >= s0 ? pose.yaw : pose.yaw + Math.PI;
       if (yaw === null || raw >= 1) yaw = target;

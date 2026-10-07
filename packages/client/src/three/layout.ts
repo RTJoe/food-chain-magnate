@@ -4,6 +4,7 @@
  * interaction layer so ghosts land exactly where the real mini will.
  */
 import type { Board, CampaignPlacement, Cell, Direction, GameView, Placement } from '@fcm/engine';
+import { initial } from '../state/selectors.js';
 import { PLAYER_COLORS } from '../theme.js';
 import { AIR_STRIP, DELTA, RIM, cellsRect, dirAngle, edgeStrip } from './coords.js';
 
@@ -40,6 +41,17 @@ export function ruralCenter(b: Board): [number, number] {
 
 export function hasRural(b: Board): boolean {
   return Object.values(b.houses).some((h) => h.kind === 'rural');
+}
+
+/**
+ * What the camera framing depends on: the grid (size and tiles; a change re-bases coordinates),
+ * the rural area's side (it moves to the first freeway) and the airplane strips in use.
+ */
+export function boardFrameKey(b: Board): { grid: string; rural: string; key: string } {
+  const grid = `${b.w}x${b.h}:${b.tiles.map((t) => t.id).join(',')}`;
+  const rural = hasRural(b) ? ruralSide(b) : '';
+  const air = [...new Set(Object.values(b.campaigns).flatMap((c) => (c.placement.kind === 'airplane' ? [c.placement.side] : [])))].sort().join('');
+  return { grid, rural, key: `${grid}|${rural}|${air}` };
 }
 
 /** Off-board spots for gourmet guides: the four outer rim corners, then along the north rim. */
@@ -154,7 +166,7 @@ export function placementCells(p: Placement): Cell[] {
     case 'freeMailbox':
       return rect(p.x, p.y, 1, 1);
     case 'park':
-      return rect(p.x, p.y, p.w, p.h);
+      return p.cells?.length ? [...p.cells] : rect(p.x, p.y, p.w, p.h);
     case 'mapTile':
       return rect(p.col * 5, p.row * 5, 5, 5);
     case 'freeway':
@@ -216,6 +228,11 @@ export function playerColor(view: GameView, id: string | null | undefined): stri
 }
 
 /** Short chain mark for restaurant signs (e.g. "golden_duck_diner" → "GD"). */
+/** Owner mark on restaurants, coffee shops and vehicles: the player's initial, as in every panel. */
+export function ownerMark(view: GameView, id: string): string {
+  return initial(view.players[id]?.name ?? id);
+}
+
 export function chainMark(chain: string | undefined, fallback: string): string {
   if (!chain) return fallback.slice(0, 2).toUpperCase();
   const words = chain.split(/[_\s-]+/).filter(Boolean);
@@ -256,9 +273,9 @@ export function frameRect(b: Board): Rect {
  * park square touches a house or garden square orthogonally; 1 otherwise. `parks` defaults to the
  * board's parks; pass extra rectangles to preview a park being placed.
  */
-export function parkMultiplier(b: Board, h: Board['houses'][string], parks?: readonly { x: number; y: number; w: number; h: number }[]): number {
+export function parkMultiplier(b: Board, h: Board['houses'][string], parks?: readonly { x: number; y: number; w: number; h: number; cells?: { x: number; y: number }[] }[]): number {
   if (h.kind === 'rural' || !h.cells.length) return 1;
-  const list = parks ?? Object.values(b.entities).flatMap((e) => (e.kind === 'park' ? [{ x: e.x, y: e.y, w: e.w, h: e.h }] : []));
+  const list = parks ?? Object.values(b.entities).flatMap((e) => (e.kind === 'park' ? [e] : []));
   if (!list.length) return 1;
   const own = [...h.cells, ...(h.garden?.cells ?? [])];
   const ownSet = new Set(own.map((c) => `${c.x},${c.y}`));
@@ -268,7 +285,14 @@ export function parkMultiplier(b: Board, h: Board['houses'][string], parks?: rea
       const k = `${c.x + dx},${c.y + dy}`;
       if (!ownSet.has(k)) near.add(k);
     }
-  for (const p of list) for (let y = p.y; y < p.y + p.h; y++) for (let x = p.x; x < p.x + p.w; x++) if (near.has(`${x},${y}`)) return h.garden ? 3 : 2;
+  for (const p of list) {
+    // Parks that are not full rectangles (T / L tiles) list their squares.
+    if (p.cells?.length) {
+      if (p.cells.some((c) => near.has(`${c.x},${c.y}`))) return h.garden ? 3 : 2;
+      continue;
+    }
+    for (let y = p.y; y < p.y + p.h; y++) for (let x = p.x; x < p.x + p.w; x++) if (near.has(`${x},${y}`)) return h.garden ? 3 : 2;
+  }
   return 1;
 }
 

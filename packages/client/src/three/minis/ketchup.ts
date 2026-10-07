@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import type { Cell, Direction } from '@fcm/engine';
 import { COLORS } from '../../theme.js';
+import { FREEWAY } from '../anim/path.js';
 import { dirAngle } from '../coords.js';
 import { makeBadge, signTexture } from '../labels.js';
 import { tree, bush } from './buildings.js';
@@ -54,7 +55,65 @@ function parkShape(w: number, h: number): Shape {
   return s;
 }
 
-export function buildPark(ctx: MiniCtx, p: { w: number; h: number }): THREE.Group {
+/**
+ * Park on exactly its squares (I, T and L lobbyist parks), in coordinates relative to the centre
+ * of its bounding box: one lawn joined across neighbouring squares, a path linking the squares, a
+ * tree per square, a pond on the busiest square of a big park, a bench and a lamp.
+ */
+function parkCellsShape(cells: readonly [number, number][], w: number, h: number): Shape {
+  const s = new Shape();
+  const has = (x: number, z: number) => cells.some(([cx, cz]) => cx === x && cz === z);
+  const ctr = (x: number, z: number): [number, number] => [x + 0.5 - w / 2, z + 0.5 - h / 2];
+  const degree = (x: number, z: number) => [has(x + 1, z), has(x - 1, z), has(x, z + 1), has(x, z - 1)].filter(Boolean).length;
+  const hub = [...cells].sort((a, b) => degree(b[0], b[1]) - degree(a[0], a[1]))[0]!;
+  cells.forEach(([x, z], i) => {
+    const [cx, cz] = ctr(x, z);
+    const e = (open: boolean, m: number) => (open ? 0 : m);
+    const lot = (m: number, y: number, hgt: number, col: string) => {
+      const x0 = cx - 0.5 + e(has(x - 1, z), m);
+      const x1 = cx + 0.5 - e(has(x + 1, z), m);
+      const z0 = cz - 0.5 + e(has(x, z - 1), m);
+      const z1 = cz + 0.5 - e(has(x, z + 1), m);
+      s.add(box(x1 - x0, hgt, z1 - z0, 0), col, { at: [(x0 + x1) / 2, y, (z0 + z1) / 2], jitter: 0 });
+    };
+    lot(0.05, 0, 0.06, P.lot);
+    lot(0.12, 0.06, 0.03, COLORS.park);
+    // Path to the east / south neighbour (each link once).
+    if (has(x + 1, z)) s.add(box(1.0, 0.012, 0.14, 0.005), P.stone, { at: [cx + 0.5, 0.09, cz], jitter: 0 });
+    if (has(x, z + 1)) s.add(box(0.14, 0.012, 1.0, 0.005), P.stone, { at: [cx, 0.09, cz + 0.5], jitter: 0 });
+    const pond = cells.length >= 4 && x === hub[0] && z === hub[1];
+    if (pond) {
+      s.add(cyl(0.26, 0.28, 0.02, 10), COLORS.water, { at: [cx, 0.095, cz], mat: 'glass' });
+      s.add(cyl(0.3, 0.32, 0.015, 10), P.stone, { at: [cx, 0.09, cz] });
+    } else {
+      const k = (i * 0.37) % 1;
+      tree(s, cx + (k - 0.5) * 0.4, cz - 0.22, 0.85 + k * 0.3, i % 2 ? P.leafLight : P.leaf);
+      bush(s, cx + 0.28, cz + 0.28, 0.08, P.leaf);
+    }
+    s.add(ball(0.04, 0), ['#e25b8b', '#fff3a8', '#f08a3c'][i % 3]!, { at: [cx - 0.28, 0.11, cz + 0.3] });
+  });
+  // Bench + lamp on the first square.
+  const [bx, bz] = ctr(cells[0]![0], cells[0]![1]);
+  s.add(box(0.3, 0.04, 0.1, 0.01), P.wood, { at: [bx - 0.05, 0.16, bz + 0.2] });
+  s.add(box(0.3, 0.1, 0.03, 0.01), P.wood, { at: [bx - 0.05, 0.2, bz + 0.26] });
+  s.add(cyl(0.015, 0.015, 0.45, 4), P.steelDark, { at: [bx + 0.3, 0.09, bz + 0.12] });
+  s.add(ball(0.04, 0), '#fff3a8', { at: [bx + 0.3, 0.56, bz + 0.12], mat: 'glow' });
+  return s;
+}
+
+export function buildPark(ctx: MiniCtx, p: { w: number; h: number; cells?: readonly [number, number][] }): THREE.Group {
+  if (p.cells && p.cells.length < p.w * p.h) {
+    const g = new THREE.Group();
+    const key = p.cells.map(([x, z]) => `${x}.${z}`).join(',');
+    for (const [x, z] of p.cells) {
+      const sq = new THREE.Group();
+      sq.position.set(x + 0.5 - p.w / 2, 0, z + 0.5 - p.h / 2);
+      g.add(sq);
+      blob(ctx, sq, 1, 1, true, 0.4);
+    }
+    solid(ctx, g, miniGeo(`parkCells:${p.w}x${p.h}:${key}`, () => parkCellsShape(p.cells!, p.w, p.h)));
+    return g;
+  }
   const g = new THREE.Group();
   const vertical = p.h > p.w;
   const body = new THREE.Group();
@@ -201,8 +260,9 @@ function triShape(): THREE.Shape {
 function freewayShape(color: string): Shape {
   const pal = playerPalette(color);
   const s = new Shape();
-  const L = 3.2;
-  const rise = 0.95;
+  // Shared with the van's height profile (anim/path.ts freewayY).
+  const L = FREEWAY.run;
+  const rise = FREEWAY.rise;
   const slope = Math.atan2(rise, L);
   const len = Math.hypot(L, rise);
   // Deck (inclined slab) from the board edge outwards.

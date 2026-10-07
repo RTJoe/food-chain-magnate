@@ -15,7 +15,7 @@ import type { Cell, ChoiceId, GameState, House, PendingChoice, PendingChoiceKind
 import { reject } from '../../core/errors.js';
 import { cardsAtWork, defOf } from '../../core/cards.js';
 import { contentFor } from '../registry.js';
-import { DIRECTIONS, cellKey, houseSquares, rect, step } from '../../map/grid.js';
+import { DIRECTIONS, cellKey, houseSquares, parkCells, step } from '../../map/grid.js';
 
 // ---------------------------------------------------------------------------
 // Card definitions (employees.md §2)
@@ -168,7 +168,7 @@ export function nextToPark(s: GameState, house: House): boolean {
   const near = ring(houseSquares(house));
   for (const e of Object.values(s.board.entities)) {
     if (e.kind !== 'park') continue;
-    if (rect(e.x, e.y, e.w, e.h).some((c) => near.has(cellKey(c)))) return true;
+    if (parkCells(e).some((c) => near.has(cellKey(c)))) return true;
   }
   return false;
 }

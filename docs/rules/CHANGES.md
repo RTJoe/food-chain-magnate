@@ -98,7 +98,7 @@ Unchanged shapes (checked): the 17-module Ketchup list; foods/items (burger, piz
 5. New Districts: random draw may contain no new tile.
 6. Apartment + First radio = 4 counters raised to Medium-High.
 7. Lobbyist card details from image (entry, salary, range 2).
-8. Lobbyist footprints still unknown (Q-K1); no measurements in DLX.
+8. Lobbyist footprints (Q-K1, resolved later from the KX-DLX printed p15 / PDF p16 component photo and the licensed OnlineBoardGamers scans): roads 4 straight 2, 2 straight 4, 2 corner 3; parks I, T, L, L (double-sided).
 9. Road arrow rule A/B precise; may point at earlier roadwork.
 10. **[BEHAVIOUR]** Roadworks +1 for every road route, not only dinnertime (community ruling superseded).
 11. Parallel-road sentence (KX p7) not in DLX; redundant under base rule.

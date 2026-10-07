@@ -288,7 +288,11 @@ function TrainGrid({ view: v, player: p, trainerUid, actions, busy }: { view: Ga
   if (!t) {
     return (
       <div class="inline-picker">
-        <p class="muted small">Train whom? Only cards on the beach can be trained (including this turn’s hires).</p>
+        <p class="muted small">
+          {targets.some((u) => !p.beach.includes(u))
+            ? 'Train whom? Cards on the beach, or cards at work into the same colour (First lemonade sold).'
+            : 'Train whom? Only cards on the beach can be trained (including this turn’s hires).'}
+        </p>
         <div class="card-grid">
           {targets.map((u) => (
             <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} tutorial={`train-target-${u}`} compact highlight onClick={() => (target.value = u)} />

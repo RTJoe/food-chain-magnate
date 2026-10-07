@@ -44,6 +44,7 @@ import { clone } from '../core/clone.js';
 import { createRng } from '../core/rng.js';
 import { contentFor } from '../modules/registry.js';
 import { buildBoard, paint, parseLayout, rect, touchesRoad } from './board.js';
+import { parkCells } from '../map/grid.js';
 import { assertValidState } from './validate.js';
 
 // ---------------------------------------------------------------------------
@@ -406,7 +407,7 @@ export class StateBuilder {
   /** Module board entity. On-board footprints are painted. */
   entity(e: ModuleEntity): this {
     if (e.kind === 'coffeeShop') paint(this.s.board, [{ x: e.x, y: e.y }], 'coffeeShop', e.id);
-    if (e.kind === 'park') paint(this.s.board, rect(e.x, e.y, e.w, e.h), 'park', e.id);
+    if (e.kind === 'park') paint(this.s.board, parkCells(e), 'park', e.id);
     if (e.kind === 'lobbyistRoad') {
       paint(this.s.board, e.cells, 'road', e.id);
       for (const c of e.cells) {

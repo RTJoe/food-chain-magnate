@@ -4,10 +4,12 @@
  * - Lobbyist (x6, entry, salary, purple, road range 2). Its action is Working sub-step "3f½"
  *   (`lobbyists`, between houses and restaurants): place 1 road tile or 1 park tile on empty map
  *   squares. Pieces are limited; when none fit or remain the lobbyist does nothing.
- * - Piece footprints are not given by the rulebook (questions.md Q-K1). Placeholders: 8 straight
- *   roads (4 of length 2, 4 of length 3), 4 parks (2 of 1x3, 2 of 2x3); any orientation.
- * - Roads: placed under construction (unusable for every route). The arrows sit at the two ends,
- *   pointing outward along the road. One arrow must point at (A) the range origin `from` — an
+ * - Pieces (questions.md Q-K1; KX p15 component photo, piece split from the licensed
+ *   OnlineBoardGamers implementation): 8 road tiles = 4 straight 2-square, 2 straight 4-square,
+ *   2 corner 3-square (an L with two 2-square arms); 4 park tiles = tetrominoes I, T, L, L,
+ *   double-sided (KX p15), so mirrored shapes are allowed. Any rotation.
+ * - Roads: placed under construction (unusable for every route). The arrows sit at the two free
+ *   ends, pointing outward along the road. One arrow must point at (A) the range origin `from` — an
  *   entrance corner square of one of your open restaurants or one of your coffee shops — or (B) a
  *   road square within road distance 2 of `from`. The other may point anywhere. Each road square
  *   an arrow points at gets a roadworks marker (+1 distance for every road route, Q-K2), unless
@@ -27,7 +29,7 @@ import type { LegalAction, Placement } from '../../types/view.js';
 import { OK, reject } from '../../core/errors.js';
 import { contentFor } from '../registry.js';
 import { KETCHUP_TILES } from '../../map/tiles.js';
-import { allEmpty, cellAt, cellKey, dirBetween, growBoard, onMap, paint, rect, relinkRoads, sameCell, step } from '../../map/grid.js';
+import { allEmpty, cellAt, cellKey, dirBetween, growBoard, onMap, opposite, paint, rect, relinkRoads, sameCell, step } from '../../map/grid.js';
 import { distanceField, distanceToFootprint, fieldAt, playerRouteStarts, roadAt, routeStartOrigin, routeStartRoads, type DistanceField } from '../../map/pathfinding.js';
 import { awardMilestone } from '../../rules/milestones.js';
 import { advanceTo, canAct, cardCheck, spend, stageCheck, stageIndex, stagesFor } from '../../rules/working/stages.js';
@@ -36,9 +38,16 @@ import { headChoice, houseMultiplier, isRejected, kcard, moduleState, pushChoice
 
 const ID = 'ketchup:lobbyists' as const;
 
-/** Placeholder piece stock (Q-K1). Road key = length; park key = `${short}x${long}`. */
-export const ROAD_PIECES: Readonly<Record<string, number>> = { '2': 4, '3': 4 };
-export const PARK_PIECES: Readonly<Record<string, number>> = { '1x3': 2, '2x3': 2 };
+/** Road tile stock (Q-K1): '2' / '4' straight, 'L3' corner (3 squares, arms of 2). */
+export const ROAD_PIECES: Readonly<Record<string, number>> = { '2': 4, '4': 2, L3: 2 };
+/** Park tile stock (Q-K1): tetrominoes; double-sided, so L covers its mirror image. */
+export const PARK_PIECES: Readonly<Record<string, number>> = { I: 1, T: 1, L: 2 };
+const PARK_SHAPES: Readonly<Record<string, readonly [number, number][]>> = {
+  I: [[0, 0], [1, 0], [2, 0], [3, 0]],
+  T: [[0, 0], [1, 0], [2, 0], [1, 1]],
+  L: [[0, 0], [1, 0], [2, 0], [2, 1]],
+};
+const PIECE_NAMES: Readonly<Record<string, string>> = { '2': '2-square road', '4': '4-square road', L3: 'corner road', I: 'I park', T: 'T park', L: 'L park' };
 
 interface LobbyistState {
   roads: Record<string, number>;
@@ -56,8 +65,20 @@ const FIRST_LOBBYIST: MilestoneDef = {
   rulesRef: 'ketchup.md §2; DLX p17',
 };
 
-const stock = (s: GameState): LobbyistState =>
-  (s.moduleState[ID] as LobbyistState | undefined) ?? { roads: { ...ROAD_PIECES }, parks: { ...PARK_PIECES } };
+const freshStock = (): LobbyistState => ({ roads: { ...ROAD_PIECES }, parks: { ...PARK_PIECES } });
+
+/** Fill piece keys a game saved with the old placeholder stock does not have (in place). */
+function withAllPieces(st: LobbyistState): LobbyistState {
+  for (const [k, n] of Object.entries(ROAD_PIECES)) if (st.roads[k] === undefined) st.roads[k] = n;
+  for (const [k, n] of Object.entries(PARK_PIECES)) if (st.parks[k] === undefined) st.parks[k] = n;
+  return st;
+}
+
+const stock = (s: GameState): LobbyistState => {
+  const st = s.moduleState[ID] as LobbyistState | undefined;
+  return st ? withAllPieces({ roads: { ...st.roads }, parks: { ...st.parks } }) : freshStock();
+};
+const liveStock = (s: GameState): LobbyistState => withAllPieces(moduleState<LobbyistState>(s, ID, freshStock));
 
 const sameStart = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -65,17 +86,32 @@ const sameStart = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringi
 // Roads and parks
 // ---------------------------------------------------------------------------
 
-/** Arrows of a straight road: at both ends, pointing outward along the road. */
+/**
+ * The road tile a path of squares is: '2' / '4' straight, 'L3' corner (end, corner, end), or null.
+ * Squares must be given in path order.
+ */
+export function roadPiece(cells: Cell[]): string | null {
+  if (!Array.isArray(cells) || cells.length < 2) return null;
+  const dirs: Direction[] = [];
+  for (let i = 1; i < cells.length; i++) {
+    const d = dirBetween(cells[i - 1] as Cell, cells[i] as Cell);
+    if (!d) return null;
+    dirs.push(d);
+  }
+  if (dirs.every((d) => d === dirs[0])) return String(cells.length) in ROAD_PIECES ? String(cells.length) : null;
+  return cells.length === 3 && dirs[1] !== opposite(dirs[0] as Direction) ? 'L3' : null;
+}
+
+/** Arrows of a road tile: at its two free ends, pointing outward. Null if the squares are not a path. */
 export function roadArrows(cells: Cell[]): { from: Cell; dir: Direction }[] | null {
-  if (cells.length < 2) return null;
-  const d = dirBetween(cells[0] as Cell, cells[1] as Cell);
-  if (!d) return null;
-  for (let i = 1; i < cells.length; i++) if (dirBetween(cells[i - 1] as Cell, cells[i] as Cell) !== d) return null;
+  if (!Array.isArray(cells) || cells.length < 2) return null;
+  for (let i = 1; i < cells.length; i++) if (!dirBetween(cells[i - 1] as Cell, cells[i] as Cell)) return null;
+  if (new Set(cells.map(cellKey)).size !== cells.length) return null;
   const first = cells[0] as Cell;
   const last = cells[cells.length - 1] as Cell;
   return [
     { from: { x: first.x, y: first.y }, dir: dirBetween(cells[1] as Cell, first) as Direction },
-    { from: { x: last.x, y: last.y }, dir: d },
+    { from: { x: last.x, y: last.y }, dir: dirBetween(cells[cells.length - 2] as Cell, last) as Direction },
   ];
 }
 
@@ -93,11 +129,10 @@ function arrowAnchors(s: GameState, target: Cell, from: RouteStart, field: Dista
 
 export function roadProblem(s: GameState, player: PlayerId, cells: Cell[], arrows: { from: Cell; dir: Direction }[], from: RouteStart, range: number, field?: DistanceField | string): string | null {
   if (!Array.isArray(cells) || !cells.every((c) => c && Number.isInteger(c.x) && Number.isInteger(c.y))) return 'Bad road squares';
-  const len = String(cells.length);
-  if (!(len in ROAD_PIECES)) return `Road tiles are ${Object.keys(ROAD_PIECES).join(' or ')} squares long`;
-  if ((stock(s).roads[len] ?? 0) <= 0) return `No road tiles of length ${len} left`;
+  const piece = roadPiece(cells);
   const derived = roadArrows(cells);
-  if (!derived) return 'A road tile is a straight line of squares';
+  if (!piece || !derived) return 'Road tiles are straight 2 or 4 squares, or a 3-square corner';
+  if ((stock(s).roads[piece] ?? 0) <= 0) return `No ${PIECE_NAMES[piece] ?? piece} tiles left`;
   if (!cells.every((c) => onMap(s.board, c))) return 'Roads may not hang off the map';
   if (!allEmpty(s.board, cells)) return 'Roads go on empty squares';
   const key = (a: { from: Cell; dir: Direction }) => `${cellKey(a.from)}:${a.dir}`;
@@ -112,14 +147,48 @@ export function roadProblem(s: GameState, player: PlayerId, cells: Cell[], arrow
   return null;
 }
 
-const parkKey = (w: number, h: number) => `${Math.min(w, h)}x${Math.max(w, h)}`;
+const normalise = (cells: readonly (readonly [number, number])[]): [number, number][] => {
+  const mx = Math.min(...cells.map(([x]) => x));
+  const my = Math.min(...cells.map(([, y]) => y));
+  return cells.map(([x, y]) => [x - mx, y - my] as [number, number]).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+};
+const shapeKey = (cells: readonly (readonly [number, number])[]) => normalise(cells).map(([x, y]) => `${x},${y}`).join(';');
 
-export function parkProblem(s: GameState, player: PlayerId, x: number, y: number, w: number, h: number, from: RouteStart, range: number, field?: DistanceField | string): string | null {
-  if (![x, y, w, h].every(Number.isInteger) || w < 1 || h < 1) return 'Bad park position';
-  const key = parkKey(w, h);
-  if (!(key in PARK_PIECES)) return `Park tiles are ${Object.keys(PARK_PIECES).join(' or ')}`;
-  if ((stock(s).parks[key] ?? 0) <= 0) return `No ${key} park tiles left`;
-  const cells = rect(x, y, w, h);
+/** Every orientation of a park tile (4 rotations, both sides), normalised to (0,0), deduplicated. */
+function parkOrientations(piece: string): [number, number][][] {
+  const base = PARK_SHAPES[piece];
+  if (!base) return [];
+  const out = new Map<string, [number, number][]>();
+  for (const flip of [false, true]) {
+    let cur: [number, number][] = base.map(([x, y]) => [flip ? -x : x, y]);
+    for (let r = 0; r < 4; r++) {
+      out.set(shapeKey(cur), normalise(cur));
+      cur = cur.map(([x, y]) => [-y, x]);
+    }
+  }
+  return [...out.values()];
+}
+
+/** The park tile `cells` form (any rotation or side), or null. */
+export function parkPiece(cells: Cell[]): string | null {
+  if (!Array.isArray(cells) || !cells.length || !cells.every((c) => c && Number.isInteger(c.x) && Number.isInteger(c.y))) return null;
+  if (new Set(cells.map(cellKey)).size !== cells.length) return null;
+  const key = shapeKey(cells.map((c) => [c.x, c.y]));
+  return Object.keys(PARK_SHAPES).find((p) => parkOrientations(p).some((o) => shapeKey(o) === key)) ?? null;
+}
+
+const bbox = (cells: Cell[]) => {
+  const xs = cells.map((c) => c.x);
+  const ys = cells.map((c) => c.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x + 1, h: Math.max(...ys) - y + 1 };
+};
+
+export function parkProblem(s: GameState, player: PlayerId, cells: Cell[], from: RouteStart, range: number, field?: DistanceField | string): string | null {
+  const piece = parkPiece(cells);
+  if (!piece) return 'Park tiles are I, T and L shapes of 4 squares';
+  if ((stock(s).parks[piece] ?? 0) <= 0) return `No ${PIECE_NAMES[piece] ?? piece} tiles left`;
   if (!cells.every((c) => onMap(s.board, c))) return 'Parks go on the map';
   if (!allEmpty(s.board, cells)) return 'Parks go on empty squares';
   const f = field ?? startField(s, player, from);
@@ -128,31 +197,66 @@ export function parkProblem(s: GameState, player: PlayerId, x: number, y: number
   return null;
 }
 
+/** The park squares of an action: its `cells`, else the first legal piece orientation filling its box. */
+function actionParkCells(s: GameState, a: LobbyistPlacePark, range: number): { cells: Cell[] } | { problem: string } {
+  if (a.cells !== undefined) {
+    if (!Array.isArray(a.cells)) return { problem: 'Bad park squares' };
+    const cells = a.cells.map((c) => ({ x: c?.x, y: c?.y }) as Cell);
+    return { cells };
+  }
+  if (![a.x, a.y, a.w, a.h].every(Number.isInteger)) return { problem: 'Bad park position' };
+  let first: string | null = null;
+  for (const piece of Object.keys(PARK_SHAPES)) {
+    for (const o of parkOrientations(piece)) {
+      const cells = o.map(([dx, dy]) => ({ x: a.x + dx, y: a.y + dy }));
+      const b = bbox(cells);
+      if (b.w !== a.w || b.h !== a.h) continue;
+      const problem = parkProblem(s, a.playerId, cells, a.from, range);
+      if (!problem) return { cells };
+      first ??= problem;
+    }
+  }
+  return { problem: first ?? 'Park tiles are I, T and L shapes of 4 squares' };
+}
+
 function lobbyistRange(s: GameState, player: PlayerId, uid: string): number {
   const card = s.players[player]?.employees[uid];
   const a = card ? contentFor(s.config.modules).employees[card.employeeId]?.ability : undefined;
   return a?.kind === 'lobbyist' ? a.range : 2;
 }
 
+/** Every road tile footprint anchored at (x, y), in path order. */
+function roadShapesAt(x: number, y: number, pieces: string[]): Cell[][] {
+  const out: Cell[][] = [];
+  for (const piece of pieces) {
+    if (piece === 'L3') {
+      // Corner at (x, y), arms turning through it: end, corner, end.
+      const corner = { x, y };
+      for (const [a, b] of [['N', 'E'], ['E', 'S'], ['S', 'W'], ['W', 'N']] as [Direction, Direction][]) out.push([step(corner, a), corner, step(corner, b)]);
+    } else {
+      const len = Number(piece);
+      out.push(rect(x, y, len, 1), rect(x, y, 1, len));
+    }
+  }
+  return out;
+}
+
 function roadPlacements(s: GameState, player: PlayerId, range: number): Extract<Placement, { kind: 'lobbyistRoad' }>[] {
   const out: Extract<Placement, { kind: 'lobbyistRoad' }>[] = [];
   const seen = new Set<string>();
-  const lengths = Object.keys(ROAD_PIECES).filter((k) => (stock(s).roads[k] ?? 0) > 0).map(Number);
-  if (!lengths.length) return out;
+  const pieces = Object.keys(ROAD_PIECES).filter((k) => (stock(s).roads[k] ?? 0) > 0);
+  if (!pieces.length) return out;
   for (const from of playerRouteStarts(s.board, player)) {
     const field = distanceField(s.board, routeStartRoads(s.board, from));
     for (let y = 0; y < s.board.h; y++) {
       for (let x = 0; x < s.board.w; x++) {
-        for (const len of lengths) {
-          for (const [w, h] of [[len, 1], [1, len]] as [number, number][]) {
-            const cells = rect(x, y, w, h);
-            const k = cells.map(cellKey).join(';');
-            if (seen.has(k)) continue;
-            const arrows = roadArrows(cells);
-            if (!arrows || roadProblem(s, player, cells, arrows, from, range, field)) continue;
-            seen.add(k);
-            out.push({ kind: 'lobbyistRoad', cells, arrows, from });
-          }
+        for (const cells of roadShapesAt(x, y, pieces)) {
+          const k = cells.map(cellKey).sort().join(';');
+          if (seen.has(k)) continue;
+          const arrows = roadArrows(cells);
+          if (!arrows || roadProblem(s, player, cells, arrows, from, range, field)) continue;
+          seen.add(k);
+          out.push({ kind: 'lobbyistRoad', cells, arrows, from, piece: roadPiece(cells) ?? undefined });
         }
       }
     }
@@ -163,20 +267,20 @@ function roadPlacements(s: GameState, player: PlayerId, range: number): Extract<
 function parkPlacements(s: GameState, player: PlayerId, range: number): Extract<Placement, { kind: 'park' }>[] {
   const out: Extract<Placement, { kind: 'park' }>[] = [];
   const seen = new Set<string>();
-  const shapes = Object.keys(PARK_PIECES).filter((k) => (stock(s).parks[k] ?? 0) > 0).flatMap((k) => {
-    const [a, b] = k.split('x').map(Number) as [number, number];
-    return a === b ? [[a, b]] : [[a, b], [b, a]];
-  }) as [number, number][];
+  const shapes = Object.keys(PARK_PIECES)
+    .filter((k) => (stock(s).parks[k] ?? 0) > 0)
+    .flatMap((piece) => parkOrientations(piece).map((o) => ({ piece, o })));
   if (!shapes.length) return out;
   for (const from of playerRouteStarts(s.board, player)) {
     const field = distanceField(s.board, routeStartRoads(s.board, from));
-    for (const [w, h] of shapes) {
-      for (let y = 0; y + h <= s.board.h; y++) {
-        for (let x = 0; x + w <= s.board.w; x++) {
-          const k = `${x},${y},${w},${h}`;
-          if (seen.has(k) || parkProblem(s, player, x, y, w, h, from, range, field)) continue;
+    for (const { piece, o } of shapes) {
+      for (let y = 0; y < s.board.h; y++) {
+        for (let x = 0; x < s.board.w; x++) {
+          const cells = o.map(([dx, dy]) => ({ x: x + dx, y: y + dy }));
+          const k = cells.map(cellKey).join(';');
+          if (seen.has(k) || parkProblem(s, player, cells, from, range, field)) continue;
           seen.add(k);
-          out.push({ kind: 'park', x, y, w, h, from });
+          out.push({ kind: 'park', ...bbox(cells), cells, piece, from });
         }
       }
     }
@@ -260,7 +364,7 @@ export const LOBBYISTS_MODULE: GameModule = {
     tiles: KETCHUP_TILES.filter((t) => t.id === 'Z'),
     milestones: [FIRST_LOBBYIST],
     entities: [
-      { kind: 'lobbyistRoad', name: 'Road tile', module: ID, w: 1, h: 3, limit: { scope: 'total', count: 8 }, rulesRef: 'ketchup.md §2; Q-K1' },
+      { kind: 'lobbyistRoad', name: 'Road tile', module: ID, w: 1, h: 4, limit: { scope: 'total', count: 8 }, rulesRef: 'ketchup.md §2; Q-K1' },
       { kind: 'park', name: 'Park tile', module: ID, w: 2, h: 3, limit: { scope: 'total', count: 4 }, rulesRef: 'ketchup.md §2; Q-K1' },
       { kind: 'roadworks', name: 'Roadworks', module: ID, w: 1, h: 1, limit: { scope: 'total', count: 8 }, rulesRef: 'ketchup.md §2' },
     ],
@@ -278,9 +382,9 @@ export const LOBBYISTS_MODULE: GameModule = {
         const a = action as LobbyistPlaceRoad;
         const s = ctx.state;
         advanceTo(ctx as EngineCtx, 'lobbyists');
-        const st = moduleState<LobbyistState>(s, ID, () => ({ roads: { ...ROAD_PIECES }, parks: { ...PARK_PIECES } }));
-        const len = String(a.cells.length);
-        st.roads[len] = (st.roads[len] ?? 0) - 1;
+        const st = liveStock(s);
+        const piece = roadPiece(a.cells) as string;
+        st.roads[piece] = (st.roads[piece] ?? 0) - 1;
         const id = ctx.id('entity');
         const cells = a.cells.map((c) => ({ x: c.x, y: c.y }));
         const arrows = roadArrows(cells) ?? [];
@@ -314,21 +418,26 @@ export const LOBBYISTS_MODULE: GameModule = {
         const a = action as LobbyistPlacePark;
         const c = lobbyistCheck(state, a.playerId, a.cardUid);
         if (!c.ok) return c;
-        const problem = parkProblem(state, a.playerId, a.x, a.y, a.w, a.h, a.from, lobbyistRange(state, a.playerId, a.cardUid));
+        const range = lobbyistRange(state, a.playerId, a.cardUid);
+        const park = actionParkCells(state, a, range);
+        const problem = 'problem' in park ? park.problem : parkProblem(state, a.playerId, park.cells, a.from, range);
         return problem ? reject('ILLEGAL_PLACEMENT', problem) : OK;
       },
       apply(ctx, action) {
         const a = action as LobbyistPlacePark;
         const s = ctx.state;
         advanceTo(ctx as EngineCtx, 'lobbyists');
-        const st = moduleState<LobbyistState>(s, ID, () => ({ roads: { ...ROAD_PIECES }, parks: { ...PARK_PIECES } }));
-        const key = parkKey(a.w, a.h);
-        st.parks[key] = (st.parks[key] ?? 0) - 1;
+        const park = actionParkCells(s, a, lobbyistRange(s, a.playerId, a.cardUid));
+        if ('problem' in park) return { undoable: true };
+        const cells = park.cells.map((c) => ({ x: c.x, y: c.y }));
+        const st = liveStock(s);
+        const piece = parkPiece(cells) as string;
+        st.parks[piece] = (st.parks[piece] ?? 0) - 1;
         const id = ctx.id('entity');
-        paint(s.board, rect(a.x, a.y, a.w, a.h), 'park', id);
-        const entity = { kind: 'park' as const, id, x: a.x, y: a.y, w: a.w, h: a.h, printed: false };
+        paint(s.board, cells, 'park', id);
+        const entity = { kind: 'park' as const, id, ...bbox(cells), printed: false, cells };
         s.board.entities[id] = entity;
-        ctx.emit({ type: 'entityPlaced', player: a.playerId, entity: { ...entity } });
+        ctx.emit({ type: 'entityPlaced', player: a.playerId, entity: JSON.parse(JSON.stringify(entity)) as typeof entity });
         spend(ctx as EngineCtx, a.cardUid);
         afterUse(ctx, a.playerId);
         return { undoable: true };
@@ -359,7 +468,7 @@ export const LOBBYISTS_MODULE: GameModule = {
   },
   hooks: {
     onCreateGame(ctx) {
-      moduleState<LobbyistState>(ctx.state, ID, () => ({ roads: { ...ROAD_PIECES }, parks: { ...PARK_PIECES } }));
+      moduleState<LobbyistState>(ctx.state, ID, freshStock);
     },
     onPhaseEnter(ctx, phase) {
       // Clean up: roadworks removed, roads finished (DLX p16).

@@ -7,6 +7,8 @@
  *   number of items. Not unit price (no effect on the house's choice), not doubled by gardens;
  *   several stack; the CFO counts it (it is Dinnertime income).
  *   Example (DLX p21): 3 burgers at $20 with 2 fry chefs → $60 + $20 = $80.
+ * - Coffee sales count too (JD BGG 2342129): once per house a chain sells coffee to, not again for
+ *   the chain that served the meal. Paid in `coffee.ts` `sellCoffee`.
  */
 import type { GameModule } from '../../types/module.js';
 import { kcard, workDefs } from './shared.js';

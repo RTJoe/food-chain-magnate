@@ -149,7 +149,7 @@ export type GameEvent =
       route?: SaleRoute;
     })
   /** ketchup.md §4: coffee sold en route. */
-  | (E<'coffeeSold'> & { houseId: HouseId; player: PlayerId; at: RestaurantId | EntityId; amount: number })
+  | (E<'coffeeSold'> & { houseId: HouseId; player: PlayerId; at: RestaurantId | EntityId; amount: number; /** Fry Chef part of `amount` (once per house per chain, KX p21). */ fryChefBonus?: number })
   | (E<'tipsPaid'> & { player: PlayerId; waitresses: number; amount: number })
   | (E<'cfoBonus'> & { player: PlayerId; amount: number })
   | (E<'bankBroke'> & { breakNo: 1 | 2; reserves?: Record<PlayerId, ReserveCard>; added: number; ceoSlots: number; basePrice: number })

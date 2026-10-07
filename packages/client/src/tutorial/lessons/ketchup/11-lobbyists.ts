@@ -11,11 +11,13 @@ import type { Action, RouteStart } from '@fcm/engine';
 import { defineLesson } from '../../dsl.js';
 import { BASE_COURSE, BO, continueAction, endTurn, kTown, ME, only, saleAt, usd } from './shared.js';
 
-const PARK = { x: 1, y: 6, w: 1, h: 3 } as const;
+/** The 1×4 (I) park tile, upright beside house 18 (questions.md Q-K1). */
+const PARK = { x: 1, y: 6, w: 1, h: 4 } as const;
+const PARK_CELLS = [0, 1, 2, 3].map((dy) => ({ x: PARK.x, y: PARK.y + dy }));
+/** A 2-square road tile going south from the road at row 5. */
 const ROAD = [
   { x: 6, y: 6 },
   { x: 6, y: 7 },
-  { x: 6, y: 8 },
 ];
 const TILE = { row: 3, col: 0 } as const;
 /** Ada's restaurant door: the lobbyist's range is measured from here. */
@@ -59,12 +61,12 @@ export const lobbyistsLesson = defineLesson({
     },
     {
       id: 'park',
-      say: 'Houses next to a park pay double. Tap a Lobbyist, choose the park, and place the 1×3 park along the left side of house 18.',
+      say: 'Houses next to a park pay double. Tap a Lobbyist, choose the park, and place the 1×4 park along the left side of house 18.',
       show: [{ card: { player: ME, uid: 'k11-l1' } }, { cell: [PARK.x, PARK.y + 1] }, { house: 18 }],
       allow: { actions: [only('ketchup:lobbyists.placePark', (a) => a.x === PARK.x && a.y === PARK.y && a.w === PARK.w && a.h === PARK.h)] },
       until: { event: 'entityPlaced', where: (e) => e.type === 'entityPlaced' && e.entity.kind === 'park' },
-      solution: (ctx): Action[] => [{ type: 'ketchup:lobbyists.placePark', playerId: ME, cardUid: 'k11-l1', ...PARK, from: FROM(adaRestaurant(ctx.view)) }],
-      hint: { say: 'Lay out a park, keep the 1×3 piece, and pick "Park at 1,6".', show: [{ cell: [PARK.x, PARK.y] }] },
+      solution: (ctx): Action[] => [{ type: 'ketchup:lobbyists.placePark', playerId: ME, cardUid: 'k11-l1', ...PARK, cells: PARK_CELLS, from: FROM(adaRestaurant(ctx.view)) }],
+      hint: { say: 'Lay out a park, keep the 1×4 piece, and pick "Park at 1,6".', show: [{ cell: [PARK.x, PARK.y] }] },
       glossary: 'park',
     },
     {
@@ -84,9 +86,9 @@ export const lobbyistsLesson = defineLesson({
     },
     {
       id: 'road',
-      say: 'Now the other Lobbyist builds the 3-square road on tile B2 that joins the two horizontal roads.',
+      say: 'Now the other Lobbyist builds a 2-square road on tile B2, south from the road above it.',
       show: [{ card: { player: ME, uid: 'k11-l2' } }, { cell: [6, 7] }],
-      allow: { actions: [only('ketchup:lobbyists.placeRoad', (a) => a.cells.length === 3 && a.cells.every((c, i) => c.x === ROAD[i]?.x && c.y === ROAD[i]?.y))] },
+      allow: { actions: [only('ketchup:lobbyists.placeRoad', (a) => a.cells.length === ROAD.length && a.cells.every((c, i) => c.x === ROAD[i]?.x && c.y === ROAD[i]?.y))] },
       until: { event: 'entityPlaced', where: (e) => e.type === 'entityPlaced' && e.entity.kind === 'lobbyistRoad' },
       solution: (ctx): Action[] => [
         {
@@ -96,18 +98,18 @@ export const lobbyistsLesson = defineLesson({
           cells: ROAD,
           arrows: [
             { from: { x: 6, y: 6 }, dir: 'N' },
-            { from: { x: 6, y: 8 }, dir: 'S' },
+            { from: { x: 6, y: 7 }, dir: 'S' },
           ],
           from: FROM(adaRestaurant(ctx.view)),
         },
       ],
-      hint: { say: 'Build a road, choose the 3-square piece, and pick "Road over 3 squares from 6,6".', show: [{ cell: [6, 6] }] },
+      hint: { say: 'Build a road, choose the 2-square piece, and pick "Road over 2 squares from 6,6".', show: [{ cell: [6, 6] }] },
       glossary: 'lobbyist_road',
     },
     {
       id: 'roadworks',
-      say: 'The road is under construction: no route may use it this round. Its arrows put roadworks on the roads they touch: +1 distance through them.',
-      show: [{ cell: [6, 5] }, { cell: [6, 9] }, { cell: [6, 7] }],
+      say: 'The road is under construction: no route may use it this round. Its arrows put roadworks on the roads they point at: +1 distance through them.',
+      show: [{ cell: [6, 5] }, { cell: [6, 6] }],
       until: { next: true },
       glossary: 'roadworks',
     },

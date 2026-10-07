@@ -15,6 +15,7 @@ import type { Corner, FoodId, ModuleEntity, PlayerId } from '@fcm/engine';
 import { campaignReachIds } from '../../../state/guidance.js';
 import { COLORS } from '../../../theme.js';
 import { cornerAngle, dirAngle } from '../../coords.js';
+import { hasRural, ruralCenter, ruralSide } from '../../layout.js';
 import type { Placed } from '../../reconcile.js';
 import { ease } from '../../tween.js';
 import { beatEvent, registerChoreo, type ChoreoCtx } from '../choreo.js';
@@ -30,6 +31,60 @@ const CORNER: Record<Corner, [number, number]> = { NW: [-1, -1], NE: [1, -1], SE
 const CLOCKWISE: Corner[] = ['NW', 'NE', 'SE', 'SW'];
 
 const live = (ctx: ChoreoCtx, key: string): Placed | undefined => ctx.rec.live.get(key);
+
+/**
+ * The first freeway sets the rural area's side (layout.ruralSide): the rural tile, its demand and
+ * its giant billboards stay at the old spot until `at`, sink into the ground there and rise at
+ * the new one. Returns the end (`at` when nothing moves).
+ */
+function moveRural(tl: Timeline, ctx: ChoreoCtx, at: number): number {
+  const prev = ctx.prevView?.board;
+  const b = ctx.view?.board;
+  if (!prev || !b || !hasRural(prev) || !hasRural(b) || ruralSide(prev) === ruralSide(b)) return at;
+  const [ox, oz] = ruralCenter(prev);
+  const [nx, nz] = ruralCenter(b);
+  const dx = ox - nx;
+  const dz = oz - nz;
+  const rural = Object.values(b.houses).filter((h) => h.kind === 'rural');
+  const solids = [...rural.map((h) => `house:${h.id}`), ...Object.values(b.campaigns).filter((c) => c.placement.kind === 'rural').map((c) => `campaign:${c.id}`)];
+  const marks = rural.flatMap((h) => [`demand:${h.id}`, `price:${h.id}`]);
+  const half = 0.4;
+  const swap = at + half;
+  const end = at + half * 2.2;
+  const pieces = [...solids.map((k) => [k, true] as const), ...marks.map((k) => [k, false] as const)];
+  for (const [k, solid] of pieces) {
+    const o = live(ctx, k)?.obj;
+    if (!o) continue;
+    const to = o.position.clone();
+    const s = o.scale.clone();
+    // Hold at the old spot until the beat.
+    o.position.set(to.x + dx, to.y, to.z + dz);
+    if (isReduced(ctx) || !solid) {
+      tl.call(swap, () => void o.position.copy(to));
+      continue;
+    }
+    tl.add({
+      start: at,
+      dur: end - at,
+      update: (_k, raw) => {
+        if (raw >= 1) {
+          o.position.copy(to);
+          o.scale.copy(s);
+          return;
+        }
+        const t = raw * (end - at);
+        // Sink at the old spot, then rise (with a little overshoot) at the new one.
+        const q = t < half ? 1 - ease.inCubic(t / half) : ease.outBack(Math.min(1, (t - half) / (end - swap)));
+        if (t < half) o.position.set(to.x + dx, to.y, to.z + dz);
+        else o.position.copy(to);
+        o.scale.set(s.x * (0.85 + 0.15 * q), s.y * Math.max(0.001, q), s.z * (0.85 + 0.15 * q));
+      },
+    });
+  }
+  puff(tl, ctx, 'dust', ox, 0.05, oz, at + half * 0.7, { scale: 2.4 });
+  puff(tl, ctx, 'dust', nx, 0.05, nz, end - 0.15, { scale: 2.4 });
+  return end;
+}
 
 /** Claim a grave and bury it when the timeline ends. */
 function grave(tl: Timeline, ctx: ChoreoCtx, key: string): Placed | null {
@@ -490,7 +545,7 @@ registerChoreo('entityPlaced', (beat, at, tl, ctx) => {
         },
       });
       puff(tl, ctx, 'dust', to.x, 0.05, to.z, at + dur * 0.85, { scale: 1.3 });
-      return at + dur;
+      return Math.max(at + dur, moveRural(tl, ctx, at + dur * 0.6));
     }
     default:
       return popIn(tl, ctx, o, at, 0.38 * f);

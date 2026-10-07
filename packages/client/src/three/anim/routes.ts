@@ -4,12 +4,13 @@
  * without a route fall back to the client's shortest path (`dinnerRoute`).
  */
 import type { Board, Cell, GameEvent, RouteStart } from '@fcm/engine';
+import { bridgeLift } from '../board/roads.js';
 import { DELTA } from '../coords.js';
 import { dinnerRoute } from '../overlays/feedback.js';
 import { startOrigin, startRoads } from '../overlays/fallback.js';
 import { routePolyline } from '../overlays/routes.js';
 import type { BuyTrip, RouteLookup, SaleTrip } from './choreo.js';
-import { AIR_Y, airPath, roadPath, type P2 } from './path.js';
+import { AIR_Y, airPath, freewayGround, roadPath, withHeight, type Follow, type P2, type Pose } from './path.js';
 
 const centre = (c: Cell): P2 => [c.x + 0.5, c.y + 0.5];
 
@@ -25,6 +26,31 @@ function roadPts(b: Board, from: RouteStart, path: readonly Cell[]): P2[] {
   const s = spawnPoint(b, from);
   if (s) pts.unshift(s);
   return pts;
+}
+
+/**
+ * `f` driving over overpass decks: on the upper (E-W) road the vehicle climbs the ramps instead
+ * of driving through them; traffic on the lower (N-S) road stays on the ground.
+ */
+export function overBridges(b: Board, f: Follow): Follow {
+  let any = false;
+  for (const row of b.cells) for (const c of row) if (c.road?.bridge) any = true;
+  if (!any) return f;
+  const p: Pose = { x: 0, z: 0, yaw: 0 };
+  const q: Pose = { x: 0, z: 0, yaw: 0 };
+  return {
+    ...f,
+    at: (s, out) => f.at(s, out),
+    nearest: (x, z) => f.nearest(x, z),
+    yAt: (s) => {
+      const base = f.yAt ? f.yAt(s) : f.y;
+      f.at(Math.max(0, s - 0.05), p);
+      f.at(Math.min(f.length, s + 0.05), q);
+      if (Math.abs(q.x - p.x) <= Math.abs(q.z - p.z)) return base;
+      f.at(s, p);
+      return base + bridgeLift(b, p.x, p.z);
+    },
+  };
 }
 
 export function createRouteLookup(board: () => Board | null): RouteLookup {
@@ -60,9 +86,20 @@ export function createRouteLookup(board: () => Board | null): RouteLookup {
           house = [(Math.min(...xs) + Math.max(...xs) + 1) / 2, (Math.min(...ys) + Math.max(...ys) + 1) / 2];
         }
       }
-      const follow = roadPath(pts);
-      const back = roadPath([...pts].reverse());
-      return { pts, follow, back, house, offBoard };
+      let follow = roadPath(pts);
+      let back = roadPath([...pts].reverse());
+      let ground: SaleTrip['ground'];
+      if (exit) {
+        // Up the freeway deck instead of under it (animation-plan §2.11).
+        const [dx, dz] = DELTA[exit.side];
+        const [cx, cz] = centre(exit.cell);
+        ground = freewayGround([cx + dx * 0.5, cz + dz * 0.5], [dx, dz]);
+        follow = withHeight(follow, ground);
+        back = withHeight(back, ground);
+      }
+      follow = overBridges(b, follow);
+      back = overBridges(b, back);
+      return { pts, follow, back, house, offBoard, ...(ground ? { ground } : {}) };
     },
 
     buy(e: Extract<GameEvent, { type: 'drinksBought' }>): BuyTrip | null {
@@ -88,7 +125,7 @@ export function createRouteLookup(board: () => Board | null): RouteLookup {
       }
       if (r.mode === 'road') {
         const pts = roadPts(b, r.from, r.path);
-        const follow = roadPath(pts);
+        const follow = overBridges(b, roadPath(pts));
         const stops = sources.map((x) => ({ ...x, s: follow.nearest(x.at[0], x.at[1]) })).sort((a, c) => a.s - c.s);
         return { mode: 'road', pts, follow, stops };
       }

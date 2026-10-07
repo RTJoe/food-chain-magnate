@@ -322,9 +322,9 @@ body[data-screen='table'] { overflow: hidden; }
 .summary-card footer { padding: 0 12px 12px; }
 .summary-totals, .summary-lines { list-style: none; padding: 0; margin: 6px 0 10px; display: grid; gap: 6px; }
 .summary-totals li { display: flex; align-items: center; gap: 8px; }
-.summary-totals li > span { flex: 1; font-weight: 700; }
+.summary-totals li > span:not(.pbadge):not(.cash) { flex: 1; font-weight: 700; }
 .summary-lines li { display: flex; align-items: flex-start; gap: 6px; font-size: 0.85rem; }
-.summary-lines li > span { flex: 1; }
+.summary-lines li > span:not(.pbadge):not(.cash) { flex: 1; }
 .sale-good { display: inline-flex; align-items: center; gap: 2px; margin-right: 6px; }
 .summary-links { margin-bottom: 10px; }
 

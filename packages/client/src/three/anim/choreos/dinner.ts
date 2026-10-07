@@ -30,7 +30,7 @@ import { houseCapacity } from '../../reconcile.js';
 import { ease } from '../../tween.js';
 import { beatEvent, beatEvents, followClip, registerChoreo, type ChoreoCtx, type GhostStack } from '../choreo.js';
 import { deliveryTrip, PACING, type Beat } from '../compile.js';
-import { tripEase, type Follow, type P2 } from '../path.js';
+import { tripEase, withHeight, type Follow, type P2 } from '../path.js';
 import type { Timeline } from '../timeline.js';
 import { arcClip, cashAt, chip, clamp, coins, ghostTokens, goodsOf, houseAnchor, idTop, isReplay, popClip, pulse, worldOf, type Ev } from './carriers.js';
 
@@ -125,14 +125,16 @@ function replayGhost(tl: Timeline, ctx: ChoreoCtx, e: Ev<'sale'>): GhostStack | 
 }
 
 /** Van leg to a rural house: on from the freeway run to the rural area. */
-function ruralLeg(ctx: ChoreoCtx, pts: readonly P2[], house: THREE.Vector3): { follow: Follow; back: Follow; pts: P2[] } {
+function ruralLeg(ctx: ChoreoCtx, pts: readonly P2[], house: THREE.Vector3, ground?: (x: number, z: number) => number): { follow: Follow; back: Follow; pts: P2[] } {
   const last = pts[pts.length - 1]!;
   const dx = house.x - last[0];
   const dz = house.z - last[1];
   const d = Math.hypot(dx, dz) || 1;
   const stop: P2 = [house.x - (dx / d) * 1.1, house.z - (dz / d) * 1.1];
   const all = [...pts, stop];
-  return { follow: ctx.paths.road(all), back: ctx.paths.road([...all].reverse()), pts: all };
+  const follow = ctx.paths.road(all);
+  const back = ctx.paths.road([...all].reverse());
+  return ground ? { follow: withHeight(follow, ground), back: withHeight(back, ground), pts: all } : { follow, back, pts: all };
 }
 
 /** "×N" tag riding on the van when it carries more goods than fit on the roof. */
@@ -177,7 +179,7 @@ registerChoreo('sale', (beat, at, tl, ctx) => {
   let trip = ctx.paths.sale(e);
   let tripPts: readonly P2[] | null = trip?.pts ?? null;
   if (trip?.offBoard && house) {
-    const leg = ruralLeg(ctx, trip.pts, house);
+    const leg = ruralLeg(ctx, trip.pts, house, trip.ground);
     trip = { ...trip, follow: leg.follow, back: leg.back };
     tripPts = leg.pts;
   }

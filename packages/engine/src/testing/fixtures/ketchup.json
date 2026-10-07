@@ -2963,9 +2963,9 @@
           "road": null
         },
         {
-          "kind": "empty",
+          "kind": "park",
           "tile": "tile-51",
-          "occupant": null,
+          "occupant": "ent-park-1",
           "road": null
         },
         {
@@ -3099,9 +3099,9 @@
           }
         },
         {
-          "kind": "empty",
+          "kind": "park",
           "tile": "tile-49",
-          "occupant": null,
+          "occupant": "ent-park-1",
           "road": null
         },
         {
@@ -3726,9 +3726,27 @@
         "id": "ent-park-1",
         "x": 3,
         "y": 13,
-        "w": 2,
-        "h": 1,
-        "printed": false
+        "w": 3,
+        "h": 2,
+        "printed": false,
+        "cells": [
+          {
+            "x": 3,
+            "y": 13
+          },
+          {
+            "x": 4,
+            "y": 13
+          },
+          {
+            "x": 5,
+            "y": 13
+          },
+          {
+            "x": 3,
+            "y": 14
+          }
+        ]
       },
       "ent-road-1": {
         "kind": "lobbyistRoad",

@@ -1,7 +1,7 @@
 /**
  * Phase 4 — Dinnertime (base.md §7; DLX p26–28).
  *
- * Start: "First to Lower Prices" for every chain with a pricing/discount/luxuries manager at work.
+ * Start: "First to Lower Prices" for every chain with a pricing or discount manager at work.
  * Houses in ascending number. For each house with demand:
  *  - candidates = chains with an OPEN restaurant road-connected to the house (or its garden) that
  *    can deliver the WHOLE order from stock (no partial sales);

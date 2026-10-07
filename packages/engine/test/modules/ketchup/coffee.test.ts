@@ -19,7 +19,8 @@ import { FOODS } from '../../../src/content/foods.js';
 import { contentFor } from '../../../src/modules/registry.js';
 import { coffeeRouteSellers, shopPlacements } from '../../../src/modules/ketchup/coffee.js';
 import { act, rejected, workingTurn } from '../../helpers/game.js';
-import { dine, fromPhase, kb, kgame } from './helpers.js';
+import { dine, fromPhase, kb, kctx, kgame } from './helpers.js';
+import { runCleanup } from '../../../src/rules/cleanup.js';
 
 const M = ['ketchup:coffee'] as const;
 const P1R = 'restaurant-21';
@@ -102,6 +103,16 @@ describe('Coffee (ketchup.md §4)', () => {
       const t = act(ctx.state, { type: 'cleanup.freezer', playerId: 'p1', keep: { burger: 1 } });
       expect(t.players.p1?.freezer).toEqual({ burger: 1 });
       expect(t.players.p1?.inventory.coffee).toBeUndefined();
+    });
+    it('§4: throwing away only coffee does not claim First to Throw Away Food or Drink (KX p10: coffee is not a drink for milestones)', () => {
+      const run = (inv: Record<string, number>) => {
+        const ctx = kctx(kb(2, [...M]).round(3).restaurant('p1', 3, 3, 'NW').inventory('p1', inv).phase({ kind: 'cleanup' }).build());
+        runCleanup(ctx);
+        return ctx.state;
+      };
+      expect(run({ coffee: 2 }).milestones.first_throw_away?.claimedBy ?? []).toEqual([]);
+      expect(run({ coffee: 2 }).players.p1?.inventory.coffee).toBeUndefined();
+      expect(run({ coffee: 1, burger: 1 }).milestones.first_throw_away?.claimedBy).toEqual(['p1']);
     });
   });
 
@@ -274,6 +285,104 @@ describe('Coffee (ketchup.md §4)', () => {
     it('§4: a chain without coffee sells nothing', () => {
       const ctx = dine(dinner().entity(shop('entity-k1', 'p2', 11, 8)));
       expect(ctx.of('coffeeSold')).toEqual([]);
+    });
+  });
+
+  describe('§4 Dinnertime coffee: routes (KX p11–14)', () => {
+    const setRoad = (s: GameState, x: number, y: number) => {
+      const c = s.board.cells[y]?.[x];
+      if (c) Object.assign(c, { kind: 'road', occupant: null, road: { links: [], bridge: false, underConstruction: false, roadworks: 0, lobbyistRoad: null } });
+    };
+    const clear = (s: GameState, x: number, y: number) => {
+      const c = s.board.cells[y]?.[x];
+      if (c) Object.assign(c, { kind: 'empty', occupant: null, road: null });
+    };
+
+    it('KX p12 Example 1: routes go to every equidistant restaurant of the chain; only the shared shop sells', () => {
+      const b = kb(2, [...M])
+        .mutate((s) => {
+          // Tile R keeps only its road row y=12; shops west (tile L), centre (tile R), east (tile Q).
+          for (const [x, y] of [[7, 10], [7, 11], [7, 13], [7, 14], [6, 11]] as const) clear(s, x, y);
+          addShop(s, 'entity-W', 'p2', 3, 11);
+          addShop(s, 'entity-C', 'p2', 7, 11);
+          addShop(s, 'entity-E', 'p2', 11, 11);
+        })
+        .restaurant('p1', 0, 13, 'NE', 'open', 'restaurant-A')
+        .restaurant('p1', 13, 13, 'NW', 'open', 'restaurant-B')
+        .placedHouse(1, 5, 13, 'E')
+        .inventory('p1', { burger: 1 })
+        .inventory('p2', { coffee: 5 })
+        .demand(1, ['burger']);
+      const ctx = dine(b);
+      expect(ctx.of('sale')).toEqual([expect.objectContaining({ restaurantId: 'restaurant-A', distance: 1 })]);
+      expect(ctx.of('coffeeSold').map((e) => e.at)).toEqual(['entity-C']);
+    });
+
+    it('DLX p10 backtracking, KX p13 Example 2: a route may trace road squares again to pass a shop inside a loop', () => {
+      const b = kb(2, [...M])
+        .mutate((s) => {
+          for (let y = 5; y <= 14; y++) for (let x = 5; x <= 14; x++) if (y < 10 || x < 10) clear(s, x, y);
+          for (let x = 5; x <= 14; x++) setRoad(s, x, 9);
+          setRoad(s, 7, 8); // stem from the main road into a ring around (7,6)
+          for (const [x, y] of [[6, 5], [7, 5], [8, 5], [8, 6], [8, 7], [7, 7], [6, 7], [6, 6]] as const) setRoad(s, x, y);
+          addShop(s, 'entity-k1', 'p2', 7, 6);
+        })
+        .restaurant('p1', 5, 10, 'NW', 'open', 'restaurant-p1')
+        .placedHouse(1, 13, 7, 'W')
+        .inventory('p1', { burger: 1 })
+        .inventory('p2', { coffee: 3 })
+        .demand(1, ['burger']);
+      const ctx = dine(b);
+      expect(ctx.of('sale')).toEqual([expect.objectContaining({ player: 'p1', distance: 2 })]);
+      expect(ctx.of('coffeeSold')).toEqual([expect.objectContaining({ player: 'p2', at: 'entity-k1', amount: 20 })]);
+    });
+
+    it('KX p14 Example 4: at distance 0 the house takes the roundabout past the shop and back to the entrance', () => {
+      const b = kb(2, [...M])
+        .mutate((s) => {
+          for (let y = 5; y <= 9; y++) for (let x = 5; x <= 9; x++) clear(s, x, y);
+          clear(s, 7, 10);
+          setRoad(s, 7, 7);
+          setRoad(s, 7, 6); // the only road square at the entrance corner (6,6)
+          for (const [x, y] of [[8, 6], [9, 6], [9, 5], [8, 5], [7, 5]] as const) setRoad(s, x, y);
+          addShop(s, 'entity-own', 'p1', 8, 4);
+        })
+        .restaurant('p1', 5, 5, 'SE', 'open', 'restaurant-p1')
+        .placedHouse(1, 7, 8, 'E')
+        .inventory('p1', { burger: 1, coffee: 2 })
+        .demand(1, ['burger']);
+      const ctx = dine(b);
+      expect(ctx.of('sale')).toEqual([expect.objectContaining({ player: 'p1', distance: 0 })]);
+      expect(ctx.of('coffeeSold')).toEqual([expect.objectContaining({ player: 'p1', at: 'entity-own' })]);
+    });
+  });
+
+  describe('§4 Dinnertime coffee: Fry Chefs (KX p21; JD BGG 2342129)', () => {
+    const fry = () =>
+      kb(2, [...M, 'ketchup:fryChefs'])
+        .restaurant('p1', 8, 8, 'NW')
+        .placedHouse(1, 13, 13, 'W')
+        .inventory('p1', { burger: 1 })
+        .demand(1, ['burger'])
+        .mutate((s) => {
+          s.milestones['ketchup:first_coffee_sold'] = { claimedBy: [], claimedRound: null, removed: false, removeAfterRound: null };
+        });
+
+    it('a chain selling coffee to a house gets its Fry Chef bonus once for that house', () => {
+      const ctx = dine(fry().entity(shop('entity-k3', 'p2', 13, 11)).restaurant('p2', 10, 8, 'NE', 'open', 'restaurant-p2').inventory('p2', { coffee: 3 }).card('p2', 'ketchup:fry_chef', 'work'));
+      const sold = ctx.of('coffeeSold');
+      expect(sold.map((e) => e.at).sort()).toEqual(['entity-k3', 'restaurant-p2']);
+      // $10 × 2 (garden) per coffee, +$10 Fry Chef on the first only.
+      expect(sold.map((e) => e.amount).reduce((a, b) => a + b, 0)).toBe(50);
+      expect(sold.filter((e) => e.fryChefBonus === 10)).toHaveLength(1);
+      expect(ctx.state.players.p2?.cash).toBe(50);
+    });
+
+    it('no second bonus for the chain that served the meal', () => {
+      const ctx = dine(fry().entity(shop('entity-k1', 'p1', 11, 8)).inventory('p1', { burger: 1, coffee: 3 }).card('p1', 'ketchup:fry_chef', 'work'));
+      expect(ctx.of('sale')[0]?.bonuses).toContainEqual({ source: 'ketchup:fry_chef', amount: 10 });
+      expect(ctx.of('coffeeSold')).toEqual([expect.objectContaining({ player: 'p1', amount: 20 })]);
+      expect(ctx.of('coffeeSold')[0]?.fryChefBonus).toBeUndefined();
     });
   });
 

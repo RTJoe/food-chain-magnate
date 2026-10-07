@@ -26,7 +26,7 @@ import {
 } from './minis/marketing.js';
 import { buildCoffeeShop, buildRestaurant } from './minis/restaurant.js';
 import { buildDemandStack, demandKey, setPlaque, type PlaqueHold } from './minis/tokens.js';
-import { campaignAnchor, cellsToRect, chainMark, freewayAnchor, houseFacing, parkMultiplier, playerColor, rectCenter, rectOf, ruralCenter, RURAL_SIZE, type Rect } from './layout.js';
+import { campaignAnchor, cellsToRect, freewayAnchor, houseFacing, ownerMark, parkMultiplier, playerColor, rectCenter, rectOf, ruralCenter, RURAL_SIZE, type Rect } from './layout.js';
 import { makeChip } from './overlays/badges.js';
 import { COLORS } from '../theme.js';
 import type { Stage } from './scene.js';
@@ -449,7 +449,7 @@ function collect(view: GameView, b: Board, info: Record<string, HouseBoardInfo>)
   // Restaurants.
   for (const r of Object.values(b.restaurants)) {
     const color = playerColor(view, r.owner);
-    const mark = chainMark(view.players[r.owner]?.chain, r.owner);
+    const mark = ownerMark(view, r.owner);
     const driveIn = !!r.driveIn;
     const rect = rectOf(r.x, r.y, 2, 2);
     items.push({
@@ -501,13 +501,17 @@ function collect(view: GameView, b: Board, info: Record<string, HouseBoardInfo>)
     switch (e.kind) {
       case 'coffeeShop': {
         const color = playerColor(view, e.owner);
-        items.push({ key: `entity:${e.id}`, id: e.id, kind: 'entity', sig: `cs:${color}`, rect: rectOf(e.x, e.y, 1, 1), height: 1, x: e.x + 0.5, z: e.y + 0.5, build: (c) => buildCoffeeShop(c, { color }) });
+        const mark = ownerMark(view, e.owner);
+        items.push({ key: `entity:${e.id}`, id: e.id, kind: 'entity', sig: `cs:${color}:${mark}`, rect: rectOf(e.x, e.y, 1, 1), height: 1, x: e.x + 0.5, z: e.y + 0.5, build: (c) => buildCoffeeShop(c, { color, mark }) });
         break;
       }
       case 'park': {
         const rect = rectOf(e.x, e.y, e.w, e.h);
         const [x, z] = rectCenter(rect);
-        items.push({ key: `entity:${e.id}`, id: e.id, kind: 'entity', sig: `park:${e.w}x${e.h}`, rect, height: 0.8, x, z, build: (c) => buildPark(c, { w: e.w, h: e.h }) });
+        // T / L parks: their own squares, relative to the bounding box.
+        const cells = e.cells?.map((c): [number, number] => [c.x - e.x, c.y - e.y]);
+        const shape = cells ? cells.map(([cx, cz]) => `${cx}.${cz}`).join(',') : '';
+        items.push({ key: `entity:${e.id}`, id: e.id, kind: 'entity', sig: `park:${e.w}x${e.h}:${shape}`, rect, height: 0.8, x, z, build: (c) => buildPark(c, { w: e.w, h: e.h, ...(cells ? { cells } : {}) }) });
         break;
       }
       case 'lobbyistRoad': {

@@ -21,6 +21,7 @@ import { campaignInfo } from '../../../state/feedback.js';
 import { campaignReachIds } from '../../../state/guidance.js';
 import { DELTA } from '../../coords.js';
 import { campaignAnchor } from '../../layout.js';
+import type { Placed } from '../../reconcile.js';
 import { PIP_STEP, pipGeo } from '../../minis/marketing.js';
 import { animateRadioRings, flutterLeaflet, ringFront } from '../../minis/props.js';
 import { pipCount } from '../../overlays/feedback.js';
@@ -47,11 +48,64 @@ interface Run {
   src: THREE.Vector3;
   budget: number;
   expired: boolean;
+  /** The piece on the board (live, or the claimed grave of an expiring campaign). */
+  piece: Placed | undefined;
+}
+
+/**
+ * An expiring campaign left the live set in this batch's sync; claim its grave so it stands
+ * through its last run and leaves with `expireOut` (buried when the timeline ends).
+ */
+function claimExpired(tl: Timeline, ctx: ChoreoCtx, id: string): Placed | undefined {
+  const key = `campaign:${id}`;
+  if (ctx.rec.graveRemoved(key) !== true) return undefined;
+  const g = ctx.rec.claimGrave(key);
+  if (!g) return undefined;
+  tl.own(() => ctx.rec.bury(g));
+  return g;
+}
+
+/**
+ * Expired campaign piece leaves (animation-plan §2.9 campaignExpired): it shrinks to the ground
+ * with a dust puff; a radio mast telescopes down. Airplanes fly off the edge in their sweep, so
+ * only their strip folds away. Returns the end.
+ */
+function expireOut(tl: Timeline, ctx: ChoreoCtx, piece: Placed, kind: string, airplane: boolean, at: number): number {
+  const o = piece.obj;
+  if (ctx.mode === 'reduced') {
+    tl.call(at, () => void (o.visible = false), 'tail');
+    return at;
+  }
+  const radio = kind === 'radio';
+  const rings = o.getObjectByName('radioRings');
+  const dur = radio ? 0.5 : 0.4;
+  const s0 = o.scale.clone();
+  const y0 = o.position.y;
+  if (!airplane) puff(tl, ctx, 'dust', new THREE.Vector3(o.position.x, 0.05, o.position.z), at + dur * 0.55, 0.6, 1.6);
+  tl.add({
+    start: at,
+    dur,
+    ease: ease.inCubic,
+    lane: 'tail',
+    update: (k, raw) => {
+      if (raw >= 1) {
+        o.visible = false;
+        return;
+      }
+      if (rings) rings.visible = false;
+      const s = Math.max(0.001, 1 - k);
+      // Mast telescopes (height only); other pieces shrink to the ground.
+      if (radio || airplane) o.scale.set(s0.x * (1 - k * 0.15), s0.y * s, s0.z * (1 - k * 0.15));
+      else o.scale.set(s0.x * s, s0.y * s, s0.z * s);
+      o.position.y = y0 - k * 0.06;
+    },
+  });
+  return at + dur;
 }
 
 /** Where a campaign stands (live piece, else its anchor: expired campaigns are gone from the board). */
-function campaignSpot(ctx: ChoreoCtx, id: string, camp: Campaign | undefined): { x: number; z: number; h: number } | null {
-  const p = ctx.rec.live.get(`campaign:${id}`);
+function campaignSpot(ctx: ChoreoCtx, id: string, camp: Campaign | undefined, piece?: Placed): { x: number; z: number; h: number } | null {
+  const p = piece ?? ctx.rec.live.get(`campaign:${id}`);
   if (p) return { x: (p.rect.x0 + p.rect.x1) / 2, z: (p.rect.z0 + p.rect.z1) / 2, h: p.height };
   const b = ctx.view?.board ?? ctx.prevView?.board;
   if (!b || !camp) return null;
@@ -75,12 +129,12 @@ registerChoreo('campaign', (beat, at, tl, ctx) => {
   ctx.caption(tl, at, { kind: 'campaign', campaignId: id, number: camp?.number ?? null, owner, goods: camp?.goods ?? (drops[0] ? [good] : []), houses: got, full });
   ctx.follow(tl, at, beat.focal);
   const budget = Math.max(PACING.minReadable, beat.dur);
-  const piece = ctx.rec.live.get(`campaign:${id}`);
+  const expired = beat.events.some((e) => e.type === 'campaignExpired');
+  const piece = ctx.rec.live.get(`campaign:${id}`) ?? (expired ? claimExpired(tl, ctx, id) : undefined);
   pulse(tl, ctx, piece?.obj, at, Math.min(0.4, budget), 0.12);
-  const spot = campaignSpot(ctx, id, camp);
+  const spot = campaignSpot(ctx, id, camp, piece);
   const src = spot ? new THREE.Vector3(spot.x, Math.max(0.6, spot.h * 0.6), spot.z) : null;
   const lands = drops.map((d) => demandLanding(tl, ctx, d));
-  const expired = beat.events.some((e) => e.type === 'campaignExpired');
 
   // Houses in reach with no room: grey "full" chip.
   full.forEach((h, i) => {
@@ -93,7 +147,7 @@ registerChoreo('campaign', (beat, at, tl, ctx) => {
     // No travel: tokens appear in run order inside the beat.
     lands.forEach((l, i) => (land = Math.max(land, l?.reveal(at + Math.min(budget * 0.6, 0.15 + i * STAGGER)) ?? at)));
   } else {
-    const r: Run = { id, camp, color, good, drops, lands, src, budget, expired };
+    const r: Run = { id, camp, color, good, drops, lands, src, budget, expired, piece };
     const kind = camp?.kind ?? 'billboard';
     land =
       camp?.placement.kind === 'airplane'
@@ -116,11 +170,23 @@ registerChoreo('campaign', (beat, at, tl, ctx) => {
   }
   const tick = beatEvent(beat, 'campaignTicked');
   if (tick && !expired) pipTick(tl, ctx, id, tick.remaining, at + budget * 0.5, Math.max(0.6, budget));
+  if (expired && piece) expireOut(tl, ctx, piece, camp?.kind ?? 'billboard', camp?.placement.kind === 'airplane', tail);
+  else if (expired && spot) puff(tl, ctx, 'dust', new THREE.Vector3(spot.x, 0.05, spot.z), tail, 0.6, 1.6);
   if (expired && spot) {
-    puff(tl, ctx, 'dust', new THREE.Vector3(spot.x, 0.05, spot.z), tail, 0.6, 1.6);
     chip(tl, ctx, 'done', color, new THREE.Vector3(spot.x, spot.h * 0.7, spot.z), tail, 1.0, { rise: 0.3, size: 0.34 });
   }
   return land;
+});
+
+/** A campaign expiring without a run in this batch: its piece shrinks away with a dust puff. */
+registerChoreo('campaignExpired', (beat, at, tl, ctx) => {
+  const e = beatEvent(beat, 'campaignExpired');
+  if (!e) return at;
+  const camp = ctx.prevView?.board.campaigns[e.campaignId] ?? campaignInfo(ctx.view, e.campaignId);
+  const piece = claimExpired(tl, ctx, e.campaignId);
+  if (!piece) return at;
+  ctx.follow(tl, at, beat.focal);
+  return expireOut(tl, ctx, piece, camp?.kind ?? 'billboard', camp?.placement.kind === 'airplane', at);
 });
 
 // ---------------------------------------------------------------------------
@@ -242,8 +308,7 @@ function airplane(tl: Timeline, ctx: ChoreoCtx, r: Run, at: number): number {
   const b = ctx.view?.board ?? ctx.prevView?.board;
   const p = r.camp?.placement;
   if (!b || !p || p.kind !== 'airplane') return tossTokens(tl, ctx, r, at);
-  const piece = ctx.rec.live.get(`campaign:${r.id}`);
-  const fly = piece?.obj.getObjectByName('fly') ?? null;
+  const fly = r.piece?.obj.getObjectByName('fly') ?? null;
   const [ox, oz] = DELTA[p.side];
   const mid = p.offset + p.width / 2;
   const span = p.side === 'N' || p.side === 'S' ? b.h : b.w;
@@ -258,8 +323,8 @@ function airplane(tl: Timeline, ctx: ChoreoCtx, r: Run, at: number): number {
   // The hover plane is the one sweeping: hide it, and fly it back in afterwards.
   if (fly) {
     fly.visible = false;
-    if (r.expired) tl.own(() => void (fly.visible = true));
-    else {
+    // Expired: the sweep is its last flight, off the far edge.
+    if (!r.expired) {
       const x0 = fly.position.x;
       tl.add({
         start: at + sweep,
@@ -303,8 +368,7 @@ function airplane(tl: Timeline, ctx: ChoreoCtx, r: Run, at: number): number {
 
 /** Radio: rings from the mast; each token drops when the ring front reaches its house. */
 function radio(tl: Timeline, ctx: ChoreoCtx, r: Run, at: number): number {
-  const piece = ctx.rec.live.get(`campaign:${r.id}`);
-  const mast = piece?.obj.getObjectByName('radioRings');
+  const mast = r.piece?.obj.getObjectByName('radioRings');
   const top = mast ? worldOf(mast) : r.src.clone().setY(1.92);
   const dist = (v: THREE.Vector3) => Math.hypot(v.x - top.x, v.z - top.z);
   const targets = r.lands.map((l) => (l ? dist(l.target) : 0));

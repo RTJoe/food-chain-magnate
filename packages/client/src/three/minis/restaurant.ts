@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import type { Corner, RestaurantStatus } from '@fcm/engine';
 import { cornerAngle } from '../coords.js';
-import { signTexture } from '../labels.js';
+import { BADGE_MIN_PX, makeBadge, signTexture } from '../labels.js';
 import { blob, face, solid, type MiniCtx } from './ctx.js';
 import { P, Shape, ball, box, cone, cyl, extrude, lathe, miniGeo, playerPalette, puck, shade } from './kit.js';
 
@@ -15,7 +15,7 @@ export interface RestaurantParams {
   status: RestaurantStatus;
   entrance: Corner;
   driveIn: boolean;
-  /** 1–2 letter chain mark shown on the sign. */
+  /** Owner mark (the player's initial, as in the panels) on the sign and the owner badge. */
   mark: string;
 }
 
@@ -215,7 +215,33 @@ export function buildRestaurant(ctx: MiniCtx, p: RestaurantParams): THREE.Group 
     }
   }
   if (p.driveIn && p.status === 'open') addDriveIn(ctx, g, p.color);
+  if (p.status !== 'derelict' && p.mark) {
+    // Over the sign pole (front corner), clear of the roof-centre anchor used by sale chips.
+    const v = new THREE.Vector3(0.8, 2.05, 0.8).applyAxisAngle(new THREE.Vector3(0, 1, 0), body.rotation.y);
+    addOwnerBadge(g, p.mark, p.color, v.x, v.y, v.z);
+  }
   return g;
+}
+
+/**
+ * Camera-facing owner badge (player initial on the player colour, like the panels' badges) so
+ * colour is never the only link between a piece and its owner. Never smaller than a house badge.
+ */
+export function addOwnerBadge(parent: THREE.Object3D, mark: string, color: string, x: number, y: number, z: number): THREE.Sprite {
+  const pal = playerPalette(color);
+  const b = makeBadge(mark, { bg: pal.base, fg: lightColor(pal.base) ? '#2b2a33' : '#fffaf0', ring: pal.dark }, 0.4);
+  b.position.set(x, y, z);
+  b.name = 'owner';
+  b.userData.minPx = BADGE_MIN_PX;
+  b.userData.obstacle = true;
+  parent.add(b);
+  return b;
+}
+
+/** True for seat colours too light for cream text (Mustard, Tangerine, Pickle). */
+function lightColor(hex: string): boolean {
+  const c = new THREE.Color(hex);
+  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b > 0.3;
 }
 
 const faceGhosts = new Map<string, THREE.Material>();
@@ -289,10 +315,11 @@ function coffeeShape(color: string): Shape {
   return s;
 }
 
-export function buildCoffeeShop(ctx: MiniCtx, p: { color: string }): THREE.Group {
+export function buildCoffeeShop(ctx: MiniCtx, p: { color: string; mark?: string }): THREE.Group {
   const g = new THREE.Group();
   blob(ctx, g, 1.1, 1.1, true, 0.7);
   solid(ctx, g, miniGeo(`coffee:${p.color}`, () => coffeeShape(p.color)));
+  if (p.mark) addOwnerBadge(g, p.mark, p.color, 0, 1.4, 0);
   return g;
 }
 

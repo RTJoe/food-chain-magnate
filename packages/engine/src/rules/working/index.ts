@@ -8,7 +8,7 @@ import type { Corner, GameState, PlayerId, PlayerState } from '../../types/state
 import type { LegalAction, Placement, PlacementSpec } from '../../types/view.js';
 import type { EngineCtx } from '../../core/context.js';
 import { OK, reject, type Check } from '../../core/errors.js';
-import { cardPlace, defOf } from '../../core/cards.js';
+import { cardPlace, cardsAtWork, defOf } from '../../core/cards.js';
 import { contentFor } from '../../modules/registry.js';
 import { DRINKS } from '../../content/foods.js';
 import { CORNERS, DIRECTIONS, allEmpty, rect, restaurantCells } from '../../map/grid.js';
@@ -155,6 +155,16 @@ export function applyWork(ctx: EngineCtx, a: WorkAction): { undoable: boolean } 
 // Legal actions (UI guidance; every `ready` action is re-validated by core/legal.ts)
 // ---------------------------------------------------------------------------
 
+/**
+ * Cards a trainer may consider: the beach, then cards at work (only trainable through a module
+ * exception such as Ketchup First lemonade sold, checked by `validateTrain`). Never the CEO or
+ * the trainer itself.
+ */
+function trainTargets(p: PlayerState, trainer: string): string[] {
+  const ok = (t: string) => t !== p.structure.ceo && t !== trainer && Boolean(p.employees[t]);
+  return [...p.beach.filter(ok), ...cardsAtWork(p).filter(ok)];
+}
+
 export function workingLegalActions(s: GameState, player: PlayerId): LegalAction[] {
   const t = turnCheck(s, player);
   if (!t.ok || !s.turn) return [];
@@ -180,14 +190,18 @@ export function workingLegalActions(s: GameState, player: PlayerId): LegalAction
         break;
       }
       case 'train': {
-        for (const target of p.beach) {
+        for (const target of trainTargets(p, uid)) {
           const card = p.employees[target];
           if (!card) continue;
+          const atWork = cardPlace(p, target) === 'work';
           for (const tt of reachableTargets(s, p, card.employeeId, Math.min(left, a.maxStepsSameCard))) {
+            const action = { type: 'work.train' as const, playerId: player, trainerUid: uid, targetUid: target, toEmployeeId: tt.to as EmployeeId };
+            // A card at work only when a module allows it (Ketchup First lemonade sold, same colour; KX p18).
+            if (atWork && !validateTrain(s, action).ok) continue;
             out.push({
               kind: 'ready',
-              label: `${def.name}: train ${content.employees[card.employeeId]?.name ?? card.employeeId} → ${content.employees[tt.to]?.name ?? tt.to}`,
-              action: { type: 'work.train', playerId: player, trainerUid: uid, targetUid: target, toEmployeeId: tt.to as EmployeeId },
+              label: `${def.name}: train ${content.employees[card.employeeId]?.name ?? card.employeeId}${atWork ? ' (at work)' : ''} → ${content.employees[tt.to]?.name ?? tt.to}`,
+              action,
             });
           }
         }
@@ -406,7 +420,7 @@ export function noActionReason(s: GameState, player: PlayerId, uid: string): str
     case 'train': {
       const turn = s.turn;
       const left = turn?.uses[uid] ?? 0;
-      const targets = p.beach.filter((t) => t !== p.structure.ceo && p.employees[t]);
+      const targets = trainTargets(p, uid).filter((t) => cardPlace(p, t) === 'beach' || reachableTargets(s, p, p.employees[t]?.employeeId as EmployeeId, Math.min(left, a.maxStepsSameCard)).some((o) => validateTrain(s, { type: 'work.train', playerId: player, trainerUid: uid, targetUid: t, toEmployeeId: o.to as EmployeeId }).ok));
       if (!targets.length) return 'No card on the beach to train';
       const reasons: string[] = [];
       for (const target of targets) {

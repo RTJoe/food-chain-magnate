@@ -150,6 +150,14 @@ export function Board2D() {
         })}
         {Object.values(b.entities).map((e) => {
           if (e.kind === 'coffeeShop') return <rect key={e.id} x={e.x + 0.12} y={e.y + 0.12} width={0.76} height={0.76} rx={0.2} fill={colorOf(e.owner)} stroke={COLORS.ink} stroke-width={0.06} />;
+          if (e.kind === 'park' && e.cells?.length)
+            return (
+              <g key={e.id}>
+                {e.cells.map((q) => (
+                  <rect key={`${q.x},${q.y}`} x={q.x + 0.06} y={q.y + 0.06} width={0.88} height={0.88} rx={0.2} fill={COLORS.park} stroke={COLORS.garden} stroke-width={0.08} />
+                ))}
+              </g>
+            );
           if (e.kind === 'park') return <rect key={e.id} x={e.x + 0.06} y={e.y + 0.06} width={e.w - 0.12} height={e.h - 0.12} rx={0.2} fill={COLORS.park} stroke={COLORS.garden} stroke-width={0.08} />;
           if (e.kind === 'roadworks') return <circle key={e.id} cx={e.x + 0.5} cy={e.y + 0.5} r={0.25} fill={COLORS.warn} />;
           return null;

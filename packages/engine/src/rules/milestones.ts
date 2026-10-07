@@ -126,7 +126,8 @@ export function onMilestoneEvent(ctx: HookContext, event: GameEvent): void {
       if (event.count <= 0) return;
       return awardWhere(ctx, event.player, (d) => d.trigger.kind === 'produced' && d.trigger.food === event.food);
     case 'foodDiscarded':
-      if (!Object.values(event.goods).some((n) => (n ?? 0) > 0)) return;
+      // Coffee is neither food nor a drink for milestones (KX p10): throwing only coffee away claims nothing.
+      if (!Object.entries(event.goods).some(([good, n]) => (n ?? 0) > 0 && ctx.content.foods[good as FoodId]?.category !== 'coffee')) return;
       return awardWhere(ctx, event.player, (d) => d.trigger.kind === 'discarded');
     case 'salaryPaid':
       return awardWhere(ctx, event.player, (d) => d.trigger.kind === 'salaryPaid' && event.paid >= d.trigger.amount);
@@ -149,15 +150,20 @@ export function checkCashMilestones(ctx: HookContext, player: PlayerId): void {
 }
 
 /**
- * Start of Dinnertime (DLX p28): every player with a pricing, discount (or luxuries, JD 1566688)
- * manager at work claims "First to Lower Prices", even if they sell nothing.
+ * Start of Dinnertime (DLX p28): every player with a pricing or discount manager at work (a
+ * price card that lowers the price) claims "First to Lower Prices", even if they sell nothing.
+ * A luxuries manager alone raises the price and does not claim it; one also at work does not
+ * prevent the claim.
  */
 export function checkStartOfDinnertime(ctx: HookContext): void {
   const s = ctx.state;
   for (const player of s.turnOrder) {
     const p = s.players[player];
     if (!p || p.bankrupt) continue;
-    const hasPriceCard = cardsAtWork(p).some((uid) => defOf(ctx.content, p, uid)?.ability.kind === 'price');
+    const hasPriceCard = cardsAtWork(p).some((uid) => {
+      const ability = defOf(ctx.content, p, uid)?.ability;
+      return ability?.kind === 'price' && ability.delta < 0;
+    });
     if (!hasPriceCard) continue;
     awardWhere(ctx, player, (d) => d.trigger.kind === 'startOfDinnertime' && d.trigger.condition === 'lowerPrices');
   }

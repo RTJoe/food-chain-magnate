@@ -80,7 +80,11 @@ export function badgeTexture(text: string, s: BadgeStyle = {}): THREE.Texture {
 
 /** A camera-facing badge sprite; `size` = world height. */
 export function makeBadge(text: string, style: BadgeStyle = {}, size = 0.42): THREE.Sprite {
-  const tex = badgeTexture(text, style);
+  return badgeSprite(badgeTexture(text, style), size);
+}
+
+/** Depth-tested badge sprite from any cached texture; `size` = world height. */
+export function badgeSprite(tex: THREE.Texture, size = 0.42): THREE.Sprite {
   const aspect = (tex.image as HTMLCanvasElement).width / (tex.image as HTMLCanvasElement).height;
   const mat = spriteMat(tex);
   const s = new THREE.Sprite(mat);
@@ -89,6 +93,41 @@ export function makeBadge(text: string, style: BadgeStyle = {}, size = 0.42): TH
   s.userData.aspect = aspect;
   s.userData.baseH = size;
   return s;
+}
+
+/**
+ * Campaign marker: a cream pill with a thick owner-colour ring, the advertised good(s) and the
+ * campaign number in ink. Readable from any yaw and in top view, and high contrast in every seat
+ * colour (the printed tokens show the number in a light circle).
+ */
+export function campaignBadgeTexture(number: number, goods: FoodId[], ring: string, edge: string, eternal = false): THREE.Texture {
+  const shown = goods.slice(0, 2);
+  const text = eternal ? `${number} ∞` : String(number);
+  const W = 40 + shown.length * 92 + text.length * 44 + 30;
+  return canvasTex(`campaignBadge:${text}:${shown.join('+')}:${ring}:${edge}`, W, 128, (ctx) => {
+    ctx.fillStyle = 'rgba(31,29,38,0.28)';
+    roundRect(ctx, 8, 14, W - 16, 108, 54);
+    ctx.fill();
+    ctx.fillStyle = edge;
+    roundRect(ctx, 4, 4, W - 8, 112, 56);
+    ctx.fill();
+    ctx.fillStyle = ring;
+    roundRect(ctx, 9, 9, W - 18, 102, 51);
+    ctx.fill();
+    ctx.fillStyle = COLORS.surface;
+    roundRect(ctx, 21, 21, W - 42, 78, 39);
+    ctx.fill();
+    let x = 34;
+    for (const g of shown) {
+      drawFood(ctx, g, x + 42, 61, 70);
+      x += 92;
+    }
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = `900 64px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x + (text.length * 44) / 2, 64);
+  });
 }
 
 const spriteMats = new Map<string, THREE.SpriteMaterial>();
