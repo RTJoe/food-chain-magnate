@@ -171,6 +171,17 @@ function WhatsThisPopover() {
     setPos({ left, top });
   }, [st?.id, st?.anchor, phone]);
 
+  // Give focus back to the "?" (or card) that opened the popover once it closes.
+  useEffect(() => {
+    if (!st) return;
+    const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+    return () => {
+      const now = document.activeElement;
+      const lost = !now || now === document.body || !now.isConnected;
+      if (lost && opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
+    };
+  }, [Boolean(st)]);
+
   useEffect(() => {
     if (st) ref.current?.querySelector<HTMLElement>('.wt-pop-title')?.focus();
   }, [st?.id]);

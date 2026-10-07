@@ -55,6 +55,7 @@ export const PROFILES: Record<string, GateCheck[]> = {
   /** §8.5 "CI gate": small, fixed seeds, noise-tolerant. */
   ci: [
     { ...base, name: 'easy-legality', a: 'easy', b: 'easy', games: 10, seed: 1000, modules: 'all', players: 3 },
+    { ...base, name: 'easy-completion', a: 'easy', b: 'easy', games: 20, seed: 1, modules: 'all', minCompletion: 0.9, completionRounds: 40 },
     { ...base, name: 'medium-vs-easy', a: 'medium', b: 'easy', games: 20, seed: 2000, minWinRate: 0.6, minCompletion: 0.9 },
     { ...base, name: 'hard-vs-medium', a: 'hard', b: 'medium', games: 10, seed: 3000, minCompletion: 0.9 },
   ],
@@ -64,6 +65,8 @@ export const PROFILES: Record<string, GateCheck[]> = {
     { name: 'medium-vs-easy-4p', a: 'medium', b: 'easy', players: 4, games: 100, seed: 1, budgetMs: 2000, minWinRate: 0.6 },
     { name: 'hard-vs-medium-2p', a: 'hard', b: 'medium', players: 2, games: 200, seed: 1, budgetMs: 2000, minWinRate: 0.65, minWinLower: 0.6, maxP95Ms: 2100 },
     { name: 'hard-vs-medium-3p', a: 'hard', b: 'medium', players: 3, games: 99, seed: 1, budgetMs: 2000, minWinRate: 0.5 },
+    { name: 'easy-completion-2p', a: 'easy', b: 'easy', players: 2, games: 100, seed: 1, budgetMs: 500, modules: 'all', minCompletion: 0.9, completionRounds: 40 },
+    { name: 'easy-completion-3p', a: 'easy', b: 'easy', players: 3, games: 99, seed: 1, budgetMs: 500, modules: 'all', minCompletion: 0.9, completionRounds: 40 },
     { name: 'medium-completion', a: 'medium', b: 'medium', players: 2, games: 100, seed: 1, budgetMs: 2000, minCompletion: 0.95, completionRounds: 40 },
     { name: 'ketchup-medium-vs-easy-3p', a: 'medium', b: 'easy', players: 3, games: 99, seed: 1, budgetMs: 2000, modules: 'all', minWinRate: 0.7 },
     { name: 'medium-determinism', a: 'medium', b: 'easy', players: 2, games: 20, seed: 500, budgetMs: 2000, deterministic: true },

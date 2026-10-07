@@ -14,11 +14,17 @@ UI
 | surface | `#fffaf0` | panels, cards |
 | surfaceSunk | `#ebdfc6` | wells, inactive chips |
 | ink | `#2b2a33` | text |
-| inkMuted | `#6b6774` | secondary text |
+| inkMuted | `#5f5b68` | secondary text (5.0:1 on surfaceSunk, 5.5:1 on paper) |
 | line | `#d4c6a8` | borders |
-| accent | `#d94f3d` | primary buttons |
-| focus | `#3f8fd2` | focus rings, selection |
-| ok / warn / danger | `#3f9a5c` / `#e8a530` / `#c0392b` | status |
+| accent / accentHover | `#c4402f` / `#a93526` | primary buttons (white text 5.1:1), accent text (4.9:1 on surface) |
+| focus | `#2f7fc4` | focus rings and selection outlines only (3:1 or more on every surface); never text |
+| link | `#255f92` | link text and text buttons (6.4:1 on surface, 5.1:1 on surfaceSunk) |
+| ok / warn / danger | `#2f7a46` / `#e8a530` / `#c0392b` | status (ok: white text 5.3:1, as text 5.0:1) |
+
+Contrast rule: text meets WCAG AA (4.5:1) on the background it sits on; focus rings and other
+non-text cues meet 3:1. `packages/client/test/a11y.test.ts` checks the token pairs (`contrast()` in
+theme.ts), so a token change that breaks AA fails the tests. Do not dim text with `opacity` to show
+a state (done steps): use inkMuted plus a non-colour cue (a check mark, a strike-through) instead.
 
 Board
 
@@ -40,14 +46,22 @@ Players (seat order; six for Ketchup)
 
 | # | Name | Base | Dark | Light |
 |---|---|---|---|---|
-| 0 | Ketchup | `#d94f3d` | `#9e3326` | `#f7d6cf` |
-| 1 | Mustard | `#e8b730` | `#a87f12` | `#f8ebc2` |
-| 2 | Blueberry | `#3f8fd2` | `#255f92` | `#d3e5f5` |
-| 3 | Pickle | `#4caf6a` | `#2f7a46` | `#d5eedb` |
-| 4 | Grape | `#9b5fc0` | `#673d84` | `#e8d9f1` |
-| 5 | Tangerine | `#f08a3c` | `#b05a1a` | `#fbe0cb` |
+| 0 | Ketchup | `#b8352a` | `#8a2419` | `#f5d5d0` |
+| 1 | Mustard | `#f2cf3f` | `#7a5c0c` | `#fbf0c4` |
+| 2 | Blueberry | `#2b62b8` | `#1f4a8a` | `#d6e2f5` |
+| 3 | Pickle (teal) | `#5cc7b2` | `#1f6b5c` | `#d4f1eb` |
+| 4 | Grape (orchid) | `#d77fc9` | `#86397a` | `#f6def2` |
+| 5 | Tangerine | `#ef8a2f` | `#9c4c10` | `#fce2cc` |
 
-Player colour appears on restaurant roofs and awnings, campaign frames, coffee shops, busy-marketeer chips and UI badges. Pair colour with a player initial or chain emblem so colour is never the only cue.
+The seat colours are tuned for colour-blind players: simulated protanopia, deuteranopia and
+tritanopia (Machado 2009) keep every pair at CIEDE2000 distance 10.8 or more for six seats, and
+13.1 or more for five (the earlier palette fell to 4.1: Blueberry and Grape merged for
+deuteranopes, Ketchup and Pickle turned the same olive). `dark` is a text colour (4.5:1 on `light`,
+surface and white). Badge labels use white or ink, whichever reads better on `base` (`inkOn`).
+Keep `base` in sync with the session's `SEAT_COLORS` and the engine's `DEFAULT_PLAYER_COLORS`; the
+client maps the earlier palette (older servers, saved games) to these seats (`seatColor`).
+
+Player colour appears on restaurant roofs and awnings, campaign frames, coffee shops, busy-marketeer chips and UI badges. Colour is never the only cue: each seat has one mark (`playerMark`: the name's initial, two letters when initials clash) shown on its UI badges and on its restaurant and coffee-shop signs and vans.
 
 Goods: burger `#8d5a2b`, pizza `#ef6f3c`, beer `#e0b23a`, lemonade `#f5ec7a`, soft drink `#6b2f2a`, coffee `#4a3226`, kimchi `#c8412f`, sushi `#e98b8b`, noodles `#f2d79b`. Each good also has its own token shape (below).
 

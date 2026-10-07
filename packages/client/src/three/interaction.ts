@@ -41,6 +41,7 @@ import {
   type SelectionKind,
 } from '../state/interaction.js';
 import { COLORS } from '../theme.js';
+import { BoardKeyScope } from './keyScope.js';
 import type { CameraController, PointerInfo } from './camera.js';
 import { DELTA, DIRS } from './coords.js';
 import { campaignAnchor, cellsToRect, freewayAnchor, gardenRect, parkMultiplier, placementCells, placementHitRect, rectCenter, rectOf, type Rect } from './layout.js';
@@ -128,9 +129,11 @@ export class Interaction {
 
     cam.onHover = (p) => this.hover(p);
     cam.onTap = (p) => this.tap(p);
-    const key = (e: KeyboardEvent) => this.key(e);
+    // Pick keys act only while the board owns the keyboard: Enter on a focused button stays that button's (keyScope.ts).
+    const keys = new BoardKeyScope(stage.renderer.domElement);
+    const key = (e: KeyboardEvent) => this.key(e, keys);
     window.addEventListener('keydown', key);
-    this.disposers.push(() => window.removeEventListener('keydown', key));
+    this.disposers.push(() => window.removeEventListener('keydown', key), () => keys.dispose());
 
     // Overlay buttons and panel rows (state/interaction.ts). Skip each effect's first run.
     const onBump = <T>(read: () => T, run: (v: T) => void) => {
@@ -545,27 +548,25 @@ export class Interaction {
     else if (selection.peek()) selection.value = null;
   }
 
-  private key(e: KeyboardEvent): void {
-    const t = e.target as HTMLElement | null;
-    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  private key(e: KeyboardEvent, keys: BoardKeyScope): void {
     const m = this.mode;
-    if (m.kind === 'idle' || m.kind === 'inspect') {
-      if (e.key === 'Escape' && selection.peek()) {
+    if (e.key === 'Escape') {
+      if (!keys.ownsEscape(e)) return;
+      if (m.kind === 'idle' || m.kind === 'inspect') {
+        if (!selection.peek()) return;
         selection.value = null;
-        e.preventDefault();
-      }
+      } else if (this.staged || this.stagedRoute !== null) this.unstage();
+      else this.emit({ kind: 'cancel' });
+      e.preventDefault();
       return;
     }
-    if (e.key === 'Escape') {
-      if (this.staged || this.stagedRoute !== null) this.unstage();
-      else this.emit({ kind: 'cancel' });
-    } else if ((e.key === 'r' || e.key === 'R') && m.kind !== 'route') {
+    if (m.kind === 'idle' || m.kind === 'inspect' || !keys.owns(e)) return;
+    if ((e.key === 'r' || e.key === 'R') && m.kind !== 'route') {
       this.rotate();
     } else if (e.key === '[' || e.key === ']') {
       this.cycle(e.key === ']' ? 1 : -1);
     } else if (e.key === 'Enter') {
-      if (m.kind === 'route') this.confirm();
-      else if (this.staged) this.confirm();
+      if (m.kind === 'route' || this.staged) this.confirm();
       else if (this.hoverSpot) this.pick(this.hoverSpot.variants[this.variantIdx.get(this.hoverSpot.key) ?? 0]!);
       else this.confirm();
     } else return;
@@ -618,7 +619,8 @@ export class Interaction {
       this.emitHover({ id: null, cell: null, placement: m.placements[next] ?? null });
       return;
     }
-    if (m.kind === 'campaign') {
+    if (isSpotMode(m)) {
+      // Campaign and place modes: step through the spots in list order; the ghost follows.
       const n = m.placements.length;
       if (!n) return;
       const cur = activeCandidate.peek();
@@ -686,7 +688,8 @@ export class Interaction {
       if (p) this.pick(p);
       return;
     }
-    if (m.kind === 'campaign') {
+    if (isSpotMode(m)) {
+      // Campaign spots, or a board spot stepped to with [ / ] (keyboard placement).
       const p = m.placements[activeCandidate.peek()];
       if (p) this.pick(p);
     }

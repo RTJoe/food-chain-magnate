@@ -14,11 +14,11 @@ import type { Catalog } from '../../state/catalog.js';
 import { employeeName, foodName } from '../../state/catalog.js';
 import { boardModeFor, placementsByToken, placementsFor, problemAt, type CampaignPlacementT } from '../../state/guidance.js';
 import { inspectIds, previewGood } from '../../state/interaction.js';
-import { catalog, manifest, me, myPlayer, settings, view } from '../../state/store.js';
+import { catalog, manifest, me, myPlayer, view } from '../../state/store.js';
 import { Button, Pill, Stepper } from '../common.js';
 import { Icon } from '../icons.js';
 import { footprint } from '../Board2D.js';
-import { BoardHint, commitPlacement, FlowHead, GoodChips, listOnly, marketableFoods, NoSpots, PlacementRows, playerColor, useBoardMode, useMirror } from './shared.js';
+import { BoardHint, commitPlacement, listAllPlacements, FlowHead, GoodChips, listOnly, marketableFoods, NoSpots, PlacementRows, playerColor, useBoardMode, useMirror } from './shared.js';
 import type { FlowProps } from './types.js';
 
 export const KIND_LABEL: Record<CampaignKind, string> = {
@@ -200,7 +200,7 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
   };
 
   // List fallback: the chosen token's spots, or every spot grouped by token (placementList).
-  const listAll = settings.value.placementList;
+  const listAll = listAllPlacements();
   const listFor = (list: CampaignPlacementT[]) => (listAll ? list : list.filter((p) => listOnly(p) || boardRenderer.value !== '3d'));
   const launch = chosen && v ? eternalLaunch(c, v, who, chosen.kind, { employeeId: card?.employeeId ?? null, goods }) : { eternal: false, claims: null };
   const eternal = launch.eternal;

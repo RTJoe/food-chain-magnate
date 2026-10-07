@@ -141,6 +141,8 @@ export class TutorialRunner {
   private bypass = false;
   private evaluating = false;
   private queued = false;
+  /** A new round started during this step: save once the step is known to continue (see evaluate). */
+  private resaveDue = false;
   private prevSignals: SignalValues = signalValues();
   /** Actions applied when each step was entered (Back is allowed only across action-free steps). */
   private actionsAtEntry: number[] = [];
@@ -275,8 +277,9 @@ export class TutorialRunner {
           this.events = [...this.events, ...m.events];
           if (m.action.playerId === this.me) this.lastAction = m.action;
           // A long checkpoint step (the guided game plays rounds 3 to the end in one step): save
-          // again at every new round, so a reload resumes near where the learner was.
-          if (m.events.some((e) => e.type === 'roundStarted')) this.resave();
+          // again at every new round, so a reload resumes near where the learner was. Deferred to
+          // evaluate(): when the same move ends the step, the saved checkpoint must stay at its entry.
+          if (m.events.some((e) => e.type === 'roundStarted')) this.resaveDue = true;
           this.noteEventBeats(m.events);
           this.activity();
         } else if (m.t === 'game.rejected') {
@@ -373,8 +376,13 @@ export class TutorialRunner {
     this.evaluating = true;
     try {
       if (evaluate(this.step.until, c, this.prog)) {
+        this.resaveDue = false;
         this.complete(c);
         return;
+      }
+      if (this.resaveDue) {
+        this.resaveDue = false;
+        this.resave();
       }
       this.runScript();
       this.checkDeadEnd(c);

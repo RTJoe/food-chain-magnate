@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { effect } from '@preact/signals';
 import { followFocus } from '../state/interaction.js';
 import { RIM } from './coords.js';
+import { BoardKeyScope } from './keyScope.js';
 
 const DEG = Math.PI / 180;
 export const DEFAULT_TILT = 50 * DEG;
@@ -70,6 +71,7 @@ export class CameraController {
   private ray = new THREE.Raycaster();
   private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private cleanup: (() => void)[] = [];
+  private readonly keys: BoardKeyScope;
 
   onTap: (p: PointerInfo) => void = () => {};
   onHover: (p: PointerInfo | null) => void = () => {};
@@ -95,9 +97,11 @@ export class CameraController {
     });
     on('wheel', (e) => this.wheel(e), { passive: false });
     on('contextmenu', (e) => e.preventDefault());
+    // Camera keys act only while the board owns the keyboard (keyScope.ts, WCAG 2.1.4).
+    this.keys = new BoardKeyScope(dom);
     const key = (e: KeyboardEvent) => this.key(e);
     window.addEventListener('keydown', key);
-    this.cleanup.push(() => window.removeEventListener('keydown', key));
+    this.cleanup.push(() => window.removeEventListener('keydown', key), () => this.keys.dispose());
     // Follow the action (animation-plan §1.6): the animator writes the next step's rectangle.
     let firstFollow = true;
     this.cleanup.push(
@@ -627,9 +631,7 @@ export class CameraController {
   }
 
   private key(e: KeyboardEvent): void {
-    const t = e.target as HTMLElement | null;
-    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!this.keys.owns(e)) return;
     const step = this.want.dist * 0.08;
     const fwd = new THREE.Vector3(-Math.sin(this.want.yaw), 0, -Math.cos(this.want.yaw));
     const right = new THREE.Vector3(Math.cos(this.want.yaw), 0, -Math.sin(this.want.yaw));

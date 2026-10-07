@@ -9,7 +9,7 @@ import type { EmployeeDef, FoodCounts, PlayerId, StructureSubmission, Uid } from
 import { cardsInHand, ceoSlotsFor, defOf, isOverfilled, managerSlots, submissionProblem } from '@fcm/engine';
 import { memo, type Ctx } from '../shared/ctx.js';
 import { addCounts, capacityOf, msOpen, roundsLeftEstimate, stockNow } from '../shared/facts.js';
-import { finishIncome, houseViews, modelWith, rivalStock, sellerOf, shadowDinner, winProb, potentialModel, unitRevenue } from '../shared/market.js';
+import { basePriceModel, finishIncome, houseViews, modelWith, rivalStock, sellerOf, shadowDinner, winProb, potentialModel, unitRevenue } from '../shared/market.js';
 import { cardValue, milestoneValue } from '../shared/values.js';
 import { orgPlan, tilesLeft, type OrgPlan } from './orgPlanner.js';
 
@@ -31,6 +31,8 @@ interface Eval {
   campaignSlots: number[];
   /** Open milestones earned by having / using one of these cards at work (Ketchup "used" ones). */
   cardMilestones: { ids: string[]; value: number }[];
+  /** Extra income one kimchi in stock would bring (Ketchup kimchi wins every house I can serve). */
+  kimchiGain: number;
 }
 
 function makeEval(c: Ctx, me: PlayerId): Eval {
@@ -43,7 +45,20 @@ function makeEval(c: Ctx, me: PlayerId): Eval {
   const stockRivals: Record<PlayerId, FoodCounts> = {};
   for (const pid of c.s.turnOrder) if (pid !== me) stockRivals[pid] = rivalStock(c, pid);
   const roundsLeft = roundsLeftEstimate(c);
-  return { c, me, plan: orgPlan(c, me), defs, stockRivals, roundsLeft, campaignSlots: campaignSlotValues(c, me), cardMilestones: cardMilestones(c, me, roundsLeft) };
+  const plan = orgPlan(c, me);
+  return { c, me, plan, defs, stockRivals, roundsLeft, campaignSlots: campaignSlotValues(c, me), cardMilestones: cardMilestones(c, me, roundsLeft), kimchiGain: kimchiGain(c, me, plan, stockRivals) };
+}
+
+/** Income one kimchi adds when every card I own (not busy) works: houses won on kimchi priority plus the kimchi sold. */
+function kimchiGain(c: Ctx, me: PlayerId, plan: OrgPlan, rivals: Record<PlayerId, FoodCounts>): number {
+  const p = c.s.players[me];
+  if (!p || !c.content.foods.kimchi) return 0;
+  const cards = Object.keys(p.employees).filter((u) => !p.busy[u]);
+  const base = addCounts(stockNow(c.s, me), capacityOf(c, me, cards, plan.arch.food));
+  const m = basePriceModel(c);
+  const without = shadowDinner(c, m, { ...rivals, [me]: { ...base, kimchi: 0 } }, houseViews(c), me).income[me] ?? 0;
+  const withK = shadowDinner(c, m, { ...rivals, [me]: { ...base, kimchi: 1 } }, houseViews(c), me).income[me] ?? 0;
+  return Math.max(0, withK - without);
 }
 
 /**
@@ -127,6 +142,17 @@ function scoreSet(e: Eval, atWork: Uid[]): number {
         if (a.delta < 0 && msOpen(s, me, 'first_lower_prices')) v += milestoneValue(s, me, 'first_lower_prices', h) / Math.max(1, countKind(e, atWork, 'price'));
         break;
       case 'produce':
+        // Kimchi master: 1 kimchi at Clean up, so next round I win every house I can serve.
+        if (a.timing === 'cleanup') {
+          v += Math.max(6, 0.8 * e.kimchiGain);
+          break;
+        }
+        // Coffee sells only along routes past my coffee shops (and other restaurants of mine).
+        if (a.foods.includes('coffee')) {
+          const shops = Object.values(s.board.entities).filter((x) => x.kind === 'coffeeShop' && x.owner === me).length;
+          v += shops ? Math.min(a.amount, 2 + shops) * 4 : 0.2;
+          break;
+        }
         if (a.foods.includes('burger') && msOpen(s, me, 'first_burger_produced') && food === 'burger') v += milestoneValue(s, me, 'first_burger_produced', h) / Math.max(1, countKind(e, atWork, 'produce'));
         else if (a.foods.includes('pizza') && msOpen(s, me, 'first_pizza_produced') && food === 'pizza') v += milestoneValue(s, me, 'first_pizza_produced', h) / Math.max(1, countKind(e, atWork, 'produce'));
         else v += 0.5; // surplus food can still feed next round's demand (freezer) or be thrown away

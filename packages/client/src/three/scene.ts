@@ -133,9 +133,9 @@ export class Stage {
     canvas.style.width = '100%';
     canvas.style.height = '100%';
     canvas.style.touchAction = 'none';
-    canvas.style.outline = 'none';
     canvas.tabIndex = 0;
-    canvas.setAttribute('aria-label', 'Game board');
+    canvas.setAttribute('role', 'application');
+    canvas.setAttribute('aria-label', 'Game board. Arrow keys pan, Q and E turn, plus and minus zoom; while placing, [ and ] step through spots, R rotates, Enter places.');
     el.appendChild(canvas);
 
     this.camera = new THREE.PerspectiveCamera(38, 1, 0.3, 400);

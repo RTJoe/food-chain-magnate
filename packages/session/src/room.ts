@@ -22,7 +22,7 @@ export const MAX_PLAYERS = 6;
 export const HOST_TRANSFER_MS = 60_000;
 
 /** Keep in sync with packages/client/src/theme.ts PLAYER_COLORS. */
-export const SEAT_COLORS = ['#d94f3d', '#e8b730', '#3f8fd2', '#4caf6a', '#9b5fc0', '#f08a3c'] as const;
+export const SEAT_COLORS = ['#b8352a', '#f2cf3f', '#2b62b8', '#5cc7b2', '#d77fc9', '#ef8a2f'] as const;
 export const SEAT_CHAINS: readonly ChainId[] = [
   'fried_geese_donkey',
   'golden_duck_diner',

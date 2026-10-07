@@ -3,7 +3,8 @@ import type { ButtonHTMLAttributes, ComponentChildren } from 'preact';
 import type { EmployeeId, FoodCounts, GameView, PlayerId } from '@fcm/engine';
 import { catalog } from '../state/store.js';
 import { employeeName, managerSlots } from '../state/catalog.js';
-import { foodList, initial, seatIndex } from '../state/selectors.js';
+import { foodList, initial, playerMark, seatIndex } from '../state/selectors.js';
+import { inkOn } from '../theme.js';
 import { FoodIcon, Icon, type IconName } from './icons.js';
 import { employeeTermId } from './glossary/index.js';
 import { useWhatsThisPress, WhatsThis } from './glossary/WhatsThis.js';
@@ -43,24 +44,31 @@ export function Cash({ amount, size = 'md' }: { amount: number; size?: 'sm' | 'm
   );
 }
 
-/** Player colour disc with initial (colour is never the only cue). */
+/** Label colour on a seat colour: white or ink, whichever reads better (Mustard, Pickle, Grape take ink). */
+const badgeInk = (color: string | undefined, idx: number): string => (color?.startsWith('#') && color.length === 7 ? inkOn(color) : `var(--player-${idx}-ink, #fff)`);
+
+/**
+ * Player colour disc with the seat's mark (colour is never the only cue): the same mark the board
+ * paints on that player's restaurants, coffee shops and vans (playerMark).
+ */
 export function PlayerBadge({ view, id, size = 28, ring }: { view: GameView; id: PlayerId; size?: number; ring?: boolean }) {
   const p = view.players[id];
   const idx = seatIndex(view, id);
+  const mark = playerMark(view, id);
   return (
     <span
       class={`pbadge ${ring ? 'is-ring' : ''}`}
-      style={{ '--pc': p?.color ?? `var(--player-${idx})`, '--pcl': `var(--player-${idx}-light)`, width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * 0.46)}px` }}
+      style={{ '--pc': p?.color ?? `var(--player-${idx})`, '--pcl': `var(--player-${idx}-light)`, '--pc-ink': badgeInk(p?.color, idx), width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * (mark.length > 1 ? 0.38 : 0.46))}px` }}
       title={p?.name}
     >
-      {initial(p?.name ?? id)}
+      {mark}
     </span>
   );
 }
 
 export function SeatBadge({ name, color, size = 28 }: { name: string; color: string; size?: number }) {
   return (
-    <span class="pbadge" style={{ '--pc': color, width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * 0.46)}px` }}>
+    <span class="pbadge" style={{ '--pc': color, '--pc-ink': badgeInk(color, 0), width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * 0.46)}px` }}>
       {initial(name)}
     </span>
   );

@@ -1,39 +1,47 @@
 /**
- * Easy bot: sensible but beatable. One light heuristic per decision, no lookahead:
+ * Easy bot: sensible but beatable. One light heuristic per decision, no lookahead, one fixed plan
+ * (easyPlan.ts: a build list for its main food matched against the cards it owns):
  * - setup: first restaurant where houses cluster, away from rivals; random reserve card.
- * - restructuring: as many cards at work as the CEO slots allow (heuristics.simpleStructure).
+ * - restructuring: seats only cards with something to do (marketeers with tiles left, cooks,
+ *   buyers, a trainer when a card waits for training...), leaves the cards it trains on the beach.
  * - order of business: earliest free position.
- * - working, card by card in sub-step order: hire food producers, marketeers, a buyer, a trainer
- *   and a manager; train cooks and managers while salaries stay affordable; cook what can be sold;
- *   fetch the most wanted drinks; campaign on houses near its own restaurants; build houses next
- *   to them; open restaurants where houses cluster. Anything else (moving restaurants) is skipped.
- * - payday: fire salaried cards (beach first) only when salaries exceed cash.
+ * - working, card by card in sub-step order: hire the next card of the plan only when it gets a
+ *   seat next round or a trainer; train towards the plan while salaries stay affordable; cook what
+ *   can be sold; fetch the most wanted drinks; campaign on houses it is connected to and can serve;
+ *   build houses next to its restaurants; open restaurants where houses cluster.
+ * - payday: fire salaried cards the plan has no use for, and whatever cash cannot carry.
  * - clean up: freeze the most plentiful goods.
  * - Ketchup choices: place what must be placed, near its restaurants when it matters; accept
  *   optional bonuses (second campaign, freeway); decline anything else.
  * A little noise (the decision's rng) keeps games from repeating.
  */
-import type { Action, EngineApi, FoodId, GameState, LegalAction, Placement, PlayerId, RngState, Uid } from '@fcm/engine';
-import { abilityStage, freezerCapacity, nextFloat, randomInt, shuffle, stageIndex, stagesFor, stockOf } from '@fcm/engine';
-import type { Bot, BotInput } from './types.js';
-import { viewState } from './viewState.js';
+import type { Action, EmployeeDef, FoodId, GameState, LegalAction, Placement, PlayerId, StructureSubmission, Uid } from '@fcm/engine';
 import {
-  actionFromPlacement,
-  cardDef,
-  contentOf,
-  demandNear,
-  distToMine,
-  fallbackAction,
-  favouriteGood,
-  firingPlan,
-  forcedFirePlan,
-  incomeEstimate,
-  ownedKinds,
-  placementCells,
-  restaurantSpotScore,
-  salaryOutlook,
-  simpleStructure,
-} from './heuristics.js';
+  abilityStage,
+  cardsAtWork,
+  cardsInHand,
+  ceoSlotsFor,
+  defOf,
+  freezerCapacity,
+  isManager,
+  isOverfilled,
+  managerSlots,
+  nextFloat,
+  randomInt,
+  salariedCards,
+  salaryBreakdown,
+  shuffle,
+  stageIndex,
+  stagesFor,
+  stockOf,
+  submissionProblem,
+  voluntarilyFireable,
+} from '@fcm/engine';
+import type { Bot, BotInput } from './types.js';
+import { makeCtx, type Ctx } from './shared/ctx.js';
+import { houseViews, sellerOf, type HouseView } from './shared/market.js';
+import { actionFromPlacement, cardDef, contentOf, demandNear, distToMine, fallbackAction, firingPlan, forcedFirePlan, placementCells, restaurantSpotScore, simpleStructure } from './heuristics.js';
+import { easyCapacity, easyGood, easyPlan, MAX_MARKETEERS, seatCapacity, seatPriority, worthSeat } from './easyPlan.js';
 
 type PlacementLegal = Extract<LegalAction, { kind: 'placement' }>;
 
@@ -41,22 +49,16 @@ type PlacementLegal = Extract<LegalAction, { kind: 'placement' }>;
 const SAMPLE = 48;
 /** Campaign spots are where the game is won: look at more of them. */
 const CAMPAIGN_SAMPLE = 240;
-
-interface Ctx {
-  s: GameState;
-  me: PlayerId;
-  engine: EngineApi;
-  rng: RngState;
-  legal: LegalAction[];
-}
+/** Easy is sloppy about where its campaigns go (a strong player picks the best spot). */
+const CAMPAIGN_NOISE = 2;
 
 export function createEasyBot(): Bot {
   return { level: 'easy', choose: easyChoose };
 }
 
 export function easyChoose(input: BotInput): Action {
-  const s = viewState(input.view);
-  const ctx: Ctx = { s, me: input.playerId, engine: input.engine, rng: input.rng, legal: input.legal };
+  const ctx = makeCtx(input);
+  const s = ctx.s;
   let candidates: Action[] = [];
   try {
     candidates = decide(ctx);
@@ -82,7 +84,10 @@ function decide(c: Ctx): Action[] {
       return opts.length ? [opts[randomInt(c.rng, opts.length)] as Action] : [];
     }
     case 'restructuring':
-      return [{ type: 'restructure.submit', playerId: me, structure: simpleStructure(s, me) }];
+      return [
+        { type: 'restructure.submit', playerId: me, structure: easyStructure(c) },
+        { type: 'restructure.submit', playerId: me, structure: simpleStructure(s, me) },
+      ];
     case 'orderOfBusiness': {
       const opts = readyOf(c.legal, 'order.choosePosition') as Extract<Action, { type: 'order.choosePosition' }>[];
       return [...opts].sort((a, b) => a.position - b.position);
@@ -90,7 +95,7 @@ function decide(c: Ctx): Action[] {
     case 'working':
       return decideWork(c);
     case 'payday': {
-      const fire = firingPlan(s, me);
+      const fire = easyFiring(c);
       return [...(fire.length ? [{ type: 'payday.fire', playerId: me, uids: fire } as Action] : []), { type: 'payday.confirm', playerId: me }];
     }
     case 'cleanup':
@@ -109,7 +114,7 @@ function decideChoice(c: Ctx): Action[] {
   const head = s.pending[0];
   if (!head) return [];
   if (head.kind === 'forcedFire') return [{ type: 'payday.fire', playerId: me, uids: forcedFirePlan(s, me) }];
-  const good = favouriteGood(s, me, (g) => contentOf(s).foods[g]?.marketable ?? false);
+  const good = easyGood(c, me, easyPlan(c));
   const out: Action[] = [];
   for (const la of placementsOf(c.legal)) {
     const score = (pl: Placement): number => {
@@ -160,40 +165,39 @@ function decideWork(c: Ctx): Action[] {
   const entries = byCard.get(uid) ?? [];
   const skip: Action = { type: 'work.skip', playerId: me, cardUid: uid };
   const acts = entries.filter((l) => !(l.kind === 'ready' && l.action.type === 'work.skip'));
-  return [...cardActions(c, uid, acts), skip, end];
+  return [...cardActions(c, acts), skip, end];
 }
 
-function cardActions(c: Ctx, uid: Uid, entries: LegalAction[]): Action[] {
+function cardActions(c: Ctx, entries: LegalAction[]): Action[] {
   const { s, me } = c;
-  const def = cardDef(s, me, uid);
-  const kind = def?.ability.kind;
   const ready = entries.flatMap((l) => (l.kind === 'ready' ? [l.action] : []));
   const places = placementsOf(entries);
-  const good = favouriteGood(s, me, (g) => contentOf(s).foods[g]?.marketable ?? false);
+  const plan = easyPlan(c);
+  const good = easyGood(c, me, plan);
 
-  // Hiring (CEO, recruiting girl / manager, HR director).
+  // Hiring (CEO, recruiting girl / manager, HR director): the plan's next card, if it gets work.
   const hires = ready.filter((a): a is Extract<Action, { type: 'work.recruit' }> => a.type === 'work.recruit');
-  if (hires.length) {
-    const scored = hires.map((a) => ({ a, v: hireScore(c, a.employeeId) })).sort((x, y) => y.v - x.v);
-    const threshold = kind === 'ceo' ? 0 : 4;
-    return scored.filter((x) => x.v >= threshold).map((x) => x.a);
-  }
+  if (hires.length) return planHires(c, hires);
 
-  // Training.
+  // Training: the plan's next step for each card waiting on the beach.
   const trains = ready.filter((a): a is Extract<Action, { type: 'work.train' }> => a.type === 'work.train');
   if (trains.length) {
-    return trains
-      .map((a) => ({ a, v: trainScore(c, a.targetUid, a.toEmployeeId) }))
-      .filter((x) => x.v >= 3)
-      .sort((x, y) => y.v - x.v)
-      .map((x) => x.a);
+    const out: Action[] = [];
+    for (const t of plan.trains) {
+      const a = trains.find((x) => x.targetUid === t.uid && x.toEmployeeId === t.path[0]);
+      if (a) out.push(a);
+    }
+    // A card hired from an empty pile must be trained: any training of it will do.
+    for (const a of trains) if (c.s.turn?.mustTrain.includes(a.targetUid)) out.push(a);
+    return out;
   }
 
   // Cooking: the food wanted most near our restaurants (or what we advertise).
   const produce = ready.filter((a): a is Extract<Action, { type: 'work.produce' }> => a.type === 'work.produce');
   if (produce.length) {
     const want = demandNear(s, me);
-    return [...produce].sort((a, b) => (want[b.food ?? 'burger'] ?? 0) + (b.food === good ? 0.5 : 0) - ((want[a.food ?? 'burger'] ?? 0) + (a.food === good ? 0.5 : 0)));
+    const pref = (f: FoodId) => (want[f] ?? 0) + (f === plan.food ? 1.5 : 0) + (f === good ? 0.5 : 0);
+    return [...produce].sort((a, b) => pref(b.food ?? 'burger') - pref(a.food ?? 'burger'));
   }
 
   // Errand boys: the most wanted drink.
@@ -212,7 +216,7 @@ function cardActions(c: Ctx, uid: Uid, entries: LegalAction[]): Action[] {
       return bestPlacements(c, places, (pl) => (pl.kind === 'buyerRoute' ? pl.collects.reduce((a, x) => a + x.count * (1 + 0.5 * (want[s.board.drinkSources[x.sourceId]?.drink as FoodId] ?? 0)), 0) : 0), {}, 0.5);
     }
     case 'work.placeCampaign':
-      return bestPlacements(c, places, (pl) => (pl.kind === 'campaign' ? campaignScore(c, pl, good) : 0), { good }, 0.05, CAMPAIGN_SAMPLE);
+      return bestPlacements(c, places, (pl) => (pl.kind === 'campaign' ? campaignScore(c, pl, good) : 0), { good }, 0.1, CAMPAIGN_SAMPLE, CAMPAIGN_NOISE);
     case 'work.placeHouse':
     case 'work.placeGarden': {
       // A house next to our restaurant beats a garden; both only when we have a restaurant.
@@ -242,108 +246,144 @@ function cardActions(c: Ctx, uid: Uid, entries: LegalAction[]): Action[] {
   }
 }
 
-/** Desirability of hiring `employeeId` now (≥ 4 is worth a recruit action; the CEO hires anything ≥ 0). */
-function hireScore(c: Ctx, employeeId: string): number {
+/** Hires for this recruit card, best first: plan cards that get a seat next round or a trainer. */
+function planHires(c: Ctx, legal: Extract<Action, { type: 'work.recruit' }>[]): Action[] {
   const { s, me } = c;
-  const def = contentOf(s).employees[employeeId as keyof ReturnType<typeof contentOf>['employees']];
-  if (!def) return -1;
-  if ((s.supply[def.id] ?? 0) <= 0) return -1; // hiring from an empty pile forces a training: avoid
-  const owned = ownedKinds(s, me);
-  const n = (k: keyof typeof owned) => owned[k] ?? 0;
-  let v: number;
-  switch (def.ability.kind) {
-    case 'produce':
-      v = n('produce') < 2 ? 10 : n('produce') < 3 ? 5 : 1;
-      break;
-    case 'marketing':
-      v = !tilesLeft(s, def.ability.campaigns) ? 0 : n('marketing') < 2 ? 9 : 3;
-      break;
-    case 'manager':
-      v = n('manager') < 1 ? 8 : n('manager') < 2 ? 4 : 1;
-      break;
-    case 'train':
-      v = n('train') < 1 ? 7 : 2;
-      break;
-    case 'buyDrinks':
-      v = n('buyDrinks') < 1 ? 6 : n('buyDrinks') < 2 ? 3 : 1;
-      break;
-    case 'recruit':
-      v = s.round <= 3 && n('recruit') < 2 ? 5 : 1;
-      break;
-    case 'waitress':
-      v = n('waitress') < 2 ? 3 : 1;
-      break;
-    case 'price':
-      v = def.ability.delta < 0 && n('price') < 1 ? 3 : 0;
-      break;
-    case 'restaurant':
-    case 'newBusiness':
-    case 'cfo':
-      v = 3;
-      break;
-    default:
-      v = 1;
+  const p = s.players[me];
+  if (!p) return [];
+  const plan = easyPlan(c);
+  let trainRoom = plan.trainActions - plan.trains.length;
+  // Cards that will want a seat next round (owned, not busy, useful, not waiting for training).
+  const waiting = new Set(plan.trains.map((t) => t.uid));
+  let seats = seatCapacity(c, me);
+  let wanting = 0;
+  for (const uid of Object.keys(p.employees)) {
+    if (uid === p.structure.ceo || p.busy[uid] || waiting.has(uid) || plan.extras.has(uid)) continue;
+    const def = defOf(c.content, p, uid);
+    if (!isManager(def)) wanting++;
   }
-  if (def.salary && !affordable(c, 1)) v -= 100;
-  return v + nextFloat(c.rng);
+  const out: Action[] = [];
+  for (const h of plan.hires) {
+    const a = legal.find((x) => x.employeeId === h.id);
+    if (!a) continue;
+    const def = c.content.employees[h.id];
+    if (h.needsTraining) {
+      if (trainRoom <= 0) continue;
+      trainRoom--;
+    } else if (isManager(def)) {
+      seats += Math.max(0, managerSlots(def) - 1);
+    } else if (def?.ability.kind === 'train' || wanting < seats) {
+      wanting++;
+    } else continue;
+    out.push(a);
+  }
+  return out;
 }
 
-/** Desirability of training `targetUid` into `to` (≥ 3 is worth the action). */
-function trainScore(c: Ctx, targetUid: Uid, to: string): number {
+/** Easy's org chart: managers that seat the most useful cards; cards it trains stay on the beach. */
+function easyStructure(c: Ctx): StructureSubmission {
   const { s, me } = c;
-  const content = contentOf(s);
-  const from = cardDef(s, me, targetUid);
-  const def = content.employees[to as keyof typeof content.employees];
-  if (!def || !from) return -1;
-  let v: number;
-  const a = def.ability;
-  switch (a.kind) {
-    case 'produce':
-      v = a.amount > 1 ? 9 : 4;
-      break;
-    case 'manager':
-      v = 6;
-      break;
-    case 'marketing':
-      v = tilesLeft(s, a.campaigns) ? 6 : 1;
-      break;
-    case 'buyDrinks':
-      v = a.mode === 'errand' ? 2 : 5;
-      break;
-    case 'restaurant':
-      v = (s.players[me]?.restaurantsRemaining ?? 0) > 0 ? 5 : 1;
-      break;
-    case 'cfo':
-      v = 4;
-      break;
-    case 'recruit':
-    case 'train':
-    case 'newBusiness':
-      v = 3;
-      break;
-    case 'price':
-      v = a.delta < 0 ? 2 : 1;
-      break;
-    default:
-      v = 2;
+  const p = s.players[me];
+  if (!p) return { ceoSubs: [], managerSubs: {} };
+  const plan = easyPlan(c);
+  const def = (u: Uid) => defOf(c.content, p, u);
+  const hand = cardsInHand(p);
+  const inHand = new Set(hand);
+  const trainCap = hand.reduce((a, u) => {
+    const ab = def(u)?.ability;
+    return a + (ab?.kind === 'train' ? ab.actions : 0);
+  }, 0);
+  const reserved = new Set(
+    plan.trains
+      .filter((t) => inHand.has(t.uid))
+      .slice(0, trainCap)
+      .map((t) => t.uid),
+  );
+  const managers = hand.filter((u) => isManager(def(u)) && managerSlots(def(u)) > 0 && !reserved.has(u)).sort((a, b) => managerSlots(def(b)) - managerSlots(def(a)));
+  let marketeers = 0;
+  const workers = hand
+    .filter((u) => !isManager(def(u)) && !reserved.has(u) && worthSeat(c, me, def(u), plan, reserved.size))
+    .sort((a, b) => seatPriority(c, me, def(b)) - seatPriority(c, me, def(a)) || nextFloat(c.rng) - 0.5)
+    .filter((u) => def(u)?.ability.kind !== 'marketing' || ++marketeers <= MAX_MARKETEERS);
+  const slots = ceoSlotsFor(s, c.content, me);
+  let bestK = 0;
+  let bestAtWork = -1;
+  for (let k = 0; k <= Math.min(slots, managers.length); k++) {
+    const cap = slots - k + managers.slice(0, k).reduce((a, m) => a + managerSlots(def(m)), 0);
+    const atWork = Math.min(workers.length, cap);
+    if (atWork > bestAtWork) {
+      bestAtWork = atWork;
+      bestK = k;
+    }
   }
-  if (def.salary && !from.salary && !affordable(c, 1)) v -= 100;
-  return v + nextFloat(c.rng) * 0.5;
+  const seated = managers.slice(0, bestK);
+  const queue = [...workers];
+  const ceoSubs: Uid[] = [...seated];
+  const managerSubs: Record<Uid, Uid[]> = {};
+  for (const m of seated) managerSubs[m] = queue.splice(0, managerSlots(def(m)));
+  while (ceoSubs.length < slots && queue.length) ceoSubs.push(queue.shift() as Uid);
+  const sub = { ceoSubs, managerSubs };
+  return submissionProblem(s, me, sub) || isOverfilled(s, me, sub) ? simpleStructure(s, me) : sub;
 }
 
-/** Are there marketing tiles left for any of these campaign kinds? */
-function tilesLeft(s: GameState, kinds: readonly string[]): boolean {
-  const tiles = contentOf(s).marketingTiles;
-  return s.marketingTiles.some((n) => kinds.includes(tiles[n]?.kind ?? ''));
+/** Payday: salaried cards the plan has no use for, then whatever cash cannot carry. */
+function easyFiring(c: Ctx): Uid[] {
+  const { s, me } = c;
+  const p = s.players[me];
+  if (!p) return [];
+  const plan = easyPlan(c);
+  const salaried = new Set(salariedCards(s, c.content, me));
+  const fireable = voluntarilyFireable(p);
+  const idle = fireable.filter((u) => salaried.has(u) && plan.extras.has(u));
+  // Losing money and food left over: a salaried cook whose output did not sell goes (one a round).
+  if (salaryBreakdown(s, c.content, me).total > p.earningsThisRound) {
+    const work = new Set(cardsAtWork(p));
+    const cooks = fireable
+      .filter((u) => salaried.has(u) && work.has(u) && defOf(c.content, p, u)?.ability.kind === 'produce')
+      .map((u) => ({ u, a: defOf(c.content, p, u)!.ability as Extract<EmployeeDef['ability'], { kind: 'produce' }> }))
+      .sort((x, y) => x.a.amount - y.a.amount);
+    const unsold = (g: FoodId) => p.inventory[g] ?? 0;
+    const wasted = cooks.find((x) => x.a.timing === 'working' && x.a.foods.every((g) => unsold(g) >= x.a.amount));
+    if (wasted) idle.push(wasted.u);
+  }
+  return [...new Set([...idle, ...firingPlan(s, me)])];
 }
 
-/** Can we carry `extra` more salaried cards at the next Payday (cash + a cautious income guess)? */
-function affordable(c: Ctx, extra: number): boolean {
-  const { owed, cash } = salaryOutlook(c.s, c.me);
-  return owed + extra * 5 <= cash + incomeEstimate(c.s, c.me) * 0.6 - 5;
+/** Could my cards serve the house's whole order after the campaign adds `adds` of `good`? */
+function servable(hv: HouseView, adds: number, uncapped: boolean, eternal: boolean, good: FoodId, cap: Partial<Record<FoodId, number>>): boolean {
+  const want: Partial<Record<FoodId, number>> = { ...hv.demand };
+  want[good] = (want[good] ?? 0) + adds;
+  // No cap on the house (apartments, rural area): demand piles up while the campaigns already
+  // reaching it run, for ever once mine is eternal. Only a fresh house I can keep selling to.
+  if (uncapped) {
+    if (eternal && (hv.nDemand > 0 || hv.campaigns.length > 0)) return false;
+    want[good] = (want[good] ?? 0) + hv.campaigns.length * adds + (eternal ? 1 : 0);
+  }
+  return (Object.entries(want) as [FoodId, number][]).every(([g, n]) => (cap[g] ?? 0) >= n);
 }
 
-/** Value of a campaign: demand it would add, weighted towards houses near our restaurants. */
+/** Will a campaign of this kind I place now be eternal (first_billboard-style milestone)? */
+function launchesEternal(c: Ctx, kind: string): boolean {
+  const p = c.s.players[c.me];
+  if (!p) return false;
+  return Object.keys(p.milestones).some((id) =>
+    (c.content.milestones[id as keyof typeof c.content.milestones]?.effects ?? []).some((e) => e.kind === 'eternalCampaigns' && (!e.campaignKinds || e.campaignKinds.some((k) => k === kind))),
+  );
+}
+
+/** Houses by id (with their connected sellers). */
+function houseMap(c: Ctx): Map<string, HouseView> {
+  const m = c.memo.get('easyHouses') as Map<string, HouseView> | undefined;
+  if (m) return m;
+  const out = new Map(houseViews(c).map((h) => [h.id, h]));
+  c.memo.set('easyHouses', out);
+  return out;
+}
+
+/**
+ * Value of a campaign: demand it adds on houses I am connected to and could serve in full (my
+ * cards' capacity covers the house's whole order), weighted towards nearby houses.
+ */
 function campaignScore(c: Ctx, pl: Extract<Placement, { kind: 'campaign' }>, good: FoodId): number {
   const { s, me } = c;
   let preview;
@@ -352,11 +392,19 @@ function campaignScore(c: Ctx, pl: Extract<Placement, { kind: 'campaign' }>, goo
   } catch {
     return 0;
   }
+  const cap = easyCapacity(c, me, easyPlan(c));
+  const houses = houseMap(c);
+  const eternal = launchesEternal(c, pl.campaignKind);
   let v = 0;
   for (const h of preview.houses) {
-    const house = s.board.houses[h.houseId];
-    const d = house && house.cells.length ? distToMine(s, me, house.cells) : 10;
-    v += h.adds * (1 / (1 + d / 4));
+    if (!h.adds) continue;
+    const hv = houses.get(h.houseId);
+    if (!hv) continue;
+    const seller = sellerOf(hv, me);
+    const uncapped = h.capacity === null;
+    if (seller && servable(hv, h.adds, uncapped, eternal, good, cap)) v += h.adds / (1 + seller.distance / 4);
+    // Demand I will not sell only blocks the house (for ever on an apartment under an eternal campaign).
+    else v -= h.adds * (uncapped ? (eternal ? 3 : 1) : 0.2);
   }
   return v;
 }
@@ -365,7 +413,7 @@ function campaignScore(c: Ctx, pl: Extract<Placement, { kind: 'campaign' }>, goo
  * Score a random sample of each placement action's legal placements; return actions for the best
  * few, best first. `minScore` drops placements not worth an action.
  */
-function bestPlacements(c: Ctx, entries: PlacementLegal[], score: (pl: Placement) => number, choices: { good?: FoodId } = {}, minScore = -Infinity, sampleSize = SAMPLE): Action[] {
+function bestPlacements(c: Ctx, entries: PlacementLegal[], score: (pl: Placement) => number, choices: { good?: FoodId } = {}, minScore = -Infinity, sampleSize = SAMPLE, noise = 0.01): Action[] {
   const scored: { a: Action; v: number }[] = [];
   for (const la of entries) {
     let opts: Placement[];
@@ -379,7 +427,7 @@ function bestPlacements(c: Ctx, entries: PlacementLegal[], score: (pl: Placement
       const v = score(pl);
       if (v < minScore) continue;
       const a = actionFromPlacement(c.s, c.me, la, pl, choices);
-      if (a) scored.push({ a, v: v + nextFloat(c.rng) * 0.01 });
+      if (a) scored.push({ a, v: v + nextFloat(c.rng) * noise });
     }
   }
   return scored.sort((x, y) => y.v - x.v).slice(0, 6).map((x) => x.a);

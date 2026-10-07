@@ -36,7 +36,7 @@ import type { HouseBoardInfo, RangeOverlayData, ReachOverlayData } from './board
 import type { Catalog } from './catalog.js';
 import { employeeName } from './catalog.js';
 import { isToyManifest, pseudoState } from './engine.js';
-import { cardStage, cardsAtWork, fireable, freeOrderPositions, phaseLabel, workStages } from './selectors.js';
+import { cardStage, cardsAtWork, fireable, freeOrderPositions, phaseLabel, STAGE_LABELS, workStages } from './selectors.js';
 
 const STANDARD_RESERVES: ReserveCard[] = [
   { kind: 'standard', amount: 100, ceoSlots: 2 },
@@ -60,7 +60,10 @@ export function promptFor(view: GameView, me: PlayerId | null, manifest: readonl
   if (isToyManifest(manifest)) return toyEngine.derivePrompt(view, me);
   const pr = attempt(() => realEngine.derivePrompt(view, me)) ?? fallbackPrompt(view, me);
   // The engine heads every pending choice "Decision needed": say which decision it is.
-  return pr.kind === 'choice' ? { ...pr, title: choiceTitle(pr.choice) } : pr;
+  if (pr.kind === 'choice') return { ...pr, title: choiceTitle(pr.choice) };
+  // ...and names the Working sub-step by its id ("Your turn: driveIns"): use the stage chip's label.
+  if (pr.kind === 'work') return { ...pr, title: `Your turn: ${STAGE_LABELS[pr.stage] ?? pr.stage}` };
+  return pr;
 }
 
 const nameOf = (view: GameView, id: PlayerId) => view.players[id]?.name ?? id;

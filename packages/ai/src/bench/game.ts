@@ -41,7 +41,7 @@ export function parseModules(arg: string | undefined, players: number): ModuleId
 }
 
 export function benchConfig(players: number, modules: ModuleId[], intro = false): GameConfig {
-  const colors = ['#d94f3d', '#e8b730', '#3f8fd2', '#4caf6a', '#9b5fc0', '#f08a3c'];
+  const colors = ['#b8352a', '#f2cf3f', '#2b62b8', '#5cc7b2', '#d77fc9', '#ef8a2f'];
   const chains = ['fried_geese_donkey', 'golden_duck_diner', 'santa_maria_pizza', 'xango_blues_bar', 'gluttony_inc', 'siap_faji'] as const;
   return {
     players: Array.from({ length: players }, (_, i) => ({ id: `p${i + 1}`, name: `Seat ${i + 1}`, chain: chains[i] ?? 'gluttony_inc', color: colors[i] ?? '#000' })),

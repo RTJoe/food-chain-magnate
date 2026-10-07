@@ -6,7 +6,9 @@
 import { useSignal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { boardRenderer, interactionMode, isPickMode } from '../state/boardBridge.js';
-import { isMyTurn, me, mode, prompt, unreadChat, view } from '../state/store.js';
+import { isMyTurn, me, mode, prompt, summaries, unreadChat, view } from '../state/store.js';
+import { announce, summaryAnnouncement, turnAnnouncement } from '../state/announce.js';
+import { phaseLabel } from '../state/selectors.js';
 import { currentBeat, phaseCaption } from '../state/feedback.js';
 import { undo } from '../net/session.js';
 import { Board2D, hasBoard } from './Board2D.js';
@@ -98,6 +100,8 @@ export function Table() {
     sheetOpen.value = true;
   }, [mine, v?.phase.kind, picking, animating, sheetPhone]);
 
+  useAnnouncements();
+
   if (!v) return null;
   const show2d = boardRenderer.value !== '3d' && hasBoard(v);
   return (
@@ -120,6 +124,43 @@ export function Table() {
       {mode.value === 'tutorial' && <CoachLayer onExit={() => navigate({ name: 'learn', lesson: null })} />}
     </div>
   );
+}
+
+/**
+ * Screen-reader announcements for the table (WCAG 4.1.3): turn start, phase changes, Dinnertime
+ * and Payday results. Online, the tab title also says when it is my turn.
+ */
+function useAnnouncements(): void {
+  const v = view.value;
+  const mine = isMyTurn.value;
+  const phaseKey = v?.phase.kind ?? null;
+  const last = useRef<{ phase: string | null; mine: boolean; summary: number }>({ phase: null, mine: false, summary: Number.POSITIVE_INFINITY });
+  useEffect(() => {
+    const was = last.current;
+    last.current = { ...was, phase: phaseKey, mine };
+    if (!v || was.phase === null) return; // First view: the page itself says where we are.
+    const text = turnAnnouncement({ phaseChanged: was.phase !== phaseKey, phase: phaseLabel(v.phase), turnStarted: mine && !was.mine, title: prompt.peek()?.title ?? null });
+    if (text) announce(text);
+  }, [phaseKey, mine]);
+  const list = summaries.value;
+  useEffect(() => {
+    const top = list.at(-1)?.id ?? 0;
+    const from = last.current.summary;
+    last.current.summary = top;
+    if (!v || from === Number.POSITIVE_INFINITY) return;
+    for (const s of list) {
+      if (s.id <= from) continue;
+      const text = summaryAnnouncement(s, v.turnOrder, me.peek(), (id) => v.players[id]?.name ?? id);
+      if (text) announce(text);
+    }
+  }, [list]);
+  const online = mode.value === 'online';
+  useEffect(() => {
+    if (!online) return;
+    const base = document.title.replace(/^Your turn · /, '');
+    document.title = mine ? `Your turn · ${base}` : base;
+  }, [online, mine]);
+  useEffect(() => () => void (document.title = document.title.replace(/^Your turn · /, '')), []);
 }
 
 /** Phones: the dock is a bottom sheet over the board... */
@@ -190,6 +231,7 @@ function Dock() {
             role="tab"
             data-tutorial={`tab-${t.id}`}
             aria-selected={tab === t.id}
+            aria-label={t.id === 'turn' && mine ? 'Turn, your turn' : t.id === 'chat' && unreadChat.value > 0 ? `Chat, ${unreadChat.value} unread` : undefined}
             class={`dock-tab ${tab === t.id ? 'is-on' : ''}`}
             onClick={() => {
               dockTab.value = t.id;
@@ -198,8 +240,8 @@ function Dock() {
           >
             {Icon[t.icon]({ size: 18 })}
             <span>{t.label}</span>
-            {t.id === 'turn' && mine && <i class="tab-dot" aria-label="Your turn" />}
-            {t.id === 'chat' && unreadChat.value > 0 && <i class="tab-count">{unreadChat.value}</i>}
+            {t.id === 'turn' && mine && <i class="tab-dot" aria-hidden="true" />}
+            {t.id === 'chat' && unreadChat.value > 0 && <i class="tab-count" aria-hidden="true">{unreadChat.value}</i>}
           </button>
         ))}
       </nav>

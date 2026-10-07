@@ -9,8 +9,8 @@ import { useMemo } from 'preact/hooks';
 import type { Placement } from '@fcm/engine';
 import type { InteractionMode } from '../../state/boardBridge.js';
 import { boardModeFor } from '../../state/guidance.js';
-import { settings, view } from '../../state/store.js';
-import { BoardHint, commitPlacement, FlowHead, NoSpots, PlacementRows, playerColor, splitPlacements, useBoardMode } from './shared.js';
+import { view } from '../../state/store.js';
+import { BoardHint, commitPlacement, listAllPlacements, FlowHead, NoSpots, PlacementRows, playerColor, splitPlacements, useBoardMode } from './shared.js';
 import type { FlowProps } from './types.js';
 
 type Shop = Extract<Placement, { kind: 'coffeeShop' }>;
@@ -67,7 +67,7 @@ export function KetchupCoffeeFlow({ legal, placements, onDone, onCancel }: FlowP
             </div>
           )}
           {(!moving || from.value) && <BoardHint count={onBoard.length}>{moving ? '2 · Pick its new square.' : undefined}</BoardHint>}
-          <PlacementRows placements={moving && !from.value ? (settings.value.placementList ? shopsP : []) : list} onPick={pick} />
+          <PlacementRows placements={moving && !from.value ? (listAllPlacements() ? shopsP : []) : list} onPick={pick} />
         </>
       )}
     </div>

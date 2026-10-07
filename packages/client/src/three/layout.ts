@@ -4,7 +4,7 @@
  * interaction layer so ghosts land exactly where the real mini will.
  */
 import type { Board, CampaignPlacement, Cell, Direction, GameView, Placement } from '@fcm/engine';
-import { initial } from '../state/selectors.js';
+import { playerMark } from '../state/selectors.js';
 import { PLAYER_COLORS } from '../theme.js';
 import { AIR_STRIP, DELTA, RIM, cellsRect, dirAngle, edgeStrip } from './coords.js';
 
@@ -227,11 +227,12 @@ export function playerColor(view: GameView, id: string | null | undefined): stri
   return PLAYER_COLORS[Math.max(0, i) % PLAYER_COLORS.length]!.base;
 }
 
-/** Short chain mark for restaurant signs (e.g. "golden_duck_diner" → "GD"). */
-/** Owner mark on restaurants, coffee shops and vehicles: the player's initial, as in every panel. */
+/** Owner mark on restaurants, coffee shops and vehicles: the same mark as every player badge (playerMark). */
 export function ownerMark(view: GameView, id: string): string {
-  return initial(view.players[id]?.name ?? id);
+  return playerMark(view, id);
 }
+
+/** Short chain mark (e.g. "golden_duck_diner" → "GD"). */
 
 export function chainMark(chain: string | undefined, fallback: string): string {
   if (!chain) return fallback.slice(0, 2).toUpperCase();

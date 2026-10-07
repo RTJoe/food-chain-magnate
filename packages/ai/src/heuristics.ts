@@ -358,7 +358,7 @@ export function actionFromPlacement(s: GameState, player: PlayerId, la: Placemen
     case 'lobbyistRoad':
       return { type: 'ketchup:lobbyists.placeRoad', playerId: player, cardUid, cells: pl.cells, arrows: pl.arrows, from: pl.from };
     case 'park':
-      return { type: 'ketchup:lobbyists.placePark', playerId: player, cardUid, x: pl.x, y: pl.y, w: pl.w, h: pl.h, from: pl.from };
+      return { type: 'ketchup:lobbyists.placePark', playerId: player, cardUid, x: pl.x, y: pl.y, w: pl.w, h: pl.h, ...(pl.cells ? { cells: pl.cells } : {}), from: pl.from };
     case 'mapTile':
       return { type: 'ketchup:lobbyists.placeMapTile', playerId: player, choiceId, row: pl.row, col: pl.col, rotation: pl.rotation, ...(pl.templateId ? { templateId: pl.templateId } : {}) };
     case 'freeway':

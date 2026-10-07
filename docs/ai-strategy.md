@@ -812,6 +812,8 @@ interface AiModuleHooks {
 
 Ketchup module hooks are WP-C scope; the base bots must not break when a module is on (unknown module card → value 0, unknown pending choice → first legal option).
 
+Status (built): there is no `modules/` folder; the hooks live in the shared code. `shared/market.ts` `serveTier`/`shadowDinner` apply the kimchi / sushi / noodles tiers from the simulated stock; `houseViews` keeps `capacity = null` for apartments and the rural area. `medium/orgPlanner.ts` `withModules` adds kimchi master, sushi cook, fry chef, gourmet food critic and night shift manager to the roster when the board pays for them; `medium/restructure.ts` values a seated kimchi master (shadow-Dinnertime gain of one kimchi) and baristas with coffee shops. Bench (2p, 100 games, new Medium vs Medium without the roster hooks): kimchi 67 %, night shift 57 %, all modules ≈ 48 % (2p) / 36 % vs 33 % expected (3p). Noodle cooks, baristas and movie stars made Medium weaker in that A/B and were left out. Not built: lobbyist road/park scorer, mass and rural marketeers, New Milestones value table, reserve-price prior.
+
 ---
 
 ## 10. Work packages

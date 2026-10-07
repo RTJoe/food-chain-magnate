@@ -12,13 +12,15 @@ import { foodName } from '../../state/catalog.js';
 import { realEngineReady } from '../../state/engine.js';
 import { activeCandidate, setActiveCandidate, type SelectionKind } from '../../state/interaction.js';
 import { catalog, me, myPlayer, settings, view } from '../../state/store.js';
+import { keyboardUser } from '../uiState.js';
+import { PLAYER_COLORS } from '../../theme.js';
 import { act } from '../../net/session.js';
 import { footprint } from '../Board2D.js';
 import { Button, Empty } from '../common.js';
 import { FoodIcon, Icon } from '../icons.js';
 import type { PlacementLegal } from './types.js';
 
-export const playerColor = (): string => myPlayer.value?.color ?? '#d94f3d';
+export const playerColor = (): string => myPlayer.value?.color ?? PLAYER_COLORS[0]!.base;
 
 /** Send the action for `p` and leave board mode. False when the placement does not fit (e.g. no good yet). */
 export function commitPlacement(legal: PlacementLegal, p: Placement, opts: PlacementOptions = {}): boolean {
@@ -85,10 +87,13 @@ export function NoSpots({ children }: { children?: ComponentChildren }) {
 /** Placements the 3D board does not draw (off-board campaigns, errand fetches): picked from the list. */
 export const listOnly = (p: Placement): boolean => (p.kind === 'buyerRoute' && p.route.mode === 'errand') || (p.kind === 'campaign' && p.placement.kind === 'offBoard');
 
-/** Split placements into those the board shows and those the list must show (settings.placementList shows all). */
+/** List every placement (board spots too): the "List placements" setting, or a keyboard player. */
+export const listAllPlacements = (): boolean => settings.value.placementList || keyboardUser.value;
+
+/** Split placements into those the board shows and those the list must show (listAllPlacements shows all). */
 export function splitPlacements(placements: readonly Placement[]): { onBoard: Placement[]; list: Placement[] } {
   const onBoard = placements.filter((p) => (boardRenderer.value === '3d' ? !listOnly(p) : footprint(p) !== null));
-  const list = settings.value.placementList ? [...placements] : placements.filter((p) => !onBoard.includes(p));
+  const list = listAllPlacements() ? [...placements] : placements.filter((p) => !onBoard.includes(p));
   return { onBoard, list };
 }
 
@@ -135,6 +140,7 @@ export function BoardHint({ count, children }: { count: number; children?: Compo
       {Icon.pin({ size: 16 })}
       <span>
         {children ?? 'Pick a highlighted spot on the board.'} {count} option{count === 1 ? '' : 's'}.
+        {keyboardUser.value && ' Keyboard: choose from the list, or focus the board and press [ / ] then Enter.'}
       </span>
     </p>
   );

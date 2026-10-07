@@ -76,7 +76,7 @@ export const BASE_MILESTONE_IDS: readonly MilestoneId[] = [
 
 const CHAINS: ChainId[] = ['fried_geese_donkey', 'golden_duck_diner', 'santa_maria_pizza', 'xango_blues_bar', 'gluttony_inc', 'siap_faji'];
 /** Default seat colours; keep in sync with packages/client/src/theme.ts PLAYER_COLORS. */
-export const DEFAULT_PLAYER_COLORS = ['#d94f3d', '#e8b730', '#3f8fd2', '#4caf6a', '#9b5fc0', '#f08a3c'];
+export const DEFAULT_PLAYER_COLORS = ['#b8352a', '#f2cf3f', '#2b62b8', '#5cc7b2', '#d77fc9', '#ef8a2f'];
 const NAMES = ['Ada', 'Bo', 'Cy', 'Di', 'Ed', 'Flo'];
 
 /** Board size in tiles [rows, cols] by player count (base.md §2.1, ketchup.md §17). */

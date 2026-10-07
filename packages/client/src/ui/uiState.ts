@@ -10,6 +10,11 @@ export const sheetOpen = signal(false);
 /** Player whose company the Company tab shows (null = me, or the first player). */
 export const companyPlayer = signal<PlayerId | null>(null);
 export const menuOpen = signal(false);
+/**
+ * Set on the first Tab press of the session: the player is using the keyboard, so placement
+ * prompts list every board spot as buttons too (the "List placements" setting, switched on).
+ */
+export const keyboardUser = signal(false);
 /** Prompt key whose modal the player minimised (payday, freezer, game over). */
 export const minimisedModal = signal<string | null>(null);
 

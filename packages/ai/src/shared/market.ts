@@ -35,7 +35,7 @@ export function houseViews(c: Ctx): HouseView[] {
       }
       const demand: FoodCounts = {};
       for (const t of h.demand) demand[t.good] = (demand[t.good] ?? 0) + 1;
-      out.push({ id: h.id, order: h.order, house: h, demand, nDemand: h.demand.length, capacity: o?.capacity ?? (h.garden ? 5 : 3), garden: Boolean(h.garden), sellers: o?.sellers ?? [], campaigns: o?.campaigns ?? [] });
+      out.push({ id: h.id, order: h.order, house: h, demand, nDemand: h.demand.length, capacity: o ? o.capacity : h.garden ? 5 : 3, garden: Boolean(h.garden), sellers: o?.sellers ?? [], campaigns: o?.campaigns ?? [] });
     }
     return out.sort((a, b) => a.order - b.order);
   });
@@ -231,7 +231,28 @@ export interface DinnerResult {
   shortfall: FoodCounts;
 }
 
-/** Houses in Dinnertime order; first ranked chain holding the whole order sells it (base.md §7). */
+type ServeMode = 'sushi' | 'exact' | 'noodles';
+
+/**
+ * How a chain holding `have` would serve house `h` and the priority tier that gives (lower wins
+ * regardless of price), or null when it cannot. Ketchup combined priority (ketchup.md §5–7): sushi
+ * (garden houses only), exact items and noodles, each first with 1 kimchi; base game: exact only.
+ */
+export function serveTier(h: HouseView, have: FoodCounts): { tier: number; mode: ServeMode; kimchi: boolean } | null {
+  const n = h.nDemand;
+  const kimchi = (have.kimchi ?? 0) >= 1;
+  const exact = (Object.entries(h.demand) as [FoodId, number][]).every(([g, k]) => (have[g] ?? 0) >= k);
+  const sushi = h.garden && (h.house.kind === 'printed' || h.house.kind === 'placed') && (have.sushi ?? 0) >= n;
+  const noodles = (have.noodles ?? 0) >= n;
+  const modes: ServeMode[] = h.garden ? ['sushi', 'exact', 'noodles'] : ['exact', 'noodles'];
+  const ok = (md: ServeMode) => (md === 'sushi' ? sushi : md === 'exact' ? exact : noodles);
+  const i = modes.findIndex(ok);
+  if (i < 0) return null;
+  const mode = modes[i] as ServeMode;
+  return { tier: (kimchi ? 0 : modes.length) + i, mode, kimchi };
+}
+
+/** Houses in Dinnertime order; the best ranked chain that can serve the order sells it (base.md §7, ketchup.md §5–7). */
 export function shadowDinner(c: Ctx, m: PriceModel, stock: Record<PlayerId, FoodCounts>, houses: HouseView[] = houseViews(c), me: PlayerId = c.me): DinnerResult {
   const st: Record<PlayerId, FoodCounts> = {};
   for (const [pid, s] of Object.entries(stock)) st[pid] = { ...s };
@@ -244,26 +265,29 @@ export function shadowDinner(c: Ctx, m: PriceModel, stock: Record<PlayerId, Food
     if (!h.nDemand) continue;
     res.winner[h.id] = null;
     const order = Object.entries(h.demand) as [FoodId, number][];
-    let blockedMe = false;
-    for (const r of ranked(c, h, m)) {
-      const have = st[r.player] ?? {};
-      if (!order.every(([g, n]) => (have[g] ?? 0) >= n)) {
-        if (r.player === me && !blockedMe) {
-          blockedMe = true;
-          for (const [g, n] of order) res.shortfall[g] = (res.shortfall[g] ?? 0) + Math.max(0, n - (have[g] ?? 0));
-        }
-        continue;
-      }
-      for (const [g, n] of order) {
-        have[g] = (have[g] ?? 0) - n;
-        res.income[r.player] = (res.income[r.player] ?? 0) + n * unitRevenue(c, h, m, r.player, g);
-        const sold = res.sold[r.player] as FoodCounts;
-        sold[g] = (sold[g] ?? 0) + n;
-      }
-      res.income[r.player] = (res.income[r.player] ?? 0) + (m.perHouse[r.player] ?? 0);
-      res.winner[h.id] = r.player;
-      break;
+    // Tiers from the shadow stock (the outlook's tiers reflect the stock held right now).
+    const cands = ranked(c, h, m)
+      .map((r, i) => ({ r, i, how: serveTier(h, st[r.player] ?? {}) }))
+      .sort((a, b) => (a.how?.tier ?? 99) - (b.how?.tier ?? 99) || a.i - b.i);
+    const win = cands[0]?.how ? cands[0] : null;
+    const mine = cands.find((x) => x.r.player === me);
+    if (mine && !mine.how && (!win || mine.i < win.i)) {
+      const have = st[me] ?? {};
+      for (const [g, n] of order) res.shortfall[g] = (res.shortfall[g] ?? 0) + Math.max(0, n - (have[g] ?? 0));
     }
+    if (!win?.how) continue;
+    const pid = win.r.player;
+    const have = st[pid] ?? {};
+    const sold = res.sold[pid] as FoodCounts;
+    const items: [FoodId, number][] = win.how.mode === 'exact' ? order : [[win.how.mode as FoodId, h.nDemand]];
+    if (win.how.kimchi) items.push(['kimchi', 1]);
+    for (const [g, n] of items) {
+      have[g] = (have[g] ?? 0) - n;
+      res.income[pid] = (res.income[pid] ?? 0) + n * unitRevenue(c, h, m, pid, g);
+      sold[g] = (sold[g] ?? 0) + n;
+    }
+    res.income[pid] = (res.income[pid] ?? 0) + (m.perHouse[pid] ?? 0);
+    res.winner[h.id] = pid;
   }
   return res;
 }

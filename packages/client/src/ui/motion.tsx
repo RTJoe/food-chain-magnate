@@ -24,6 +24,7 @@ import { employeeName, milestoneName } from '../state/catalog.js';
 import { animationSpeed, skipAnimations } from '../state/interaction.js';
 import { boardPulse, cashClaims, motionBatch, onBeforeMotion, type MotionBatch } from '../state/motion.js';
 import { catalog } from '../state/store.js';
+import { announce } from '../state/announce.js';
 
 // ---------------------------------------------------------------------------
 // Timing, reduced motion, Skip
@@ -404,6 +405,7 @@ export function MotionLayer() {
   useEffect(() => {
     const push = (b: Banner) => {
       const id = ++next.current;
+      announce(b.text);
       setBanners((l) => [...l.slice(-2), { ...b, id }]);
       setTimeout(() => setBanners((l) => l.filter((x) => x.id !== id)), ms(b.hold ?? 1.6) + 300);
     };
@@ -439,7 +441,8 @@ export function MotionLayer() {
   }, []);
   if (!banners.length) return null;
   return (
-    <div class="motion-banners" aria-live="polite">
+    // Announced through the App's persistent live region (announce), so this strip is not one.
+    <div class="motion-banners">
       {banners.map((b) => (
         <div key={b.id} class={`motion-banner tone-${b.tone} ${b.confetti ? 'has-confetti' : ''}`} style={{ '--hold': `${ms(b.hold ?? 1.6)}ms` }}>
           <span class="motion-banner-icon" aria-hidden="true">

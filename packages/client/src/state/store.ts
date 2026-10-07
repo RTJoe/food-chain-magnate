@@ -11,6 +11,8 @@ import { batch, computed, signal } from '@preact/signals';
 import type { Action, GameEvent, GameView, LegalAction, ModuleManifest, PhaseKind, PlayerId, Prompt } from '@fcm/engine';
 import type { BotLevel, RoomInfo, ServerMessage } from '@fcm/protocol';
 import type { ConnectionStatus } from '../net/transport.js';
+import { announce } from './announce.js';
+import { seatColor } from '../theme.js';
 import { boardBridge } from './boardBridge.js';
 import { buildCatalog, type Catalog } from './catalog.js';
 import { legalFor, promptFor } from './guidance.js';
@@ -155,13 +157,33 @@ export function updateSettings(patch: Partial<Settings>): void {
   }
 }
 
-export function pushToast(text: string, tone: Toast['tone'] = 'info', ms = 4200): void {
+const toastTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+function scheduleToast(id: number, ms: number): void {
+  if (typeof setTimeout === 'undefined' || ms <= 0) return;
+  clearTimeout(toastTimers.get(id));
+  toastTimers.set(id, setTimeout(() => dismissToast(id), ms));
+}
+
+/** Show a toast and read it to screen readers. Errors stay 10 s, and hover or focus holds any toast (WCAG 2.2.1). */
+export function pushToast(text: string, tone: Toast['tone'] = 'info', ms = tone === 'error' ? 10_000 : 4200): void {
   const t: Toast = { id: nextToastId++, tone, text };
   toasts.value = [...toasts.value.slice(-3), t];
-  if (typeof setTimeout !== 'undefined' && ms > 0) setTimeout(() => dismissToast(t.id), ms);
+  announce(text, tone === 'error');
+  scheduleToast(t.id, ms);
+}
+
+/** Pointer or focus on a toast holds it open; leaving gives it a few more seconds. */
+export function holdToast(id: number, held: boolean): void {
+  if (held) {
+    clearTimeout(toastTimers.get(id));
+    toastTimers.delete(id);
+  } else if (toasts.peek().some((t) => t.id === id)) scheduleToast(id, 4000);
 }
 
 export function dismissToast(id: number): void {
+  clearTimeout(toastTimers.get(id));
+  toastTimers.delete(id);
   toasts.value = toasts.value.filter((t) => t.id !== id);
 }
 
@@ -237,7 +259,20 @@ function setView(v: GameView, s: number): void {
   seq.value = s;
 }
 
-export function handleServerMessage(msg: ServerMessage): HandleResult {
+/** Seat colours from the server or a saved game, mapped to the current palette (theme.ts seatColor). */
+function recolor(msg: ServerMessage): ServerMessage {
+  const m = msg as ServerMessage & { view?: GameView | null; room?: RoomInfo | null };
+  let out = m;
+  if (m.view?.players && Object.values(m.view.players).some((p) => seatColor(p.color) !== p.color)) {
+    const players = Object.fromEntries(Object.entries(m.view.players).map(([id, p]) => [id, { ...p, color: seatColor(p.color) }]));
+    out = { ...out, view: { ...m.view, players } as GameView };
+  }
+  if (m.room?.seats?.some((x) => seatColor(x.color) !== x.color)) out = { ...out, room: { ...m.room, seats: m.room.seats.map((x) => ({ ...x, color: seatColor(x.color) })) } };
+  return out as ServerMessage;
+}
+
+export function handleServerMessage(raw: ServerMessage): HandleResult {
+  const msg = recolor(raw);
   switch (msg.t) {
     case 'welcome':
       batch(() => {

@@ -530,7 +530,8 @@ function CaptionPill({ view: v }: { view: GameView }) {
   if (!c) return null;
   const who = c.kind === 'sale' ? c.player : c.kind === 'campaign' ? c.owner : null;
   return (
-    <div key={c.key} class={`phase-caption glass is-${c.kind}`} role="status" aria-live="polite" style={who ? { '--sx-c': colorOf(v, who) } : undefined}>
+    // Visual only: re-keyed per caption, so not a live region. Results are announced from the summaries (Table.tsx).
+    <div key={c.key} class={`phase-caption glass is-${c.kind}`} style={who ? { '--sx-c': colorOf(v, who) } : undefined}>
       {c.kind === 'campaign' || (c.kind === 'done' && c.phase === 'marketing') ? Icon.marketing({ size: 16 }) : Icon.dinner({ size: 16 })}
       <span>{captionText(v, c, (g) => foodName(cat, g as never).toLowerCase())}</span>
     </div>

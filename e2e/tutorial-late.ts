@@ -183,12 +183,14 @@ export async function performLate(page: Page, a: A): Promise<boolean> {
       if ((await tok.getAttribute('aria-checked')) !== 'true') await tok.click(CLICK);
       const goods = a.goods as string[];
       if (goods[0]) await clickVisible(page, `[data-tutorial="good-${goods[0]}"]`);
-      // Duration: the stepper starts at the maximum; step down to the action's value.
+      // Duration: the stepper starts at the maximum; step down to the action's value. A First
+      // Billboard campaign shows "Eternal (milestone)" instead of a stepper: nothing to set.
       const dur = page.locator('[data-tutorial="duration"]');
-      if (await dur.isVisible().catch(() => false)) {
+      const value = dur.locator('output, .stepper-value, [aria-live]');
+      if ((await dur.isVisible().catch(() => false)) && (await value.count()) > 0) {
         const down = dur.locator('button').first();
         for (let i = 0; i < 6; i++) {
-          const val = Number.parseInt((await dur.locator('output, .stepper-value, [aria-live]').first().textContent().catch(() => '')) ?? '', 10);
+          const val = Number.parseInt((await value.first().textContent({ timeout: 2000 }).catch(() => '')) ?? '', 10);
           if (!Number.isFinite(val) || val <= Number(a.duration)) break;
           await down.click(CLICK);
         }

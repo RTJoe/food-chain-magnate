@@ -303,3 +303,20 @@ export function freeOrderPositions(view: GameView): number[] {
 
 export const initial = (name: string): string => (name.trim().charAt(0) || '?').toUpperCase();
 
+/**
+ * The seat's mark, shared by the board (restaurant and coffee-shop signs, vans) and every player
+ * badge, so pieces can be matched to players without colour: the name's initial; its first two
+ * letters when another player has the same initial ("Ad", "Al"); initial and seat number when
+ * those clash too ("P1", "P2").
+ */
+export function playerMark(view: Pick<GameView, 'players'> & { config?: { players: readonly { id: string }[] } }, id: string): string {
+  const name = (view.players[id]?.name ?? id).trim();
+  const one = initial(name);
+  const others = Object.entries(view.players).filter(([o]) => o !== id).map(([o, p]) => (p?.name ?? o).trim());
+  if (!others.some((n) => initial(n) === one)) return one;
+  const two = (s: string) => s.charAt(0).toUpperCase() + s.charAt(1).toLowerCase();
+  if (name.length > 1 && !others.some((n) => two(n) === two(name))) return two(name);
+  const seat = view.config?.players.findIndex((p) => p.id === id) ?? -1;
+  return `${one}${seat >= 0 ? seat + 1 : ''}`;
+}
+

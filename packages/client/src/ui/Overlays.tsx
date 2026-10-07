@@ -1,9 +1,9 @@
 /** Modals and banners (architecture §5.4 Modals, HotseatHandoff): toasts, reconnect, handoff, game over, menu. */
 import type { ComponentChildren } from 'preact';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useId, useRef } from 'preact/hooks';
 import type { PlayerId, Viewer } from '@fcm/engine';
 import { navigate } from '../state/router.js';
-import { connection, dismissToast, handoff, me, mode, prompt, reconnectAttempt, room, settings, toasts, updateSettings, view } from '../state/store.js';
+import { connection, dismissToast, handoff, holdToast, me, mode, prompt, reconnectAttempt, room, settings, toasts, updateSettings, view } from '../state/store.js';
 import { acceptHandoff, endSession, leaveRoom, reconnectNow, replacedElsewhere, resync, setDevViewer, undo } from '../net/session.js';
 import { connectionBanner, END_HOTSEAT_CONFIRM, hotseatAtRisk } from '../state/connection.js';
 import { Button, IconButton, PlayerBadge, Toggle } from './common.js';
@@ -12,14 +12,16 @@ import { Standings } from './PromptPanel.js';
 import { menuOpen, minimisedModal } from './uiState.js';
 import { GameMenuExtras } from './hints/CoachHints.js';
 import { takeFreePlayReturn } from './hints/coach.js';
+import { useDialog } from './a11y.js';
 
+/** Toast text is read through the App's live regions (pushToast announces it), so this list is not one. */
 export function Toasts() {
   const list = toasts.value;
   if (!list.length) return null;
   return (
-    <div class="toasts" role="status" aria-live="polite">
+    <div class="toasts">
       {list.map((t) => (
-        <div key={t.id} class={`toast toast-${t.tone}`}>
+        <div key={t.id} class={`toast toast-${t.tone}`} onPointerEnter={() => holdToast(t.id, true)} onPointerLeave={() => holdToast(t.id, false)} onFocusIn={() => holdToast(t.id, true)} onFocusOut={() => holdToast(t.id, false)}>
           {t.tone === 'error' ? Icon.info({ size: 16 }) : Icon.check({ size: 16 })}
           <span>{t.text}</span>
           <IconButton icon="x" label="Dismiss" onClick={() => dismissToast(t.id)} />
@@ -49,6 +51,9 @@ export function ConnectionBanner() {
 }
 
 export function Modal({ title, children, onClose, wide, class: cls }: { title: ComponentChildren; children: ComponentChildren; onClose?: () => void; wide?: boolean; class?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialog(ref);
   useEffect(() => {
     if (!onClose) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -57,9 +62,9 @@ export function Modal({ title, children, onClose, wide, class: cls }: { title: C
   }, [onClose]);
   return (
     <div class="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose?.()}>
-      <div class={`modal glass ${wide ? 'is-wide' : ''} ${cls ?? ''}`} role="dialog" aria-modal="true">
+      <div ref={ref} class={`modal glass ${wide ? 'is-wide' : ''} ${cls ?? ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header class="modal-head">
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           {onClose && <IconButton icon="x" label="Close" onClick={onClose} />}
         </header>
         <div class="modal-body">{children}</div>
@@ -73,16 +78,32 @@ export function HotseatHandoff() {
   const h = handoff.value;
   const v = view.value;
   if (!h || !v) return null;
-  const p = v.players[h.to];
+  return <HandoffCover key={h.to} to={h.to as PlayerId} />;
+}
+
+/** Then the new player's turn heading takes focus (the dock's prompt title, else the open panel's heading). */
+const promptHeading = (): HTMLElement | null => {
+  const h = document.querySelector<HTMLElement>('.prompt-head h2') ?? document.querySelector<HTMLElement>('.dock-body h2, .dock-body h3');
+  if (h) h.tabIndex = -1;
+  return h;
+};
+
+function HandoffCover({ to }: { to: PlayerId }) {
+  const v = view.value!;
+  const p = v.players[to];
+  const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  // Modal: the table under the cover is inert, and its private choices stay out of reach.
+  useDialog(ref, { initial: '.btn-primary', returnTo: promptHeading });
   return (
-    <div class="handoff" style={{ '--pc': p?.color }}>
+    <div ref={ref} class="handoff" style={{ '--pc': p?.color }} role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div class="handoff-card glass">
-        <PlayerBadge view={v} id={h.to as PlayerId} size={72} />
+        <PlayerBadge view={v} id={to} size={72} />
         <p class="eyebrow">Pass the device to</p>
-        <h1>{p?.name ?? h.to}</h1>
+        <h1 id={titleId}>{p?.name ?? to}</h1>
         <p class="muted">Everyone else, look away. Private choices are hidden until {p?.name ?? 'they'} confirm.</p>
         <Button variant="primary" size="lg" icon="hand" onClick={() => acceptHandoff()}>
-          I’m {p?.name ?? h.to}: show my turn
+          I’m {p?.name ?? to}: show my turn
         </Button>
       </div>
     </div>

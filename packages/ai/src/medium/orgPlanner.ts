@@ -7,7 +7,7 @@ import type { EmployeeId, FoodId, PlayerId, Uid } from '@fcm/engine';
 import type { FoodCounts } from '@fcm/engine';
 import { cardsAtWork, ceoSlotsFor, ownsUnique } from '@fcm/engine';
 import { memo, type Ctx } from '../shared/ctx.js';
-import { addCounts, capacityOf, formulaPrice, msOpen, ownedCards, salaryInfo, stockNow, type OwnedInfo } from '../shared/facts.js';
+import { addCounts, capacityOf, countOwned, formulaPrice, msOpen, ownedCards, salaryInfo, stockNow, type OwnedInfo } from '../shared/facts.js';
 import { basePriceModel, houseViews, rivalStock, sellerOf, shadowDinner, structuresKnown, workedThisRound } from '../shared/market.js';
 import { chooseArchetype, chooseFood, type ArchetypeInfo } from './archetype.js';
 
@@ -122,7 +122,7 @@ function buildOrgPlan(c: Ctx, me: PlayerId): OrgPlan {
   const s = c.s;
   const arch = chooseArchetype(c, me);
   const owned = ownedCards(s, c.content, me);
-  const build = withExpansion(c, me, arch.build).map((id) => usableMarketeer(c, id));
+  const build = withModules(c, me, withExpansion(c, me, arch.build)).map((id) => usableMarketeer(c, id));
   const covered = new Map<number, Uid>();
   const used = new Set<Uid>();
   // Pass 1: exact matches.
@@ -271,6 +271,50 @@ function shortfallTargets(c: Ctx, me: PlayerId, build: EmployeeId[]): EmployeeId
     if (n >= 3) out.splice(at, 0, g === 'pizza' ? 'pizza_cook' : 'burger_cook');
     else out.splice(at, 0, 'kitchen_trainee');
   }
+  return out;
+}
+
+/**
+ * Ketchup cards worth adding to the roster (ai-strategy.md §9), each only when its module is on
+ * and the board makes it pay:
+ * - kimchi master: a chain holding kimchi wins every house it can serve, whatever the price;
+ * - sushi cook: garden houses take sushi before anything else;
+ * - fry chef: +$10 a house, once I sell to two or more houses a round;
+ * - gourmet food critic: one campaign on every garden house;
+ * - night shift manager: salary-free cards at work act twice.
+ * Noodle cooks, baristas and movie stars were tried and left out: on the bench they cost more
+ * salary than they earned (noodles only sell where nobody else can, coffee only along routes past
+ * my shops, a star only breaks ties).
+ */
+function withModules(c: Ctx, me: PlayerId, build: EmployeeId[]): EmployeeId[] {
+  const s = c.s;
+  const p = s.players[me];
+  if (!p || !s.config.modules.length) return build;
+  const inGame = (id: EmployeeId) => (s.supply[id] ?? 0) > 0 || countOwned(s, me, [id]) > 0;
+  const out = [...build];
+  const add = (at: number, id: EmployeeId) => {
+    if (inGame(id) && !out.includes(id)) out.splice(Math.min(at, out.length), 0, id);
+  };
+  let reach = 0;
+  let gardens = 0;
+  for (const h of houseViews(c)) {
+    if (!sellerOf(h, me)) continue;
+    reach++;
+    if (h.garden && (h.house.kind === 'printed' || h.house.kind === 'placed')) gardens++;
+  }
+  const housesSold = p.earningsThisRound / Math.max(1, s.basePrice * 2);
+  const freeAtWork = cardsAtWork(p).filter((u) => {
+    const d = c.content.employees[p.employees[u]?.employeeId ?? 'ceo'];
+    return d && !d.salary && d.ability.kind !== 'ceo';
+  }).length;
+  // Kimchi pays only once there is demand to win (it costs a salary from the first round).
+  const demandNear = houseViews(c).filter((h) => sellerOf(h, me)).reduce((a, h) => a + h.nDemand, 0);
+  const myCampaigns = Object.values(s.board.campaigns).filter((k) => k.owner === me).length;
+  if (s.round >= 2 && reach >= 2 && (demandNear >= 2 || myCampaigns > 0)) add(4, 'ketchup:kimchi_master');
+  if (gardens >= 2) add(6, 'ketchup:sushi_cook');
+  if (housesSold >= 3) add(8, 'ketchup:fry_chef');
+  if (gardens >= 3) add(9, 'ketchup:gourmet_food_critic');
+  if (freeAtWork >= 4 && p.cash >= 20) add(5, 'ketchup:night_shift_manager');
   return out;
 }
 

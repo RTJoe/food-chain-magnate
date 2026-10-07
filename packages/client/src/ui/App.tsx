@@ -12,6 +12,8 @@ import { DevGallery, HotseatSetup } from './LocalGames.js';
 import { Lobby } from './Lobby.js';
 import { Learn } from './learn/index.js';
 import { Toasts } from './Overlays.js';
+import { LiveRegions } from './a11y.js';
+import { keyboardUser } from './uiState.js';
 import { WhatsThisLayer } from './glossary/WhatsThis.js';
 import { isRulesHash, RulesRoute } from './rules/RulesRoute.js';
 import { Table } from './Table.js';
@@ -44,11 +46,23 @@ export function App() {
     lastRoomId = roomId;
   }, [roomId]);
 
+  // The first Tab press marks a keyboard player: placement prompts then list every spot (flows/shared.tsx).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      keyboardUser.value = true;
+      window.removeEventListener('keydown', onKey);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <>
       <Screen />
       <Toasts />
       <WhatsThisLayer />
+      <LiveRegions />
     </>
   );
 }

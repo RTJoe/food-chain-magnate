@@ -1,5 +1,6 @@
 /** The rules book in a sheet over the current screen (opened from "What's this?"), so a game is never left. */
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { useDialog } from '../a11y.js';
 import { Icon } from '../icons.js';
 import type { RulesLoc } from '../glossary/api.js';
 import { RulesBook } from './RulesBook.js';
@@ -8,6 +9,8 @@ import './rules.css';
 
 export function RulesSheet({ loc: initial, onClose }: { loc: RulesLoc; onClose: () => void }) {
   const [loc, setLoc] = useState<RulesLoc>(initial);
+  const ref = useRef<HTMLDivElement>(null);
+  useDialog(ref, { initial: '.rules-sheet-head h2' });
   useEffect(() => setLoc(initial), [initial]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -16,9 +19,9 @@ export function RulesSheet({ loc: initial, onClose }: { loc: RulesLoc; onClose: 
   }, [onClose]);
   return (
     <div class="rules-sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div class="rules-sheet glass" role="dialog" aria-modal="true" aria-label="Rules and glossary">
+      <div ref={ref} class="rules-sheet glass" role="dialog" aria-modal="true" aria-label="Rules and glossary">
         <header class="rules-sheet-head">
-          <h2>{Icon.log({ size: 20 })} Rules &amp; glossary</h2>
+          <h2 tabIndex={-1}>{Icon.log({ size: 20 })} Rules &amp; glossary</h2>
           <a class="icon-btn" href={rulesHash(loc)} target="_blank" rel="noreferrer" aria-label="Open in a new tab" title="Open in a new tab">
             {Icon.link({ size: 18 })}
           </a>

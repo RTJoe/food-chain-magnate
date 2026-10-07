@@ -34,7 +34,7 @@ import {
 import { graphicsSetting, graphicsTier, type GraphicsSetting } from '../state/graphics.js';
 import { view } from '../state/store.js';
 import { Button, IconButton } from './common.js';
-import { sheetOpen } from './uiState.js';
+import { keyboardUser, sheetOpen } from './uiState.js';
 
 /** Animation speed cycle (animation-plan §1.4). */
 const SPEEDS = [1, 2, 4] as const;
@@ -150,6 +150,10 @@ function pickText(mode: PickMode, staged: Placement | null): string {
     return p ? `Haul ${i + 1} of ${n} · ${describeHaul(p, v)}` : mode.label;
   }
   if (staged) return describePlacement(staged, v);
+  // Keyboard players stepping with [ / ]: say which spot the ghost is on (read by the status role).
+  const i = activeCandidate.value;
+  const at = keyboardUser.value && i >= 0 ? mode.placements[i] : undefined;
+  if (at) return `Spot ${i + 1} of ${mode.placements.length} · ${describePlacement(at as Placement, v)}. Enter places it.`;
   const o = mode.kind === 'campaign' && ghostOrientation.value ? ORIENT_LABEL[ghostOrientation.value] : '';
   return `${mode.label}${o ? ` (${o})` : ''}: pick a highlighted spot`;
 }

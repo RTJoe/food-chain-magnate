@@ -187,6 +187,19 @@ export function turnCheck(s: GameState, player: PlayerId): Check & { turn?: Turn
  * The card is yours, at work, has a use left, has one of `kinds`, and the turn can still reach
  * `stage` (base.md §6.1 strict order; base.md §6.2 empty-pile hires must be trained first).
  */
+/** Player-facing names of the Working 9–5 sub-steps, used in rejection messages. */
+const STAGE_NAMES: Record<WorkStage | 'end', string> = {
+  end: 'End of turn',
+  recruit: 'Hire',
+  train: 'Train',
+  driveIns: 'Drive-ins',
+  marketing: 'Campaigns',
+  food: 'Food & drinks',
+  houses: 'Houses & gardens',
+  lobbyists: 'Roads & parks',
+  restaurants: 'Restaurants',
+};
+
 export function cardCheck(s: GameState, player: PlayerId, uid: Uid, kinds: EmployeeDef['ability']['kind'][], stage: WorkStage): CardOk | ReturnType<typeof reject> {
   const t = turnCheck(s, player);
   if (!t.ok) return t;
@@ -219,7 +232,7 @@ export function stageCheck(s: GameState, turn: TurnState, stage: WorkStage | 'en
   const stages = stagesFor(s, turn.player);
   const cur = stageIndex(stages, turn.stage);
   const want = stage === 'end' ? stages.length : stageIndex(stages, stage);
-  if (want < cur) return reject('ILLEGAL', `The ${stage} step is over (now: ${turn.stage})`);
+  if (want < cur) return reject('ILLEGAL', `The ${STAGE_NAMES[stage]} step is over (you are at ${STAGE_NAMES[turn.stage]})`);
   if (want > stageIndex(stages, 'train') && turn.mustTrain.some((u) => phantomTrainable(s, turn, u))) {
     return reject('ILLEGAL', 'A card hired from an empty pile must be trained before moving on');
   }

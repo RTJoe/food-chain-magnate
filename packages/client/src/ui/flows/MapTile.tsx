@@ -8,8 +8,8 @@ import { useMemo } from 'preact/hooks';
 import type { Placement, TileDef, TileTemplateId } from '@fcm/engine';
 import { boardModeFor } from '../../state/guidance.js';
 import { hoverPlacement, pendingPlacement } from '../../state/interaction.js';
-import { catalog, settings } from '../../state/store.js';
-import { BoardHint, commitPlacement, FlowHead, NoSpots, PlacementRows, playerColor, splitPlacements, useBoardMode } from './shared.js';
+import { catalog } from '../../state/store.js';
+import { BoardHint, commitPlacement, listAllPlacements, FlowHead, NoSpots, PlacementRows, playerColor, splitPlacements, useBoardMode } from './shared.js';
 import type { FlowProps } from './types.js';
 
 const CELL_CLASS: Record<string, string> = { '#': 'road', H: 'house', A: 'apartment', '.': 'grass' };
@@ -65,7 +65,7 @@ export function MapTileFlow({ legal, placements, onDone, onCancel }: FlowProps) 
               <PlacementRows placements={list} onPick={pick} />
             </>
           )}
-          {chosen.value === null && settings.value.placementList && <PlacementRows placements={placements} onPick={pick} />}
+          {chosen.value === null && listAllPlacements() && <PlacementRows placements={placements} onPick={pick} />}
         </>
       )}
     </div>

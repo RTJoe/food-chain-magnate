@@ -66,6 +66,19 @@ describe('player counts and variants', () => {
     expect(over).toBeGreaterThanOrEqual(2);
   });
 
+  // Audit P3: Easy self-play with New Milestones / all modules used to stall for 40-100+ rounds.
+  it.each([
+    ['all Ketchup modules, 2 players', 2, ALL_KETCHUP],
+    ['all Ketchup modules, 3 players', 3, ALL_KETCHUP],
+    ['New Milestones, 3 players', 3, ['ketchup:newMilestones'] as ModuleId[]],
+    ['Hard Choices, 2 players', 2, ['ketchup:hardChoices'] as ModuleId[]],
+  ] as const)('Easy bots finish games with %s within 40 rounds', (_label, n, modules) => {
+    let over = 0;
+    const seeds = [31, 32, 33, 34, 35, 36];
+    for (const seed of seeds) if (playBots(gameConfig(n, { modules: [...modules] }), seed, seats(n, 'easy'), 40).state.phase.kind === 'gameOver') over++;
+    expect(over).toBeGreaterThanOrEqual(seeds.length - 1);
+  }, 60_000);
+
   it('decisions are fast (Easy has no lookahead)', () => {
     expect(playBots(gameConfig(4, { modules: ALL_KETCHUP }), 9, seats(4, 'easy'), 10).maxMs).toBeLessThan(500);
   });
