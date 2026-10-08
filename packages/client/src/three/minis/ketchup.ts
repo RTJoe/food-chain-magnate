@@ -8,41 +8,51 @@ import { COLORS } from '../../theme.js';
 import { FREEWAY } from '../anim/path.js';
 import { dirAngle } from '../coords.js';
 import { makeBadge } from '../labels.js';
-import { PLASTIC, plasticPen, plasticTree, type Pen as PlasticPen } from './buildings.js';
+import { paintedTree } from './buildings.js';
 import { blob, face, solid, type MiniCtx } from './ctx.js';
 import { decalTexture, roundRect } from './marketing.js';
-import { P, Shape, ball, box, cone, cyl, extrude, miniGeo, playerPalette, shade } from './kit.js';
+import { Shape, ball, box, cone, cyl, extrude, miniGeo, playerPalette, shade, type Paint, type PartOpts } from './kit.js';
+import { PAINT } from './paint.js';
 
 // ---------------------------------------------------------------------------
 // Park
 // ---------------------------------------------------------------------------
 
-type Pen = PlasticPen & { shape: Shape };
+type Add = (geo: THREE.BufferGeometry, paint: Paint, o?: PartOpts) => Shape;
+const painter =
+  (s: Shape): Add =>
+  (geo, paint, o = {}) =>
+    s.add(geo, paint, { jitter: 0.03, ...o });
 
-/** Park bench (seat, back, two legs) at (x, z), facing +z unless `rot`. */
-function parkBench(pen: Pen, x: number, z: number, rot = 0): void {
+/** Park plate edge (a darker turf verge) and gravel paths. */
+const VERGE = PAINT.lawnDark;
+const GRAVEL = '#d8cdb4';
+
+/** Park bench (timber seat and back, iron legs) at (x, z), facing +z unless `rot`. */
+function parkBench(s: Shape, x: number, z: number, rot = 0): void {
   const b = new Shape();
-  const bp = plasticPen(b, PLASTIC.park);
-  bp(box(0.34, 0.035, 0.12, 0), 0.04, { at: [0, 0.1, 0] });
-  bp(box(0.34, 0.1, 0.03, 0), 0.04, { at: [0, 0.14, -0.06] });
-  for (const dx of [-0.13, 0.13]) bp(box(0.03, 0.1, 0.1, 0), -0.1, { at: [dx, 0, 0] });
-  pen.shape.addShape(b, { at: [x, 0.09, z], rot: [0, rot, 0] });
+  b.add(box(0.34, 0.035, 0.12, 0), PAINT.wood, { at: [0, 0.1, 0] });
+  b.add(box(0.34, 0.1, 0.03, 0), PAINT.wood, { at: [0, 0.14, -0.06] });
+  for (const dx of [-0.13, 0.13]) b.add(box(0.03, 0.1, 0.1, 0), PAINT.trimDark, { at: [dx, 0, 0], mat: 'metal' });
+  s.addShape(b, { at: [x, 0.09, z], rot: [0, rot, 0] });
 }
 
-/** Park in SE monochrome park green: plate, lawn, path, round trees, a bench (a pond on big parks). */
+/** Pond: a stone rim around glossy water. */
+function pond(add: Add, x: number, z: number, r: number, sx = 1): void {
+  add(cyl(r, r + 0.02, 0.03, 10), PAINT.stone, { at: [x, 0.09, z], scale: [sx, 1, 1] });
+  add(cyl(r - 0.06, r - 0.06, 0.006, 10), PAINT.water, { at: [x, 0.12, z], scale: [sx, 1, 1], mat: 'glass', jitter: 0 });
+}
+
+/** Painted park: turf verge, lawn, gravel path, round trees, a bench (a pond on big parks). */
 function parkShape(w: number, h: number): Shape {
   const s = new Shape();
-  const pen = Object.assign(plasticPen(s, PLASTIC.park), { shape: s });
-  pen(box(w - 0.15, 0.06, h - 0.15, 0.02), -0.03, { jitter: 0 });
-  pen(box(w - 0.3, 0.03, h - 0.3, 0), 0, { at: [0, 0.06, 0], jitter: 0 });
-  // Winding path (two segments), embossed lighter.
-  pen(box(w - 0.3, 0.012, 0.16, 0), 0.08, { at: [0, 0.09, h > 1.5 ? 0.15 : 0.0], rot: [0, 0.12, 0], jitter: 0 });
-  if (h > 1.5) pen(box(0.16, 0.012, h * 0.45, 0), 0.08, { at: [0.2, 0.09, -h * 0.2], jitter: 0 });
-  // Pond: a glossy disc with a raised rim.
-  if (w * h >= 4) {
-    pen(cyl(0.4, 0.42, 0.03, 10), 0.04, { at: [-w / 4, 0.09, -h / 4], scale: [1.3, 1, 1] });
-    pen(cyl(0.34, 0.34, 0.006, 10), -0.12, { at: [-w / 4, 0.12, -h / 4], scale: [1.3, 1, 1], mat: 'glass', jitter: 0 });
-  }
+  const add = painter(s);
+  add(box(w - 0.15, 0.06, h - 0.15, 0.02), VERGE, { jitter: 0 });
+  add(box(w - 0.3, 0.03, h - 0.3, 0), PAINT.lawn, { at: [0, 0.06, 0], jitter: 0 });
+  // Winding gravel path (two segments).
+  add(box(w - 0.3, 0.012, 0.16, 0), GRAVEL, { at: [0, 0.09, h > 1.5 ? 0.15 : 0.0], rot: [0, 0.12, 0], jitter: 0 });
+  if (h > 1.5) add(box(0.16, 0.012, h * 0.45, 0), GRAVEL, { at: [0.2, 0.09, -h * 0.2], jitter: 0 });
+  if (w * h >= 4) pond(add, -w / 4, -h / 4, 0.4, 1.3);
   const spots: [number, number, number][] =
     w * h >= 4
       ? [
@@ -55,8 +65,8 @@ function parkShape(w: number, h: number): Shape {
           [w / 3, -0.05, 1.05],
           [0.05, -0.2, 0.85],
         ];
-  for (const [x, z, sz] of spots) plasticTree(pen, x, z, sz, 0.09);
-  parkBench(pen, -0.05, h > 1.5 ? 0.45 : 0.3);
+  spots.forEach(([x, z, sz], i) => paintedTree(s, x, z, sz, 0.09, i % 2 ? PAINT.leaf : '#4f8c3e'));
+  parkBench(s, -0.05, h > 1.5 ? 0.45 : 0.3);
   return s;
 }
 
@@ -67,7 +77,7 @@ function parkShape(w: number, h: number): Shape {
  */
 function parkCellsShape(cells: readonly [number, number][], w: number, h: number): Shape {
   const s = new Shape();
-  const pen = Object.assign(plasticPen(s, PLASTIC.park), { shape: s });
+  const add = painter(s);
   const has = (x: number, z: number) => cells.some(([cx, cz]) => cx === x && cz === z);
   const ctr = (x: number, z: number): [number, number] => [x + 0.5 - w / 2, z + 0.5 - h / 2];
   const degree = (x: number, z: number) => [has(x + 1, z), has(x - 1, z), has(x, z + 1), has(x, z - 1)].filter(Boolean).length;
@@ -75,29 +85,27 @@ function parkCellsShape(cells: readonly [number, number][], w: number, h: number
   cells.forEach(([x, z], i) => {
     const [cx, cz] = ctr(x, z);
     const e = (open: boolean, m: number) => (open ? 0 : m);
-    const lot = (m: number, y: number, hgt: number, tint: number) => {
+    const lot = (m: number, y: number, hgt: number, paint: string) => {
       const x0 = cx - 0.5 + e(has(x - 1, z), m);
       const x1 = cx + 0.5 - e(has(x + 1, z), m);
       const z0 = cz - 0.5 + e(has(x, z - 1), m);
       const z1 = cz + 0.5 - e(has(x, z + 1), m);
-      pen(box(x1 - x0, hgt, z1 - z0, 0), tint, { at: [(x0 + x1) / 2, y, (z0 + z1) / 2], jitter: 0 });
+      add(box(x1 - x0, hgt, z1 - z0, 0), paint, { at: [(x0 + x1) / 2, y, (z0 + z1) / 2], jitter: 0 });
     };
-    lot(0.075, 0, 0.06, -0.03);
-    lot(0.15, 0.06, 0.03, 0);
-    // Path to the east / south neighbour (each link once).
-    if (has(x + 1, z)) pen(box(1.0, 0.012, 0.14, 0), 0.08, { at: [cx + 0.5, 0.09, cz], jitter: 0 });
-    if (has(x, z + 1)) pen(box(0.14, 0.012, 1.0, 0), 0.08, { at: [cx, 0.09, cz + 0.5], jitter: 0 });
-    const pond = cells.length >= 4 && x === hub[0] && z === hub[1];
-    if (pond) {
-      pen(cyl(0.3, 0.32, 0.03, 10), 0.04, { at: [cx, 0.09, cz] });
-      pen(cyl(0.25, 0.25, 0.006, 10), -0.12, { at: [cx, 0.12, cz], mat: 'glass', jitter: 0 });
-    } else {
+    lot(0.075, 0, 0.06, VERGE);
+    lot(0.15, 0.06, 0.03, PAINT.lawn);
+    // Gravel path to the east / south neighbour (each link once).
+    if (has(x + 1, z)) add(box(1.0, 0.012, 0.14, 0), GRAVEL, { at: [cx + 0.5, 0.09, cz], jitter: 0 });
+    if (has(x, z + 1)) add(box(0.14, 0.012, 1.0, 0), GRAVEL, { at: [cx, 0.09, cz + 0.5], jitter: 0 });
+    const isPond = cells.length >= 4 && x === hub[0] && z === hub[1];
+    if (isPond) pond(add, cx, cz, 0.3);
+    else {
       const k = (i * 0.37) % 1;
-      plasticTree(pen, cx + (k - 0.5) * 0.4, cz - 0.18, 0.95 + k * 0.3, 0.09);
+      paintedTree(s, cx + (k - 0.5) * 0.4, cz - 0.18, 0.95 + k * 0.3, 0.09, i % 2 ? PAINT.leaf : '#4f8c3e');
     }
   });
   const [bx, bz] = ctr(cells[0]![0], cells[0]![1]);
-  parkBench(pen, bx - 0.05, bz + 0.26);
+  parkBench(s, bx - 0.05, bz + 0.26);
   return s;
 }
 
@@ -135,14 +143,15 @@ const HAZARD = '#f08a3c';
 const HAZARD_WHITE = '#fdfcfa';
 /** Freeway sign green (Ketchup p.25). */
 const FREEWAY_GREEN = '#2f7a46';
-/** Yellow road edge line (art bible §2 `roadLine`). */
-const EDGE_YELLOW = '#d9c35c';
+/** Yellow road edge line. */
+const EDGE_YELLOW = PAINT.lineYellow;
 
+/** Traffic cone: black rubber foot, orange body with a white reflective band. */
 function coneShape(): Shape {
   const s = new Shape();
-  s.add(box(0.2, 0.025, 0.2, 0.008), '#2f2d36', { jitter: 0 });
+  s.add(box(0.2, 0.025, 0.2, 0.008), PAINT.rubber, { jitter: 0 });
   s.add(cone(0.075, 0.28, 8), HAZARD, { at: [0, 0.02, 0] });
-  s.add(cyl(0.048, 0.056, 0.05, 8), HAZARD_WHITE, { at: [0, 0.12, 0], jitter: 0 });
+  s.add(cyl(0.048, 0.056, 0.05, 8), HAZARD_WHITE, { at: [0, 0.12, 0], jitter: 0.02 });
   return s;
 }
 
@@ -150,11 +159,11 @@ function coneShape(): Shape {
 function barrierShape(color: string): Shape {
   const s = new Shape();
   for (const x of [-0.32, 0.32]) {
-    s.add(box(0.05, 0.3, 0.05, 0.01), P.steelDark, { at: [x, 0, 0] });
-    s.add(box(0.16, 0.03, 0.12, 0.01), '#2f2d36', { at: [x, 0, 0] });
+    s.add(box(0.05, 0.3, 0.05, 0.01), PAINT.metalDark, { at: [x, 0, 0], mat: 'metal' });
+    s.add(box(0.16, 0.03, 0.12, 0.01), PAINT.rubber, { at: [x, 0, 0] });
   }
   for (let i = 0; i < 5; i++)
-    s.add(box(0.14, 0.1, 0.03, 0.005), i % 2 ? HAZARD_WHITE : HAZARD, { at: [-0.28 + i * 0.14, 0.18, 0], jitter: 0 });
+    s.add(box(0.14, 0.1, 0.03, 0.005), i % 2 ? HAZARD_WHITE : HAZARD, { at: [-0.28 + i * 0.14, 0.18, 0], jitter: 0.03 });
   s.add(ball(0.035, 0), '#f8d24a', { at: [-0.32, 0.34, 0], mat: 'glow' });
   s.add(box(0.12, 0.05, 0.035, 0.01), playerPalette(color).base, { at: [0.32, 0.3, 0] });
   return s;
@@ -279,11 +288,11 @@ function bandInSquare(a: number, c0: number, c1: number): [number, number][] {
   return poly;
 }
 
-/** Roadworks token: an orange plate with white diagonal stripes, a cone and a warning sign. */
+/** Roadworks token: an orange plate with white diagonal stripes, a cone and a red-edged warning sign. */
 function roadworksShape(): Shape {
   const s = new Shape();
   const A = 0.43;
-  s.add(box(A * 2, 0.04, A * 2, 0.012), HAZARD, { jitter: 0 });
+  s.add(box(A * 2, 0.04, A * 2, 0.012), HAZARD, { jitter: 0.02 });
   for (let i = -3; i <= 3; i++) {
     const poly = bandInSquare(A - 0.04, i * 0.26 - 0.06, i * 0.26 + 0.06);
     if (poly.length < 3) continue;
@@ -294,9 +303,9 @@ function roadworksShape(): Shape {
     );
   }
   s.addShape(coneShape(), { at: [-0.2, 0.04, 0.16], scale: 1.1 });
-  s.add(cyl(0.015, 0.015, 0.36, 4), P.steelDark, { at: [0.2, 0.04, -0.12] });
-  s.add(extrude('tri', triShape, 0.03, 0.01), '#f8d24a', { at: [0.2, 0.44, -0.11], scale: 0.14 });
-  s.add(extrude('tri', triShape, 0.032, 0), '#e25b4b', { at: [0.2, 0.44, -0.11], scale: 0.17 });
+  s.add(cyl(0.015, 0.015, 0.36, 4), PAINT.metal, { at: [0.2, 0.04, -0.12], mat: 'metal' });
+  s.add(extrude('tri', triShape, 0.03, 0.01), PAINT.flowerWhite, { at: [0.2, 0.44, -0.11], scale: 0.14 });
+  s.add(extrude('tri', triShape, 0.032, 0), PAINT.neonRed, { at: [0.2, 0.44, -0.11], scale: 0.17 });
   return s;
 }
 
@@ -335,25 +344,25 @@ function freewayShape(color: string): Shape {
   const deck = (geo: THREE.BufferGeometry, paint: string, x: number, y: number, jitter = 0.04) =>
     s.add(geo, paint, { at: [x, rise / 2 + y, L / 2 + 0.05], rot: [-slope, 0, 0], jitter });
   // Deck (inclined slab) from the board edge outwards, in road grey with yellow edge lines.
-  deck(box(0.86, 0.09, len, 0.02), '#8f8b88', 0, -0.02);
-  deck(box(0.7, 0.012, len, 0), COLORS.road, 0, 0.065, 0);
+  deck(box(0.86, 0.09, len, 0.02), PAINT.concrete, 0, -0.02);
+  deck(box(0.7, 0.012, len, 0), PAINT.asphalt, 0, 0.065, 0.02);
   for (const x of [-0.3, 0.3]) deck(box(0.03, 0.012, len, 0), EDGE_YELLOW, x, 0.068, 0);
-  for (const x of [-0.42, 0.42]) deck(box(0.05, 0.12, len, 0.01), P.kerb, x, 0.03);
+  for (const x of [-0.42, 0.42]) deck(box(0.05, 0.12, len, 0.01), PAINT.kerb, x, 0.03);
   for (let i = 0; i < 5; i++)
-    s.add(box(0.04, 0.012, 0.22, 0), COLORS.roadLine, { at: [0, 0.1 + ((i + 0.5) / 5) * rise + 0.062, ((i + 0.5) / 5) * L], rot: [-slope, 0, 0], jitter: 0 });
+    s.add(box(0.04, 0.012, 0.22, 0), PAINT.lineWhite, { at: [0, 0.1 + ((i + 0.5) / 5) * rise + 0.062, ((i + 0.5) / 5) * L], rot: [-slope, 0, 0], jitter: 0 });
   // Pillars.
   for (const t of [0.4, 0.7, 0.95]) {
     const h = t * rise;
-    s.add(box(0.2, h, 0.2, 0.03), P.stone, { at: [0, 0, t * L] });
+    s.add(box(0.2, h, 0.2, 0.03), PAINT.concrete, { at: [0, 0, t * L] });
   }
   // Elevated end platform.
-  s.add(box(0.9, 0.1, 0.8, 0.02), '#8f8b88', { at: [0, rise - 0.04, L + 0.4] });
-  s.add(box(0.74, 0.012, 0.8, 0), COLORS.road, { at: [0, rise + 0.06, L + 0.4], jitter: 0 });
+  s.add(box(0.9, 0.1, 0.8, 0.02), PAINT.concrete, { at: [0, rise - 0.04, L + 0.4] });
+  s.add(box(0.74, 0.012, 0.8, 0), PAINT.asphalt, { at: [0, rise + 0.06, L + 0.4], jitter: 0.02 });
   for (const x of [-0.3, 0.3]) s.add(box(0.03, 0.012, 0.8, 0), EDGE_YELLOW, { at: [x, rise + 0.063, L + 0.4], jitter: 0 });
-  s.add(box(0.24, rise, 0.24, 0.03), P.stone, { at: [0, 0, L + 0.5] });
+  s.add(box(0.24, rise, 0.24, 0.03), PAINT.concrete, { at: [0, 0, L + 0.5] });
   // Sign gantry with the green FREEWAY board.
-  for (const x of [-0.5, 0.5]) s.add(cyl(0.025, 0.025, GANTRY.y + GANTRY.h + 0.06, 5), P.steelDark, { at: [x, rise, L - 0.2], mat: 'metal' });
-  s.add(box(1.04, 0.05, 0.05, 0.01), P.steelDark, { at: [0, rise + GANTRY.y + GANTRY.h + 0.04, L - 0.2], mat: 'metal' });
+  for (const x of [-0.5, 0.5]) s.add(cyl(0.025, 0.025, GANTRY.y + GANTRY.h + 0.06, 5), PAINT.metalDark, { at: [x, rise, L - 0.2], mat: 'metal' });
+  s.add(box(1.04, 0.05, 0.05, 0.01), PAINT.metalDark, { at: [0, rise + GANTRY.y + GANTRY.h + 0.04, L - 0.2], mat: 'metal' });
   s.add(box(GANTRY.w + 0.04, GANTRY.h + 0.04, 0.04, 0.01), FREEWAY_GREEN, { at: [0, rise + GANTRY.y - 0.02, L - 0.2] });
   s.add(box(0.14, 0.04, 0.04, 0.01), pal.base, { at: [0.42, rise + GANTRY.y + GANTRY.h + 0.08, L - 0.2] });
   return s;
@@ -425,9 +434,9 @@ export function buildGeneric(ctx: MiniCtx, p: { label: string; color?: string; w
     g,
     miniGeo(`generic:${w}:${h}:${p.color ?? ''}`, () => {
       const s = new Shape();
-      s.add(box(w - 0.15, 0.06, h - 0.15, 0.03), p.color ? shade(p.color, -0.2) : P.lot, { jitter: 0 });
-      s.add(box(0.45, 0.4, 0.45, 0.05), P.wood, { at: [0, 0.06, 0] });
-      s.add(box(0.47, 0.06, 0.47, 0.02), P.woodDark, { at: [0, 0.22, 0] });
+      s.add(box(w - 0.15, 0.06, h - 0.15, 0.03), p.color ? shade(p.color, -0.2) : PAINT.pavement, { jitter: 0 });
+      s.add(box(0.45, 0.4, 0.45, 0.05), PAINT.wood, { at: [0, 0.06, 0], jitter: 0.06 });
+      s.add(box(0.47, 0.06, 0.47, 0.02), PAINT.woodDark, { at: [0, 0.22, 0] });
       return s;
     }),
   );

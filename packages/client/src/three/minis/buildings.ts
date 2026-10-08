@@ -1,7 +1,8 @@
 /**
- * Houses (printed / placed), apartments, gardens and the rural area, sculpted as Special Edition
- * single-colour plastic minis (docs/art-bible.md §6.2–6.4): burgundy houses and apartments, lime
- * gardens, a green rural slab. Also the embossed-glyph helpers (house numbers, apartment names, ∞).
+ * Houses (printed / placed), apartments, gardens and the rural area: the Special Edition sculpts
+ * (docs/art-bible.md §6.2–6.4) with a hobby paint job: period house colours with tiled roofs, brick
+ * chimneys, framed glass and painted doors; a brick apartment block; hedged gardens; a rural slab
+ * with lawn, fields, a lake and a log cabin. Also the embossed-glyph helpers (house numbers, ∞).
  */
 import * as THREE from 'three';
 import type { Direction } from '@fcm/engine';
@@ -9,9 +10,10 @@ import { COLORS } from '../../theme.js';
 import { dirAngle } from '../coords.js';
 import { BADGE_MIN_PX, makeBadge } from '../labels.js';
 import { blob, solid, type MiniCtx } from './ctx.js';
-import { P, Shape, ball, box, cone, cyl, extrude, gable, lathe, miniGeo, shade, type PartOpts } from './kit.js';
+import { P, Shape, ball, box, cone, cyl, extrude, gable, hull, lathe, miniGeo, shade, type Paint, type PartOpts } from './kit.js';
+import { PAINT } from './paint.js';
 
-/** SE plastic colours (art bible §2 "Map, houses, goods"). */
+/** SE unpainted plastic colours (art bible §2 "Map, houses, goods"); the painted minis keep them as family ids. */
 export const PLASTIC = {
   house: '#7a2f48',
   garden: '#a9bd62',
@@ -95,6 +97,59 @@ export function plasticTree(pen: Pen, x: number, z: number, size = 1, y = 0): vo
 export function plasticPine(pen: Pen, x: number, z: number, size = 1, y = 0): void {
   pen(cone(0.2 * size, 0.4 * size, 6), -0.04, { at: [x, y + 0.04 * size, z] });
   pen(cone(0.14 * size, 0.32 * size, 6), 0, { at: [x, y + 0.3 * size, z] });
+}
+
+/** Painted round tree: bark-brown trunk, two greens of foliage. */
+export function paintedTree(s: Shape, x: number, z: number, size = 1, y = 0, leaf: string = PAINT.leaf): void {
+  s.add(cone(0.06 * size, 0.3 * size, 5), PAINT.trunk, { at: [x, y, z] });
+  s.add(ball(0.22 * size, 0), leaf, { at: [x, y + 0.36 * size, z] });
+  s.add(ball(0.15 * size, 0), shade(leaf, 0.14), { at: [x + 0.04 * size, y + 0.56 * size, z - 0.03 * size] });
+}
+
+/** Painted pine: two stacked cones in conifer greens. */
+export function paintedPine(s: Shape, x: number, z: number, size = 1, y = 0): void {
+  s.add(cone(0.2 * size, 0.4 * size, 6), PINE, { at: [x, y + 0.04 * size, z] });
+  s.add(cone(0.14 * size, 0.32 * size, 6), shade(PINE, 0.1), { at: [x, y + 0.3 * size, z] });
+}
+
+/** Conifer and hedge greens (darker than broadleaf foliage). */
+const PINE = '#3f7446';
+const HEDGE = '#4a7a3a';
+
+/**
+ * Pitched roof, ridge along z, eaves at y = 0: two tiled slabs over a wall-coloured gable end
+ * (`ww` x `wd`, offset `wz` along the ridge), so the gable ends read as wall, not roof.
+ */
+function pitched(w: number, h: number, d: number, roof: string, wall: string, ww: number, wd: number, wz = 0): Shape {
+  const r = new Shape();
+  const run = w / 2;
+  const th = Math.atan2(h, run);
+  const ye = h * (1 - ww / w); // slope height at the wall face
+  const k = (n: number) => n.toFixed(3);
+  r.add(
+    hull(`gableWall:${k(ww)}:${k(wd)}:${k(h)}:${k(ye)}`, [
+      ...[-1, 1].flatMap((sz) => [
+        [-ww / 2, 0, (sz * wd) / 2] as [number, number, number],
+        [ww / 2, 0, (sz * wd) / 2] as [number, number, number],
+        [-ww / 2, ye, (sz * wd) / 2] as [number, number, number],
+        [ww / 2, ye, (sz * wd) / 2] as [number, number, number],
+        [0, h, (sz * wd) / 2] as [number, number, number],
+      ]),
+    ]),
+    wall,
+    { at: [0, 0, wz], jitter: 0.02 },
+  );
+  const L = Math.hypot(run, h);
+  for (const sx of [-1, 1]) {
+    // Slab from just past the ridge to a small eave overhang; bottom face on the slope line.
+    const shift = 0.02;
+    r.add(box(L + 0.06, 0.035, d, 0), roof, {
+      at: [sx * (run / 2 + shift * Math.cos(th)), h / 2 - shift * Math.sin(th), 0],
+      rot: [0, 0, -sx * th],
+      jitter: 0.03,
+    });
+  }
+  return r;
 }
 
 // ---------------------------------------------------------------------------
@@ -375,74 +430,100 @@ export interface HouseParams {
 export const HOUSE_VARIANTS = 3;
 /** Garage side per variant: -1 = garage on the left (west when facing south). */
 const GARAGE_SIDE = [-1, -1, 1] as const;
-/** Embossed numbers and names: 12 % lighter than the plastic so they read (art bible §6.2). */
-const HOUSE_EMBOSS = `#${shade(PLASTIC.house, 0.12).getHexString()}`;
+/** Embossed numbers and names: dark painted lettering, legible on every (light) wall colour. */
+const HOUSE_EMBOSS = PAINT.trimDark;
 /** Number block (garage false front) face centre and digit height. */
 const NUM = { x: 0.6, y: PLATE + 0.54, z: 0.205, h: 0.3 } as const;
 
-function houseShape(variant: number): Shape {
+/** Dark, low-saturation terracotta: never mistaken for an orange player's roof. */
+const ROOF_TERRACOTTA = '#7e4636';
+
+/** Paint schemes: pale period wall colour, non-player roof and a painted door. */
+const HOUSE_SCHEMES: readonly { wall: string; roof: string; door: string }[] = [
+  { wall: PAINT.wallCream, roof: ROOF_TERRACOTTA, door: PAINT.doorGreen },
+  { wall: PAINT.wallWhite, roof: PAINT.roofSlate, door: PAINT.doorRed },
+  { wall: PAINT.wallButter, roof: PAINT.roofShingle, door: PAINT.doorBlue },
+  { wall: PAINT.wallSage, roof: PAINT.roofSlate, door: PAINT.doorWood },
+  { wall: PAINT.wallBlush, roof: PAINT.roofShingle, door: PAINT.doorGreen },
+  { wall: PAINT.wallSky, roof: PAINT.roofSlate, door: PAINT.doorRed },
+];
+
+/** Paint scheme of a house label (deterministic; neighbouring numbers usually differ). */
+export function houseScheme(label: string): number {
+  let h = 2166136261;
+  for (const c of label) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return ((h ^ (h >>> 13)) >>> 0) % HOUSE_SCHEMES.length;
+}
+
+function houseShape(variant: number, scheme: number): Shape {
   const s = new Shape();
-  const pen = plasticPen(s, PLASTIC.house);
+  const c = HOUSE_SCHEMES[scheme]!;
+  const add = (geo: THREE.BufferGeometry, paint: Paint, o: PartOpts = {}) => s.add(geo, paint, { jitter: 0.02, ...o });
   const g = GARAGE_SIDE[variant]!;
   const m = -g; // main house is on the other side
   const X = (x: number) => m * x;
   const top = PLATE;
-  // Plate.
-  pen(box(1.84, PLATE, 1.84, 0.02), -0.02, { jitter: 0 });
+  // Lawn plate.
+  add(box(1.84, PLATE, 1.84, 0.02), PAINT.lawn, { jitter: 0 });
   // Main body (side-gabled, ridge along x).
   const bx = X(0.2);
   const bz = -0.2;
-  pen(box(1.0, 0.55, 0.7, 0.025), 0, { at: [bx, top, bz] });
-  pen(gable(0.88, 0.34, 1.12), 0.02, { at: [bx, top + 0.55, bz], rot: [0, Math.PI / 2, 0] });
-  // Chimney on the back slope.
-  pen(box(0.13, 0.36, 0.13, 0), 0, { at: [bx + X(0.3), top + 0.68, bz - 0.2] });
+  add(box(1.0, 0.55, 0.7, 0.025), c.wall, { at: [bx, top, bz] });
+  s.addShape(pitched(0.88, 0.34, 1.12, c.roof, c.wall, 0.7, 0.98), { at: [bx, top + 0.55, bz], rot: [0, Math.PI / 2, 0] });
+  // Brick chimney on the back slope.
+  add(box(0.13, 0.36, 0.13, 0), PAINT.brick, { at: [bx + X(0.3), top + 0.68, bz - 0.2] });
   const front = bz + 0.35;
-  // Windows (recesses) on the front, sides and back.
-  const win = box(0.15, 0.17, 0.02, 0);
-  const winSide = box(0.02, 0.17, 0.15, 0);
+  // Framed front windows; plain glass on the sides and back.
+  const frontWin = (x: number, y: number, z: number, w = 0.15, h = 0.17) => {
+    add(box(w + 0.05, h + 0.05, 0.02, 0), PAINT.frame, { at: [x, y - 0.025, z] });
+    add(box(w, h, 0.028, 0), PAINT.glass, { at: [x, y, z], mat: 'glass', jitter: 0.03 });
+  };
+  const glass = box(0.15, 0.17, 0.02, 0);
+  const glassSide = box(0.02, 0.17, 0.15, 0);
   // Door position and porch / front gable by variant.
   let door = bx;
   if (variant === 1) {
     // Cross-gabled: a front-facing gable wing at the outer end, door beside it under a small canopy.
     const wx = bx + X(0.27);
-    pen(box(0.44, 0.55, 0.3, 0.02), 0, { at: [wx, top, front - 0.04] });
-    pen(gable(0.54, 0.3, 0.42), 0.02, { at: [wx, top + 0.55, front + 0.02] });
-    pen(win, RECESS, { at: [wx, top + 0.22, front + 0.26] });
-    pen(box(0.1, 0.1, 0.02, 0), RECESS, { at: [wx, top + 0.62, front + 0.2] });
+    add(box(0.44, 0.55, 0.3, 0.02), c.wall, { at: [wx, top, front - 0.04] });
+    s.addShape(pitched(0.54, 0.3, 0.42, c.roof, c.wall, 0.44, 0.3, -0.06), { at: [wx, top + 0.55, front + 0.02] });
+    frontWin(wx, top + 0.22, front + 0.11);
+    add(box(0.1, 0.1, 0.022, 0), PAINT.glass, { at: [wx, top + 0.62, front + 0.11], mat: 'glass' });
     door = bx - X(0.12);
-    pen(box(0.34, 0.03, 0.2, 0), 0.03, { at: [door, top + 0.42, front + 0.09], rot: [0.2, 0, 0] });
-    for (const dx of [-0.14, 0.14]) pen(cyl(0.018, 0.018, 0.4, 4), 0, { at: [door + dx, top, front + 0.17] });
-    pen(win, RECESS, { at: [bx - X(0.36), top + 0.24, front] });
+    add(box(0.34, 0.03, 0.2, 0), c.roof, { at: [door, top + 0.42, front + 0.09], rot: [0.2, 0, 0] });
+    for (const dx of [-0.14, 0.14]) add(cyl(0.018, 0.018, 0.4, 4), PAINT.trimWhite, { at: [door + dx, top, front + 0.17] });
+    frontWin(bx - X(0.36), top + 0.24, front);
   } else {
-    // Front porch: 3 posts and a shed roof across the front.
+    // Front porch: a timber deck, 3 white posts and a shed roof across the front.
     door = bx - X(0.14);
-    pen(box(0.86, 0.035, 0.28, 0), 0.03, { at: [bx, top, front + 0.14] });
-    pen(box(0.9, 0.03, 0.32, 0), 0.03, { at: [bx, top + 0.42, front + 0.14], rot: [0.22, 0, 0] });
-    for (const dx of [-0.4, 0.04, 0.4]) pen(cyl(0.02, 0.02, 0.42, 4), 0, { at: [bx + X(dx), top, front + 0.26] });
-    for (const dx of [-0.3, 0.2]) pen(win, RECESS, { at: [bx + X(dx), top + 0.24, front] });
+    add(box(0.86, 0.035, 0.28, 0), PAINT.wood, { at: [bx, top, front + 0.14] });
+    add(box(0.9, 0.03, 0.32, 0), c.roof, { at: [bx, top + 0.42, front + 0.14], rot: [0.22, 0, 0] });
+    for (const dx of [-0.4, 0.04, 0.4]) add(cyl(0.02, 0.02, 0.42, 4), PAINT.trimWhite, { at: [bx + X(dx), top, front + 0.26] });
+    for (const dx of [-0.3, 0.2]) frontWin(bx + X(dx), top + 0.24, front);
     if (variant === 2) {
       // Dormer on the front slope.
-      pen(box(0.2, 0.18, 0.2, 0), 0, { at: [bx + X(0.1), top + 0.62, bz + 0.12] });
-      pen(gable(0.26, 0.12, 0.26), 0.02, { at: [bx + X(0.1), top + 0.8, bz + 0.14] });
-      pen(box(0.1, 0.1, 0.02, 0), RECESS, { at: [bx + X(0.1), top + 0.65, bz + 0.225] });
+      add(box(0.2, 0.18, 0.2, 0), c.wall, { at: [bx + X(0.1), top + 0.62, bz + 0.12] });
+      add(gable(0.26, 0.12, 0.26), c.roof, { at: [bx + X(0.1), top + 0.8, bz + 0.14] });
+      add(box(0.1, 0.1, 0.02, 0), PAINT.glass, { at: [bx + X(0.1), top + 0.65, bz + 0.225], mat: 'glass' });
     }
   }
-  pen(box(0.17, 0.33, 0.02, 0), RECESS - 0.04, { at: [door, top, front] });
-  pen(box(0.26, 0.03, 0.1, 0), 0.02, { at: [door, top, front + 0.06] });
-  for (const sx of [-1, 1]) pen(winSide, RECESS, { at: [bx + sx * 0.5, top + 0.24, bz] });
-  for (const dx of [-0.25, 0.25]) pen(win, RECESS, { at: [bx + dx, top + 0.24, bz - 0.35] });
+  // Painted front door and a stone step.
+  add(box(0.17, 0.33, 0.024, 0), c.door, { at: [door, top, front] });
+  add(box(0.26, 0.03, 0.1, 0), PAINT.stone, { at: [door, top, front + 0.06] });
+  for (const sx of [-1, 1]) add(glassSide, PAINT.glass, { at: [bx + sx * 0.5, top + 0.24, bz], mat: 'glass' });
+  for (const dx of [-0.25, 0.25]) add(glass, PAINT.glass, { at: [bx + dx, top + 0.24, bz - 0.35], mat: 'glass' });
   // Garage wing: low body with a shed roof and a tall false front (the number block).
   const gx = g * NUM.x;
-  pen(box(0.5, 0.38, 0.56, 0), -0.02, { at: [gx, top, bz + 0.07] });
-  pen(box(0.54, 0.03, 0.6, 0), 0.02, { at: [gx, top + 0.42, bz + 0.07], rot: [-0.16, 0, 0] });
-  pen(box(0.58, 0.72, 0.12, 0.02), 0, { at: [gx, top, NUM.z - 0.06] });
-  pen(box(0.38, 0.26, 0.02, 0), RECESS - 0.04, { at: [gx, top, NUM.z] });
-  for (const y of [0.09, 0.18]) pen(box(0.38, 0.012, 0.03, 0), RECESS + 0.04, { at: [gx, top + y, NUM.z] });
-  // Embossed stepping-stone path from the door to the plate edge.
+  add(box(0.5, 0.38, 0.56, 0), c.wall, { at: [gx, top, bz + 0.07] });
+  add(box(0.54, 0.03, 0.6, 0), c.roof, { at: [gx, top + 0.42, bz + 0.07], rot: [-0.16, 0, 0] });
+  add(box(0.58, 0.72, 0.12, 0.02), c.wall, { at: [gx, top, NUM.z - 0.06] });
+  add(box(0.38, 0.26, 0.02, 0), PAINT.frame, { at: [gx, top, NUM.z] });
+  for (const y of [0.09, 0.18]) add(box(0.38, 0.012, 0.03, 0), shade(PAINT.frame, -0.2), { at: [gx, top + y, NUM.z] });
+  // Stepping-stone path from the door to the plate edge.
   for (let i = 0; i < 5; i++)
-    pen(cyl(0.07, 0.07, 0.014, 6), 0.05, { at: [door + (i % 2 ? 0.05 : -0.05), top, front + 0.2 + i * 0.13], scale: [1.35, 1, 0.85] });
-  // Shrubs by the door.
-  pen(ball(0.09, 0), 0, { at: [door + X(0.24), top + 0.05, front + 0.08], scale: [1, 0.8, 1] });
+    add(cyl(0.07, 0.07, 0.014, 6), PAINT.stone, { at: [door + (i % 2 ? 0.05 : -0.05), top, front + 0.2 + i * 0.13], scale: [1.35, 1, 0.85], jitter: 0.06 });
+  // Shrub by the door.
+  add(ball(0.09, 0), PAINT.leaf, { at: [door + X(0.24), top + 0.05, front + 0.08], scale: [1, 0.8, 1] });
   return s;
 }
 
@@ -454,8 +535,9 @@ export function buildHouse(ctx: MiniCtx, p: HouseParams): THREE.Group {
   // Spread the sculpts over house numbers (ids hash poorly); fall back to the caller's variant.
   const n = parseInt(p.label, 10);
   const variant = (Number.isFinite(n) ? n : p.variant) % HOUSE_VARIANTS;
+  const scheme = houseScheme(p.label);
   blob(ctx, body, 2.1, 2.1, true, BLOB);
-  solid(ctx, body, miniGeo(`house:se:${variant}`, () => houseShape(variant)));
+  solid(ctx, body, miniGeo(`house:se:${variant}:${scheme}`, () => houseShape(variant, scheme)));
   embossInstanced(ctx, body, p.label, HOUSE_EMBOSS, {
     at: [GARAGE_SIDE[variant]! * NUM.x, NUM.y, NUM.z],
     h: NUM.h,
@@ -480,41 +562,41 @@ const APT_PLAQUE: [number, number, number] = [-0.3, PLATE + 0.56 + 1.6 + 0.27, -
 
 function apartmentShape(): Shape {
   const s = new Shape();
-  const pen = plasticPen(s, PLASTIC.house);
+  const add = (geo: THREE.BufferGeometry, paint: Paint, o: PartOpts = {}) => s.add(geo, paint, { jitter: 0.02, ...o });
   const top = PLATE;
   const z0 = -0.15;
-  pen(box(2.84, PLATE, 2.84, 0.02), -0.02, { jitter: 0 });
-  // Ground floor (set back) with a cornice over the shopfront.
-  pen(box(2.1, 0.5, 1.7, 0), RECESS, { at: [0, top, z0] });
-  pen(box(2.3, 0.06, 1.9, 0.015), 0.02, { at: [0, top + 0.5, z0] });
-  // Shopfront: six tall recesses across the front and the entrance in the middle.
+  add(box(2.84, PLATE, 2.84, 0.02), PAINT.pavement, { jitter: 0 });
+  // Ground floor (set back, stone) with a cornice over the shopfront.
+  add(box(2.1, 0.5, 1.7, 0), PAINT.stone, { at: [0, top, z0] });
+  add(box(2.3, 0.06, 1.9, 0.015), PAINT.concrete, { at: [0, top + 0.5, z0] });
+  // Shopfront: four tall windows and the glazed entrance in the middle under a green awning.
   for (let i = 0; i < 6; i++) {
     const x = -0.9 + i * 0.36;
     if (i === 2 || i === 3) continue;
-    pen(box(0.24, 0.34, 0.02, 0), RECESS - 0.06, { at: [x, top + 0.06, z0 + 0.85] });
+    add(box(0.24, 0.34, 0.02, 0), PAINT.glass, { at: [x, top + 0.06, z0 + 0.85], mat: 'glass' });
   }
-  pen(box(0.5, 0.4, 0.02, 0), RECESS - 0.1, { at: [0, top, z0 + 0.85] });
-  pen(box(0.7, 0.04, 0.3, 0), 0.03, { at: [0, top + 0.44, z0 + 0.98] });
-  // Upper storeys: the body is the window glass (darker), sills and pilasters frame a 5-row grid.
+  add(box(0.5, 0.4, 0.02, 0), PAINT.glassDark, { at: [0, top, z0 + 0.85], mat: 'glass' });
+  add(box(0.7, 0.04, 0.3, 0), PAINT.doorGreen, { at: [0, top + 0.44, z0 + 0.98] });
+  // Upper storeys: the body is the window glass, brick sills and pilasters frame a 5-row grid.
   const y0 = top + 0.56;
   const H = 1.6;
-  pen(box(2.16, H, 1.76, 0), -0.12, { at: [0, y0, z0] });
-  for (let r = 0; r < 5; r++) pen(box(2.22, 0.1, 1.82, 0), 0, { at: [0, y0 + r * (H / 5), z0] });
-  for (let i = 0; i < 6; i++) pen(box(0.08, H, 1.84, 0), 0.02, { at: [-1.0 + i * 0.4, y0, z0] });
-  for (let i = 0; i < 5; i++) pen(box(2.24, H, 0.08, 0), 0.02, { at: [0, y0, z0 - 0.8 + i * 0.4] });
-  // Cornice and parapet.
+  add(box(2.16, H, 1.76, 0), PAINT.glassDark, { at: [0, y0, z0], mat: 'glass', jitter: 0 });
+  for (let r = 0; r < 5; r++) add(box(2.22, 0.1, 1.82, 0), PAINT.brick, { at: [0, y0 + r * (H / 5), z0] });
+  for (let i = 0; i < 6; i++) add(box(0.08, H, 1.84, 0), PAINT.brick, { at: [-1.0 + i * 0.4, y0, z0] });
+  for (let i = 0; i < 5; i++) add(box(2.24, H, 0.08, 0), PAINT.brick, { at: [0, y0, z0 - 0.8 + i * 0.4] });
+  // Stone cornice and a brick parapet.
   const yr = y0 + H;
-  pen(box(2.34, 0.1, 1.94, 0.02), 0.03, { at: [0, yr, z0] });
-  for (const sz of [-1, 1]) pen(box(2.3, 0.14, 0.07, 0), 0, { at: [0, yr + 0.1, z0 + sz * 0.92] });
-  for (const sx of [-1, 1]) pen(box(0.07, 0.14, 1.8, 0), 0, { at: [sx * 1.12, yr + 0.1, z0] });
-  // Water tank on crossed legs.
-  pen(box(0.42, 0.2, 0.05, 0), RECESS, { at: [0.55, yr + 0.1, z0 - 0.35] });
-  pen(box(0.05, 0.2, 0.42, 0), RECESS, { at: [0.55, yr + 0.1, z0 - 0.35] });
-  pen(cyl(0.22, 0.22, 0.34, 8), 0, { at: [0.55, yr + 0.3, z0 - 0.35] });
-  pen(cone(0.25, 0.14, 8), 0.03, { at: [0.55, yr + 0.64, z0 - 0.35] });
-  // Roof plaque with the name (π / 9¾) facing the street.
+  add(box(2.34, 0.1, 1.94, 0.02), PAINT.stone, { at: [0, yr, z0] });
+  for (const sz of [-1, 1]) add(box(2.3, 0.14, 0.07, 0), PAINT.brickDark, { at: [0, yr + 0.1, z0 + sz * 0.92] });
+  for (const sx of [-1, 1]) add(box(0.07, 0.14, 1.8, 0), PAINT.brickDark, { at: [sx * 1.12, yr + 0.1, z0] });
+  // Timber water tank with a metal cap on crossed legs.
+  add(box(0.42, 0.2, 0.05, 0), PAINT.woodDark, { at: [0.55, yr + 0.1, z0 - 0.35] });
+  add(box(0.05, 0.2, 0.42, 0), PAINT.woodDark, { at: [0.55, yr + 0.1, z0 - 0.35] });
+  add(cyl(0.22, 0.22, 0.34, 8), PAINT.wood, { at: [0.55, yr + 0.3, z0 - 0.35] });
+  add(cone(0.25, 0.14, 8), PAINT.metalDark, { at: [0.55, yr + 0.64, z0 - 0.35], mat: 'metal' });
+  // Cream roof plaque with the name (π / 9¾) facing the street.
   const pz = z0 + 0.62;
-  pen(box(0.66, 0.34, 0.06, 0.015), 0, { at: [-0.3, yr + 0.1, pz] });
+  add(box(0.66, 0.34, 0.06, 0.015), PAINT.signCream, { at: [-0.3, yr + 0.1, pz] });
   return s;
 }
 
@@ -542,20 +624,26 @@ export function buildApartment(ctx: MiniCtx, p: { label: string; facing: Directi
 
 function gardenShape(): Shape {
   const s = new Shape();
-  const pen = plasticPen(s, PLASTIC.garden);
+  const add = (geo: THREE.BufferGeometry, paint: Paint, o: PartOpts = {}) => s.add(geo, paint, { jitter: 0.03, ...o });
   const top = PLATE;
-  pen(box(1.88, PLATE, 0.88, 0), -0.02, { jitter: 0 });
-  // Hedge ring, open in the middle of both long sides (the house can be on either).
-  for (const z of [-0.36, 0.36]) for (const x of [-0.5, 0.5]) pen(box(0.76, 0.14, 0.1, 0), 0, { at: [x, top, z] });
-  for (const x of [-0.89, 0.89]) pen(box(0.1, 0.14, 0.62, 0), 0, { at: [x, top, 0] });
-  // Cross path and the fountain at its centre.
-  pen(box(0.18, 0.012, 0.62, 0), 0.05, { at: [0, top, 0] });
-  pen(cyl(0.22, 0.24, 0.1, 8), 0, { at: [0, top, 0] });
-  pen(cyl(0.17, 0.17, 0.012, 8), RECESS, { at: [0, top + 0.095, 0] });
-  pen(cyl(0.035, 0.05, 0.16, 5), 0.03, { at: [0, top + 0.1, 0] });
-  // Two round bushes and two raised flower beds.
-  for (const x of [-0.62, 0.62]) pen(dome(0.18, 0.26, 5), 0.02, { at: [x, top, -0.04] });
-  for (const x of [-0.34, 0.34]) pen(cyl(0.1, 0.1, 0.025, 6), 0.06, { at: [x, top, 0.12], scale: [1.4, 1, 0.8] });
+  add(box(1.88, PLATE, 0.88, 0), PAINT.lawn, { jitter: 0 });
+  // Clipped hedge ring, open in the middle of both long sides (the house can be on either).
+  for (const z of [-0.36, 0.36]) for (const x of [-0.5, 0.5]) add(box(0.76, 0.14, 0.1, 0), HEDGE, { at: [x, top, z] });
+  for (const x of [-0.89, 0.89]) add(box(0.1, 0.14, 0.62, 0), HEDGE, { at: [x, top, 0] });
+  // Gravel cross path and the stone fountain at its centre.
+  add(box(0.18, 0.012, 0.62, 0), PAINT.pavement, { at: [0, top, 0] });
+  add(cyl(0.22, 0.24, 0.1, 8), PAINT.stone, { at: [0, top, 0] });
+  add(cyl(0.17, 0.17, 0.012, 8), PAINT.water, { at: [0, top + 0.095, 0], mat: 'glass', jitter: 0 });
+  add(cyl(0.035, 0.05, 0.16, 5), PAINT.stone, { at: [0, top + 0.1, 0] });
+  // Two round bushes and two flower beds (red and yellow blooms on dark soil).
+  for (const x of [-0.62, 0.62]) add(dome(0.18, 0.26, 5), PAINT.leaf, { at: [x, top, -0.04] });
+  for (const [x, bloom] of [
+    [-0.34, PAINT.flowerRed],
+    [0.34, PAINT.flowerYellow],
+  ] as const) {
+    add(cyl(0.1, 0.1, 0.025, 6), PAINT.soil, { at: [x, top, 0.12], scale: [1.4, 1, 0.8] });
+    add(cyl(0.075, 0.075, 0.02, 6), bloom, { at: [x, top + 0.02, 0.12], scale: [1.4, 1, 0.8], jitter: 0.08 });
+  }
   return s;
 }
 
@@ -581,11 +669,16 @@ const LAKE: Pt[] = Array.from({ length: 28 }, (_, i): Pt => {
   return [0.95 + r * 1.15 * Math.cos(a), 0.45 + r * Math.sin(a)];
 });
 
+/** Wheat field stubble and ploughed earth (rural area). */
+const WHEAT = '#d9b85c';
+const FURROW = '#8a6440';
+
 function ruralShape(): Shape {
   const s = new Shape();
-  const pen = plasticPen(s, PLASTIC.rural);
-  pen(box(4.9, 0.1, 4.9, 0.04), -0.03, { at: [0, -0.04, 0], jitter: 0 });
-  // Land: a raised layer with the lake cut out (the lake floor is the plate, glossy).
+  const add = (geo: THREE.BufferGeometry, paint: Paint, o: PartOpts = {}) => s.add(geo, paint, { jitter: 0.03, ...o });
+  // Earth-coloured slab edge.
+  add(box(4.9, 0.1, 4.9, 0.04), PAINT.soil, { at: [0, -0.04, 0], jitter: 0 });
+  // Land: a raised lawn layer with the lake cut out (the lake floor is the plate, painted water).
   const land = 0.07;
   const geo = extrude(
     'rural-land',
@@ -602,30 +695,34 @@ function ruralShape(): Shape {
     },
     land,
   );
-  pen(geo, 0, { at: [0, 0.06 + land / 2, 0], rot: [-Math.PI / 2, 0, 0], jitter: 0 });
-  pen(cyl(1.0, 1.0, 0.004, 16), -0.05, { at: [0.95, 0.06, 0.45], scale: [1.35, 1, 1.25], mat: 'glass', jitter: 0 });
+  add(geo, PAINT.lawn, { at: [0, 0.06 + land / 2, 0], rot: [-Math.PI / 2, 0, 0], jitter: 0 });
+  add(cyl(1.0, 1.0, 0.004, 16), shade(PAINT.water, -0.22), { at: [0.95, 0.06, 0.45], scale: [1.35, 1, 1.25], mat: 'glass', jitter: 0 });
   const top = 0.06 + land;
   // Rolling mounds and shrub clumps along the shore (the SE slab is lumpy with foliage).
   for (const [x, z, r] of [
     [-1.6, 1.3, 0.75],
     [-1.9, -0.9, 0.5],
   ] as const)
-    pen(dome(r, r * 0.22, 9), 0.02, { at: [x, top - 0.01, z] });
+    add(dome(r, r * 0.22, 9), PAINT.lawnDark, { at: [x, top - 0.01, z] });
   LAKE.forEach(([x, z], i) => {
     if (i % 3 !== 1 || (z < 0.2 && x < 0.6)) return;
     const k = 1.12 + 0.1 * Math.sin(i * 2.1);
-    pen(dome(0.17 + 0.05 * Math.sin(i), 0.17, 6), 0.03, { at: [0.95 + (x - 0.95) * k, top - 0.01, 0.45 + (z - 0.45) * k] });
+    add(dome(0.17 + 0.05 * Math.sin(i), 0.17, 6), i % 2 ? PAINT.leaf : HEDGE, { at: [0.95 + (x - 0.95) * k, top - 0.01, 0.45 + (z - 0.45) * k] });
   });
-  // Slat shed (log cabin) by the shore, ridge along x.
+  // Two small fields behind the cabin: wheat, and ploughed earth with raised furrows.
+  add(box(0.9, 0.025, 0.62, 0), WHEAT, { at: [0.45, top - 0.01, -1.5], jitter: 0.02 });
+  add(box(0.7, 0.02, 0.62, 0), PAINT.soil, { at: [-0.45, top - 0.01, -1.5], jitter: 0 });
+  for (let i = 0; i < 4; i++) add(box(0.64, 0.025, 0.06, 0), FURROW, { at: [-0.45, top, -1.74 + i * 0.16], jitter: 0.04 });
+  // Log cabin by the shore, ridge along x.
   const [hx, hz] = [-0.75, -0.55];
-  pen(box(0.96, 0.44, 0.66, 0), RECESS, { at: [hx, top, hz] });
-  for (let i = 0; i < 4; i++) pen(box(1.02, 0.06, 0.72, 0), 0, { at: [hx, top + 0.03 + i * 0.11, hz] });
-  pen(gable(0.86, 0.2, 1.16), 0.03, { at: [hx, top + 0.46, hz], rot: [0, Math.PI / 2, 0] });
-  pen(box(0.18, 0.3, 0.02, 0), RECESS - 0.06, { at: [hx + 0.2, top, hz + 0.36] });
-  pen(box(0.13, 0.14, 0.02, 0), RECESS - 0.06, { at: [hx - 0.22, top + 0.16, hz + 0.36] });
+  add(box(0.96, 0.44, 0.66, 0), PAINT.woodDark, { at: [hx, top, hz] });
+  for (let i = 0; i < 4; i++) add(box(1.02, 0.06, 0.72, 0), PAINT.wood, { at: [hx, top + 0.03 + i * 0.11, hz], jitter: 0.06 });
+  add(gable(0.86, 0.2, 1.16), PAINT.roofGreen, { at: [hx, top + 0.46, hz], rot: [0, Math.PI / 2, 0] });
+  add(box(0.18, 0.3, 0.02, 0), PAINT.doorWood, { at: [hx + 0.2, top, hz + 0.36] });
+  add(box(0.13, 0.14, 0.02, 0), PAINT.glass, { at: [hx - 0.22, top + 0.16, hz + 0.36], mat: 'glass' });
   // Jetty of six planks into the lake.
-  for (let i = 0; i < 6; i++) pen(box(0.12, 0.03, 0.42, 0), i % 2 ? 0.04 : 0.01, { at: [-0.24 + i * 0.15, top + 0.01, 0.15] });
-  for (const x of [0.2, 0.58]) for (const z of [-0.04, 0.34]) pen(cyl(0.025, 0.025, 0.1, 4), RECESS, { at: [x, 0.06, z] });
+  for (let i = 0; i < 6; i++) add(box(0.12, 0.03, 0.42, 0), i % 2 ? PAINT.woodLight : PAINT.wood, { at: [-0.24 + i * 0.15, top + 0.01, 0.15] });
+  for (const x of [0.2, 0.58]) for (const z of [-0.04, 0.34]) add(cyl(0.025, 0.025, 0.1, 4), PAINT.woodDark, { at: [x, 0.06, z] });
   // Eight round trees and three pines, clustered like the SE sculpt.
   for (const [x, z, sz] of [
     [-2.0, 2.0, 1.25],
@@ -637,15 +734,15 @@ function ruralShape(): Shape {
     [2.0, 2.0, 1.15],
     [-0.1, 2.05, 0.95],
   ] as const)
-    plasticTree(pen, x, z, sz * 1.15, top);
+    paintedTree(s, x, z, sz * 1.15, top, x * z > 0 ? PAINT.leaf : shade(PAINT.leaf, -0.08).getStyle());
   for (const [x, z, sz] of [
     [-2.05, -0.5, 1.3],
     [1.95, -1.4, 1.2],
     [-1.6, -2.05, 1.0],
   ] as const)
-    plasticPine(pen, x, z, sz * 1.2, top);
-  // Embossed ∞ in the back corner.
-  embossInto(s, '∞', `#${shade(PLASTIC.rural, 0.14).getHexString()}`, { at: [1.2, top, -1.95], rot: [-Math.PI / 2, 0, 0], h: 0.6, stroke: 0.09, depth: 0.05 });
+    paintedPine(s, x, z, sz * 1.2, top);
+  // Embossed ∞ in the back corner, painted cream.
+  embossInto(s, '∞', PAINT.signCream, { at: [1.2, top, -1.95], rot: [-Math.PI / 2, 0, 0], h: 0.6, stroke: 0.09, depth: 0.05 });
   return s;
 }
 

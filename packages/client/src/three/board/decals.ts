@@ -3,14 +3,23 @@
  * apartment plates, green garden and park plates, and the printed drink suppliers. They lie flat
  * on the tile print under the minis (one merged mesh, one atlas texture), so a mini's margin and
  * any square it does not cover show the print, as on the real tiles.
+ *
+ * Empty squares get a flat lot paint (lawn, paving, car park, gravel, yard), picked and turned per
+ * square from its position, with a margin of print round it so the square grid still reads. Some
+ * squares stay plain print. The lots go when the square is built on (occupancy rebuilds this layer).
  */
 import * as THREE from 'three';
 import type { Board, Cell } from '@fcm/engine';
-import { plateAtlas, plateUV, type PlateKind } from './textures.js';
+import { hash2 } from '../coords.js';
+import { LOT_KINDS, plateAtlas, plateUV, type PlateKind } from './textures.js';
 
 /** Just above the tile print, below roads (ROAD_TOP) and the seam line. */
 const DECAL_Y = 0.006;
 const INSET = 0.03;
+/** Print margin round a lot paint. */
+const LOT_INSET = 0.075;
+/** Share of empty squares left as plain print. */
+const PLAIN = 0.2;
 
 interface Quad {
   kind: PlateKind;
@@ -20,6 +29,8 @@ interface Quad {
   z1: number;
   /** Turn the art a quarter (tall gardens). */
   turn: boolean;
+  /** Quarter turns of the art (lots). */
+  rot?: number;
 }
 
 function bounds(cells: readonly Cell[]): { x0: number; z0: number; x1: number; z1: number } | null {
@@ -57,6 +68,14 @@ export function plateQuads(b: Board): Quad[] {
     const k: PlateKind = s.drink === 'beer' ? 'beer' : s.drink === 'lemonade' ? 'lemonade' : 'soft_drink';
     add(k, { x0: s.x, z0: s.y, x1: s.x + 1, z1: s.y + 1 });
   }
+  for (let y = 0; y < b.h; y++)
+    for (let x = 0; x < b.w; x++) {
+      const c = b.cells[y]?.[x];
+      if (!c || c.kind !== 'empty' || c.road) continue;
+      if (hash2(x, y, 23) < PLAIN) continue;
+      const kind = LOT_KINDS[Math.floor(hash2(x, y, 29) * LOT_KINDS.length)]!;
+      out.push({ kind, x0: x + LOT_INSET, z0: y + LOT_INSET, x1: x + 1 - LOT_INSET, z1: y + 1 - LOT_INSET, turn: false, rot: Math.floor(hash2(x, y, 31) * 4) });
+    }
   return out;
 }
 
@@ -95,7 +114,7 @@ export function buildPlateDecals(b: Board): THREE.InstancedMesh | null {
       [q.x1, q.z1],
       [q.x0, q.z1],
     ];
-    const uvs: [number, number][] = q.turn
+    const art: [number, number][] = q.turn
       ? [
           [u0, v1],
           [u0, v0],
@@ -108,6 +127,8 @@ export function buildPlateDecals(b: Board): THREE.InstancedMesh | null {
           [u1, v0],
           [u0, v0],
         ];
+    const k = q.rot ?? 0;
+    const uvs = art.map((_, i) => art[(i + k) % 4]!);
     corners.forEach(([x, z], i) => {
       pos.push(x, DECAL_Y, z);
       nor.push(0, 1, 0);

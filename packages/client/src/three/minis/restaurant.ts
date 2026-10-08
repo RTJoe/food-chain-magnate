@@ -1,6 +1,6 @@
 /**
  * Restaurant (2x2) and coffee shop (1x1). Restaurants are the Special Edition chain minis
- * (`chains.ts`): one plastic colour, a silhouette per chain, the entrance corner cut at 45° with a
+ * (`chains.ts`), painted: chain-colour walls with realistic details, a silhouette per chain, the entrance corner cut at 45° with a
  * WELCOME strip, the wordmark decal on the roof sign and a roof slot for the drive-in and
  * coming-soon signs. Built with the entrance at the SE corner and rotated to the real one.
  */
@@ -20,13 +20,14 @@ import {
   driveInTexture,
   fenceGeo,
   isChainId,
+  paints,
   restaurantShape,
   slotSignGeo,
   totemGeo,
   welcomeTexture,
   wordmarkTexture,
 } from './chains.js';
-import { P, Shape, ball, box, cone, cyl, extrude, lathe, miniGeo, playerPalette, puck, shade, torus, type PartOpts } from './kit.js';
+import { P, Shape, box, cone, cyl, extrude, lathe, miniGeo, playerPalette, puck, torus, type PartOpts } from './kit.js';
 
 export interface RestaurantParams {
   color: string;
@@ -184,30 +185,32 @@ function arrowShape(): THREE.Shape {
 const KIOSK = { w: 0.6, h: 0.5, d: 0.56, z: -0.04, counterY: 0.27 };
 
 /**
- * SE coffee kiosk in the chain's plastic (art bible §6.10): a 0.6² kiosk with a counter hatch and
- * a propped-up flap, a conical roof and a giant cup and saucer on top. One colour; value steps
- * stand in for relief and baked AO.
+ * SE coffee kiosk (art bible §6.10), painted: a 0.6² kiosk in the chain colour with a dark hatch,
+ * a wooden counter and a propped-up flap, a conical roof a deeper shade of the chain colour with
+ * a white rim, and a white china cup and saucer of coffee on top.
  */
 function coffeeShape(color: string): Shape {
   const s = new Shape();
-  const pen = (geo: THREE.BufferGeometry, tint: number, o: PartOpts = {}) => s.add(geo, tint ? shade(color, tint) : color, { mat: 'plastic', jitter: 0.012, ...o });
+  const k = paints(color);
+  const pen = (geo: THREE.BufferGeometry, paint: THREE.Color, o: PartOpts = {}) => s.add(geo, paint, { mat: 'body', jitter: 0.02, ...o });
   const { w, h, d, z, counterY } = KIOSK;
   const front = z + d / 2;
-  pen(box(0.86, 0.06, 0.86, 0.02), -0.08, { jitter: 0 });
-  pen(box(w, h, d, 0.03), 0, { at: [0, 0.06, z] });
-  // Hatch: a deep opening above the counter, the flap propped up over it.
-  pen(box(w - 0.14, 0.18, 0.02, 0), -0.3, { at: [0, counterY + 0.04, front] });
-  pen(box(w - 0.06, 0.035, 0.12, 0.01), 0.08, { at: [0, counterY, front + 0.04] });
-  pen(box(w - 0.06, 0.025, 0.2, 0.006), 0.05, { at: [0, counterY + 0.24, front + 0.09], rot: [0.35, 0, 0] });
+  pen(box(0.86, 0.06, 0.86, 0.02), k.plate, { jitter: 0 });
+  pen(box(w, h, d, 0.03), k.main, { at: [0, 0.06, z] });
+  // Hatch: a dark opening above the counter, the flap propped up over it.
+  pen(box(w - 0.14, 0.18, 0.02, 0), k.ink, { at: [0, counterY + 0.04, front] });
+  pen(box(w - 0.06, 0.035, 0.12, 0.01), k.wood, { at: [0, counterY, front + 0.04] });
+  pen(box(w - 0.06, 0.025, 0.2, 0.006), k.trim, { at: [0, counterY + 0.24, front + 0.09], rot: [0.35, 0, 0] });
   // Conical roof with a rim, the cup and saucer on top.
   const top = 0.06 + h;
-  pen(cyl(0.45, 0.45, 0.04, 8), -0.06, { at: [0, top, z], rot: [0, Math.PI / 8, 0] });
-  pen(cone(0.44, 0.26, 8), 0.04, { at: [0, top + 0.04, z], rot: [0, Math.PI / 8, 0] });
+  pen(cyl(0.45, 0.45, 0.04, 8), k.trim, { at: [0, top, z], rot: [0, Math.PI / 8, 0] });
+  pen(cone(0.44, 0.26, 8), k.roof, { at: [0, top + 0.04, z], rot: [0, Math.PI / 8, 0] });
   const sy = top + 0.24;
-  pen(puck(0.2, 0.03, 10, 0.01), 0.1, { at: [0, sy, z] });
-  pen(lathe([[0, 0], [0.09, 0], [0.13, 0.15], [0.135, 0.17], [0, 0.17]], 10), 0.12, { at: [0, sy + 0.03, z] });
-  pen(cyl(0.115, 0.115, 0.012, 10), -0.3, { at: [0, sy + 0.192, z] });
-  pen(torus(0.05, 0.016, 8), 0.12, { at: [0.15, sy + 0.12, z], rot: [Math.PI / 2, 0, 0] });
+  const china: PartOpts = { mat: 'plastic', jitter: 0.01 };
+  pen(puck(0.2, 0.03, 10, 0.01), k.china, { at: [0, sy, z], ...china });
+  pen(lathe([[0, 0], [0.09, 0], [0.13, 0.15], [0.135, 0.17], [0, 0.17]], 10), k.china, { at: [0, sy + 0.03, z], ...china });
+  pen(cyl(0.115, 0.115, 0.012, 10), k.coffee, { at: [0, sy + 0.192, z], mat: 'glass' });
+  pen(torus(0.05, 0.016, 8), k.china, { at: [0.15, sy + 0.12, z], rot: [Math.PI / 2, 0, 0], ...china });
   return s;
 }
 

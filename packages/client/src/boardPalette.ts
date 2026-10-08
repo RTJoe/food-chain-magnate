@@ -24,17 +24,37 @@ export const BOARD = {
    * visible. High contrast draws it in ink.
    */
   seam: tok('tileSeam', '#8f8a80'),
-  /** Seam across a road (and in the 2D board): near-ink, 3.1:1 on `road`. */
-  seamOnRoad: '#2f2d30',
-  road: tok('tileRoad', '#7c787b'),
-  roadLight: '#8a8688',
-  roadDark: '#6e6a6d',
-  /** Yellow kerb lines. */
-  roadEdge: tok('tileRoadLine', '#d9c35c'),
-  /** White centre dashes and zebra crossings. */
-  roadDash: tok('tileRoadDash', '#f4f4f2'),
+  /** Seam across a road (and in the 2D board): near-ink, 3.6:1 on `road`. */
+  seamOnRoad: '#1c1c1f',
+  /**
+   * Asphalt (painted-mini street palette, minis/paint.ts, lifted to a mid grey so ink marks and
+   * route outlines keep 3:1 on it: ink 3.2:1, seamOnRoad 3.6:1).
+   */
+  road: tok('tileRoad', '#707378'),
+  /** Aggregate flecks and patches in the asphalt. */
+  roadLight: '#80838a',
+  roadDark: '#5f6267',
+  /** Pavement strip along the closed sides of a road square, and its kerb stone. */
+  pavement: '#d3cec3',
+  kerb: '#ebe7dd',
+  /** Yellow edge lines (just inside the kerb), as the printed tiles' yellow lines. */
+  roadEdge: tok('tileRoadLine', '#e8c547'),
+  /** White centre dashes and zebra crossings: 4.1:1 on `road`. */
+  roadDash: tok('tileRoadDash', '#f1eee6'),
   /** Lobbyist road under construction. */
   gravel: '#b3a68c',
+  /**
+   * Empty lots (flat, pale paint under nothing): lawn, paving, gravel, concrete. Kept light
+   * (luminance 0.54 or more) so `legal` (3.2:1+) and `bad` (3.5:1+) still read on them, and far from
+   * the lime garden / dark park plates.
+   */
+  lotLawn: '#bccb9e',
+  lotLawnStripe: '#b1c292',
+  lotHedge: '#93a97a',
+  lotPaving: '#dcd6ca',
+  lotGravel: '#dccfb4',
+  lotConcrete: '#d9d6cf',
+  lotSoil: '#b59a7c',
   bridge: tok('bridgeSteel', '#8fd3a8'),
   bridgeDark: '#5fae80',
   houseTile: tok('houseTile', '#b2658e'),
@@ -54,13 +74,13 @@ export const BOARD = {
   lemonade: '#e8cf3a',
   soda: '#d8262a',
   /**
-   * Legal-area tint: deep teal, 3.7:1 on `ground` (map-tile and off-board areas; the legal-spot
-   * dots carry an ink ring, 3.5:1 on `road`).
+   * Legal-area tint: deep teal, 5.1:1 on `ground` and 3.2:1 or more on the lot paints (the legal-spot
+   * dots carry an ink ring, 3.2:1 on `road`).
    */
-  legal: '#2b8a7e',
-  /** Illegal / blocked: planning red, 5.6:1 on `ground`; on `road` its white edge carries it (4.4:1). */
+  legal: '#227268',
+  /** Illegal / blocked: planning red, 5.6:1 on `ground`; on `road` its white edge carries it (4.8:1). */
   bad: '#aa3839',
-  /** White edge around range squares and blocked marks: 4.4:1 on `road`. */
+  /** White edge around range squares and blocked marks: 4.8:1 on `road`. */
   edge: '#ffffff',
 } as const;
 

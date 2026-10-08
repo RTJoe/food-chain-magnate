@@ -423,7 +423,17 @@ with the portrait cropped to a head-and-shoulders band):
 
 ## 6. Miniatures, piece by piece
 
-General rule for every 3D piece: emulate the SE sculpt. One colour per piece family, matte
+**Painted minis (2026-10, supersedes the single-colour rule below).** Keep every SE sculpt, but
+paint it like a quality hobby paint job. Player pieces (restaurants, totems, coffee kiosks) take
+the player colour on walls and roofs with painted glass, frames, doors, signs and trim. Houses
+use pale period walls and slate, shingle or dark terracotta roofs (never a player hue). Drink
+suppliers keep their component base tones: beer green, lemonade yellow, cola red. Marketing
+pieces are realistically painted on a light-blue plate. Roads are asphalt with kerbs and
+markings; empty lots carry flat lawn, paving and car-park prints. Shared detail paints live in
+`three/minis/paint.ts`. Where this section says "monochrome" or names a `*Plastic` colour, read
+it as the base tone of the paint job.
+
+Original rule: emulate the SE sculpt. One colour per piece family, matte
 plastic with a slight sheen (`MeshStandardMaterial` roughness 0.55, metalness 0, plus a faint
 clearcoat if `MeshPhysicalMaterial` is used: clearcoat 0.15, roughness 0.6). Flat shading, no
 textures except decals listed below. Ambient occlusion baked into vertex colour (darken concave

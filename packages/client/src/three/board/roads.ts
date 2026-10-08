@@ -1,7 +1,7 @@
 /**
  * Roads from cell adjacency (art bible §5): each road square's links decide its shape (end,
- * straight, corner, T, cross), drawn flat as the printed tiles do: warm grey asphalt with yellow
- * kerb lines (one canvas texture per shape, turned per square), white centre dashes, a zebra
+ * straight, corner, T, cross), drawn flat: painted asphalt with pavements, kerbs and yellow edge
+ * lines (one canvas texture per shape, turned per square), white centre dashes, a zebra
  * crossing on each side of every tile border a road crosses, the border's hairline across the
  * road, and pale green lattice bridges. A handful of InstancedMeshes plus merged bridge decks;
  * rebuilt only when the road signature changes.
@@ -12,7 +12,7 @@ import { BOARD } from '../../boardPalette.js';
 import { DELTA, DIRS, ROAD_TOP } from '../coords.js';
 import { Shape, box, color, hull, mats, shade } from '../minis/kit.js';
 import { buildRoadSeams, type SeamCrossing } from './seams.js';
-import { roadTexture, type RoadTexShape } from './textures.js';
+import { roadPx, roadTexture, type RoadTexShape } from './textures.js';
 
 export type RoadShape = 'none' | 'end' | 'straight' | 'corner' | 'tee' | 'cross';
 
@@ -167,9 +167,10 @@ export function buildRoads(b: Board): RoadLayer {
   // Asphalt: a flat printed square per road square, one instanced mesh per shape texture.
   const squareGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   disposables.push(squareGeo);
+  const px = roadPx();
   for (const shape of Object.keys(asphalt) as RoadTexShape[]) {
     if (!asphalt[shape].length) continue;
-    const mat = new THREE.MeshStandardMaterial({ map: roadTexture(shape), roughness: 0.9, metalness: 0, envMapIntensity: 0.3 });
+    const mat = new THREE.MeshStandardMaterial({ map: roadTexture(shape, px), roughness: 0.9, metalness: 0, envMapIntensity: 0.3 });
     disposables.push(mat);
     addInst(`asphalt:${shape}`, squareGeo, mat, asphalt[shape], ROAD_TOP);
   }
@@ -180,7 +181,7 @@ export function buildRoads(b: Board): RoadLayer {
   disposables.push(dashGeo);
   addInst('dashes', dashGeo, paintMat, dashes, ROAD_TOP + 0.002);
 
-  const zebraGeo = mergePlanes(Array.from({ length: ZEBRA_BARS }, (_, i) => [-0.33 + (i * 0.66) / (ZEBRA_BARS - 1), 0, 0.08, 0.2] as const));
+  const zebraGeo = mergePlanes(Array.from({ length: ZEBRA_BARS }, (_, i) => [-0.3 + (i * 0.6) / (ZEBRA_BARS - 1), 0, 0.075, 0.2] as const));
   disposables.push(zebraGeo);
   addInst('zebras', zebraGeo, paintMat, zebras, ROAD_TOP + 0.002);
 
@@ -314,6 +315,29 @@ function bridgeDeck(s: Shape, cx: number, cz: number, rampW: number, rampE: numb
       road,
       { at: [x0, 0, cz], jitter: 0 },
     );
+    // Ramp paint: yellow edge lines and a white centre line, a hair above the sloped asphalt.
+    const strip = (key: string, zc: number, w: number, c: string, from = 0, to = 1) => {
+      const xa = sx * len * from;
+      const xb = sx * len * to;
+      const ya = top + 0.004 + (ROAD_TOP + 0.008 - top - 0.004) * from + 0.003;
+      const yb = top + 0.004 + (ROAD_TOP + 0.008 - top - 0.004) * to + 0.003;
+      s.add(
+        hull(`rampPaint:${key}:${sx}:${len}`, [
+          [xa, ya, zc - w / 2],
+          [xa, ya, zc + w / 2],
+          [xb, yb, zc - w / 2],
+          [xb, yb, zc + w / 2],
+          [xa, ya - 0.002, zc - w / 2],
+          [xa, ya - 0.002, zc + w / 2],
+          [xb, yb - 0.002, zc - w / 2],
+          [xb, yb - 0.002, zc + w / 2],
+        ]),
+        c,
+        { at: [x0, 0, cz], jitter: 0 },
+      );
+    };
+    for (const sz of [-1, 1]) strip(`edge${sz}`, sz * (hw - 0.12), 0.018, BOARD.roadEdge);
+    for (let f = 0.12; f < 0.95; f += 0.5) strip(`dash${f}`, 0, 0.035, BOARD.roadDash, f, Math.min(1, f + 0.25));
     for (const sz of [-1, 1]) {
       const z = sz * (hw + 0.02);
       s.add(
@@ -352,11 +376,15 @@ function bridgeDeck(s: Shape, cx: number, cz: number, rampW: number, rampE: numb
       }
     }
   }
-  // Deck: asphalt with yellow kerb lines and a white dash, on a green slab.
+  // Deck: asphalt between raised kerbed walkways, yellow edge lines and white dashes, on a green slab.
   s.add(box(1.04, 0.05, hw * 2 + 0.04, 0.01), steelD, { at: [cx, top - 0.05, cz], jitter: 0 });
   s.add(box(1.0, 0.012, hw * 2, 0), road, { at: [cx, top - 0.004, cz], jitter: 0 });
-  for (const sz of [-1, 1]) s.add(box(1.0, 0.006, 0.05, 0), BOARD.roadEdge, { at: [cx, top + 0.006, cz + sz * (hw - 0.08)], jitter: 0 });
-  for (const dx of [-0.25, 0.25]) s.add(box(0.25, 0.006, 0.04, 0), BOARD.roadDash, { at: [cx + dx, top + 0.006, cz], jitter: 0 });
+  for (const sz of [-1, 1]) {
+    s.add(box(1.0, 0.018, 0.075, 0), BOARD.pavement, { at: [cx, top + 0.007, cz + sz * (hw - 0.0375)], jitter: 0 });
+    s.add(box(1.0, 0.02, 0.014, 0), BOARD.kerb, { at: [cx, top + 0.008, cz + sz * (hw - 0.082)], jitter: 0 });
+    s.add(box(1.0, 0.004, 0.018, 0), BOARD.roadEdge, { at: [cx, top + 0.003, cz + sz * (hw - 0.12)], jitter: 0 });
+  }
+  for (const dx of [-0.25, 0.25]) s.add(box(0.25, 0.004, 0.035, 0), BOARD.roadDash, { at: [cx + dx, top + 0.003, cz], jitter: 0 });
   // Through truss: an X-braced lattice each side and X bracing overhead (what the top view sees,
   // as the printed tiles draw it); traffic on the deck passes under the top bracing.
   const tH = 0.44;

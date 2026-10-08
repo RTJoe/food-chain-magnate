@@ -1,9 +1,9 @@
 /**
- * Marketing campaign minis as Special Edition light-blue plastic (docs/art-bible.md §6.6–6.9):
- * billboard (sized to its footprint), mailbox, radio tower, airplane on its wavy banner stand,
- * giant billboard (rural), gourmet guide. Every piece stands on a numbered light-blue plate; the
- * one colour accent is the cyan sign face carrying the advertised good's token glyph. Owner and
- * duration read from the camera-facing marker and the stack of duration tokens.
+ * Marketing campaign minis: the Special Edition sculpts (docs/art-bible.md §6.6–6.9) with a hobby
+ * paint job: billboard (sized to its footprint), mailbox, radio tower, airplane on its wavy banner
+ * stand, giant billboard (rural), gourmet guide. The family marks stay: every piece stands on a
+ * numbered light-blue plate and carries the cyan sign face with the advertised good's token glyph.
+ * Owner and duration read from the camera-facing marker and the stack of duration tokens.
  */
 import * as THREE from 'three';
 import type { FoodId } from '@fcm/engine';
@@ -11,7 +11,8 @@ import { BADGE_MIN_PX, badgeSprite, campaignBadgeTexture, drawFood } from '../la
 import { embossInstanced, plasticPen, type Pen } from './buildings.js';
 import { blob, face, mesh, owned, solid, type MiniCtx } from './ctx.js';
 import { tokenShape } from './tokens.js';
-import { P, Shape, ball, box, cone, cyl, extrude, lathe, miniGeo, playerPalette, puck, shade, torus } from './kit.js';
+import { P, Shape, ball, box, cone, cyl, extrude, lathe, miniGeo, playerPalette, puck, shade, torus, type MatKind, type Paint } from './kit.js';
+import { PAINT } from './paint.js';
 
 export interface CampaignVisual {
   color: string;
@@ -27,12 +28,28 @@ export const SIGN_CYAN = '#2deedd';
 const MKT = MARKETING_PLASTIC;
 const PLATE_H = 0.06;
 const RECESS = -0.1;
-const DEEP = -0.24;
 const css = (c: THREE.Color) => `#${c.getHexString()}`;
 /** Embossed plate numbers: a shade lighter than the plastic so they catch the light. */
 const NUMBER_PAINT = css(shade(MKT, 0.4));
 
 type V3 = [number, number, number];
+
+// Local paints (the shared detail paints come from PAINT).
+/** Billboard steelwork: dark green enamel. */
+const STEEL_GREEN = '#3e5b4b';
+/** Aviation red-orange of the radio mast bands and the beacon. */
+const MAST_RED = '#c9452f';
+/** Light-aircraft livery: cream body, red trim. */
+const PLANE_CREAM = '#ede6d3';
+const LIVERY_RED = '#c43a2e';
+const ROPE = '#c8b18a';
+const LEATHER = '#8a2c2a';
+const GILT = '#e6b83e';
+
+/** Painted part pen: matte hobby paint in `base`; `tint` > 0 lightens, < 0 darkens (baked AO). */
+function paintPen(s: Shape, base: Paint, mat: MatKind = 'body', jitter = 0.03): Pen {
+  return (geo, tint = 0, o = {}) => s.add(geo, tint ? shade(base, tint) : base, { jitter, mat, ...o });
+}
 
 // ---------------------------------------------------------------------------
 // Shared parts: lattice rods, the numbered plate, the cyan sign decal
@@ -243,26 +260,38 @@ function signSpec(long: number, short: number, giant: boolean): SignSpec {
  */
 function billboardShape(long: number, short: number, giant: boolean): Shape {
   const s = new Shape();
-  const pen = plasticPen(s, MKT);
-  plateShape(pen, long, short);
+  plateShape(plasticPen(s, MKT), long, short);
   const { pw, ph, y0, zp } = signSpec(long, short, giant);
   const brace = giant ? 0.34 : 0.28;
-  // Panel frame (the face decal sits on its front).
-  pen(box(pw + 0.08, ph + 0.08, 0.05, 0.015), 0, { at: [0, y0 - 0.04, zp] });
+  // Town billboards stand on green-enamelled steel; the rural giant on weathered timber.
+  const post = paintPen(s, giant ? PAINT.wood : STEEL_GREEN);
+  const tie = paintPen(s, giant ? PAINT.woodDark : shade(STEEL_GREEN, -0.18));
+  const frame = paintPen(s, PAINT.trimWhite);
+  const grey = paintPen(s, PAINT.metal);
+  // White-painted panel frame (the face decal sits on its front) with a dark cap rail.
+  frame(box(pw + 0.08, ph + 0.08, 0.05, 0.015), 0, { at: [0, y0 - 0.04, zp] });
+  post(box(pw + 0.12, 0.03, 0.08, 0), 0, { at: [0, y0 + ph + 0.04, zp] });
   // Lattice: posts behind the panel, a back brace on each, zig-zag ties between posts.
   const n = giant ? 7 : Math.max(3, Math.round(long) * 2 + 1);
   const zb = zp - 0.05;
   const xs = Array.from({ length: n }, (_, i) => -pw / 2 + 0.06 + (i * (pw - 0.12)) / (n - 1));
   xs.forEach((x, i) => {
-    rod(pen, [x, PLATE_H, zb], [x, y0 + ph * 0.85, zb], 0.024);
-    rod(pen, [x, PLATE_H, zb - brace], [x, y0 + ph * 0.55, zb], 0.02, RECESS);
+    rod(post, [x, PLATE_H, zb], [x, y0 + ph * 0.85, zb], 0.024);
+    rod(tie, [x, PLATE_H, zb - brace], [x, y0 + ph * 0.55, zb], 0.02);
     const nx = xs[i + 1];
-    if (nx !== undefined) rod(pen, i % 2 ? [x, PLATE_H + 0.02, zb] : [x, y0 - 0.02, zb], i % 2 ? [nx, y0 - 0.02, zb] : [nx, PLATE_H + 0.02, zb], 0.014, RECESS);
+    if (nx !== undefined) rod(tie, i % 2 ? [x, PLATE_H + 0.02, zb] : [x, y0 - 0.02, zb], i % 2 ? [nx, y0 - 0.02, zb] : [nx, PLATE_H + 0.02, zb], 0.014);
   });
-  rod(pen, [-pw / 2 + 0.04, y0 * 0.5, zb - 0.005], [pw / 2 - 0.04, y0 * 0.5, zb - 0.005], 0.016);
-  // Catwalk ledge under the face, with a toe rail.
-  pen(box(pw, 0.025, 0.13, 0), 0.04, { at: [0, y0 - 0.1, zp + 0.08] });
-  pen(box(pw, 0.03, 0.015, 0), 0, { at: [0, y0 - 0.075, zp + 0.14] });
+  rod(post, [-pw / 2 + 0.04, y0 * 0.5, zb - 0.005], [pw / 2 - 0.04, y0 * 0.5, zb - 0.005], 0.016);
+  // Grey steel catwalk ledge under the face, with a toe rail.
+  grey(box(pw, 0.025, 0.13, 0), 0.04, { at: [0, y0 - 0.1, zp + 0.08] });
+  grey(box(pw, 0.03, 0.015, 0), -0.08, { at: [0, y0 - 0.075, zp + 0.14] });
+  // Gooseneck lamps over the top edge, shades tipped back at the poster.
+  const nl = giant ? 3 : Math.max(2, Math.round(long));
+  for (let i = 0; i < nl; i++) {
+    const x = -pw / 2 + (pw * (i + 0.5)) / nl;
+    rod(post, [x, y0 + ph + 0.05, zp], [x, y0 + ph + 0.1, zp + 0.13], 0.01);
+    post(cone(0.05, 0.035, 6), 0.1, { at: [x, y0 + ph + 0.06, zp + 0.14], rot: [0.6, 0, 0] });
+  }
   return s;
 }
 
@@ -316,30 +345,35 @@ const MAILBOX = { y: 0.69, h: 0.17, half: 0.14, len: 0.42 };
 /** US rural mailbox on a post, door open 30°, letters sticking out, flag up (base p.31). */
 export function mailboxShape(): Shape {
   const s = new Shape();
-  const pen = plasticPen(s, MKT);
   const { y, h, half, len } = MAILBOX;
-  // Post with a foot and a plank under the box.
-  pen(box(0.16, 0.04, 0.16, 0.01), RECESS, { at: [0, PLATE_H, 0] });
-  pen(box(0.08, y - PLATE_H - 0.03, 0.08, 0), 0, { at: [0, PLATE_H, 0] });
-  pen(box(0.22, 0.03, len - 0.04, 0), RECESS, { at: [0, y - 0.03, 0] });
-  // Body: straight walls and a half-round roof along z; the open mouth at +z.
-  pen(box(half * 2, h, len, 0.015), 0, { at: [0, y, 0] });
-  pen(cyl(half, half, len, 8), 0.06, { at: [0, y + h, -len / 2], rot: [Math.PI / 2, 0, 0] });
-  pen(box(half * 2 - 0.04, h - 0.02, 0.01, 0), DEEP, { at: [0, y + 0.01, len / 2 + 0.001] });
-  pen(cyl(half - 0.02, half - 0.02, 0.01, 8), DEEP, { at: [0, y + h, len / 2 - 0.008], rot: [Math.PI / 2, 0, 0] });
-  // Letters sticking out of the mouth.
-  for (let i = 0; i < 3; i++)
-    pen(box(0.17 - i * 0.02, 0.012, 0.16, 0), 0.24, { at: [-0.02 + i * 0.02, y + 0.05 + i * 0.045, len / 2 - 0.02], rot: [0.12 - i * 0.1, 0.1 * (i - 1), 0], jitter: 0 });
+  const wood = paintPen(s, PAINT.wood);
+  const tin = paintPen(s, PAINT.chrome, 'metal', 0.02);
+  const dark = paintPen(s, PAINT.trimDark, 'body', 0);
+  const red = paintPen(s, PAINT.neonRed);
+  // Wooden post with a foot and a plank under the box.
+  wood(box(0.16, 0.04, 0.16, 0.01), -0.2, { at: [0, PLATE_H, 0] });
+  wood(box(0.08, y - PLATE_H - 0.03, 0.08, 0), 0, { at: [0, PLATE_H, 0] });
+  wood(box(0.22, 0.03, len - 0.04, 0), -0.12, { at: [0, y - 0.03, 0] });
+  // Galvanised body: straight walls and a half-round roof along z; the dark open mouth at +z.
+  tin(box(half * 2, h, len, 0.015), 0, { at: [0, y, 0] });
+  tin(cyl(half, half, len, 8), 0.08, { at: [0, y + h, -len / 2], rot: [Math.PI / 2, 0, 0] });
+  dark(box(half * 2 - 0.04, h - 0.02, 0.01, 0), 0, { at: [0, y + 0.01, len / 2 + 0.001] });
+  dark(cyl(half - 0.02, half - 0.02, 0.01, 8), 0, { at: [0, y + h, len / 2 - 0.008], rot: [Math.PI / 2, 0, 0] });
+  // Letters sticking out of the mouth: white, cream and an airmail blue.
+  const letters = [PAINT.trimWhite, PAINT.signCream, '#cfdcea'];
+  letters.forEach((c, i) =>
+    s.add(box(0.17 - i * 0.02, 0.012, 0.16, 0), c, { at: [-0.02 + i * 0.02, y + 0.05 + i * 0.045, len / 2 - 0.02], rot: [0.12 - i * 0.1, 0.1 * (i - 1), 0], jitter: 0 }),
+  );
   // Door, hinged at the bottom of the mouth and dropped open 30°.
   const door = new Shape();
-  const dp = plasticPen(door, MKT);
-  dp(box(half * 2, h, 0.02, 0.006), 0.02, { at: [0, 0, 0] });
-  dp(cyl(half, half, 0.02, 8), 0.02, { at: [0, h, -0.01], rot: [Math.PI / 2, 0, 0] });
-  dp(box(0.08, 0.025, 0.03, 0.006), 0.12, { at: [0, h + half - 0.06, 0.02] });
+  const dp = paintPen(door, PAINT.chrome, 'metal', 0.02);
+  dp(box(half * 2, h, 0.02, 0.006), 0.04, { at: [0, 0, 0] });
+  dp(cyl(half, half, 0.02, 8), 0.04, { at: [0, h, -0.01], rot: [Math.PI / 2, 0, 0] });
+  paintPen(door, PAINT.metalDark)(box(0.08, 0.025, 0.03, 0.006), 0, { at: [0, h + half - 0.06, 0.02] });
   s.addShape(door, { at: [0, y, len / 2 + 0.012], rot: [Math.PI / 6, 0, 0] });
-  // Flag up on the side.
-  pen(box(0.025, 0.3, 0.025, 0), 0, { at: [half + 0.015, y - 0.02, -len / 2 + 0.08] });
-  pen(box(0.02, 0.08, 0.15, 0.006), 0.06, { at: [half + 0.02, y + 0.2, -len / 2 + 0.145] });
+  // Red flag up on the side.
+  red(box(0.025, 0.3, 0.025, 0), -0.15, { at: [half + 0.015, y - 0.02, -len / 2 + 0.08] });
+  red(box(0.02, 0.08, 0.15, 0.006), 0, { at: [half + 0.02, y + 0.2, -len / 2 + 0.145] });
   return s;
 }
 
@@ -387,33 +421,37 @@ function mastCorner(y: number, i: number): V3 {
   return [MX + (i === 0 || i === 3 ? -r : r), y, MZ + (i < 2 ? -r : r)];
 }
 
-/** Light-blue lattice mast with zig-zag braces, a beacon ball, a hut and a sign board. */
+/**
+ * Steel lattice mast banded aviation red and white (one band per brace level, red at both ends),
+ * a red beacon, a painted transmitter hut and a sign board.
+ */
 export function radioShape(): Shape {
   const s = new Shape();
-  const pen = plasticPen(s, MKT);
   const { h, levels } = MAST;
-  for (let i = 0; i < 4; i++) {
-    rod(pen, mastCorner(PLATE_H, i), mastCorner(MAST_TOP, i), 0.026);
-  }
+  const red = paintPen(s, MAST_RED);
+  const white = paintPen(s, PAINT.trimWhite);
   for (let k = 0; k < levels; k++) {
+    const band = k % 2 ? white : red;
     const ya = PLATE_H + (h * k) / levels;
     const yb = PLATE_H + (h * (k + 1)) / levels;
     for (let i = 0; i < 4; i++) {
       const j = (i + 1) % 4;
-      if (k % 2) rod(pen, mastCorner(ya, i), mastCorner(yb, j), 0.013, RECESS);
-      else rod(pen, mastCorner(ya, j), mastCorner(yb, i), 0.013, RECESS);
-      if (k % 2 || k === levels - 1) rod(pen, mastCorner(yb, i), mastCorner(yb, j), 0.016);
+      rod(band, mastCorner(ya, i), mastCorner(yb, i), 0.026);
+      if (k % 2) rod(band, mastCorner(ya, i), mastCorner(yb, j), 0.013, RECESS);
+      else rod(band, mastCorner(ya, j), mastCorner(yb, i), 0.013, RECESS);
+      if (k % 2 || k === levels - 1) rod(band, mastCorner(yb, i), mastCorner(yb, j), 0.016);
     }
   }
-  rod(pen, [MX, MAST_TOP - 0.03, MZ], [MX, MAST_TOP + 0.14, MZ], 0.022);
-  pen(ball(0.1, 0), 0.08, { at: [MX, MAST_TOP + 0.22, MZ] });
-  // Transmitter hut, back-left.
-  pen(box(0.27, 0.22, 0.25, 0), 0, { at: [-0.26, PLATE_H, -0.26] });
-  pen(box(0.33, 0.04, 0.31, 0), 0.05, { at: [-0.26, PLATE_H + 0.22, -0.26] });
-  pen(box(0.08, 0.15, 0.01, 0), DEEP, { at: [-0.33, PLATE_H, -0.134] });
-  // Sign board hung on the mast front (decal in buildRadio).
+  rod(paintPen(s, PAINT.metalDark), [MX, MAST_TOP - 0.03, MZ], [MX, MAST_TOP + 0.14, MZ], 0.022);
+  s.add(ball(0.1, 0), PAINT.neonRed, { at: [MX, MAST_TOP + 0.22, MZ], mat: 'glow', jitter: 0 });
+  // Transmitter hut, back-left: cream walls, slate roof, green door, a small window.
+  paintPen(s, PAINT.wallCream)(box(0.27, 0.22, 0.25, 0), 0, { at: [-0.26, PLATE_H, -0.26] });
+  paintPen(s, PAINT.roofSlate)(box(0.33, 0.04, 0.31, 0), 0, { at: [-0.26, PLATE_H + 0.22, -0.26] });
+  paintPen(s, PAINT.doorGreen)(box(0.08, 0.15, 0.01, 0), 0, { at: [-0.33, PLATE_H, -0.134] });
+  s.add(box(0.07, 0.06, 0.01, 0), PAINT.glassDark, { at: [-0.2, PLATE_H + 0.09, -0.134], mat: 'glass', jitter: 0 });
+  // White sign board hung on the mast front (decal in buildRadio).
   const [, , zf] = mastCorner(0.68, 2);
-  pen(box(0.28, 0.24, 0.03, 0.008), 0, { at: [MX, 0.56, zf + 0.02] });
+  paintPen(s, PAINT.trimWhite)(box(0.28, 0.24, 0.03, 0.008), 0, { at: [MX, 0.56, zf + 0.02] });
   return s;
 }
 
@@ -566,23 +604,25 @@ const decalGeos = new Map<string, THREE.BufferGeometry>();
 /** Stand: a post from the plate's far end up to the plane, and the wavy banner down to the plate. */
 function standShape(width: number): Shape {
   const s = new Shape();
-  const pen = plasticPen(s, MKT);
+  const steel = paintPen(s, PAINT.metalDark);
   const b = bannerSpec(width);
   const k = planeScale(width);
   const px = width / 2 - 0.3;
-  pen(box(0.14, 0.03, 0.14, 0.008), RECESS, { at: [px, PLATE_H, 0] });
-  rod(pen, [px, PLATE_H, 0], [px, b.y0 + b.bh * 0.5 + 0.02 * k, 0], 0.035);
-  // Tow bar from the tail to the ribbon's top end.
+  steel(box(0.14, 0.03, 0.14, 0.008), -0.1, { at: [px, PLATE_H, 0] });
+  rod(steel, [px, PLATE_H, 0], [px, b.y0 + b.bh * 0.5 + 0.02 * k, 0], 0.035);
+  // Tow rope from the tail to the ribbon's top end.
   const [bx, by, bz] = bannerPoint(b, 0, 0.6, 0);
-  rod(pen, [px - 0.4 * k, b.y0 + b.bh * 0.55, 0], [bx + 0.01, by, bz], 0.018);
-  pen(bannerGeo(b), 0, {});
+  rod(paintPen(s, ROPE), [px - 0.4 * k, b.y0 + b.bh * 0.55, 0], [bx + 0.01, by, bz], 0.018);
+  // Cream canvas banner.
+  s.add(bannerGeo(b), PAINT.signCream, { jitter: 0 });
   return s;
 }
 
-/** Low-wing monoplane (nose at +x), single plastic, pilot bump; the prop spins separately. */
+/** Low-wing monoplane (nose at +x): cream body, red cowling, wing tips, fin and tail band, glazed canopy; the prop spins separately. */
 function sePlaneShape(): Shape {
   const s = new Shape();
-  const pen = plasticPen(s, MKT);
+  const pen = paintPen(s, PLANE_CREAM);
+  const trim = paintPen(s, LIVERY_RED);
   pen(
     lathe(
       [
@@ -599,13 +639,29 @@ function sePlaneShape(): Shape {
     0,
     { rot: [0, 0, -Math.PI / 2] },
   );
-  pen(cyl(0.11, 0.11, 0.05, 8), RECESS, { at: [0.33, 0, 0], rot: [0, 0, -Math.PI / 2] });
-  // Low wing (span 1.0) with a slight dihedral, the pilot's head under a bump.
-  for (const sz of [-1, 1]) pen(box(0.28, 0.035, 0.5, 0), 0.04, { at: [0.08, -0.09, sz * 0.25], rot: [sz * -0.08, 0, 0] });
-  pen(ball(0.08, 0), 0.08, { at: [0.0, 0.12, 0], scale: [1.4, 1, 1] });
-  // Tail: tailplane and fin.
+  // Red cowling ring and a chrome spinner on the nose; a red band round the rear fuselage.
+  trim(cyl(0.11, 0.11, 0.05, 8), 0, { at: [0.33, 0, 0], rot: [0, 0, -Math.PI / 2] });
+  s.add(cone(0.045, 0.07, 6), PAINT.chrome, { at: [0.39, 0, 0], rot: [0, 0, -Math.PI / 2], mat: 'metal', jitter: 0 });
+  trim(
+    lathe(
+      [
+        [0.077, -0.36],
+        [0.084, -0.3],
+      ],
+      8,
+    ),
+    0,
+    { rot: [0, 0, -Math.PI / 2] },
+  );
+  // Low wing (span 1.0) with a slight dihedral and red tips; the pilot under a glazed canopy.
+  for (const sz of [-1, 1]) {
+    pen(box(0.28, 0.035, 0.5, 0), 0.04, { at: [0.08, -0.09, sz * 0.25], rot: [sz * -0.08, 0, 0] });
+    trim(box(0.284, 0.039, 0.08, 0), 0, { at: [0.08, -0.092 + 0.21 * Math.sin(0.08), sz * (0.25 + 0.21 * Math.cos(0.08))], rot: [sz * -0.08, 0, 0] });
+  }
+  s.add(ball(0.08, 0), PAINT.glassDark, { at: [0.0, 0.12, 0], scale: [1.4, 1, 1], mat: 'glass', jitter: 0 });
+  // Tail: cream tailplane, red fin.
   pen(box(0.15, 0.025, 0.42, 0), 0.04, { at: [-0.4, -0.005, 0] });
-  pen(
+  trim(
     extrude('mkFin', () => {
       const f = new THREE.Shape();
       f.moveTo(0, 0);
@@ -615,15 +671,17 @@ function sePlaneShape(): Shape {
       f.closePath();
       return f;
     }, 0.02, 0),
-    0.04,
+    0,
     { at: [-0.47, 0.02, 0] },
   );
   return s;
 }
 
+/** Dark prop with yellow warning tips. */
 function seProp(): Shape {
   const s = new Shape();
-  plasticPen(s, MKT)(box(0.02, 0.34, 0.045, 0.006), -0.04, { at: [0, -0.17, 0] });
+  s.add(box(0.02, 0.34, 0.045, 0.006), PAINT.trimDark, { at: [0, -0.17, 0], jitter: 0 });
+  for (const y of [-0.172, 0.13]) s.add(box(0.022, 0.042, 0.047, 0), PAINT.flowerYellow, { at: [0, y, 0], jitter: 0 });
   return s;
 }
 
@@ -712,20 +770,23 @@ const BOOK = { tilt: 0.55, y: 0.6, z: 0.02 };
 
 function guideShape(): Shape {
   const s = new Shape();
-  const pen = plasticPen(s, MKT);
-  plateShape(pen, 1.1, 0.85);
-  pen(box(0.16, 0.04, 0.16, 0.01), RECESS, { at: [0, PLATE_H, -0.05] });
-  pen(cyl(0.045, 0.06, 0.5, 6), 0, { at: [0, PLATE_H, -0.05] });
-  pen(box(0.5, 0.05, 0.36, 0.015), RECESS, { at: [0, BOOK.y - 0.07, BOOK.z], rot: [BOOK.tilt, 0, 0] });
-  // Open book: cover, two pages bowed into a V, a ribbon.
-  pen(box(0.6, 0.03, 0.42, 0.01), 0, { at: [0, BOOK.y - 0.03, BOOK.z], rot: [BOOK.tilt, 0, 0] });
-  for (const sx of [-1, 1]) pen(box(0.27, 0.03, 0.38, 0.006), 0.18, { at: [sx * 0.145, BOOK.y, BOOK.z], rot: [BOOK.tilt, 0, 0] });
-  pen(box(0.03, 0.01, 0.2, 0), -0.05, { at: [0.02, BOOK.y + 0.02, BOOK.z + 0.24], rot: [1.0, 0, 0] });
-  // Three stars on a little arch behind the book.
-  rod(pen, [-0.3, PLATE_H, -0.3], [-0.3, 0.98, -0.3], 0.02);
-  rod(pen, [0.3, PLATE_H, -0.3], [0.3, 0.98, -0.3], 0.02);
-  pen(box(0.66, 0.05, 0.04, 0.01), 0, { at: [0, 0.96, -0.3] });
-  for (let i = 0; i < 3; i++) pen(extrude('star', guideStar, 0.04, 0), 0.12, { at: [-0.2 + i * 0.2, 1.1 + (i === 1 ? 0.05 : 0), -0.3], scale: 0.08 });
+  plateShape(plasticPen(s, MKT), 1.1, 0.85);
+  const wood = paintPen(s, PAINT.wood);
+  const gilt = paintPen(s, GILT);
+  // Wooden lectern.
+  wood(box(0.16, 0.04, 0.16, 0.01), -0.2, { at: [0, PLATE_H, -0.05] });
+  wood(cyl(0.045, 0.06, 0.5, 6), 0, { at: [0, PLATE_H, -0.05] });
+  wood(box(0.5, 0.05, 0.36, 0.015), -0.15, { at: [0, BOOK.y - 0.07, BOOK.z], rot: [BOOK.tilt, 0, 0] });
+  // Open book: red leather cover, two cream pages bowed into a V, a gold ribbon.
+  paintPen(s, LEATHER)(box(0.6, 0.03, 0.42, 0.01), 0, { at: [0, BOOK.y - 0.03, BOOK.z], rot: [BOOK.tilt, 0, 0] });
+  for (const sx of [-1, 1]) paintPen(s, PAINT.signCream)(box(0.27, 0.03, 0.38, 0.006), 0, { at: [sx * 0.145, BOOK.y, BOOK.z], rot: [BOOK.tilt, 0, 0] });
+  gilt(box(0.03, 0.01, 0.2, 0), 0, { at: [0.02, BOOK.y + 0.02, BOOK.z + 0.24], rot: [1.0, 0, 0] });
+  // Three gilt stars on a dark wood arch behind the book.
+  const arch = paintPen(s, PAINT.woodDark);
+  rod(arch, [-0.3, PLATE_H, -0.3], [-0.3, 0.98, -0.3], 0.02);
+  rod(arch, [0.3, PLATE_H, -0.3], [0.3, 0.98, -0.3], 0.02);
+  arch(box(0.66, 0.05, 0.04, 0.01), 0, { at: [0, 0.96, -0.3] });
+  for (let i = 0; i < 3; i++) gilt(extrude('star', guideStar, 0.04, 0), 0.05, { at: [-0.2 + i * 0.2, 1.1 + (i === 1 ? 0.05 : 0), -0.3], scale: 0.08 });
   return s;
 }
 
@@ -751,57 +812,4 @@ export function buildGourmetGuide(ctx: MiniCtx, v: CampaignVisual): THREE.Group 
   f.rotation.set(-(Math.PI / 2 - BOOK.tilt), 0, 0);
   addCampaignMarker(ctx, g, v, 1.72, [0.36, 0.22]);
   return g;
-}
-
-// ---------------------------------------------------------------------------
-// Flying actor parts (vehicles.ts)
-// ---------------------------------------------------------------------------
-
-/**
- * Multi-colour airplane body (nose at +x) for the flying actor in `vehicles.ts`; the campaign mini
- * uses the monochrome `sePlaneShape`.
- */
-export function planeShape(color: string): Shape {
-  const pal = playerPalette(color);
-  const s = new Shape();
-  // Fuselage along +x (nose at +x).
-  s.add(
-    lathe(
-      [
-        [0, -0.62],
-        [0.08, -0.55],
-        [0.13, -0.2],
-        [0.16, 0.15],
-        [0.15, 0.38],
-        [0.1, 0.5],
-        [0, 0.54],
-      ],
-      10,
-    ),
-    P.white,
-    { rot: [0, 0, -Math.PI / 2] },
-  );
-  s.add(lathe([[0.162, -0.02], [0.17, 0.0], [0.17, 0.16], [0.162, 0.18]], 10), pal.base, { rot: [0, 0, -Math.PI / 2] });
-  // Cockpit.
-  s.add(ball(0.1, 1), P.windowDark, { at: [0.18, 0.11, 0], scale: [1.4, 0.8, 0.9], mat: 'glass' });
-  // Wings (high wing).
-  s.add(box(0.3, 0.04, 1.3, 0.015), pal.base, { at: [0.08, 0.13, 0] });
-  s.add(box(0.06, 0.042, 1.31, 0.01), P.white, { at: [0.14, 0.13, 0] });
-  // Struts.
-  for (const z of [-0.32, 0.32]) s.add(cyl(0.012, 0.012, 0.26, 4), P.steelDark, { at: [0.08, -0.12, z * 0.6], rot: [z > 0 ? -0.9 : 0.9, 0, 0] });
-  // Tail.
-  s.add(box(0.2, 0.03, 0.5, 0.01), pal.base, { at: [-0.5, 0.02, 0] });
-  s.add(box(0.22, 0.24, 0.03, 0.01), pal.base, { at: [-0.5, 0.02, 0], rot: [0, 0, 0.2] });
-  // Wheels.
-  for (const z of [-0.12, 0.12]) s.add(cyl(0.045, 0.045, 0.03, 8), '#3d3b44', { at: [0.18, -0.2, z], rot: [Math.PI / 2, 0, 0] });
-  s.add(box(0.02, 0.1, 0.26, 0), P.steelDark, { at: [0.18, -0.2, 0] });
-  // Nose cone.
-  s.add(cone(0.05, 0.08, 8), pal.dark, { at: [0.56, 0, 0], rot: [0, 0, -Math.PI / 2] });
-  return s;
-}
-
-export function propShape(): Shape {
-  const s = new Shape();
-  s.add(box(0.02, 0.36, 0.05, 0.008), '#3d3b44', { at: [0, -0.18, 0] });
-  return s;
 }
