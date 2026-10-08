@@ -8,22 +8,18 @@
  *
  * One component for every size: the card fills its container (min 96 px wide, ratio 2:3) and a
  * container query chooses how much it prints (sm < 118 px: title, chip, short ability line, icons;
- * md: the ability text; lg >= 168 px: the training list too). Portraits are our own silhouettes
- * until painted art exists; nothing is copied from the product.
+ * md: the ability text; lg >= 168 px: the training list too). Portraits are our own drawings
+ * (ui/portraits), with a flat silhouette for any not drawn yet; nothing is copied from the product.
  */
 import type { ComponentChildren } from "preact";
-import type {
-  CardColour,
-  EmployeeCategory,
-  EmployeeDef,
-  EmployeeId,
-} from "@fcm/engine";
+import type { CardColour, EmployeeDef, EmployeeId } from "@fcm/engine";
 import { catalog } from "../state/store.js";
 import { employeeName, managerSlots } from "../state/catalog.js";
 import { CARD_COLORS } from "../theme.js";
 import { FoodIcon, Icon, Sparkle } from "./icons.js";
 import { NoteBundle } from "./money.js";
 import { employeeTermId } from "./glossary/index.js";
+import { portraitFor, Silhouette } from "./portraits/index.js";
 import { useWhatsThisPress, WhatsThis } from "./glossary/WhatsThis.js";
 
 export const bandColor = (c: CardColour | undefined): string =>
@@ -208,55 +204,9 @@ function abilityShort(d: EmployeeDef): ComponentChildren {
 
 // --- Portrait -------------------------------------------------------------------------------------
 
-type Hat = "toque" | "cap" | "fedora" | "waitress" | "curls" | "none";
-type Neck = "tie" | "bow" | "collar" | "scarf";
-
-const LOOK: Record<
-  EmployeeCategory,
-  { hat: Hat; neck: Neck; glasses?: boolean }
-> = {
-  ceo: { hat: "none", neck: "tie" },
-  manager: { hat: "none", neck: "tie" },
-  recruiting: { hat: "curls", neck: "collar" },
-  training: { hat: "none", neck: "bow", glasses: true },
-  marketing: { hat: "fedora", neck: "tie" },
-  kitchen: { hat: "toque", neck: "scarf" },
-  coffee: { hat: "toque", neck: "bow" },
-  buyer: { hat: "cap", neck: "collar" },
-  pricing: { hat: "curls", neck: "collar", glasses: true },
-  restaurant: { hat: "fedora", neck: "tie" },
-  housing: { hat: "none", neck: "tie", glasses: true },
-  service: { hat: "waitress", neck: "collar" },
-  finance: { hat: "none", neck: "bow", glasses: true },
-  lobbying: { hat: "fedora", neck: "bow" },
-};
-
-/** Mix `#rrggbb` toward white (t > 0) or black (t < 0). */
-function tint(css: string, t: number): string {
-  const n = Number.parseInt(css.slice(1), 16);
-  const ch = (sh: number) => {
-    const v = (n >> sh) & 255;
-    return Math.round(t >= 0 ? v + (255 - v) * t : v * (1 + t));
-  };
-  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, "0")}`;
-}
-
-/** Half-length figure in the family colour on a washed diner (or office) backdrop. */
-function Portrait({
-  category,
-  color,
-  dark,
-}: {
-  category: EmployeeCategory;
-  color: string;
-  dark: boolean;
-}) {
-  const look = LOOK[category] ?? LOOK.manager;
-  const head = tint(color, 0.62);
-  const hair = tint(color, -0.35);
-  const wash = dark ? ["#5b5c57", "#43443f"] : ["#e3e7e4", "#c4ccc9"];
-  const line = dark ? "#6c6d68" : "#d3d9d6";
-  const prop = dark ? "#3a3b37" : "#b4bcb9";
+/** The employee's own portrait (ui/portraits), or the flat silhouette until one is drawn. */
+function Portrait({ id, color, dark }: { id: EmployeeId; color: string; dark: boolean }) {
+  const draw = portraitFor(id);
   return (
     <svg
       class="emp-portrait"
@@ -264,117 +214,7 @@ function Portrait({
       preserveAspectRatio="xMidYMax slice"
       aria-hidden="true"
     >
-      <rect width="100" height="70" fill={wash[1]} />
-      <rect width="100" height="44" fill={wash[0]} opacity="0.85" />
-      {/* Diner / office backdrop: window panes, a shelf, a counter. */}
-      <path
-        d="M6 6h22v24H6ZM31 6h22v24H31Z"
-        fill="none"
-        stroke={line}
-        stroke-width="1.6"
-      />
-      <path
-        d="M17 6v24M6 18h22M42 6v24M31 18h22"
-        stroke={line}
-        stroke-width="0.8"
-      />
-      <path d="M62 22h34M62 34h34" stroke={line} stroke-width="1.4" />
-      <path
-        d="M66 22v-6h5v6M76 22v-8h4v8M86 22v-5h6v5M68 34v-5h7v5M82 34v-7h4v7"
-        fill={prop}
-        opacity="0.55"
-      />
-      <path d="M0 56h100v14H0Z" fill={prop} opacity="0.45" />
-      {/* Figure */}
-      <g>
-        <path d="M24 70c1-12 9-20 26-21 17 1 25 9 26 21Z" fill={color} />
-        <path d="M45.5 41h9v8.5c-3 2.4-6 2.4-9 0Z" fill={tint(head, -0.12)} />
-        {look.neck === "tie" && (
-          <>
-            <path d="M43 49.5l7 9 7-9-7 2Z" fill="#fdfcfa" />
-            <path d="M48.6 51.6h2.8l1.2 10.4-2.6 3.4-2.6-3.4Z" fill="#c9303c" />
-          </>
-        )}
-        {look.neck === "bow" && (
-          <>
-            <path d="M43 49.5l7 7 7-7-7 2Z" fill="#fdfcfa" />
-            <path
-              d="M44.6 51.4l5.4 2.4 5.4-2.4v4.4l-5.4-2-5.4 2Z"
-              fill={tint(color, -0.45)}
-            />
-          </>
-        )}
-        {look.neck === "collar" && (
-          <path d="M42 49.2l8 6 8-6-3 7-5-2.6-5 2.6Z" fill="#fdfcfa" />
-        )}
-        {look.neck === "scarf" && (
-          <path
-            d="M43 49.4c4 3 10 3 14 0l-2 5c-3 1.6-7 1.6-10 0Z"
-            fill="#fdfcfa"
-          />
-        )}
-        <ellipse cx="50" cy="31" rx="10.5" ry="12.5" fill={head} />
-        {look.hat !== "toque" && look.hat !== "waitress" && (
-          <path
-            d="M39.4 30c-.6-9 4.4-13.6 10.6-13.6S61.2 21 60.6 30c-1.6-4.4-4.4-7-10.6-7.4-6.2.4-9 3-10.6 7.4Z"
-            fill={hair}
-          />
-        )}
-        {look.hat === "curls" && (
-          <path
-            d="M38.6 33c-2.6-3-2-8.6 1-11.6 2-6.4 15-7.4 19.6-1.4 3.4 2.6 4 8.6 1.6 12.6-.4-6-3.4-9.6-10.8-10-7.6.4-10.6 4.4-11.4 10.4Z"
-            fill={hair}
-          />
-        )}
-        {look.hat === "toque" && (
-          <>
-            <path
-              d="M39.6 27.6c-.4-4 2.2-5.4 3.8-5.4-3.8-8.6 4.8-12.2 8.2-7.2 3.6-4.4 12-.4 7.8 7.2 1.8 0 4.2 1.6 3.6 5.4Z"
-              fill="#fdfcfa"
-            />
-            <path d="M39.8 25h21v3.4h-21Z" fill="#ece7dc" />
-          </>
-        )}
-        {look.hat === "waitress" && (
-          <>
-            <path
-              d="M39.4 30c-.6-9 4.4-13.6 10.6-13.6S61.2 21 60.6 30c-1.6-4.4-4.4-7-10.6-7.4-6.2.4-9 3-10.6 7.4Z"
-              fill={hair}
-            />
-            <path
-              d="M42 19.6c4.6-2.6 11.4-2.6 16 0l-1.6 3c-4-1.6-8.8-1.6-12.8 0Z"
-              fill="#fdfcfa"
-            />
-          </>
-        )}
-        {look.hat === "cap" && (
-          <path
-            d="M39.4 25.6c0-6.6 4.6-9.6 10.6-9.6s10.6 3 10.6 9.6l7 1.4c-.4 1.2-1.4 1.6-2.6 1.6H39.4Z"
-            fill={tint(color, -0.3)}
-          />
-        )}
-        {look.hat === "fedora" && (
-          <>
-            <path
-              d="M35.4 24.4c4-1.8 25.2-1.8 29.2 0-.6 1.4-1.8 2-3.2 2H38.6c-1.4 0-2.6-.6-3.2-2Z"
-              fill={tint(color, -0.5)}
-            />
-            <path
-              d="M41 23.6c0-6.4 3.6-9.4 9-9.4s9 3 9 9.4Z"
-              fill={tint(color, -0.5)}
-            />
-            <path d="M41.2 21.2h17.6v2H41.2Z" fill={tint(color, -0.15)} />
-          </>
-        )}
-        {look.glasses && (
-          <path
-            d="M42.4 30.6a3.2 2.8 0 1 0 6.4 0a3.2 2.8 0 1 0-6.4 0ZM51.2 30.6a3.2 2.8 0 1 0 6.4 0a3.2 2.8 0 1 0-6.4 0ZM48.8 30.4h2.4"
-            fill="none"
-            stroke={tint(color, -0.6)}
-            stroke-width="1"
-          />
-        )}
-      </g>
+      {draw ? draw() : <Silhouette color={color} dark={dark} />}
     </svg>
   );
 }
@@ -444,11 +284,7 @@ export function CardFace({
         {range && <RangeChip range={range} />}
       </span>
       <span class="emp-art">
-        <Portrait
-          category={d?.category ?? "manager"}
-          color={color}
-          dark={d?.colour === "ceo"}
-        />
+        <Portrait id={id} color={color} dark={d?.colour === "ceo"} />
         {!plain && (
           <WhatsThis id={employeeTermId(id)} label={name} class="emp-wt" />
         )}
