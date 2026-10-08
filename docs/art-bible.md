@@ -427,7 +427,7 @@ with the portrait cropped to a head-and-shoulders band):
 paint it like a quality hobby paint job. Player pieces (restaurants, totems, coffee kiosks) take
 the player colour on walls and roofs with painted glass, frames, doors, signs and trim. Houses
 use pale period walls and slate, shingle or dark terracotta roofs (never a player hue). Drink
-suppliers keep their component base tones: beer green, lemonade yellow, cola red. Marketing
+suppliers keep their component base tones: beer green, lemonade yellow, soda red. Marketing
 pieces are realistically painted on a light-blue plate. Roads are asphalt with kerbs and
 markings; empty lots carry flat lawn, paving and car-park prints. Shared detail paints live in
 `three/minis/paint.ts`. Where this section says "monochrome" or names a `*Plastic` colour, read

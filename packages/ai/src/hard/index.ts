@@ -1,6 +1,6 @@
 /**
  * Hard bot (ai-strategy.md §4): Medium's planner proposes candidates, determinized rollouts through
- * Dinnertime / Payday / Clean up judge them, and an evaluation function scores the next round's
+ * Dinnertime / Payday / Cleanup judge them, and an evaluation function scores the next round's
  * start. Anytime: it answers within `budgetMs` (minus a safety margin) and keeps Medium's choice
  * when nothing beats it in time.
  *
@@ -10,7 +10,7 @@
  *   chosen substitutions are cached per (game, seat, round). The cache may be missing (pooled
  *   workers, restarts, undo): then the rest of the turn is searched again from the view.
  * - Payday: Medium's firing sets.
- * - Setup, Clean up and pending choices: Medium (search gains little there).
+ * - Setup, Cleanup and pending choices: Medium (search gains little there).
  */
 import type { Action, GameState, Uid } from '@fcm/engine';
 import type { Bot, BotExplanation, BotInput, ScoredAlternative } from '../types.js';

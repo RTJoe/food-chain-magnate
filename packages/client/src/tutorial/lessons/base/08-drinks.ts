@@ -102,13 +102,13 @@ export const lesson08 = defineLesson({
         const n = e && e.type === 'drinksBought' ? e.collected.reduce((s, c) => s + c.count, 0) : 0;
         return `${n} drinks: 2 from each source. Tile borders crossed: 2 of 2.`;
       },
-      hint: { say: 'The longest ribbon heads right along the top road into tile C1: "2× beer, 2× soft drink".', show: [{ source: BEER_C1 }, { source: SODA_C1 }] },
+      hint: { say: 'The longest ribbon heads right along the top road into tile C1: "2× beer, 2× soda".', show: [{ source: BEER_C1 }, { source: SODA_C1 }] },
       checkpoint: true,
       glossary: 'buyer_route',
     },
     {
       id: 'must-collect',
-      say: "You can't skip a source your road touches, so the soft drink came too. The B1 beer is at a dead end and a route can't turn back, so this haul missed it.",
+      say: "You can't skip a source your road touches, so the soda came too. The B1 beer is at a dead end and a route can't turn back, so this haul missed it.",
       show: [{ source: SODA_C1 }, { source: BEER_B1 }],
       until: { next: true },
       glossary: 'drink_source',
@@ -143,7 +143,7 @@ export const lesson08 = defineLesson({
       show: [{ house: 2 }, { ui: 'cash-p1' }],
       replay: { phase: 'dinnertime' },
       until: { next: true },
-      then: 'Leftover drinks are thrown away at Clean up, like food.',
+      then: 'Leftover drinks are thrown away at Cleanup, like food.',
       // The check taps the board: stop following the replay and show the whole town.
       onExit: [{ follow: false }, { camera: { kind: 'board' } }],
     },
@@ -153,7 +153,7 @@ export const lesson08 = defineLesson({
     questions: [
       { kind: 'number', q: 'How many tile borders can a Cart Operator drive?', answer: 2, why: 'Cart Operator: road range 2. A Truck Driver reaches 3.' },
       { kind: 'tap', q: 'Tap the house that bought your beers.', target: { house: 2 }, why: 'House 2, on your own tile: 2 beers and a burger, $30.' },
-      { kind: 'choice', q: 'Can a cart skip a source it drives past?', options: ['Yes, if you want', 'No, it collects every source it passes', 'Only soft drinks'], answer: 1, why: 'Every source next to the road you drive is collected, 2 drinks each.' },
+      { kind: 'choice', q: 'Can a cart skip a source it drives past?', options: ['Yes, if you want', 'No, it collects every source it passes', 'Only sodas'], answer: 1, why: 'Every source next to the road you drive is collected, 2 drinks each.' },
     ],
   },
 });

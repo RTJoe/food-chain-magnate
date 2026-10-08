@@ -92,7 +92,7 @@ export const FALLBACK_EMPLOYEES: readonly EmployeeDef[] = (
     ['pizza_chef', 'Pizza Chef', 3, false, true, true, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['pizza'], amount: 8, timing: 'working' }, [], 'Produce 8 pizzas.'],
     // Ketchup (employees.md §2)
     ['ketchup:fry_chef', 'Fry Chef', 6, false, true, false, 'oliveGreen', 'kitchen', { kind: 'fryChef', bonusPerSale: 10 }, [], '+$10 per house sold to.', 'ketchup:fryChefs'],
-    ['ketchup:kimchi_master', 'Kimchi Master', 3, true, true, true, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['kimchi'], amount: 1, timing: 'cleanup' }, [], 'Must produce 1 kimchi at the end of Clean up.', 'ketchup:kimchi'],
+    ['ketchup:kimchi_master', 'Kimchi Master', 3, true, true, true, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['kimchi'], amount: 1, timing: 'cleanup' }, [], 'Must produce 1 kimchi at the end of Cleanup.', 'ketchup:kimchi'],
     ['ketchup:sushi_cook', 'Sushi Cook', 6, false, true, false, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['sushi'], amount: 2, timing: 'working' }, ['ketchup:sushi_chef', 'ketchup:fry_chef'], 'Produce 2 sushi.', 'ketchup:sushi'],
     ['ketchup:sushi_chef', 'Sushi Chef', 3, false, true, true, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['sushi'], amount: 5, timing: 'working' }, [], 'Produce 5 sushi.', 'ketchup:sushi'],
     ['ketchup:noodle_cook', 'Noodle Cook', 6, false, true, false, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['noodles'], amount: 6, timing: 'working' }, ['ketchup:noodle_chef', 'ketchup:fry_chef'], 'Produce 6 noodles.', 'ketchup:noodles'],
@@ -154,7 +154,7 @@ export const FALLBACK_MILESTONES: readonly MilestoneDef[] = (
     ['ketchup:first_pizza_sold', 'First pizza sold', 'Pizza radios on houses you sell to.', 'ketchup:newMilestones'],
     ['ketchup:first_lemonade_sold', 'First lemonade sold', 'Train employees at work within their colour.', 'ketchup:newMilestones'],
     ['ketchup:first_beer_sold', 'First beer sold', 'Pay salaries with goods.', 'ketchup:newMilestones'],
-    ['ketchup:first_coke_sold', 'First soft drink sold', 'Gain a freezer.', 'ketchup:newMilestones'],
+    ['ketchup:first_coke_sold', 'First soda sold', 'Gain a freezer.', 'ketchup:newMilestones'],
     ['ketchup:first_recruiting_girl_used', 'First recruiting girl used', 'Gain a salary-free Executive VP.', 'ketchup:newMilestones'],
     ['ketchup:first_trainer_used', 'First trainer used', 'Never forced to fire.', 'ketchup:newMilestones'],
     ['ketchup:first_discount_manager_used', 'First discount manager used', 'Burn bank cash when discounting.', 'ketchup:newMilestones'],

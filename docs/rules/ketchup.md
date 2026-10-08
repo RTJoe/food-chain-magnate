@@ -135,7 +135,7 @@ Card count: 17 (DLX p18–19). Base milestones are not used with this module.
 **Components (DLX p10):** Barista Trainee x12 (entry, no salary, 1 coffee), Barista x6 (salary, 2 coffee), Lead Barista x3 (1x, salary, 5 coffee); 3 coffee shops per chain (18); 40 coffee tokens; "First coffee sold" milestone + attachment; +1 luxuries manager. [TYPE-IMPACT: coffee item, coffee shop map entity.]
 
 **Rules (DLX p10–14):**
-- Coffee is produced in the "get food & drinks" step. It cannot be marketed. It is **not** a drink (no drink milestones, no "drink marketed" bonus). It cannot be stored in a freezer; discard all in Clean up.
+- Coffee is produced in the "get food & drinks" step. It cannot be marketed. It is **not** a drink (no drink milestones, no "drink marketed" bonus). It cannot be stored in a freezer; discard all in Cleanup.
 - **Coffee shops:** 1x1, entrance on all 4 sides (connect to every orthogonally adjacent road), sell only coffee. Valid starting points for the range of all cards (buyers, marketeers, local manager, lobbyist) (DLX p10).
 - **Placing a coffee shop** — only 3 ways: train barista trainee → barista; train barista → lead barista; the First coffee sold milestone.
   - Empty square, orthogonally adjacent to a road, on a tile with no coffee shop (max 1 per tile, all players combined).
@@ -143,7 +143,7 @@ Card count: 17 (DLX p18–19). Base milestones are not used with this module.
   - If all 3 of yours are on the map, you may instead move one.
 - **Dinnertime coffee:** first choose the restaurant exactly as normal, ignoring coffee entirely. If the house eats out, it follows a shortest route (in tiles crossed) to that chain: to any of its open restaurants at the winning distance (KX p12 Example 1, p14 Example 3). It buys 1 coffee at each restaurant entrance or coffee shop of a chain that has coffee, adjacent to the route, other than the route's own end restaurant (another restaurant of the same chain on the way can sell). Each location sells at most 1 per house. A route may trace road squares again and go round loops (DLX p10 Backtracking; KX p13 Example 2, p14 Example 4); only an immediate U-turn is forbidden.
   - Among shortest routes: take the one selling the most coffee. Within a tile, the route bends as far as needed to pass more coffee if that does not add distance (DLX example 4).
-  - If several shortest routes tie on coffee, only the locations common to **all** tied routes sell; the undecided parts sell nothing.
+  - Procedure (JD BGG 3013738): (1) the shortest routes, each passing every location it can along its tiles; (2) count the coffee each would sell with the chains' actual stock; (3) if several sell the most, only the locations **on all** of them sell (stock permitting), even where a route alone would have sold elsewhere first; the undecided parts sell nothing (rules v3; v2 required the location to sell on every route).
   - Price per coffee = seller's unit price, including garden (and park) multipliers and bonuses from cards. Not a drink for milestone bonuses, and not food or drink for "First to Throw Away Food or Drink" (KX p10). CFO applies.
   - Fry Chefs: a chain selling coffee to a house gets its Fry Chef bonus once for that house, however many coffees; not again if it also served the meal (JD BGG 2342129, 3087088).
 - **First coffee sold:** first player(s) to sell coffee each place 1 coffee shop in the Cleanup of that round, in turn order, normal placement rules, no range limit (DLX p11). [TYPE-IMPACT: a Cleanup sub-step.]
@@ -155,7 +155,7 @@ Card count: 17 (DLX p18–19). Base milestones are not used with this module.
 **Components:** Kimchi Master x3 (1x, hire directly, salary); kimchi tokens; +1 luxuries manager.
 
 **Rules (KX p11; DLX p5–6):**
-- Kimchi Master does nothing in phase 3. In Clean up, **after** food is discarded/frozen, its owner gains 1 kimchi (mandatory). This kimchi is kept automatically until next turn.
+- Kimchi Master does nothing in phase 3. In Cleanup, **after** food is discarded/frozen, its owner gains 1 kimchi (mandatory). This kimchi is kept automatically until next turn.
 - Kimchi cannot be marketed.
 - **Dinnertime:** among chains that can fully satisfy the house (normal rules), a chain that also has kimchi is preferred, regardless of price and distance. Among several such chains, use normal competition (price + distance, waitresses, turn order). Only if none has kimchi do normal rules decide.
 - The chosen chain also sells exactly 1 kimchi (if it has any), paid like any other item. Never more than 1 kimchi per house. Never to a house without its own demand.
@@ -246,7 +246,7 @@ House without a garden: 1. exact + kimchi, 2. noodles + kimchi, 3. exact, 4. noo
 
 **Rules (DLX p25–26):**
 - Trained from a marketing trainee; a marketeer.
-- In Launch Campaigns (3d), a rural marketeer may place a rural campaign adjacent to one side of the rural area tile (one per side → max 4). Put 1 item counter of any item eligible to be marketed (not coffee, kimchi, sushi, noodles). Always eternal; the marketeer is busy for the rest of the game. Only rural marketeers may place them. No range limit.
+- In Launch Campaigns (3d), a rural marketeer may place a rural campaign adjacent to one side of the rural area tile (one per side → max 4). Put 1 item counter of any item eligible to be marketed (not coffee, kimchi, sushi, noodles). Always eternal; the marketeer is busy for the rest of the game and keeps its salary unless you have First Billboard (DLX p29 sidebar; JD BGG 3442376; questions.md Q-K35). Only rural marketeers may place them. No range limit.
 - **First Rural Marketeer Used:** the first player(s) to use one may (optional) place one freeway immediately, in that player's Working 9–5: adjacent to the outer edge of a map tile, orthogonally adjacent to a road on 1 or more squares; may not overlap any part of an airplane's position. Freeways run out → no more.
 - Run order of rural campaigns in phase 6: not stated (no number). Recommended: after all numbered campaigns (Medium; Q-K6).
 - **Marketing:** each giant billboard places **2** tokens of its good on the rural area per marketing phase. Rural area has no maximum demand. Its token is never removed.

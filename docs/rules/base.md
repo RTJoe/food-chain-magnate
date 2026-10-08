@@ -114,7 +114,7 @@ Each round has 7 phases in this exact order (DLX p12):
 4. Dinnertime
 5. Payday
 6. Marketing Campaigns
-7. Clean up
+7. Cleanup
 
 The game can only end in phase 4 (DLX p28, p33).
 
@@ -194,7 +194,7 @@ High. **[DLX differs]** RB listed 6 sub-steps; DLX makes "Open drive-ins" an exp
 
 ### 6.3a Open drive-ins (DLX p17)
 - If a local or regional manager is at work, place a drive-in sign on **each of your open restaurants** (not COMING SOON ones). Mandatory.
-- A drive-in restaurant has an entrance at all 4 corners until Clean up. Routes may start from any corner. Distance to a house is counted from the corner nearest (in tile crossings) to the house.
+- A drive-in restaurant has an entrance at all 4 corners until Cleanup. Routes may start from any corner. Distance to a house is counted from the corner nearest (in tile crossings) to the house.
 - A regional manager's newly placed restaurant also gets a drive-in sign (3g). High.
 
 ### 6.4 Launch campaigns (DLX p18–20)
@@ -274,7 +274,7 @@ One action per NBD: place a house+garden combo **or** add a garden. Both token p
 ### 6.7 Place or move restaurants (DLX p25)
 General (after setup): all 4 squares empty; entrance corner orthogonally adjacent to a road; entrance **may** share a tile with another restaurant's entrance (DLX p9). Each chain has at most 3 restaurants; with all 3 placed a local manager does nothing, a regional manager may still move one.
 
-- **Local manager:** place one new restaurant COMING SOON side up. Trace a road route of range 3 from an entrance corner of one of your **open** restaurants. The new restaurant must occupy empty squares and its entrance must connect to **the road the local manager's route used** (DLX p25). Opens in Clean up. **[DLX differs]** the earlier spec allowed any road. High.
+- **Local manager:** place one new restaurant COMING SOON side up. Trace a road route of range 3 from an entrance corner of one of your **open** restaurants. The new restaurant must occupy empty squares and its entrance must connect to **the road the local manager's route used** (DLX p25). Opens in Cleanup. **[DLX differs]** the earlier spec allowed any road. High.
 - **Regional manager:** either place a new **open** restaurant anywhere (unlimited range; entrance touching a road) with a drive-in sign on it, **or** relocate one of your open restaurants anywhere (it keeps its drive-in sign; rotating in place is allowed if the entrance still touches a road). Not both (DLX p25; JD 1525027). High.
 - Drive-ins: §6.3a.
 
@@ -322,9 +322,9 @@ Dinnertime is always empty in rounds 1–2 (no demand exists yet) except waitres
 1. **Firing:** players **simultaneously** decide whether to fire any cards at work or on the beach. Fired cards return to the supply. Busy marketeers cannot be fired voluntarily. **[DLX differs]** JD 2185563 (2019) said firing is in turn order; DLX says simultaneous. Use simultaneous (hidden or ordered-irrelevant choice). High.
 2. **Salaries:** $5 for every owned card with a salary icon: in the structure, on the beach, **and busy marketeers** (except marketeers covered by "First Billboard Campaign"). Salaries go to the bank.
 3. **Discounts (all mandatory; cannot pay voluntarily):**
-   - $5 per unused recruit action on recruiting managers / HR directors at work.
+   - $5 per unused recruit action on recruiting managers / HR directors at work. A card fired in step 1 gives none (JD BGG 2692106; questions.md Q-B9; rules v3).
    - $15 with "First to train someone".
-   - "First billboard placed": no salaries for marketeers (campaign manager, brand manager, brand director). The marketing trainee has no salary anyway.
+   - "First billboard placed": no salaries for marketeers (campaign manager, brand manager, brand director; with Ketchup also mass marketeer, rural marketeer, gourmet food critic, JD BGG 2881869). The marketing trainee has no salary anyway. Without it, a busy marketeer is paid even on an eternal campaign (DLX p29 sidebar; questions.md Q-K35; rules v3).
    - Minimum total $0.
 4. **Can't pay:** you must fire salaried employees until you can pay the full remaining amount; with $0 cash you fire all salaried employees. A busy marketeer may be fired only if you cannot pay it and have no other salaried employee to fire; its campaign stays and runs out normally (DLX p29). High.
 5. "First to pay $20 or more in salaries": awarded if the amount **actually paid** after all discounts is ≥ $20 (DLX p29).
@@ -366,7 +366,7 @@ Footprints may be rotated freely (no rule restricts orientation). Mailbox reach 
 - **Airplane:** every house any part of which (or its garden) lies in the covered rows/columns.
 - **Radio:** every house any part of which (or its garden) lies on the radio's tile or any of the 8 surrounding tiles (3x3 tiles) (DLX p32). With "First Radio Campaign": 2 counters per house, capped by the house limit ("add as many as you can"); still only 1 duration counter removed (DLX p35).
 
-**After each campaign runs:** remove one duration counter unless eternal, even if it placed no demand. If none remain, the campaign ends: tile and busy token to the supply, the marketeer goes **on the beach** (DLX p30). **[DLX differs]** earlier spec said "to hand"; it reaches the hand in Clean up anyway, so no practical difference.
+**After each campaign runs:** remove one duration counter unless eternal, even if it placed no demand. If none remain, the campaign ends: tile and busy token to the supply, the marketeer goes **on the beach** (DLX p30). **[DLX differs]** earlier spec said "to hand"; it reaches the hand in Cleanup anyway, so no practical difference.
 
 ---
 
@@ -385,7 +385,7 @@ High.
 - Awarded **immediately** when the condition is met, at any point in the turn.
 - Every player who meets the condition **during the same turn** also gets it. Use proxies if copies run out (JD 1452783).
 - Effects are mandatory for the rest of the game.
-- In Clean up, unclaimed copies of any milestone claimed that turn are removed.
+- In Cleanup, unclaimed copies of any milestone claimed that turn are removed.
 
 ---
 

@@ -319,7 +319,7 @@ export type KetchupMilestoneId =
 
 export type MilestoneId = BaseMilestoneId | KetchupMilestoneId;
 
-/** "anyDrink" = beer, lemonade or soft drink (not coffee). */
+/** "anyDrink" = beer, lemonade or soda (not coffee). */
 export type FoodOrAnyDrink = FoodId | 'anyDrink';
 
 /**
@@ -339,7 +339,7 @@ export type MilestoneTrigger =
   | { kind: 'cash'; amount: number; when: 'anytime' | 'endOfDinnertime' }
   /** Produced at least one of this food. */
   | { kind: 'produced'; food: FoodId }
-  /** Discarded ≥1 token in Clean up. */
+  /** Discarded ≥1 token in Cleanup. */
   | { kind: 'discarded' }
   /** Salary actually paid (after discounts) ≥ amount. */
   | { kind: 'salaryPaid'; amount: number }
@@ -381,7 +381,7 @@ export type MilestoneEffect =
   | { kind: 'peekReserves' }
   /** first_waitress: tip per waitress. */
   | { kind: 'waitressTip'; amount: number }
-  /** first_throw_away, ketchup first_coke_sold: keep up to N tokens in Clean up. */
+  /** first_throw_away, ketchup first_coke_sold: keep up to N tokens in Cleanup. */
   | { kind: 'freezer'; capacity: number }
   /** first_lower_prices: permanent unit price delta. */
   | { kind: 'unitPrice'; delta: number }
@@ -417,7 +417,7 @@ export type MilestoneEffect =
   | { kind: 'freeMailbox' }
   /** ketchup first_waitress_used: salary per salaried employee. */
   | { kind: 'salaryPerEmployee'; amount: number }
-  /** ketchup first_coffee_sold: build one extra coffee shop in Clean up, no range limit. */
+  /** ketchup first_coffee_sold: build one extra coffee shop in Cleanup, no range limit. */
   | { kind: 'extraCoffeeShop' }
   /** ketchup first_rural_marketeer_used: place one freeway now. */
   | { kind: 'placeFreeway' }
@@ -447,7 +447,7 @@ export interface MilestoneDef {
   effects: MilestoneEffect[];
   timing: MilestoneTiming;
   /**
-   * Hard choices / New Milestones marker: in Clean up of this round, remove the milestone
+   * Hard choices / New Milestones marker: in Cleanup of this round, remove the milestone
    * if still unclaimed (ketchup.md §3, §16). Usually set by the module at setup.
    */
   removeAfterRound?: number;

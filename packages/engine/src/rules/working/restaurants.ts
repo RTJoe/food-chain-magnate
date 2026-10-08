@@ -3,7 +3,7 @@
  *
  * General: all 4 squares empty; the entrance corner touches a road from outside; entrances may
  * share a tile (the one-per-tile rule is for setup only, JD 1452841). At most 3 restaurants.
- * - Local manager: new restaurant COMING SOON (opens in Clean up). Its entrance must connect to
+ * - Local manager: new restaurant COMING SOON (opens in Cleanup). Its entrance must connect to
  *   the road the manager's route used: road range 3 from an entrance of an OPEN restaurant, in
  *   tile borders (DLX p25), the corner/road border counting like any piece (DLX p19 example C;
  *   questions.md Q-W8).

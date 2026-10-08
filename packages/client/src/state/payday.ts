@@ -1,5 +1,5 @@
 /**
- * Payday and Clean up figures for the Turn tab, computed by the engine on the view's pseudo-state
+ * Payday and Cleanup figures for the Turn tab, computed by the engine on the view's pseudo-state
  * (salary discounts, waivers and module hooks included), so the panel shows what will be charged.
  */
 import { contentFor, FOODS, salaryAfterFiring, salaryBreakdown, salariedCards, stockOf } from '@fcm/engine';
@@ -73,7 +73,7 @@ export const mustFireIfShort = (view: GameView, me: PlayerId): boolean => !view.
 export const mustFireNow = (o: { after: number; cash: number; forcedFiring: boolean; salariedAfter: number }): boolean => o.forcedFiring && o.after > o.cash && o.salariedAfter > 0;
 
 // ---------------------------------------------------------------------------
-// Clean up: freezer
+// Cleanup: freezer
 // ---------------------------------------------------------------------------
 
 export interface FreezerRow {

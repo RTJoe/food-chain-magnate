@@ -11,7 +11,7 @@
  *   can be sold; fetch the most wanted drinks; campaign on houses it is connected to and can serve;
  *   build houses next to its restaurants; open restaurants where houses cluster.
  * - payday: fire salaried cards the plan has no use for, and whatever cash cannot carry.
- * - clean up: freeze the most plentiful goods.
+ * - Cleanup: freeze the most plentiful goods.
  * - Ketchup choices: place what must be placed, near its restaurants when it matters; accept
  *   optional bonuses (second campaign; a freeway only where it brings it closer to the rural
  *   area); parks next to houses it wins, never next to a rival's; decline anything else.

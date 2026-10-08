@@ -116,7 +116,7 @@ export const coffeeLesson = defineLesson({
     },
     {
       id: 'combine',
-      say: 'First Coffee Sold gives you a free shop at Clean up, anywhere. Shops also count as starting points for every range.',
+      say: 'First Coffee Sold gives you a free shop at Cleanup, anywhere. Shops also count as starting points for every range.',
       until: { next: true },
       glossary: 'first_coffee_sold',
     },

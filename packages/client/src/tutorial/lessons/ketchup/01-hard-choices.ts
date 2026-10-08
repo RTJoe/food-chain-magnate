@@ -3,7 +3,7 @@
  * out after round 2, First to Hire 3 after round 3, if nobody has claimed them.
  *
  * Scenario: round 2, Working, Ada's turn. Her Trainer is at work and an Errand Boy waits on the
- * beach, so she can still claim First to Train before its deadline. Clean up then crosses out the
+ * beach, so she can still claim First to Train before its deadline. Cleanup then crosses out the
  * other deadline milestones nobody claimed.
  */
 import type { MilestoneId } from '@fcm/engine';
@@ -17,7 +17,7 @@ export const hardChoicesLesson = defineLesson({
   course: 'ketchup',
   title: 'Hard Choices',
   minutes: 5,
-  goal: 'Claim a milestone before its deadline; see unclaimed ones crossed out at Clean up.',
+  goal: 'Claim a milestone before its deadline; see unclaimed ones crossed out at Cleanup.',
   concepts: ['module_hard_choices', 'remove_after_round', 'milestone'],
   requires: BASE_COURSE,
   scenario: {
@@ -79,7 +79,7 @@ export const hardChoicesLesson = defineLesson({
     },
     {
       id: 'clean-up',
-      say: 'Let round 2 finish. Watch the Milestones tab at Clean up.',
+      say: 'Let round 2 finish. Watch the Milestones tab at Cleanup.',
       show: [{ ui: 'continue' }],
       allow: { actions: [only('tutorial.continue'), only('payday.confirm')] },
       until: { paused: 'cleanup' },
@@ -90,7 +90,7 @@ export const hardChoicesLesson = defineLesson({
       id: 'gone',
       say: (ctx) => {
         const gone = (['first_burger_marketed', 'first_pizza_marketed', 'first_drink_marketed'] as const).filter((id) => ctx.view.milestones[id]?.removed).length;
-        return `Clean up crossed out ${gone} unclaimed marketing milestones. Nobody can ever claim them now.`;
+        return `Cleanup crossed out ${gone} unclaimed marketing milestones. Nobody can ever claim them now.`;
       },
       show: [{ ui: 'milestone-first_burger_marketed' }, { ui: 'milestone-first_drink_marketed' }],
       onEnter: [{ openTab: 'milestones' }],
@@ -114,7 +114,7 @@ export const hardChoicesLesson = defineLesson({
     questions: [
       { kind: 'choice', q: 'When is First to Hire 3 crossed out if nobody claims it?', options: ['After round 2', 'After round 3', 'Never'], answer: 1, why: 'It carries the "remove after turn 3" token; the four marketing and training milestones go after round 2.' },
       { kind: 'choice', q: 'Which module cannot be played with Hard Choices?', options: ['New Milestones', 'Coffee', 'Movie Stars'], answer: 0, why: 'Hard Choices changes the base milestone set, which New Milestones replaces.' },
-      { kind: 'choice', q: 'You claim First to Train in round 2. What happens at Clean up?', options: ['You lose it', 'You keep it for good', 'Everyone gets it'], answer: 1, why: 'A claimed milestone is permanent; only unclaimed copies are crossed out.' },
+      { kind: 'choice', q: 'You claim First to Train in round 2. What happens at Cleanup?', options: ['You lose it', 'You keep it for good', 'Everyone gets it'], answer: 1, why: 'A claimed milestone is permanent; only unclaimed copies are crossed out.' },
     ],
   },
 });

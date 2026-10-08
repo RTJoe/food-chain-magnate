@@ -85,7 +85,7 @@ function exactRestaurantGain(c: Ctx, a: Action, me: PlayerId, before: number): n
   const r = c.engine.applyAction(c.s, a);
   if (!r.ok) return null;
   const s = r.state;
-  // COMING SOON restaurants open at Clean up: judge the spot as if open.
+  // COMING SOON restaurants open at Cleanup: judge the spot as if open.
   for (const rest of Object.values(s.board.restaurants)) if (rest.owner === me && rest.status === 'comingSoon') rest.status = 'open';
   return positionValue(c, s, me) - before;
 }

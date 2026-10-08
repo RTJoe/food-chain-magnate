@@ -1,7 +1,7 @@
 /**
  * New Milestones (ketchup.md §3; DLX p17–19). Replaces every base milestone with 17 new ones
  * (module milestones of other Ketchup modules stay). Claims are immediate and shared by everyone
- * who qualifies in the same round (base rules/milestones.ts); others cross them out in Clean up.
+ * who qualifies in the same round (base rules/milestones.ts); others cross them out in Cleanup.
  * "Remove after turn 2" markers on First marketeer / trainer / recruiting girl used.
  *
  * "Used" (DLX p17): the card performed a printed function in Working, Dinnertime or Payday.
@@ -89,7 +89,7 @@ export const NEW_MILESTONES: readonly MilestoneDef[] = [
   ms('ketchup:first_pizza_sold', 'First pizza sold', { kind: 'sold', good: 'pizza' }, [{ kind: 'pizzaRadios', houses: 3, duration: 2 }], 'The first 3 houses buying your pizza this turn each get a 2-turn pizza radio on their tile.'),
   ms('ketchup:first_lemonade_sold', 'First lemonade sold', { kind: 'sold', good: 'lemonade' }, [{ kind: 'trainAtWorkSameColour' }], 'You may train employees at work into a card of the same colour.'),
   ms('ketchup:first_beer_sold', 'First beer sold', { kind: 'sold', good: 'beer' }, [{ kind: 'payWithTokens' }], 'You may pay salaries with food and drinks (1 item = 1 salary; not coffee).'),
-  ms('ketchup:first_coke_sold', 'First soda sold', { kind: 'sold', good: 'soft_drink' }, [{ kind: 'freezer', capacity: 10 }], 'You may keep up to 10 items in Clean up (not coffee).'),
+  ms('ketchup:first_coke_sold', 'First soda sold', { kind: 'sold', good: 'soft_drink' }, [{ kind: 'freezer', capacity: 10 }], 'You may keep up to 10 items in Cleanup (not coffee).'),
   ms('ketchup:first_recruiting_girl_used', 'First recruiting girl used', { kind: 'used', employees: ['recruiting_girl'] }, [{ kind: 'gainEmployees', employees: [{ id: 'executive_vp', count: 1 }], trainableThisTurn: false, salaryFree: true }], 'Take an Executive VP to the beach; never pay its salary.', { removeAfterRound: 2 }),
   ms('ketchup:first_trainer_used', 'First trainer used', { kind: 'used', employees: ['trainer'] }, [{ kind: 'gainEmployees', employees: [{ id: 'trainer', count: 1 }], trainableThisTurn: false }, { kind: 'noForcedFiring' }], 'Take a Trainer to the beach. You never have to fire employees you cannot pay.', { removeAfterRound: 2 }),
   ms('ketchup:first_discount_manager_used', 'First discount manager used', { kind: 'used', employees: ['discount_manager'] }, [{ kind: 'bankBurn', amount: 100, minDiscount: 3 }], 'Each turn you discount by $3 or more, $100 leaves the bank at the end of Restructuring.'),

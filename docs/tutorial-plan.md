@@ -21,7 +21,7 @@ Both are served by the same lessons: Nova takes every step, Kai uses **Skip step
 1. **One concept per step.** A step teaches one rule or one move. If a step needs an "and", split it.
 2. **Learn by doing on the real board.** Every lesson runs the real engine through `LocalTransport` on a real `GameState` built with `StateBuilder`. Nothing is faked: the learner's click is a real `Action`, validated by the engine.
 3. **Constrain, then release.** Early steps allow exactly one action (the gate lets one legal action through). Later steps allow a family ("any billboard spot in range"), then "anything legal". The last lesson is a full game.
-4. **Explain why after each automatic phase.** Dinnertime, Payday, Marketing and Clean up run without input. The tutorial pauses after each (engine `tutorial.continue`, §4.2), replays it house by house with the Summary stepper and narrates the numbers ("$10 + 1 border = 11 beats $10 + 2").
+4. **Explain why after each automatic phase.** Dinnertime, Payday, Marketing and Cleanup run without input. The tutorial pauses after each (engine `tutorial.continue`, §4.2), replays it house by house with the Summary stepper and narrates the numbers ("$10 + 1 border = 11 beats $10 + 2").
 5. **Never a wall of text.** Narration is at most two sentences. Anything longer goes to the glossary behind a "What's this?" link.
 6. **Can't get stuck.** Every step has a success predicate the engine can reach, an inactivity hint, and **Skip step** which applies the canonical action. A watchdog auto-advances if no allowed action is legal (and logs a bug in dev).
 7. **Skippable but resumable.** Progress is per step; a lesson resumes at its last checkpoint by replaying the recorded actions (deterministic engine replay), so resuming is exact.
@@ -67,7 +67,7 @@ All examples use the **tutorial town** (§2.0): a 3×3 map, the learner (Ada, re
 
 **Salaries and firing (L11).** The chart gets a `$` badge on every salaried card (the `tag-salary` icon that exists), and a running "Payday: $15" total in the panel. The learner has $10. Payday opens the fire picker with "You owe $15 and have $10: fire until you can pay" and the one-card Cart Operator is the only way out. The second round shows the voluntary case: $30 cash, $15 owed, fire nothing or fire the idle card.
 
-**Milestones: first come, permanent (L12).** The Milestones tab is pinned open with "First Billboard Campaign" highlighted. The learner places a billboard; the milestone card stamps and slides to Ada's rail. The narration: "yours for the rest of the game, and you must live with it: your campaigns are now eternal". Bo, scripted, places a billboard the same round and also claims it ("same round: everyone who qualifies gets it"). At Clean up the tab shows the milestone greyed with "Gone": "nobody else can ever claim it".
+**Milestones: first come, permanent (L12).** The Milestones tab is pinned open with "First Billboard Campaign" highlighted. The learner places a billboard; the milestone card stamps and slides to Ada's rail. The narration: "yours for the rest of the game, and you must live with it: your campaigns are now eternal". Bo, scripted, places a billboard the same round and also claims it ("same round: everyone who qualifies gets it"). At Cleanup the tab shows the milestone greyed with "Gone": "nobody else can ever claim it".
 
 **The bank breaking and reserve cards (L14).** The top bar bank counter is the focal point. The scenario starts with $12 in the bank and two sales worth $20 coming. The replay stops at the sale that hits $0: the counter cracks, the reserve cards flip ("you chose +$200, 3 slots; Bo chose +$100, 2 slots; the slot vote has no majority, so the highest wins: 3"), the bank refills and the sale finishes. A second scenario breaks it again: "no refill; after this Dinnertime the game ends; most cash wins".
 
@@ -166,7 +166,7 @@ Step table columns: **Say** (narration, ≤ 2 sentences), **Show** (highlight ta
 | 5 | Tap the CEO, then hire a Kitchen Trainee. Only cards with the sparkle are entry level. | CEO card; HirePicker; Kitchen Trainee card | `work.recruit employeeId:'kitchen_trainee'` | `employeeHired` | "She goes to the beach: hired today, works from next round." |
 | 6 | Open the Staff tab. The pile shows Kitchen Trainee ×11 now; piles are limited. | Staff tab, kitchen trainee node | ui | tab opened | |
 | 7 | End your turn. Bo hires too. | End turn | `work.endTurn` | `turnEnded` p1 | Bo's scripted hire plays; caption "Bo hired a Kitchen Trainee". |
-| 8 | Dinnertime, Payday, Marketing, Clean up now run by themselves. Nothing happens yet: no demand, no salaries, no campaigns. | phase strip | — | pause after cleanup → Next | "Round 2 starts; your cards come back to your hand." |
+| 8 | Dinnertime, Payday, Marketing, Cleanup now run by themselves. Nothing happens yet: no demand, no salaries, no campaigns. | phase strip | — | pause after cleanup → Next | "Round 2 starts; your cards come back to your hand." |
 
 **Check.** (1) Where does a hired card go? [Beach / At work / Hand] → Beach. (2) Which cards can be hired directly? [Any / Sparkle cards / Managers] → sparkle. (3) How many people can the CEO hire per round? → 1.
 
@@ -184,9 +184,9 @@ Step table columns: **Say** (narration, ≤ 2 sentences), **Show** (highlight ta
 | 4 | The CEO could hire again. Skip hiring this time: tap the CEO and choose Skip. | CEO card | `work.skip` (CEO) | `cardSkipped` | "Hiring is optional." |
 | 5 | Tap the Kitchen Trainee and make a burger. | trainee card; burger option | `work.produce food:'burger'` | `foodProduced` | Rail shows 1 burger; "the whole chain shares one stock". |
 | 6 | End turn. Dinnertime: no house has demand, so nothing sells. | — | `work.endTurn` | pause after dinnertime | Summary: "No house ate". |
-| 7 | Clean up throws away unsold food. Your burger is gone. | rail goods; Summary cleanup line | — | pause after cleanup → Next | "Make food the round you can sell it." |
+| 7 | Cleanup throws away unsold food. Your burger is gone. | rail goods; Summary cleanup line | — | pause after cleanup → Next | "Make food the round you can sell it." |
 
-**Check.** (1) Which food did your Kitchen Trainee make? → whichever you picked (reads the view). (2) What happens to unsold food at Clean up? [Kept / Thrown away / Sold at half price] → thrown away. (3) Is producing optional? → Yes.
+**Check.** (1) Which food did your Kitchen Trainee make? → whichever you picked (reads the view). (2) What happens to unsold food at Cleanup? [Kept / Thrown away / Sold at half price] → thrown away. (3) Is producing optional? → Yes.
 
 ### L5 — Dinnertime: who sells and why
 
@@ -320,7 +320,7 @@ Step table columns: **Say** (narration, ≤ 2 sentences), **Show** (highlight ta
 
 ### L12 — Milestones
 
-**Goal.** Milestones are claimed immediately, shared within a round, removed for others at Clean up, and mandatory. **Concepts.** `milestone`, `same-round-sharing`, `eternal-campaign`, `mandatory-effect`.
+**Goal.** Milestones are claimed immediately, shared within a round, removed for others at Cleanup, and mandatory. **Concepts.** `milestone`, `same-round-sharing`, `eternal-campaign`, `mandatory-effect`.
 
 **Scenario.** `town({ round: 3 })`, Working, Ada Marketing Trainee at work, stage `marketing`; Bo scripted also places a billboard in the same round. Milestones tab pinned.
 
@@ -330,10 +330,10 @@ Step table columns: **Say** (narration, ≤ 2 sentences), **Show** (highlight ta
 | 2 | Place any billboard. | trainee | `work.placeCampaign billboard` (any legal) | `milestoneClaimed first_billboard` | stamp animation; "Yours for the rest of the game." |
 | 3 | Effect: your marketeers never pay salary, and every campaign you launch is eternal. Benefits are mandatory, even when they hurt. | milestone card text; the ∞ on your billboard | — | Next | |
 | 4 | End turn. Bo places a billboard this same round, so Bo claims it too. | — | `work.endTurn` | `milestoneClaimed` p2 | |
-| 5 | At Clean up, the milestone is crossed out for everyone who didn't get it this round. | Milestones tab row → "Gone" | pause after cleanup | Next | |
+| 5 | At Cleanup, the milestone is crossed out for everyone who didn't get it this round. | Milestones tab row → "Gone" | pause after cleanup | Next | |
 | 6 | Milestones with a cost: "First to Lower Prices" gives −$1 forever; "First Burger Marketed" gives +$5 per burger sold. Tap each to read it. | two rows | ui | both opened | |
 
-**Check.** (1) Two players qualify in the same round: who gets it? → both. (2) Can you refuse a milestone's effect? → No. (3) When does an unclaimed copy disappear? → Clean up of the round it was claimed.
+**Check.** (1) Two players qualify in the same round: who gets it? → both. (2) Can you refuse a milestone's effect? → No. (3) When does an unclaimed copy disappear? → Cleanup of the round it was claimed.
 
 ### L13 — Houses, gardens and new restaurants
 
@@ -346,10 +346,10 @@ Step table columns: **Say** (narration, ≤ 2 sentences), **Show** (highlight ta
 | 1 | Your Local Manager is at work, so your restaurant has a drive-in: doors on all four corners this round. | corner markers | — | Next | |
 | 2 | The New Business Developer builds a house (with a garden) anywhere next to a road, or adds a garden to a house that has none. Add a garden to house 2. | NBD; garden spots at house 2 | `work.placeGarden houseId:house2` | `gardenAdded` | "House 2 now pays ×2 per item and holds 5 tokens." |
 | 3 | A new house number matters: it sets when the house eats. Build house 1 near your restaurant. (Pick tile 1 first.) | house tile chips; spots on A1/A2 | `work.placeHouse` with `houseOrder:1` adjacent to road on tiles A1 or A2 | `houseBuilt` | |
-| 4 | The Local Manager opens a second restaurant within 3 borders by road from a door you own. It opens at Clean up: COMING SOON. | range overlay (3); ghost scaffold | `work.placeRestaurant` any legal | `restaurantPlaced comingSoon` | |
-| 5 | End turn. A Regional Manager (trained from a Vice President) can place anywhere or move a restaurant, and it opens at once. Read it in Staff. | Staff: regional manager | `work.endTurn` → ui | pause after cleanup | "Your second restaurant is open; drive-ins are removed at Clean up." |
+| 4 | The Local Manager opens a second restaurant within 3 borders by road from a door you own. It opens at Cleanup: COMING SOON. | range overlay (3); ghost scaffold | `work.placeRestaurant` any legal | `restaurantPlaced comingSoon` | |
+| 5 | End turn. A Regional Manager (trained from a Vice President) can place anywhere or move a restaurant, and it opens at once. Read it in Staff. | Staff: regional manager | `work.endTurn` → ui | pause after cleanup | "Your second restaurant is open; drive-ins are removed at Cleanup." |
 
-**Check.** (1) Garden effect? [×2 price, cap 5 / +$5 / range +1] → ×2, cap 5. (2) Local Manager range? → 3. (3) When does a COMING SOON restaurant open? → Clean up.
+**Check.** (1) Garden effect? [×2 price, cap 5 / +$5 / range +1] → ×2, cap 5. (2) Local Manager range? → 3. (3) When does a COMING SOON restaurant open? → Cleanup.
 
 ### L14 — The bank, reserve cards and the end
 
@@ -394,15 +394,15 @@ Order: rule tweaks that reuse base mechanics first, then new foods, then map and
 
 | # | Module (id) | What changes vs base | Scenario and script | Interactions |
 |---|---|---|---|---|
-| K1 | Hard Choices (`ketchup:hardChoices`) | Four marketed/train milestones vanish after round 2, Hire-3 after round 3, if unclaimed. | Town at round 2 Clean up with "First Burger Marketed" unclaimed; the Milestones tab shows "Until round 2" pills; Continue → rows go "Gone". Then round 3 with Hire-3. | Base milestone set only; incompatible with New Milestones (the hub greys the pairing). |
+| K1 | Hard Choices (`ketchup:hardChoices`) | Four marketed/train milestones vanish after round 2, Hire-3 after round 3, if unclaimed. | Town at round 2 Cleanup with "First Burger Marketed" unclaimed; the Milestones tab shows "Until round 2" pills; Continue → rows go "Gone". Then round 3 with Hire-3. | Base milestone set only; incompatible with New Milestones (the hub greys the pairing). |
 | K2 | Reserve Prices (`ketchup:reservePrices`) | Reserve cards are +$200 with a base price $5/$10/$20; first break adds $200 per player; CEO slots unchanged; new base unit price = most frequent card (tie $20 > $5 > $10; Ketchup rulebook "Reserve Prices"). | L14 scenario A with reserves Ada $20, Bo $5 → tie → $20; show the Inspect card's prices jump from $10 to $20 before and after the break. | Modifiers stack on the new base; Luxuries +$10 on top. |
 | K3 | Movie Stars (`ketchup:movieStars`) | Waitress trains into B/C/D Movie Star; a star at work chooses turn order first and wins waitress ties; no $3. | Order of business with Ada's B-star at work vs Bo's 3 open slots: Ada chooses first. Then L6 round C with Bo's waitress vs Ada's star: Ada wins the tie. | One star per player; stars count as one 1x type. |
 | K4 | Fry Chefs (`ketchup:fryChefs`) | Any cook trains into a Fry Chef; each at work adds +$10 per house sold to. | Dinnertime with two fry chefs at work, house buys 3 burgers: "$30 + $20". Explains "per house, not per item; not doubled by gardens; CFO applies". | Any-Cook trainees replace base trainees. |
 | K5 | Night Shift Managers (`ketchup:nightShift`) | A 0-slot manager (CEO slot only) makes every unsalaried card act twice. | Restructuring: Night Shift in CEO slot, Marketing Trainee + Waitress + Kitchen Trainee under the CEO; Working shows `uses: 2` badges; waitress pays $6 and counts as 2 for ties. | Cannot be trained; salary; hired directly. |
-| K6 | Kimchi (`ketchup:kimchi`) | Kimchi Master makes 1 kimchi at Clean up; at dinner a chain with kimchi is preferred regardless of price; sells exactly 1 kimchi extra. | L6 round A but Bo holds 1 kimchi: Bo wins house 18 at $12 vs $11; "+1 kimchi sold". Freezer rule: kimchi excludes other frozen goods. | Cannot be marketed. |
+| K6 | Kimchi (`ketchup:kimchi`) | Kimchi Master makes 1 kimchi at Cleanup; at dinner a chain with kimchi is preferred regardless of price; sells exactly 1 kimchi extra. | L6 round A but Bo holds 1 kimchi: Bo wins house 18 at $12 vs $11; "+1 kimchi sold". Freezer rule: kimchi excludes other frozen goods. | Cannot be marketed. |
 | K7 | Sushi (`ketchup:sushi`) | Garden houses prefer a chain with ≥ demand-count sushi, all-or-nothing. | House 2 with garden, demand burger + beer; Ada has 2 sushi, Bo exact items: Ada sells 2 sushi at ×2. | Only garden houses; not apartments. |
 | K8 | Noodles (`ketchup:noodles`) | A house nobody can satisfy takes ≥ demand-count noodles instead. | House 18 demand burger + pizza + beer, nobody has all; Ada has 3 noodles → sale. Then the combined tier table (kimchi > sushi > exact > noodles) as a quiz. | Priority table in `ketchup.md` §7. |
-| K9 | Coffee (`ketchup:coffee`) | Barista line; training places a coffee shop (range 2); houses buy 1 coffee from each shop/restaurant on their shortest route to dinner; First Coffee Sold places a shop at Clean up. | Train Barista Trainee → Barista, place the shop on the A1|A2 road; dinner for house 18 served by Bo routes past Ada's shop: `coffeeSold` beat. | Not a drink; no freezer; coffee shops are route starts. |
+| K9 | Coffee (`ketchup:coffee`) | Barista line; training places a coffee shop (range 2); houses buy 1 coffee from each shop/restaurant on their shortest route to dinner; First Coffee Sold places a shop at Cleanup. | Train Barista Trainee → Barista, place the shop on the A1|A2 road; dinner for house 18 served by Bo routes past Ada's shop: `coffeeSold` beat. | Not a drink; no freezer; coffee shops are route starts. |
 | K10 | New Districts (`ketchup:newDistricts`) | Tiles U (3 lemonades), V (houses 21+22), W (house 25 with garden), X/Y apartments: 2 tokens per marketing event, no cap, no garden, order π between 3–4, 9¾ between 9–10. | Map with X at A1: billboard on the apartment drops 2 tokens; cap bar shows ∞; dinnertime order shows π after house 3. | Required for 6 players. |
 | K11 | Lobbyists (`ketchup:lobbyists`) | Lobbyist places a road (under construction, roadworks +1 this round) or a park (×2 / ×3 price for adjacent houses); First Lobbyist Used adds a map tile. | Map with tile Z; place a road connecting A1 to A3's lemonade; hover shows roadworks cones; next round the road is normal and the cart reaches lemonade; extra tile placement prompt with template picker. | Sub-step between houses and restaurants. |
 | K12 | Mass Marketeers (`ketchup:massMarketeers`) | Each one at work adds a whole extra marketing pass; pips removed once. | Marketing phase replay with `pass 1/2`: house 18 fills to 3 in pass 2; "full" chip. | Expansion Marketing Trainee. |
@@ -537,7 +537,7 @@ Learn hub ─► TutorialSession.start(lesson)
 
 **Scripted seats.** New `LocalTransportOptions.scripted?: PlayerId[]` and a method `actFor(playerId, action)` that bypasses the viewer overwrite for those seats only (today `act()` rewrites `playerId` to the viewer). Events from scripted moves are redacted for the learner, as a real opponent's would be.
 
-**Pausing automatic phases.** `runUntilInput` resolves Dinnertime → Payday → Marketing → Clean up in one `applyAction`. For walkthroughs the engine needs a pause point. Add a tiny engine module `tutorial` (`packages/engine/src/modules/tutorial.ts`):
+**Pausing automatic phases.** `runUntilInput` resolves Dinnertime → Payday → Marketing → Cleanup in one `applyAction`. For walkthroughs the engine needs a pause point. Add a tiny engine module `tutorial` (`packages/engine/src/modules/tutorial.ts`):
 
 - option `pauseAfter: PhaseKind[]`;
 - hook `onPhaseExit(phase)`: when `phase.kind ∈ pauseAfter`, push `PendingChoice { kind: 'continue', player: <viewer seat from options>, optional: false }`; `runUntilInput` already stops at a pending head (`core/phase.ts`);

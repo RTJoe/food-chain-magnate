@@ -1,9 +1,9 @@
 /**
  * K6 — Kimchi (docs/tutorial-plan.md §3, ketchup.md §5). The Kimchi Master makes 1 kimchi at the
- * end of Clean up. At Dinnertime a chain that can fill the order AND add a kimchi is preferred
+ * end of Cleanup. At Dinnertime a chain that can fill the order AND add a kimchi is preferred
  * regardless of price and distance, and sells exactly 1 kimchi extra.
  *
- * Scenario: round 3, Working, Ada's turn. Her Kimchi Master made a kimchi last Clean up. House 5
+ * Scenario: round 3, Working, Ada's turn. Her Kimchi Master made a kimchi last Cleanup. House 5
  * wants a pizza; Bo is 1 border away ($11), Ada 2 ($12), yet Ada's kimchi wins the house.
  */
 import type { GameView } from '@fcm/engine';
@@ -43,7 +43,7 @@ export const kimchiLesson = defineLesson({
   steps: [
     {
       id: 'intro',
-      say: 'Your Kimchi Master does nothing during Working. At the end of Clean up she makes 1 kimchi, which keeps until next round.',
+      say: 'Your Kimchi Master does nothing during Working. At the end of Cleanup she makes 1 kimchi, which keeps until next round.',
       show: [{ card: { player: ME, uid: 'k6-km' } }, { ui: 'rail-p1' }],
       until: { next: true },
       checkpoint: true,
@@ -98,7 +98,7 @@ export const kimchiLesson = defineLesson({
     },
     {
       id: 'clean-up',
-      say: 'Continue through Payday and Clean up to round 4, and watch your stock.',
+      say: 'Continue through Payday and Cleanup to round 4, and watch your stock.',
       show: [{ ui: 'continue' }, { ui: 'rail-p1' }],
       allow: { actions: [only('tutorial.continue'), only('payday.confirm')] },
       until: { view: (v) => v.round === 4 },
@@ -124,7 +124,7 @@ export const kimchiLesson = defineLesson({
     questions: [
       { kind: 'choice', q: 'Your offer is 12 and you hold a kimchi; Bo offers 11 without one. Both can fill the order. Who sells?', options: ['You', 'Bo', 'Nobody'], answer: 0, why: 'A chain that adds a kimchi wins regardless of price and distance.' },
       { kind: 'choice', q: 'How many kimchi does a house buy with its order?', options: ['Exactly 1', 'One per demand token', 'All you have'], answer: 0, why: 'The chosen chain sells exactly one kimchi extra.' },
-      { kind: 'choice', q: 'When does the Kimchi Master make kimchi?', options: ['During Working', 'At Dinnertime', 'At the end of Clean up'], answer: 2, why: 'After food is thrown away or frozen, she adds 1 kimchi.' },
+      { kind: 'choice', q: 'When does the Kimchi Master make kimchi?', options: ['During Working', 'At Dinnertime', 'At the end of Cleanup'], answer: 2, why: 'After food is thrown away or frozen, she adds 1 kimchi.' },
     ],
   },
 });

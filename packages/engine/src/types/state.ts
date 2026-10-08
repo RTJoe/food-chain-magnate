@@ -185,7 +185,7 @@ export type PendingChoice =
   | { id: ChoiceId; kind: 'extraMapTile'; player: PlayerId; optional: true }
   /** ketchup.md §12 First rural marketeer used: optional freeway. */
   | { id: ChoiceId; kind: 'freeway'; player: PlayerId; optional: true }
-  /** ketchup.md §4: coffee shop placement after training a barista, or First coffee sold in Clean up. */
+  /** ketchup.md §4: coffee shop placement after training a barista, or First coffee sold in Cleanup. */
   | { id: ChoiceId; kind: 'coffeeShop'; player: PlayerId; source: 'training' | 'milestone'; /** True when all 3 shops are on the map: moving one is optional (KX p11). */ optional: boolean }
   /**
    * Tutorial module only (docs/tutorial-plan.md §4.2): the game is paused after `phase` finished
@@ -244,7 +244,7 @@ export interface PlayerState {
   /** Busy marketeers → their campaign(s). Night-shift marketing trainee may have two (ketchup.md §11). */
   busy: Record<Uid, CampaignId[]>;
   inventory: FoodCounts;
-  /** Tokens kept from the previous Clean up (base.md §10). Merged into inventory at round start. */
+  /** Tokens kept from the previous Cleanup (base.md §10). Merged into inventory at round start. */
   freezer: FoodCounts;
   milestones: Partial<Record<MilestoneId, EarnedMilestone>>;
   /** Restaurants not yet on the board (3 at start). */
@@ -253,6 +253,8 @@ export interface PlayerState {
   reserveCard: ReserveCard | null;
   /** Unused recruit actions on recruiting managers / HR directors this turn ($5 each, base.md §8.3). */
   unusedRecruitActions: number;
+  /** The same actions per card (Q-B9: a card fired in Payday step 1 gives no discount). */
+  unusedRecruitByCard?: Record<Uid, number>;
   /** Cash earned this round in Dinnertime (incl. tips), for CFO and logs. */
   earningsThisRound: number;
   /** Salary actually paid last Payday (first_pay_20). */
@@ -392,13 +394,13 @@ export interface Restaurant {
   x: number;
   y: number;
   entrance: Corner;
-  /** COMING SOON from a local manager; opens in Clean up (base.md §6.7). Derelict after bankruptcy. */
+  /** COMING SOON from a local manager; opens in Cleanup (base.md §6.7). Derelict after bankruptcy. */
   status: RestaurantStatus;
   placedRound: number;
   /**
    * Drive-in sign (base.md §6.3a): every corner is an entrance. Set in Working step 3c when a
    * local/regional manager is at work, and on a regional manager's new restaurant; removed in
-   * Clean up step C (the engine also clears it at the start of each round).
+   * Cleanup step C (the engine also clears it at the start of each round).
    */
   driveIn?: boolean;
 }
@@ -463,7 +465,7 @@ export type ModuleEntity =
       underConstruction: boolean;
       arrows: { from: Cell; dir: Direction }[];
     }
-  /** ketchup.md §2 roadworks marker; removed in Clean up. */
+  /** ketchup.md §2 roadworks marker; removed in Cleanup. */
   | { kind: 'roadworks'; id: EntityId; x: number; y: number; road: EntityId }
   /** ketchup.md §12 freeway beside an outer tile edge, touching a road on that tile. */
   | { kind: 'freeway'; id: EntityId; owner: PlayerId; side: Direction; offset: number; tile: TileId };
@@ -497,9 +499,9 @@ export interface MilestoneSupply {
   claimedBy: PlayerId[];
   /** Round of the first claim. */
   claimedRound: number | null;
-  /** Removed in Clean up after the claim round, or by hard choices / New Milestones markers. */
+  /** Removed in Cleanup after the claim round, or by hard choices / New Milestones markers. */
   removed: boolean;
-  /** Remove at Clean up of this round if unclaimed (ketchup.md §3, §16). */
+  /** Remove at Cleanup of this round if unclaimed (ketchup.md §3, §16). */
   removeAfterRound: number | null;
 }
 

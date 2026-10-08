@@ -3,15 +3,15 @@
  *
  * Cards: Barista Trainee (x12, entry, no salary, 1 coffee) → Barista (x6, salary, 2) → Lead
  * Barista (x3, 1x, salary, 5). Coffee is made in the food step; it is not a drink, cannot be
- * marketed or frozen and is thrown away in Clean up (FoodDef).
+ * marketed or frozen and is thrown away in Cleanup (FoodDef).
  *
  * Coffee shops (3 per chain): 1x1, an entrance on every side, sell only coffee, and are valid
  * starts for every range (base `playerRouteStarts`). Placed only:
  * - when a card is trained into Barista or Lead Barista: within road range 2 of one of your open
  *   restaurants or coffee shops (a `coffeeShop` choice right after the training, or inline via
  *   `work.train.coffeeShop`); one per such step, so Trainee → Lead Barista in one action gives two;
- * - by "First coffee sold": in the Clean up of that round, in turn order, no range limit (the choice
- *   is queued when Clean up ends, so it is resolved before the next Restructuring).
+ * - by "First coffee sold": in the Cleanup of that round, in turn order, no range limit (the choice
+ *   is queued when Cleanup ends, so it is resolved before the next Restructuring).
  * Always on an empty square orthogonally adjacent to a road, on a tile without a coffee shop (any
  * chain). With all 3 on the map, one of yours is moved instead. No legal square → no shop.
  *
@@ -22,8 +22,8 @@
  * own end restaurant; each location sells at most 1. A route may trace road squares again and go
  * round loops; it only may not step straight back (DLX p10 Backtracking; KX p13 Example 2, p14
  * Example 4). Among shortest routes the one that would sell the most coffee with the chains' current
- * stock is taken; if several tie, only selling locations common to all of them sell (KX p12 Tied
- * Routes; JD BGG 3013738).
+ * stock is taken; if several tie, only the locations on all of them sell, as far as stock goes (KX
+ * p12 Tied Routes; JD BGG 3013738). A route passes every location it can along its tiles.
  * Implementation: a search over (square, heading, cost, locations passed), bounded by
  * ROUTE_BUDGET expansions. A chain's locations sell nearest-the-house first while it has coffee.
  * Price = the seller's unit price × the house's garden/park multiplier, plus the seller's Fry Chef
@@ -58,6 +58,7 @@ import { awardMilestone, checkCashMilestones } from '../../rules/milestones.js';
 import { payFromBank, payToBank } from '../../rules/bank.js';
 import { unitPrice } from '../../rules/pricing.js';
 import { freewayCell } from './ruralMarketeers.js';
+import { rulesBefore } from '../../core/rulesVersion.js';
 import { headChoice, houseMultiplier, isRejected, kcard, pushChoice, registerChoiceKind, resolveHead, addExtraLuxuriesManager, workDefs } from './shared.js';
 
 const ID = 'ketchup:coffee' as const;
@@ -73,7 +74,7 @@ const FIRST_COFFEE_SOLD: MilestoneDef = {
   trigger: { kind: 'sold', good: 'coffee' },
   effects: [{ kind: 'extraCoffeeShop' }],
   timing: 'immediately',
-  text: 'Place one extra coffee shop in this Clean up, anywhere (normal placement rules, no range limit).',
+  text: 'Place one extra coffee shop in this Cleanup, anywhere (normal placement rules, no range limit).',
   rulesRef: 'ketchup.md §4; DLX p11',
 };
 
@@ -265,25 +266,34 @@ export function coffeeRouteSellers(s: GameState, house: House, dest: Restaurant)
     for (const k of l.roads) maskAt.set(k, (maskAt.get(k) ?? 0n) | (1n << BigInt(i)));
   });
 
-  // Walk states (square, heading, cost, locations passed); each is expanded once.
+  // Walk states (square, heading, cost, locations passed); each is expanded once. From rules v3 a
+  // state also carries the tiles the walk has crossed into: a route is its sequence of tiles, and
+  // walks along the same tiles are the same route (JD BGG 3013738: a route passes every location
+  // it can without crossing more borders).
+  const legacy = rulesBefore(s, 3);
   const ends = new Set<bigint>();
+  const routes = new Map<string, Set<bigint>>();
   const seen = new Set<string>();
-  const stack: { c: Cell; heading: Direction | null; cost: number; mask: bigint }[] = [];
-  const push = (c: Cell, heading: Direction | null, cost: number, mask: bigint) => {
-    const key = `${cellKey(c)}|${heading ?? '-'}|${cost}|${mask}`;
+  const stack: { c: Cell; heading: Direction | null; cost: number; mask: bigint; tiles: string }[] = [];
+  const push = (c: Cell, heading: Direction | null, cost: number, mask: bigint, tiles: string) => {
+    const key = `${cellKey(c)}|${heading ?? '-'}|${cost}|${mask}${legacy ? '' : `|${tiles}`}`;
     if (seen.has(key)) return;
     seen.add(key);
-    stack.push({ c, heading, cost, mask });
+    stack.push({ c, heading, cost, mask, tiles });
   };
   for (const [k, st] of [...starts.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
-    if (st.cost + remaining(st.cell) <= D) push(st.cell, null, st.cost, maskAt.get(k) ?? 0n);
+    if (st.cost + remaining(st.cell) <= D) push(st.cell, null, st.cost, maskAt.get(k) ?? 0n, String(tileOf(board, st.cell)));
   }
   let budget = ROUTE_BUDGET;
   while (stack.length && budget-- > 0) {
-    const { c, heading, cost, mask } = stack.pop() as (typeof stack)[number];
+    const { c, heading, cost, mask, tiles } = stack.pop() as (typeof stack)[number];
     for (const [rid, end] of endCost.get(cellKey(c)) ?? []) {
       // The route's own end restaurant never sells to it (KX p11).
-      if (cost + end === D) ends.add(mask & ~(bit.get(rid) ?? 0n));
+      if (cost + end !== D) continue;
+      const m = mask & ~(bit.get(rid) ?? 0n);
+      ends.add(m);
+      const key = `${tiles}>${rid}`;
+      routes.set(key, (routes.get(key) ?? new Set<bigint>()).add(m));
     }
     for (const d of DIRECTIONS) {
       if (heading !== null && d === opposite(heading)) continue;
@@ -291,7 +301,8 @@ export function coffeeRouteSellers(s: GameState, house: House, dest: Restaurant)
       if (!n) continue;
       const nc = cost + stepCost(board, c, n);
       if (nc + remaining(n) > D) continue;
-      push(n, d, nc, mask | (maskAt.get(cellKey(n)) ?? 0n));
+      const t = String(tileOf(board, n));
+      push(n, d, nc, mask | (maskAt.get(cellKey(n)) ?? 0n), legacy || tiles.endsWith(`/${t}`) || tiles === t ? tiles : `${tiles}/${t}`);
     }
   }
   if (!ends.size) return [];
@@ -320,14 +331,30 @@ export function coffeeRouteSellers(s: GameState, house: House, dest: Restaurant)
     return out;
   };
   const count = (m: bigint) => relevant.reduce((a, l) => a + ((m & (bit.get(l.id) as bigint)) !== 0n ? 1 : 0), 0);
-  const counted = [...ends].map((m) => {
-    const sold = selling(m);
-    return { m: sold, n: count(sold) };
+  const all = (1n << BigInt(relevant.length)) - 1n;
+  const sells = (m: bigint) => ordered.filter((l) => (m & (bit.get(l.id) as bigint)) !== 0n);
+  if (legacy) {
+    // LEGACY(v2): only locations that would sell on every best route sold.
+    const counted = [...ends].map((m) => {
+      const sold = selling(m);
+      return { m: sold, n: count(sold) };
+    });
+    const best = Math.max(...counted.map((x) => x.n));
+    if (best === 0) return [];
+    return sells(counted.filter((x) => x.n === best).reduce((acc, x) => acc & x.m, all));
+  }
+  // JD BGG 3013738 (a41573360, a41574037, a41574346): 1. the shortest routes, each passing every
+  // location it can (per sequence of tiles, drop a walk that passes a strict subset of another's
+  // locations); 2. score each by the coffee it would sell with the chains' actual stock; 3. among
+  // the routes selling the most, the locations on all of them sell (stock permitting).
+  const candidates = [...routes.values()].flatMap((set) => {
+    const ms = [...set];
+    return ms.filter((m) => !ms.some((o) => o !== m && (o & m) === m));
   });
+  const counted = candidates.map((m) => ({ m, n: count(selling(m)) }));
   const best = Math.max(...counted.map((x) => x.n));
   if (best === 0) return [];
-  const common = counted.filter((x) => x.n === best).reduce((acc, x) => acc & x.m, (1n << BigInt(relevant.length)) - 1n);
-  return ordered.filter((l) => (common & (bit.get(l.id) as bigint)) !== 0n);
+  return sells(selling(counted.filter((x) => x.n === best).reduce((acc, x) => acc & x.m, all)));
 }
 
 /** Total Fry Chef bonus ($ per sale) of a player's cards at work (ketchup.md §9). */
@@ -431,7 +458,7 @@ export const COFFEE_MODULE: GameModule = {
       }
     },
     onPhaseExit(ctx, phase) {
-      // "First coffee sold": one extra shop each, at the end of that round's Clean up, in turn order.
+      // "First coffee sold": one extra shop each, at the end of that round's Cleanup, in turn order.
       if (phase.kind !== 'cleanup') return;
       const s = ctx.state;
       for (const id of s.turnOrder) {

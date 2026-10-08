@@ -1,7 +1,7 @@
 /**
  * Card location and ownership helpers (base.md §4; employees.md legend).
  * Every owned card is in exactly one place: the structure (at work), the beach, busy (marketeer
- * on a campaign) or the hand (only between Clean up and the Restructuring reveal).
+ * on a campaign) or the hand (only between Cleanup and the Restructuring reveal).
  */
 import type { EmployeeDef, EmployeeId, MilestoneEffect, MilestoneId } from '../types/content.js';
 import type { GameState, PlayerId, PlayerState, Uid } from '../types/state.js';

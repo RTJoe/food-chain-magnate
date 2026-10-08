@@ -16,7 +16,7 @@
  *   it already has one. New roads connect to every road square they touch (map.md §2).
  * - Parks: adjacent to a road square within road range 2 of `from` (same measure as campaigns).
  *   Price effect (×2, ×3 with a garden) lives in `saleRevenue` via `houseMultiplier`.
- * - Clean up: roadworks removed, roads flipped to normal roads.
+ * - Cleanup: roadworks removed, roads flipped to normal roads.
  * - "First Lobbyist Used" (module milestone): the first player(s) to place a road or park add one
  *   tile chosen from the leftover tiles, orthogonally adjacent to the map, any rotation (Q-K8), not
  *   where an airplane or freeway sits beside the map. The board grows (map/grid.ts `growBoard`).
@@ -488,7 +488,7 @@ export const LOBBYISTS_MODULE: GameModule = {
       moduleState<LobbyistState>(ctx.state, ID, freshStock);
     },
     onPhaseEnter(ctx, phase) {
-      // Clean up: roadworks removed, roads finished (DLX p16).
+      // Cleanup: roadworks removed, roads finished (DLX p16).
       if (phase.kind !== 'cleanup') return;
       const s = ctx.state;
       let changed = false;

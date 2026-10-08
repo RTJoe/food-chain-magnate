@@ -392,7 +392,7 @@ describe('§3 First beer sold', () => {
       .card('p2', 'waitress', 'work')
       .cash('p1', 20)
       .inventory('p1', { beer: 3 })
-      .milestone('p1', ID('first_coke_sold')) // freezer keeps the leftovers, so stock is visible after Clean up
+      .milestone('p1', ID('first_coke_sold')) // freezer keeps the leftovers, so stock is visible after Cleanup
       .phase({ kind: 'dinnertime', houses: [], idx: 0 });
     if (withBeer) b = b.milestone('p1', ID('first_beer_sold'));
     const s = fromPhase(b.build()).state;
@@ -544,7 +544,7 @@ describe('§3 First trainer used', () => {
     const r = actE(s, { type: 'payday.confirm', playerId: 'p1' });
     expect(r.events.find((e) => e.type === 'salaryPaid' && e.player === 'p1')).toMatchObject({ paid: 5 });
     expect(r.state.players.p1?.cash).toBe(2);
-    // Coffee cannot pay salaries; the burger left over is thrown away at Clean up.
+    // Coffee cannot pay salaries; the burger left over is thrown away at Cleanup.
     expect(r.events.find((e) => e.type === 'foodDiscarded' && e.player === 'p1')).toMatchObject({ goods: { burger: 1, coffee: 2 } });
   });
 

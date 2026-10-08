@@ -33,7 +33,7 @@ function PlaceRestaurantFlow({ legal, placements, onDone, onCancel }: FlowProps)
   const note =
     ability?.kind === 'restaurant'
       ? ability.mode === 'local'
-        ? 'Within road range of an open restaurant. It shows COMING SOON and opens in Clean up.'
+        ? 'Within road range of an open restaurant. It shows COMING SOON and opens in Cleanup.'
         : 'Anywhere legal. It opens at once with a drive-in.'
       : null;
   return (

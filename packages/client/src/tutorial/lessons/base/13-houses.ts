@@ -95,7 +95,7 @@ export const lesson13 = defineLesson({
     },
     {
       id: 'local-manager',
-      say: 'The Local Manager opens another restaurant within 3 borders by road from one of your doors. It stays COMING SOON until Clean up.',
+      say: 'The Local Manager opens another restaurant within 3 borders by road from one of your doors. It stays COMING SOON until Cleanup.',
       show: [{ ui: `work-card-${LM}` }, { overlay: 'range', spec: { kind: 'restaurant', cardUid: LM } }],
       allow: { actions: [{ type: 'work.placeRestaurant' }] },
       until: { event: 'restaurantPlaced', where: (e) => e.type === 'restaurantPlaced' && e.player === 'p1' },
@@ -125,7 +125,7 @@ export const lesson13 = defineLesson({
     },
     {
       id: 'opened',
-      say: 'At Clean up your new restaurant opened and the drive-in signs came off. A Regional Manager places or moves a restaurant anywhere, open at once.',
+      say: 'At Cleanup your new restaurant opened and the drive-in signs came off. A Regional Manager places or moves a restaurant anywhere, open at once.',
       show: [{ restaurant: 'p1' }],
       until: { next: true },
       checkpoint: true,

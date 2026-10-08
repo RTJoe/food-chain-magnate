@@ -1,10 +1,10 @@
 /**
  * Kimchi (ketchup.md §5; KX p11; DLX p5–6).
  *
- * - Kimchi Master (x3, entry, salary, 1x): does nothing in phase 3. In Clean up, after food was
+ * - Kimchi Master (x3, entry, salary, 1x): does nothing in phase 3. In Cleanup, after food was
  *   thrown away / frozen, its owner gains 1 kimchi, kept automatically until next turn.
- *   Implementation: masters at work are recorded on entering Clean up (the structure is still
- *   intact); the kimchi is added when Clean up ends (after the freezer step), into the stock.
+ *   Implementation: masters at work are recorded on entering Cleanup (the structure is still
+ *   intact); the kimchi is added when Cleanup ends (after the freezer step), into the stock.
  * - Kimchi cannot be marketed (FoodDef). Freezer: kimchi is exclusive (base cleanup validation).
  * - Dinnertime: see foodTiers.ts — a chain that can satisfy the house AND has kimchi wins
  *   regardless of price/distance and sells exactly 1 kimchi with the order.
@@ -19,18 +19,18 @@ import { addExtraLuxuriesManager, kcard, moduleState, peekState, workDefs } from
 const ID = 'ketchup:kimchi' as const;
 
 interface KimchiState {
-  /** Kimchi masters at work when Clean up began, per player. */
+  /** Kimchi masters at work when Cleanup began, per player. */
   masters: Record<PlayerId, string[]>;
 }
 
 export const KIMCHI_MODULE: GameModule = {
   id: ID,
   name: 'Kimchi',
-  description: 'Kimchi Masters make kimchi in Clean up; houses prefer chains that add a kimchi.',
+  description: 'Kimchi Masters make kimchi in Cleanup; houses prefer chains that add a kimchi.',
   content: {
     foods: FOODS.filter((f) => f.id === 'kimchi'),
     employees: [
-      kcard('ketchup:kimchi_master', 'Kimchi Master', ID, 3, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['kimchi'], amount: 1, timing: 'cleanup' }, 'At the end of Clean up, gain 1 kimchi.', 'employees.md §2; ketchup.md §5', {
+      kcard('ketchup:kimchi_master', 'Kimchi Master', ID, 3, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['kimchi'], amount: 1, timing: 'cleanup' }, 'At the end of Cleanup, gain 1 kimchi.', 'employees.md §2; ketchup.md §5', {
         entry: true,
         salary: true,
         unique: true,

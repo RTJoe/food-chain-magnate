@@ -88,7 +88,7 @@ describe('Coffee (ketchup.md §4)', () => {
       expect(FOODS.find((f) => f.id === 'coffee')).toMatchObject({ marketable: false, freezer: 'no', category: 'coffee' });
     });
 
-    it('§4: in Clean up coffee cannot be frozen and is thrown away', () => {
+    it('§4: in Cleanup coffee cannot be frozen and is thrown away', () => {
       const s = kb(2, [...M])
         .restaurant('p1', 3, 3, 'NW')
         .milestone('p1', 'first_throw_away', 1)
@@ -423,6 +423,28 @@ describe('Coffee (ketchup.md §4)', () => {
       const ctx = dine(tie(1, true));
       expect(ctx.of('coffeeSold').map((e) => e.at).sort()).toEqual(['entity-R1', 'entity-R2']);
     });
+
+    // JD BGG 3013738 a41573360: "All routes lead past C3, so C3 will sell a coffee. The rest of the
+    // route cannot be decided, so a second coffee won't be sold." Here p2 has 1 coffee; route T
+    // passes A and Z, route R passes B and Z (all on the house's tile, so A and B come first).
+    const common = () =>
+      dinner()
+        .entity(shop('entity-A', 'p2', 11, 10))
+        .entity(shop('entity-B', 'p2', 10, 13))
+        .entity(shop('entity-Z', 'p2', 13, 11))
+        .inventory('p2', { coffee: 1 });
+
+    it('a location on every best route sells, even when each route alone would sell elsewhere first', () => {
+      const ctx = dine(common());
+      expect(ctx.of('coffeeSold').map((e) => e.at)).toEqual(['entity-Z']);
+    });
+
+    it('LEGACY(v2): only a location selling on every best route sold', () => {
+      const ctx = dine(common().mutate((s) => {
+        s.config.rulesVersion = 2;
+      }));
+      expect(ctx.of('coffeeSold')).toEqual([]);
+    });
   });
 
   describe('§4 First coffee sold', () => {
@@ -432,7 +454,7 @@ describe('Coffee (ketchup.md §4)', () => {
       expect(ctx.state.players.p1?.milestones['ketchup:first_coffee_sold']).toBeUndefined();
     });
 
-    it('§4: an extra shop choice (no range limit) is queued when Clean up ends', () => {
+    it('§4: an extra shop choice (no range limit) is queued when Cleanup ends', () => {
       const s = kb(2, [...M])
         .restaurant('p1', 3, 3, 'NW')
         .restaurant('p2', 5, 3, 'NW')

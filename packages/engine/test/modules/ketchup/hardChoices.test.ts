@@ -16,7 +16,7 @@ const TURN3: MilestoneId[] = ['first_hire_3'];
 
 const game = (): GameState => newGame(2, 1, undefined, { modules: [...M] });
 
-/** Run the Clean up of `round` on a fresh Hard Choices game; `claim` = [player, milestone] claimed that round. */
+/** Run the Cleanup of `round` on a fresh Hard Choices game; `claim` = [player, milestone] claimed that round. */
 function cleanup(round: number, state: GameState = game(), claim: [string, MilestoneId][] = []): KCtx {
   state.round = round;
   const ctx = kctx(state);
@@ -53,20 +53,20 @@ describe('Hard Choices - setup (ketchup.md §16)', () => {
   });
 });
 
-describe('Hard Choices - Clean up (ketchup.md §16)', () => {
-  it('§16: nothing expires in the Clean up of round 1', () => {
+describe('Hard Choices - Cleanup (ketchup.md §16)', () => {
+  it('§16: nothing expires in the Cleanup of round 1', () => {
     const ctx = cleanup(1);
     expect(removed(ctx.state)).toEqual([]);
     expect(ctx.of('milestonesRemoved')).toHaveLength(0);
   });
 
-  it('§16: in the Clean up of round 2 the unclaimed turn-2 milestones are crossed out for everyone', () => {
+  it('§16: in the Cleanup of round 2 the unclaimed turn-2 milestones are crossed out for everyone', () => {
     const ctx = cleanup(2);
     expect(removed(ctx.state)).toEqual([...TURN2].sort());
     expect(ctx.of('milestonesRemoved')[0]?.milestoneIds.slice().sort()).toEqual([...TURN2].sort());
   });
 
-  it('§16: First to Hire 3 survives round 2 and is crossed out in the Clean up of round 3', () => {
+  it('§16: First to Hire 3 survives round 2 and is crossed out in the Cleanup of round 3', () => {
     const s = game();
     cleanup(2, s);
     expect(s.milestones.first_hire_3?.removed).toBe(false);

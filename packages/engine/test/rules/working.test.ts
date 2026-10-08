@@ -85,9 +85,11 @@ describe('3a hire (base.md §6.2)', () => {
     t = act(t, { type: 'work.skip', playerId: 'p1', cardUid: ceo });
     t = act(t, { type: 'work.endTurn', playerId: 'p1' });
     expect(t.players.p1?.unusedRecruitActions).toBe(3);
+    expect(t.players.p1?.unusedRecruitByCard).toEqual({ [work[0] as Uid]: 3 }); // Q-B9: per card
     const { s: s2, work: w2 } = workingTurn(base(), 'p1', { work: ['recruiting_manager'] });
     const t2 = act(s2, { type: 'work.skip', playerId: 'p1', cardUid: w2[0] as Uid });
     expect(t2.players.p1?.unusedRecruitActions).toBe(2);
+    expect(t2.players.p1?.unusedRecruitByCard).toEqual({ [w2[0] as Uid]: 2 });
   });
 
   it('§6.2 (DLX p16): an empty pile may be hired only if the card is trained up this turn', () => {

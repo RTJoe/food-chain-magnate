@@ -4,7 +4,7 @@
  * Model (milestones.md general rules 1–3, audit.md top-10 #4):
  * - A milestone is claimed **immediately** when its condition is met.
  * - Every player who meets it during the same round also claims it: a milestone stays
- *   claimable until Clean up step D of the round it was first claimed in (`removed`), so order
+ *   claimable until Cleanup step D of the round it was first claimed in (`removed`), so order
  *   within the round does not matter.
  * - Effects are mandatory and are read from `PlayerState.milestones` by the phase code.
  *
@@ -220,7 +220,7 @@ export function launchesEternal(ctx: HookContext, player: PlayerId, kind: string
 /**
  * Called by the reducer at the end of each player's working turn and at the end of each
  * automatic phase. Claims are immediate (see `onMilestoneEvent`), so this only re-checks
- * state-based conditions (cash during Dinnertime). Crossing out happens in Clean up step D
+ * state-based conditions (cash during Dinnertime). Crossing out happens in Cleanup step D
  * (`crossOutMilestones`), which is what makes same-round sharing work.
  */
 export function finalizeMilestones(ctx: HookContext): void {
@@ -228,7 +228,7 @@ export function finalizeMilestones(ctx: HookContext): void {
 }
 
 /**
- * Clean up step D (base.md §10): every milestone claimed this round becomes unavailable to
+ * Cleanup step D (base.md §10): every milestone claimed this round becomes unavailable to
  * everyone else. Also removes unclaimed milestones whose `removeAfterRound` has come (Ketchup).
  */
 export function crossOutMilestones(ctx: HookContext): void {

@@ -142,7 +142,7 @@ function scoreSet(e: Eval, atWork: Uid[]): number {
         if (a.delta < 0 && msOpen(s, me, 'first_lower_prices')) v += milestoneValue(s, me, 'first_lower_prices', h) / Math.max(1, countKind(e, atWork, 'price'));
         break;
       case 'produce':
-        // Kimchi master: 1 kimchi at Clean up, so next round I win every house I can serve.
+        // Kimchi master: 1 kimchi at Cleanup, so next round I win every house I can serve.
         if (a.timing === 'cleanup') {
           v += Math.max(6, 0.8 * e.kimchiGain);
           break;

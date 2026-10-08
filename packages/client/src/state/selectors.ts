@@ -36,7 +36,7 @@ export const PHASE_STEPS: readonly PhaseStep[] = [
   { kinds: ['dinnertime'], label: 'Dinnertime', short: 'Dinner', icon: 'dinner' },
   { kinds: ['payday'], label: 'Payday', short: 'Payday', icon: 'payday' },
   { kinds: ['marketing'], label: 'Marketing', short: 'Marketing', icon: 'marketing' },
-  { kinds: ['cleanup'], label: 'Clean up', short: 'Clean up', icon: 'cleanup' },
+  { kinds: ['cleanup'], label: 'Cleanup', short: 'Cleanup', icon: 'cleanup' },
 ];
 
 /** Index into PHASE_STEPS; -1 during setup, 7 after the game ends. */

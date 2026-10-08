@@ -117,7 +117,7 @@ export function KetchupPieceFlow({ legal, placements, onDone, onCancel }: FlowPr
       <FlowHead title={legal.label} onCancel={onCancel} />
       <p class="muted small">
         {road
-          ? 'One arrow must point at your entrance or a road within range. The arrows’ roads get roadworks: +1 distance for every route through them until clean up.'
+          ? 'One arrow must point at your entrance or a road within range. The arrows’ roads get roadworks: +1 distance for every route through them until Cleanup.'
           : 'Houses next to a park sell for double (triple with a garden).'}
       </p>
       {pieces.length === 0 ? (

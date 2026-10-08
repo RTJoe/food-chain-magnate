@@ -107,7 +107,7 @@ const CHAPTERS: ChapterSpec[] = [
     blurb: 'Seven phases, always in the same order. Most cash when the bank breaks for the second time wins.',
     quick: [
       'You run a fast-food chain. Everyone starts with $0.',
-      'Each round has 7 phases: Restructuring, Order of Business, Working 9–5, Dinnertime, Payday, Marketing, Clean up.',
+      'Each round has 7 phases: Restructuring, Order of Business, Working 9–5, Dinnertime, Payday, Marketing, Cleanup.',
       'Employees do the work: hire them, train them, then put them to work in your company.',
       'Marketing creates demand on houses; at Dinnertime houses buy from the cheapest, closest restaurant.',
       'Money comes from the bank. When the bank runs out twice, the game ends after that Dinnertime.',
@@ -214,7 +214,7 @@ const CHAPTERS: ChapterSpec[] = [
   },
   {
     id: 'cleanup',
-    title: 'Phase 7 — Clean up',
+    title: 'Phase 7 — Cleanup',
     group: 'The seven phases',
     phase: 'cleanup',
     blurb: 'Throw away unsold food, take everyone back to hand, open new restaurants.',

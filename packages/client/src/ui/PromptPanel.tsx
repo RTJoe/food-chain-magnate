@@ -388,7 +388,7 @@ function PaydayPanel({ player: p, owed, mustFire }: { player: PlayerState; owed:
 }
 
 // ---------------------------------------------------------------------------
-// Clean up: freezer
+// Cleanup: freezer
 // ---------------------------------------------------------------------------
 
 function FreezerPanel({ player: p, capacity }: { player: PlayerState; capacity: number }) {

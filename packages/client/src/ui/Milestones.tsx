@@ -313,7 +313,7 @@ function statusText(r: MilestoneRow, mine: boolean, names: string): string {
   if (mine) return "Claimed by you";
   if (r.removed)
     return r.claimedBy.length ? `Gone, claimed by ${names}` : "Gone";
-  if (r.claimedBy.length) return `Claimed by ${names}: closes at Clean up`;
+  if (r.claimedBy.length) return `Claimed by ${names}: closes at Cleanup`;
   return r.removeAfterRound !== null
     ? `Open until round ${r.removeAfterRound}`
     : "Open";

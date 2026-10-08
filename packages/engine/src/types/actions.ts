@@ -173,7 +173,7 @@ export interface PaydayConfirm extends A<'payday.confirm'> {
   tokens?: FoodCounts;
 }
 
-// --- Clean up (base.md §10) -------------------------------------------------
+// --- Cleanup (base.md §10) -------------------------------------------------
 export interface CleanupFreezer extends A<'cleanup.freezer'> {
   keep: FoodCounts;
 }

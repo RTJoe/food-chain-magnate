@@ -244,7 +244,7 @@ const SCENARIOS: Record<string, Scenario> = {
     if (!r) return 'no open restaurant';
     return { next: clone(v), events: [{ type: 'foodProduced', player: r.owner, uid: null, food: 'pizza' as FoodId, count: 2 }] };
   },
-  'Food spoiled (clean up)': (v) => {
+  'Food spoiled (Cleanup)': (v) => {
     const r = anyRestaurant(v, 'open');
     if (!r) return 'no open restaurant';
     return { next: clone(v), events: [{ type: 'foodDiscarded', player: r.owner, goods: { burger: 2, beer: 1 } }] };

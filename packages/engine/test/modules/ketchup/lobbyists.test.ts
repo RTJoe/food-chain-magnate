@@ -231,7 +231,7 @@ describe('Lobbyists (ketchup.md §2)', () => {
       }
     });
 
-    it('§2: Clean up removes the roadworks and opens the roads', () => {
+    it('§2: Cleanup removes the roadworks and opens the roads', () => {
       const { s, road } = lobbyTurn();
       const t = act(s, road([c(3, 5), c(4, 5)]));
       t.turn = null;

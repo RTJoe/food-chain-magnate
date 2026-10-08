@@ -15,15 +15,29 @@
  *     (phase.ts, payday.ts);
  *   - Lobbyists at 5+ players does not add New Districts (createGame).
  *   Ketchup module fixes of the same release are not versioned (no saved game used modules).
- * - 2: current rules.
+ * - 2: designer rulings checked on BGG (docs/rules/questions.md). Differences, each marked
+ *   `LEGACY(v2)` where it is kept (also in force for version 1):
+ *   - a recruiting manager / HR director fired in Payday still gives its unused-action discount
+ *     (payday.ts; Q-B9);
+ *   - a marketeer busy on an eternal campaign has no salary whatever its type, and First Billboard
+ *     waives only the base marketeers (payday.ts; Q-K35);
+ *   - coffee routes: only locations that would sell on every best route sell (coffee.ts; Q-K18).
+ * - 3: current rules.
  */
 import type { GameConfig } from '../types/state.js';
 
-export const RULES_VERSION = 2;
+export const RULES_VERSION = 3;
+
+type Versioned = { config: Pick<GameConfig, 'rulesVersion'> };
+
+/** True for a game played under rules older than `version`. A config without a version is current. */
+export function rulesBefore(s: Versioned, version: number): boolean {
+  return s.config.rulesVersion !== undefined && s.config.rulesVersion < version;
+}
 
 /** True for a game played under the version-1 rules. A config without a version is current. */
-export function legacyRules(s: { config: Pick<GameConfig, 'rulesVersion'> }): boolean {
-  return s.config.rulesVersion !== undefined && s.config.rulesVersion < 2;
+export function legacyRules(s: Versioned): boolean {
+  return rulesBefore(s, 2);
 }
 
 /**

@@ -8,6 +8,7 @@ import { legalPlacements } from '../../../src/index.js';
 import { contentFor } from '../../../src/modules/registry.js';
 import { RURAL_MARKETEERS_MODULE, freewayProblem, ruralDistance, ruralHouse } from '../../../src/modules/ketchup/ruralMarketeers.js';
 import { clone } from '../../../src/core/clone.js';
+import { isSalaried } from '../../../src/rules/payday.js';
 import { act, rejected, workingTurn } from '../../helpers/game.js';
 import { dine, kb, kgame, market } from './helpers.js';
 
@@ -75,6 +76,19 @@ describe('Rural Marketeers - giant billboards (ketchup.md §12)', () => {
     expect(camp).toMatchObject({ kind: 'giantBillboard', number: 21, eternal: true, remaining: 1, placement: { kind: 'rural', side: 'N' }, goods: ['burger'], marketeer: work[0] });
     expect(t.players.p1?.busy[work[0] as Uid]).toEqual([camp?.id]);
     expect(t.marketingTiles).not.toContain(21);
+  });
+
+  it('Q-K35: a rural marketeer busy on its giant billboard keeps its salary unless First Billboard waives it', () => {
+    const { s, work } = turn();
+    const t = act(s, giant(work[0] as Uid, 'N'));
+    const rm = work[0] as Uid;
+    expect(isSalaried(t, contentFor([...M]), 'p1', rm)).toBe(true);
+    const fb = clone(t);
+    (fb.players.p1 as { milestones: Record<string, unknown> }).milestones.first_billboard = { round: 1 };
+    expect(isSalaried(fb, contentFor([...M]), 'p1', rm)).toBe(false);
+    const legacy = clone(t);
+    legacy.config.rulesVersion = 2; // LEGACY(v2): no salary on an eternal campaign
+    expect(isSalaried(legacy, contentFor([...M]), 'p1', rm)).toBe(false);
   });
 
   it('§12: placement ignores range (no road range limit)', () => {

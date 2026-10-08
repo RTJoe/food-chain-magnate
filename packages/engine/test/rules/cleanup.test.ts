@@ -1,5 +1,5 @@
 /**
- * Clean up scenarios (base.md §10, §12 bankruptcy; DLX p33; milestones.md first_throw_away).
+ * Cleanup scenarios (base.md §10, §12 bankruptcy; DLX p33; milestones.md first_throw_away).
  * Map: see c2ctx.ts.
  */
 import { describe, expect, it } from 'vitest';
@@ -31,7 +31,7 @@ describe('A. throw away (base.md §10A)', () => {
     expect(s.players.p1?.milestones.first_throw_away).toBeDefined();
     expect(s.players.p2?.milestones.first_throw_away).toBeDefined();
     expect(s.players.p3?.milestones.first_throw_away).toBeUndefined();
-    // D: crossed out for p3 at the end of this Clean up.
+    // D: crossed out for p3 at the end of this Cleanup.
     expect(milestoneAvailable(s, 'p3', 'first_throw_away')).toBe(false);
   });
 
@@ -47,7 +47,7 @@ describe('A. throw away (base.md §10A)', () => {
     expect(milestoneAvailable(ctx.state, 'p1', 'first_throw_away')).toBe(true);
   });
 
-  it('the freezer earned this round is not usable until the next Clean up', () => {
+  it('the freezer earned this round is not usable until the next Cleanup', () => {
     const s = base().milestone('p1', 'first_throw_away', 3).build();
     expect(freezerCapacity(s, 'p1')).toBe(0);
     const s2 = base().milestone('p1', 'first_throw_away', 2).build();

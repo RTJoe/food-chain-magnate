@@ -3,11 +3,11 @@
  *
  * `runUntilInput(ctx)` advances the game until some player must act (or the game is over) and
  * sets `state.awaiting`. Automatic phases (Dinnertime, Marketing, the salary step of Payday,
- * Clean up without freezer decisions) run inside it, emitting their fine-grained events.
+ * Cleanup without freezer decisions) run inside it, emitting their fine-grained events.
  *
  * Round flow: setup.reserve (not in the intro game; DLX p4 step 5) → setup.restaurants (step 6) → [restructuring →
  * orderOfBusiness → working → dinnertime → payday (not in the intro game) → marketing → cleanup] × rounds. The game
- * only ends in Dinnertime (base.md §3, §12) or when every chain is bankrupt (Clean up).
+ * only ends in Dinnertime (base.md §3, §12) or when every chain is bankrupt (Cleanup).
  *
  * Entry work happens in `enter(...)`; the loop only checks whether the current phase is complete.
  */

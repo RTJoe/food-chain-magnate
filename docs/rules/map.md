@@ -33,7 +33,7 @@ Rows top→bottom 0–4, columns left→right 0–4. `(r,c)`.
 | `H` | house square (house number given below) |
 | `B` | beer source |
 | `L` | lemonade source |
-| `S` | soft drink (soda/coke) source |
+| `S` | soda (coke) source |
 | `A` | apartment square (Ketchup) |
 | `G` | printed garden square (Ketchup tile W) |
 | `P` | park square (Ketchup tile Z) |

@@ -92,9 +92,9 @@
     "round": 4,
     "phase": "marketing",
     "cash": {
-      "p1": 60,
+      "p1": 55,
       "p2": 0
     },
-    "bank": 70
+    "bank": 75
   }
 }

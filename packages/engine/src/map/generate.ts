@@ -6,7 +6,7 @@
  * - `drawLayout(rng, pool, rows, cols, opts)`: uniform random draw without replacement and a
  *   random rotation per tile. Never modifies tiles or adds roads (dead ends are legal).
  *   `requireAllDrinks` (intro game, base.md §13; questions.md Q-B5): redraw the whole map until
- *   beer, lemonade and soft drink all appear.
+ *   beer, lemonade and soda all appear.
  */
 import type { DrinkId, Rotation, TileDef, TileTemplateId } from '../types/content.js';
 import type { RngState } from '../types/state.js';

@@ -262,7 +262,7 @@ export function simpleStructure(s: GameState, player: PlayerId): StructureSubmis
 }
 
 // ---------------------------------------------------------------------------
-// Payday / Clean up
+// Payday / Cleanup
 // ---------------------------------------------------------------------------
 
 /** Salaried cards to fire so salaries fit in cash (beach first, then the least useful at work). */

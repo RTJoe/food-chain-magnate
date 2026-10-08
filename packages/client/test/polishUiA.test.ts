@@ -35,8 +35,8 @@ describe('copy helpers', () => {
   });
 
   it('food buttons use display names (M189)', () => {
-    const name = (f: string) => (f === 'soft_drink' ? 'Soft drink' : f);
-    expect(readyLabel('Errand Boy: get soft_drink', 'soft_drink' as never, name)).toBe('Errand Boy: get soft drink');
+    const name = (f: string) => (f === 'soft_drink' ? 'Soda' : f);
+    expect(readyLabel('Errand Boy: get soft_drink', 'soft_drink' as never, name)).toBe('Errand Boy: get soda');
     expect(readyLabel('Pizza Chef: make 3 pizza', null, name)).toBe('Pizza Chef: make 3 pizza');
   });
 
@@ -136,7 +136,7 @@ describe('org chart: Night Shift Manager has no slots (M246, M285)', () => {
 });
 
 describe('log lines (M289)', () => {
-  it('road opens at Clean up; a coffee shop move reads as a move', () => {
+  it('road opens at Cleanup; a coffee shop move reads as a move', () => {
     const s = stateBuilder({ players: 2 }).round(3).build();
     const v = viewOf(s);
     const c = buildCatalog(engine.listModules(), s.config.modules);

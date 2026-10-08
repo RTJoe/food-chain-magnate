@@ -91,6 +91,36 @@ describe('discounts (base.md §8.3)', () => {
     expect(ctx2.of('salaryPaid')[0]).toMatchObject({ gross: 25, discounts: 20, paid: 5 });
   });
 
+  it('Q-B9: a recruiting manager fired in step 1 gives no discount for its unused actions (JD BGG 2692106)', () => {
+    const b = (version?: number) =>
+      base()
+        .cash('p1', 50)
+        .card('p1', 'recruiting_manager', 'work', 'rm')
+        .card('p1', 'junior_vp', 'beach')
+        .card('p1', 'burger_cook', 'beach')
+        .mutate((s) => {
+          if (version) s.config.rulesVersion = version;
+          const p = s.players.p1 as { unusedRecruitActions: number; unusedRecruitByCard?: Record<string, number> };
+          p.unusedRecruitActions = 1;
+          p.unusedRecruitByCard = { rm: 1 };
+        });
+    // Kept: 3 salaried = $15 − $5.
+    const kept = payday(b());
+    act(kept, confirm('p1'));
+    expect(kept.of('salaryPaid')[0]).toMatchObject({ gross: 15, discounts: 5, paid: 10 });
+    // Fired: 2 salaried = $10, no discount.
+    const fired = payday(b());
+    expect(salaryAfterFiring(fired.state, fired.content, 'p1', ['rm'])).toMatchObject({ salaried: 2, total: 10 });
+    act(fired, fire('p1', 'rm'));
+    act(fired, confirm('p1'));
+    expect(fired.of('salaryPaid')[0]).toMatchObject({ gross: 10, discounts: 0, paid: 10 });
+    // LEGACY(v2): the discount survived the firing.
+    const legacy = payday(b(2));
+    act(legacy, fire('p1', 'rm'));
+    act(legacy, confirm('p1'));
+    expect(legacy.of('salaryPaid')[0]).toMatchObject({ gross: 10, discounts: 5, paid: 5 });
+  });
+
   it('discounts are mandatory and the total is floored at $0', () => {
     const s = base().card('p1', 'junior_vp', 'work').milestone('p1', 'first_train', 2).build();
     expect(salaryBreakdown(s, makeCtx(s).content, 'p1')).toMatchObject({ salaried: 1, total: 0 });
@@ -110,10 +140,12 @@ describe('discounts (base.md §8.3)', () => {
     expect(ctx.of('salaryPaid')[0]).toMatchObject({ gross: 5, paid: 5 });
   });
 
-  it('§6.4: the marketeer of an eternal campaign has no salary', () => {
+  it('Q-K35: a marketeer busy on an eternal campaign keeps its salary without First Billboard (DLX p29 sidebar)', () => {
     const s = base()
       .marketeerCampaign('brand_manager', 'bm', { owner: 'p1', kind: 'airplane', number: 4, goods: ['burger'], placement: PLANE, remaining: 1, eternal: true })
       .build();
+    expect(salaryBreakdown(s, makeCtx(s).content, 'p1')).toMatchObject({ salaried: 1, total: 5 });
+    s.config.rulesVersion = 2; // LEGACY(v2): no salary for any eternal campaign's marketeer
     expect(salaryBreakdown(s, makeCtx(s).content, 'p1')).toMatchObject({ salaried: 0, total: 0 });
   });
 

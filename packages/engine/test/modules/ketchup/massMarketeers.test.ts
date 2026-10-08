@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { StateBuilder } from '../../../src/testing/index.js';
 import type { GameState, Uid } from '../../../src/types/index.js';
 import { contentFor } from '../../../src/modules/registry.js';
+import { isSalaried } from '../../../src/rules/payday.js';
 import { rejected, workingTurn } from '../../helpers/game.js';
 import { fromPhase, kb, kgame, market } from './helpers.js';
 
@@ -30,6 +31,15 @@ describe('Mass Marketeers (ketchup.md §10)', () => {
     expect(c.employees[MM]).toMatchObject({ count: 6, salary: true, colour: 'blue', category: 'marketing' });
     expect(c.employees[MM]?.ability).toEqual({ kind: 'massMarketing' });
     expect(c.employees.marketing_trainee?.trainsInto).toContain(MM);
+  });
+
+  it('Q-K35: First Billboard waives the mass marketeer salary (JD BGG 2881869, 3232423)', () => {
+    const b = kb(2, [...M]).card('p1', MM, 'work', 'mm');
+    expect(isSalaried(b.build(), contentFor([...M]), 'p1', 'mm')).toBe(true);
+    const s = b.milestone('p1', 'first_billboard', 1).build();
+    expect(isSalaried(s, contentFor([...M]), 'p1', 'mm')).toBe(false);
+    s.config.rulesVersion = 2; // LEGACY(v2): First Billboard waived only the base marketeers
+    expect(isSalaried(s, contentFor([...M]), 'p1', 'mm')).toBe(true);
   });
 
   describe('extra marketing passes (phase 6)', () => {
@@ -110,7 +120,7 @@ describe('Mass Marketeers (ketchup.md §10)', () => {
   });
 
   describe('through the real engine', () => {
-    it('§10: a full round (Marketing → Clean up) with a mass marketeer at work runs two passes', () => {
+    it('§10: a full round (Marketing → Cleanup) with a mass marketeer at work runs two passes', () => {
       const b = plane(kb(2, [...M]).card('p1', MM, 'work'), 3);
       const s = b.phase({ kind: 'marketing', pass: 1, passes: 1, order: ['c'], idx: 0 }).build();
       const ctx = fromPhase(s);

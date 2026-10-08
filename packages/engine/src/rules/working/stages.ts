@@ -106,6 +106,7 @@ export function beginTurn(ctx: EngineCtx, player: PlayerId): void {
   };
   s.turn = turn;
   p.unusedRecruitActions = 0;
+  delete p.unusedRecruitByCard;
   ctx.emit({ type: 'turnStarted', player });
   ctx.emit({ type: 'workStageChanged', player, stage: turn.stage });
   // 3c drive-ins: hiring and training never look at restaurants, and no restaurant can be
@@ -157,16 +158,16 @@ export function spend(ctx: EngineCtx, uid: Uid, n = 1): void {
 }
 
 /** Remaining uses of recruiting-manager / HR-director cards (base.md §6.2 discount). */
-export function unusedDiscountActions(s: GameState, turn: TurnState): number {
+export function unusedDiscountActions(s: GameState, turn: TurnState): Record<Uid, number> {
   const p = s.players[turn.player];
-  if (!p) return 0;
+  const out: Record<Uid, number> = {};
+  if (!p) return out;
   const content = contentFor(s.config.modules);
-  let n = 0;
   for (const [uid, left] of Object.entries(turn.uses)) {
     const a = defOf(content, p, uid)?.ability;
-    if (a?.kind === 'recruit' && a.salaryDiscountPerUnused > 0) n += left;
+    if (a?.kind === 'recruit' && a.salaryDiscountPerUnused > 0 && left > 0) out[uid] = left;
   }
-  return n;
+  return out;
 }
 
 // ---------------------------------------------------------------------------

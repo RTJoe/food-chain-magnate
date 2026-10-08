@@ -20,7 +20,7 @@ const PHASE_TITLES: Record<string, string> = {
   dinnertime: 'Dinnertime',
   payday: 'Payday',
   marketing: 'Marketing',
-  cleanup: 'Clean up',
+  cleanup: 'Cleanup',
 };
 
 export function derivePrompt(view: GameView, me: PlayerId | null): Prompt {

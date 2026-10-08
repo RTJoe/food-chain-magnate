@@ -113,7 +113,7 @@ export const BASE_MILESTONES: readonly MilestoneDef[] = [
     trigger: { kind: 'discarded' },
     effects: [{ kind: 'freezer', capacity: 10 }],
     timing: 'nextCleanup',
-    text: 'Gain a freezer: from the next Clean up, keep up to 10 unsold items.',
+    text: 'Gain a freezer: from the next Cleanup, keep up to 10 unsold items.',
     rulesRef: 'milestones.md; base.md §10; DLX p33, p35',
   }),
   m({

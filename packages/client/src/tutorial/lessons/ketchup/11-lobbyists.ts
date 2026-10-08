@@ -137,7 +137,7 @@ export const lobbyistsLesson = defineLesson({
     },
     {
       id: 'clean-up',
-      say: 'At Clean up the roadworks go and the new road becomes a normal road for everyone.',
+      say: 'At Cleanup the roadworks go and the new road becomes a normal road for everyone.',
       show: [{ cell: [6, 7] }],
       until: { next: true },
     },
@@ -152,7 +152,7 @@ export const lobbyistsLesson = defineLesson({
     pass: 2,
     questions: [
       { kind: 'number', q: 'A house with a garden sits next to a park. By how much are its item prices multiplied?', answer: 3, why: 'Park ×2, or ×3 when the house also has a garden.' },
-      { kind: 'choice', q: 'May a delivery use a road the turn it is built?', options: ['Yes', 'No, it is under construction'], answer: 1, why: 'Under-construction roads carry no route until Clean up flips them.' },
+      { kind: 'choice', q: 'May a delivery use a road the turn it is built?', options: ['Yes', 'No, it is under construction'], answer: 1, why: 'Under-construction roads carry no route until Cleanup flips them.' },
       { kind: 'tap', q: 'Tap the house your park doubles.', target: { house: 18 }, why: 'House 18 touches the park on its left side.' },
     ],
   },

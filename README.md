@@ -125,7 +125,7 @@ Choose modules in the room lobby (host) or the hot-seat setup.
 | Lobbyists | Lobbyists build roads (with roadworks) and parks; parks raise prices. |
 | New Milestones | Seventeen new milestones replace the base ones. Not with Hard Choices. |
 | Coffee | Baristas make coffee and open coffee shops; houses buy coffee on the way to dinner. |
-| Kimchi | Kimchi Masters make kimchi in Clean up; houses prefer chains that add a kimchi. |
+| Kimchi | Kimchi Masters make kimchi in Cleanup; houses prefer chains that add a kimchi. |
 | Sushi | Sushi cooks and chefs; garden houses eat sushi when a chain has enough. |
 | Noodles | Noodle cooks and chefs; houses nobody can serve eat noodles instead. |
 | Ketchup | Earn a $1 Dinnertime edge when a rival sells to demand you created. |

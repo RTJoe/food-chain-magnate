@@ -1,7 +1,7 @@
 /**
  * L12 — Milestones (docs/tutorial-plan.md §2, L12; §1.4 "Milestones: first come, permanent").
  * Claimed the moment you qualify, shared by everyone who qualifies in the same round, crossed out
- * for everyone else at Clean up, and mandatory.
+ * for everyone else at Cleanup, and mandatory.
  *
  * Scenario: round 3 Working, Ada first with a Marketing Trainee at work (marketing sub-step). Bo
  * (scripted) also has a Marketing Trainee and places a pizza billboard by house 5 in the same round.
@@ -57,7 +57,7 @@ export const lesson12 = defineLesson({
   course: 'base',
   title: 'Milestones',
   minutes: 7,
-  goal: 'Milestones: claimed at once, shared within a round, gone for the rest at Clean up, and mandatory.',
+  goal: 'Milestones: claimed at once, shared within a round, gone for the rest at Cleanup, and mandatory.',
   concepts: ['milestone', 'eternal_campaign', 'mandatory'],
   scenario: {
     build: () => {
@@ -122,7 +122,7 @@ export const lesson12 = defineLesson({
     },
     {
       id: 'cleanup',
-      say: 'Press Continue. Dinnertime, Payday, Marketing and Clean up run; watch the Milestones tab at Clean up.',
+      say: 'Press Continue. Dinnertime, Payday, Marketing and Cleanup run; watch the Milestones tab at Cleanup.',
       show: [{ ui: 'continue' }],
       allow: { actions: [{ type: 'tutorial.continue' }] },
       until: { paused: 'cleanup' },
@@ -135,8 +135,8 @@ export const lesson12 = defineLesson({
       id: 'crossed-out',
       say: (ctx) =>
         gone(ctx.view, 'first_burger_marketed', 'p2')
-          ? 'At Clean up, milestones claimed this round were crossed out for the rest: First Burger Marketed is gone for Bo, First Pizza Marketed for you.'
-          : 'At Clean up, a milestone claimed this round is crossed out for everyone who did not claim it.',
+          ? 'At Cleanup, milestones claimed this round were crossed out for the rest: First Burger Marketed is gone for Bo, First Pizza Marketed for you.'
+          : 'At Cleanup, a milestone claimed this round is crossed out for everyone who did not claim it.',
       show: [{ ui: 'milestone-first_burger_marketed' }, { ui: 'milestone-first_pizza_marketed' }],
       until: { next: true },
       onEnter: [{ summary: 'close' }, { openTab: 'milestones' }],

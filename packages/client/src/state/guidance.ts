@@ -104,7 +104,7 @@ export function fallbackPrompt(view: GameView, me: PlayerId | null): Prompt {
     case 'payday':
       return { kind: 'payday', title: 'Payday: fire staff, then pay salaries', owed: 0, mustFire: false };
     case 'cleanup':
-      return { kind: 'freezer', title: 'Clean up: choose goods to freeze', capacity: 10 };
+      return { kind: 'freezer', title: 'Cleanup: choose goods to freeze', capacity: 10 };
     default:
       return { kind: 'waiting', title: phaseLabel(phase), waitingFor };
   }

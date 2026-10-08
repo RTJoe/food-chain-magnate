@@ -4,7 +4,7 @@
  *
  * Scenario: round 1 Restructuring after setup (both restaurants, reserves chosen). `settle: false`
  * so the learner submits the CEO-only chart; Bo (scripted, empty hand) is submitted by the engine.
- * Bo hires a Kitchen Trainee on his turn. Pauses after Clean up so the round's end can be read.
+ * Bo hires a Kitchen Trainee on his turn. Pauses after Cleanup so the round's end can be read.
  */
 import { town } from '@fcm/engine/testing';
 import { defineLesson } from '../../dsl.js';
@@ -135,7 +135,7 @@ export const lesson03 = defineLesson({
     },
     {
       id: 'auto-phases',
-      say: 'Marketing and Clean up then ran by themselves. Nothing happened yet: no campaigns, no food to throw away.',
+      say: 'Marketing and Cleanup then ran by themselves. Nothing happened yet: no campaigns, no food to throw away.',
       until: { next: true },
       checkpoint: true,
       glossary: 'phase',

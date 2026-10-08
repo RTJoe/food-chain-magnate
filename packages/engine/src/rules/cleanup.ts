@@ -1,5 +1,5 @@
 /**
- * Phase 7 — Clean up (base.md §10; DLX p33).
+ * Phase 7 — Cleanup (base.md §10; DLX p33).
  *
  * A. Throw away unsold items. A player who earned "First to Throw Away" in an EARLIER round may
  *    keep up to 10 (player's choice); throwing away ≥1 item claims the milestone.
@@ -20,7 +20,7 @@ import { hasMilestoneBefore } from './pricing.js';
 import { pipe } from '../modules/registry.js';
 import { readCtx } from '../core/context.js';
 
-/** Freezer capacity this Clean up: 10 with "First to Throw Away" earned in an earlier round. */
+/** Freezer capacity this Cleanup: 10 with "First to Throw Away" earned in an earlier round. */
 export function freezerCapacity(s: GameState, player: PlayerId): number {
   const base = hasMilestoneBefore(s, player, 'first_throw_away') ? 10 : 0;
   return s.config.modules.length ? pipe(readCtx(s), 'freezerCapacity', base, { player }) : base;
@@ -98,7 +98,7 @@ function keep(ctx: HookContext, player: PlayerId, kept: FoodCounts): void {
 }
 
 export function validateCleanupAction(state: GameState, action: CleanupFreezer): Ok | Rejected {
-  if (state.phase.kind !== 'cleanup') return rej('WRONG_PHASE', 'Not in Clean up');
+  if (state.phase.kind !== 'cleanup') return rej('WRONG_PHASE', 'Not in Cleanup');
   if (state.awaiting.kind !== 'cleanup.freezer' || !state.awaiting.players.includes(action.playerId)) {
     return rej('NOT_YOUR_TURN', 'No freezer decision pending for this player');
   }
@@ -154,6 +154,7 @@ function finishCleanup(ctx: HookContext): void {
       ctx.emit({ type: 'cardsReturned', player });
     }
     p.unusedRecruitActions = 0;
+    delete p.unusedRecruitByCard;
   }
   // C. Remove signs.
   for (const r of Object.values(s.board.restaurants)) {

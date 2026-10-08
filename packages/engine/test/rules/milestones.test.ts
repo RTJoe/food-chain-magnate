@@ -35,7 +35,7 @@ function placed(ctx: TestCtx, player: string, campaignId: string): void {
 const PLANE = { kind: 'airplane', side: 'W', offset: 3, width: 1 } as const;
 
 describe('same-round sharing (milestones.md general rules 1–3)', () => {
-  it('every player who meets the condition in the same round claims it; after Clean up D nobody else can', () => {
+  it('every player who meets the condition in the same round claims it; after Cleanup D nobody else can', () => {
     const ctx = ctxOf(base(3));
     expect(awardMilestone(ctx, 'p2', 'first_train')).toBe(true);
     expect(awardMilestone(ctx, 'p1', 'first_train')).toBe(true);

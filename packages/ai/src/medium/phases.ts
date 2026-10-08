@@ -1,6 +1,6 @@
 /**
  * The short decisions: setup (first restaurant, reserve card), order of business, Payday firing,
- * Clean up freezer (ai-strategy.md §3.4, §3.7, §3.8).
+ * Cleanup freezer (ai-strategy.md §3.4, §3.7, §3.8).
  */
 import type { Action, FoodCounts, FoodId, ReserveCard, Uid } from '@fcm/engine';
 import { cardsAtWork, freezerCapacity, salaryBreakdown, salariedCards, stockOf, voluntarilyFireable } from '@fcm/engine';
@@ -158,7 +158,7 @@ export function forcedFire(c: Ctx): Uid[] {
 }
 
 // ---------------------------------------------------------------------------
-// Clean up
+// Cleanup
 // ---------------------------------------------------------------------------
 
 /** Freezer: keep what next round's demand (houses I can win) wants, drinks before food. */

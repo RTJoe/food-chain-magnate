@@ -223,7 +223,7 @@ export interface Hooks {
   tips: PipelineHook<{ waitresses: number; amount: number }, { player: PlayerId }>;
   /** Reserve cards offered at setup (Reserve Prices variant, ketchup.md §14). */
   reserveOptions: PipelineHook<ReserveCard[], Record<string, never>>;
-  /** Freezer capacity this Clean up (First soda sold, ketchup.md §3). */
+  /** Freezer capacity this Cleanup (First soda sold, ketchup.md §3). */
   freezerCapacity: PipelineHook<number, { player: PlayerId }>;
   /** Must a player who cannot pay salaries fire employees? (First trainer used: no, ketchup.md §3.) */
   forcedFiring: PipelineHook<boolean, { player: PlayerId }>;

@@ -20,12 +20,17 @@ import { payToBank } from './bank.js';
 import { cardsAtWork, hasMilestone, runPipeline, staticContent } from './pricing.js';
 import { pipe } from '../modules/registry.js';
 import { readCtx } from '../core/context.js';
-import { legacyRules } from '../core/rulesVersion.js';
+import { legacyRules, rulesBefore } from '../core/rulesVersion.js';
 
 /** Base salary per salaried card (base.md §8.2). */
 export const SALARY = 5;
 /** First Billboard waives these salaries (milestones.md first_billboard (a)). */
 const BILLBOARD_WAIVED: readonly string[] = ['campaign_manager', 'brand_manager', 'brand_director'];
+/**
+ * Ketchup marketeers First Billboard also waives (DLX p29 sidebar: busy marketeers have no salary
+ * with First Billboard; JD BGG 2881869, 3232423: Mass Marketeer). questions.md Q-K35.
+ */
+const BILLBOARD_WAIVED_KETCHUP: readonly string[] = ['ketchup:mass_marketeer', 'ketchup:rural_marketeer', 'ketchup:gourmet_food_critic'];
 
 // ---------------------------------------------------------------------------
 // Salary computation
@@ -45,9 +50,13 @@ function baseSalaried(s: GameState, content: ContentIndex, player: PlayerId, uid
   const def: EmployeeDef | undefined = content.employees[card.employeeId];
   if (!def?.salary) return false;
   if (BILLBOARD_WAIVED.includes(card.employeeId) && hasMilestone(s, player, 'first_billboard')) return false;
-  // base.md §6.4: the marketeer of an eternal campaign has no salary (DLX p20), whatever its type.
-  if ((p.busy[uid] ?? []).some((cid) => s.board.campaigns[cid]?.eternal)) return false;
-  return true;
+  if (rulesBefore(s, 3)) {
+    // LEGACY(v2): the marketeer of an eternal campaign had no salary, whatever its type.
+    return !(p.busy[uid] ?? []).some((cid) => s.board.campaigns[cid]?.eternal);
+  }
+  // Q-K35: busy marketeers keep their salary (DLX p29 sidebar; a Rural Marketeer on its eternal
+  // giant billboard too, JD BGG 3442376) unless First Billboard waives it.
+  return !(BILLBOARD_WAIVED_KETCHUP.includes(card.employeeId) && hasMilestone(s, player, 'first_billboard'));
 }
 
 export function salariedCards(s: GameState, content: ContentIndex, player: PlayerId): Uid[] {
@@ -56,13 +65,24 @@ export function salariedCards(s: GameState, content: ContentIndex, player: Playe
   return Object.keys(p.employees).filter((uid) => isSalaried(s, content, player, uid));
 }
 
+/**
+ * Unused recruit actions that still give the $5 discount. Q-B9: a recruiting manager / HR director
+ * fired in step 1 gives none ("you can't use its power if it's no longer in your structure", JD BGG
+ * 2692106).
+ */
+function unusedRecruitDiscountActions(s: GameState, p: PlayerState): number {
+  // LEGACY(v2): recorded during Working and kept even if the card was fired in step 1.
+  if (rulesBefore(s, 3) || !p.unusedRecruitByCard) return p.unusedRecruitActions;
+  return Object.entries(p.unusedRecruitByCard).reduce((a, [uid, n]) => a + (p.employees[uid] ? n : 0), 0);
+}
+
 /** Gross salary, mandatory discounts, total (≥ 0). Runs the `salaryTotal` pipeline when `ctx` is given. */
 export function salaryBreakdown(s: GameState, content: ContentIndex, player: PlayerId, ctx?: HookContext): SalaryBreakdown {
   const p = s.players[player] as PlayerState;
   const salaried = salariedCards(s, content, player).length;
   const discounts: SalaryBreakdown['discounts'] = [];
-  // Q-B9: recorded during Working; kept even if the recruiting manager is fired in step 1.
-  if (p.unusedRecruitActions > 0) discounts.push({ source: 'recruiting', amount: p.unusedRecruitActions * 5 });
+  const unused = unusedRecruitDiscountActions(s, p);
+  if (unused > 0) discounts.push({ source: 'recruiting', amount: unused * 5 });
   if (hasMilestone(s, player, 'first_train')) discounts.push({ source: 'first_train', amount: 15 });
   const gross = salaried * SALARY;
   const off = discounts.reduce((a, d) => a + d.amount, 0);
@@ -270,7 +290,7 @@ export function fireCard(ctx: HookContext, player: PlayerId, uid: Uid, forced: b
   st.ceoSubs = st.ceoSubs.filter((u) => u !== uid);
   const orphans = st.managerSubs[uid] ?? [];
   delete st.managerSubs[uid];
-  // A fired manager's reports stay owned; with no manager they wait on the beach until Clean up.
+  // A fired manager's reports stay owned; with no manager they wait on the beach until Cleanup.
   p.beach.push(...orphans);
   for (const [mgr, subs] of Object.entries(st.managerSubs)) st.managerSubs[mgr] = subs.filter((u) => u !== uid);
   p.beach = p.beach.filter((u) => u !== uid);

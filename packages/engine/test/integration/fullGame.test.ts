@@ -34,7 +34,7 @@ describe('full game via the reducer (base.md §3)', () => {
     for (const k of ['setup.restaurants', 'setup.reserve', 'orderOfBusiness', 'working', 'payday', 'restructuring'] as PhaseKind[]) expect(phases.has(k)).toBe(true);
     const types = new Set(r.events.flat().map((e) => e.type));
     for (const t of ['employeeHired', 'turnEnded', 'structuresRevealed', 'salaryPaid', 'roundStarted', 'cardsReturned']) expect(types.has(t as never)).toBe(true);
-    // Dinnertime, Marketing and Clean up are automatic: their phaseChanged events prove they ran.
+    // Dinnertime, Marketing and Cleanup are automatic: their phaseChanged events prove they ran.
     const visited = new Set(r.events.flat().flatMap((e) => (e.type === 'phaseChanged' ? [e.to.kind] : [])));
     for (const k of ['dinnertime', 'payday', 'marketing', 'cleanup'] as PhaseKind[]) expect(visited.has(k)).toBe(true);
   });

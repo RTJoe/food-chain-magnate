@@ -109,7 +109,7 @@ client maps both earlier palettes (older servers, saved games) to these seats (`
 
 Player colour appears on restaurant roofs and awnings, campaign frames, coffee shops, busy-marketeer chips and UI badges. Colour is never the only cue: each seat has one mark (`playerMark`: the name's initial, two letters when initials clash) shown on its UI badges and on its restaurant and coffee-shop signs and vans.
 
-Goods (key print colour, `FOOD_COLORS`): burger `#c98a4b`, pizza `#d4883a`, beer `#3e8e4d`, lemonade `#ffec46`, soft drink `#d8262a`, coffee `#4a3226`, kimchi `#d84a2a`, sushi `#e98b8b`, noodles `#f2d79b`. Each good also has its own token silhouette and print (`src/goodsGlyphs.ts`: SVG path data shared by the UI icons, the 2D board and, later, the 3D token decals).
+Goods (key print colour, `FOOD_COLORS`): burger `#c98a4b`, pizza `#d4883a`, beer `#3e8e4d`, lemonade `#ffec46`, soda `#d8262a`, coffee `#4a3226`, kimchi `#d84a2a`, sushi `#e98b8b`, noodles `#f2d79b`. Each good also has its own token silhouette and print (`src/goodsGlyphs.ts`: SVG path data shared by the UI icons, the 2D board and, later, the 3D token decals).
 
 ## Scale and units
 
@@ -134,7 +134,7 @@ Pieces
 | Garden (2x1) | Low hedge border, two round tree tops, lawn inset. |
 | Apartment (3x3) | Stepped block with window bands. |
 | Restaurant (2x2) | Diner box with a rounded front, awning in player colour, tall sign on the entrance corner. Coming soon: scaffold frame plus a translucent sign. Derelict: grey, no sign. Drive-in: arrow markers on all four corners. |
-| Drink source | Crate or tank on a pallet: barrel (beer), striped stand (lemonade), vending box (soft drink). |
+| Drink source | Crate or tank on a pallet: barrel (beer), striped stand (lemonade), vending box (soda). |
 | Billboard | Two posts with a framed board in player colour; the board shows the good's icon. |
 | Mailbox | Rounded postbox with a flag. |
 | Airplane | Small prop plane trailing a banner, hovering beside the board edge over the covered rows. |
@@ -144,7 +144,7 @@ Pieces
 | Park | Lawn with 3–4 round trees and a bench. |
 | Lobbyist road | Road piece; under construction shows cones and striped barriers. Roadworks marker = single cone. |
 | Freeway | Raised ramp coming in from the board edge. |
-| Demand tokens | Stacked discs above the house, one colour and shape per good: burger (bun-shaped disc), pizza (wedge), beer (mug), lemonade (glass with straw), soft drink (can), coffee (cup), kimchi (jar), sushi (roll), noodles (bowl). Up to 5 per house, then a "x N" label. |
+| Demand tokens | Stacked discs above the house, one colour and shape per good: burger (bun-shaped disc), pizza (wedge), beer (mug), lemonade (glass with straw), soda (can), coffee (cup), kimchi (jar), sushi (roll), noodles (bowl). Up to 5 per house, then a "x N" label. |
 | Campaign duration | Small pips on the campaign tile, one per remaining token; eternal campaigns show an infinity badge. |
 
 ## Tile seams

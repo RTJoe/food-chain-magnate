@@ -81,7 +81,7 @@ export function hasMilestone(s: GameState, player: PlayerId, id: MilestoneId): b
   return Boolean(s.players[player]?.milestones[id]);
 }
 
-/** Earned in an earlier round (effects that start "next Dinnertime" / "next Clean up"). */
+/** Earned in an earlier round (effects that start "next Dinnertime" / "next Cleanup"). */
 export function hasMilestoneBefore(s: GameState, player: PlayerId, id: MilestoneId): boolean {
   const m = s.players[player]?.milestones[id];
   return Boolean(m && m.round < s.round);

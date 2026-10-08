@@ -4,7 +4,7 @@
  */
 import type { Action, WorkEndTurn, WorkSkip } from '../../types/actions.js';
 import type { CampaignKind, DrinkId, EmployeeId } from '../../types/content.js';
-import type { Corner, GameState, PlayerId, PlayerState } from '../../types/state.js';
+import type { Corner, GameState, PlayerId, PlayerState, Uid } from '../../types/state.js';
 import type { LegalAction, Placement, PlacementSpec } from '../../types/view.js';
 import type { EngineCtx } from '../../core/context.js';
 import { OK, reject, type Check } from '../../core/errors.js';
@@ -51,6 +51,13 @@ function validateSkip(s: GameState, a: WorkSkip): Check {
   return OK;
 }
 
+/** Unused recruit actions of a recruiting manager / HR director: $5 each at Payday (base.md §6.2). */
+function recordUnusedRecruit(p: PlayerState, uid: Uid, n: number): void {
+  if (n <= 0) return;
+  p.unusedRecruitActions += n;
+  p.unusedRecruitByCard = { ...p.unusedRecruitByCard, [uid]: (p.unusedRecruitByCard?.[uid] ?? 0) + n };
+}
+
 function applySkip(ctx: EngineCtx, a: WorkSkip): void {
   const s = ctx.state;
   const turn = s.turn;
@@ -58,7 +65,7 @@ function applySkip(ctx: EngineCtx, a: WorkSkip): void {
   if (!turn || !p) return;
   // Declined recruit actions on recruiting managers / HR directors are salary discounts (base.md §6.2).
   const ab = defOf(ctx.content, p, a.cardUid)?.ability;
-  if (ab?.kind === 'recruit' && ab.salaryDiscountPerUnused > 0) p.unusedRecruitActions += turn.uses[a.cardUid] ?? 0;
+  if (ab?.kind === 'recruit' && ab.salaryDiscountPerUnused > 0) recordUnusedRecruit(p, a.cardUid, turn.uses[a.cardUid] ?? 0);
   turn.uses[a.cardUid] = 0;
   ctx.emit({ type: 'cardSkipped', player: a.playerId, uid: a.cardUid });
 }
@@ -75,7 +82,7 @@ function applyEndTurn(ctx: EngineCtx, a: WorkEndTurn): void {
   const p = s.players[a.playerId];
   if (!turn || !p || s.phase.kind !== 'working') return;
   advanceTo(ctx, 'end');
-  p.unusedRecruitActions += unusedDiscountActions(s, turn);
+  for (const [uid, n] of Object.entries(unusedDiscountActions(s, turn))) recordUnusedRecruit(p, uid, n);
   ctx.emit({ type: 'turnEnded', player: a.playerId });
   s.turn = null;
   s.phase.idx += 1;

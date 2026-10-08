@@ -30,7 +30,7 @@ export function produceChoice(s: GameState, a: WorkProduce): { food: FoodId; amo
 export function validateProduce(s: GameState, a: WorkProduce): Check {
   const c = cardCheck(s, a.playerId, a.cardUid, ['produce'], 'food');
   if (!c.ok) return c;
-  if (c.def.ability.kind === 'produce' && c.def.ability.timing !== 'working') return reject('ILLEGAL', `${c.def.name} produces in Clean up`);
+  if (c.def.ability.kind === 'produce' && c.def.ability.timing !== 'working') return reject('ILLEGAL', `${c.def.name} produces in Cleanup`);
   const choice = produceChoice(s, a);
   return typeof choice === 'string' ? reject('INVALID_PAYLOAD', choice) : OK;
 }

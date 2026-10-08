@@ -126,9 +126,9 @@ export function describeEvent(e: GameEvent, view: GameView, c: Catalog, prev?: G
     }
     case 'entityPlaced': {
       const ent = e.entity;
-      // Clean up re-emits a finished lobbyist road (KX p16: roads under construction flip then).
+      // Cleanup re-emits a finished lobbyist road (KX p16: roads under construction flip then).
       if (ent.kind === 'lobbyistRoad' && !ent.underConstruction) return T([ent.id], L('board', `${n(ent.owner)}'s new road opens`, ent.owner));
-      if (ent.kind === 'roadworks') return T([ent.id], L('board', 'Roadworks go up where the new road joins (+1 distance through them until Clean up)', e.player));
+      if (ent.kind === 'roadworks') return T([ent.id], L('board', 'Roadworks go up where the new road joins (+1 distance through them until Cleanup)', e.player));
       // A coffee shop move is a removal followed by a placement.
       if (ent.kind === 'coffeeShop' && prev?.type === 'entityRemoved' && prev.kind === 'coffeeShop') return T([ent.id], L('board', `${n(e.player)} moves a coffee shop`, e.player));
       return T([ent.id], L('board', `${n(e.player)} places a ${ent.kind.replace(/([A-Z])/g, ' $1').toLowerCase()}`, e.player));

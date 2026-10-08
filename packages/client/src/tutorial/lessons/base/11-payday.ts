@@ -103,7 +103,7 @@ export const lesson11 = defineLesson({
     },
     {
       id: 'next-round',
-      say: 'Next, the voluntary case. Press Continue: Marketing and Clean up run, and round 6 starts.',
+      say: 'Next, the voluntary case. Press Continue: Marketing and Cleanup run, and round 6 starts.',
       show: [{ ui: 'continue' }],
       allow: { actions: [{ type: 'tutorial.continue' }] },
       until: { view: (v) => v.round === 6 && v.phase.kind === 'restructuring' },

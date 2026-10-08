@@ -89,7 +89,7 @@ describe('late base lessons: what the coach says is what the engine did', () => 
     expect(state.milestones.first_pizza_marketed).toMatchObject({ claimedBy: ['p2'], removed: true });
   });
 
-  it('L13: garden on house 18, house 1 built on tiles A1/A2, a COMING SOON restaurant that opens at Clean up', () => {
+  it('L13: garden on house 18, house 1 built on tiles A1/A2, a COMING SOON restaurant that opens at Cleanup', () => {
     const { events, state } = eventsOf(get('base.13'));
     expect(of(events, 'gardenAdded')).toHaveLength(1);
     const built = of(events, 'houseBuilt')[0];

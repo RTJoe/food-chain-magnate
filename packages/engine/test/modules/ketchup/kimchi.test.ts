@@ -25,7 +25,7 @@ describe('Kimchi (ketchup.md §5)', () => {
     expect(createGame(cfg(2, undefined, { modules: [...M] }), 1).supply.luxuries_manager).toBe(base + 1);
   });
 
-  describe('production in Clean up', () => {
+  describe('production in Cleanup', () => {
     const cleanupBase = () => kb(2, [...M]).restaurant('p1', 3, 3, 'NW').phase(MARKETING);
 
     it('§5: the master at work makes 1 kimchi after the freezer step; none is made in phase 3', () => {
@@ -37,7 +37,7 @@ describe('Kimchi (ketchup.md §5)', () => {
       expect(ctx.of('foodProduced')).toEqual([expect.objectContaining({ player: 'p1', food: 'kimchi', count: 1 })]);
       const types = ctx.events.map((e) => e.type);
       expect(types.indexOf('foodDiscarded')).toBeLessThan(types.indexOf('foodProduced'));
-      // ...and still inside this round's Clean up, before the next round starts.
+      // ...and still inside this round's Cleanup, before the next round starts.
       expect(types.indexOf('foodProduced')).toBeLessThan(types.indexOf('roundStarted'));
       expect(ctx.state.round).toBe(4);
     });

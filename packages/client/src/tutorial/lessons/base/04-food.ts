@@ -1,9 +1,9 @@
 /**
  * L4 — Making food (docs/tutorial-plan.md §2, L4). Put a card to work, skip an optional action,
- * produce, see the stock; Dinnertime with no demand; Clean up throws unsold food away.
+ * produce, see the stock; Dinnertime with no demand; Cleanup throws unsold food away.
  *
  * Scenario: round 2 Restructuring. Ada and Bo each own a CEO and a Kitchen Trainee (in hand).
- * Bo (scripted) puts his trainee to work and makes a pizza. Pauses after Dinnertime and Clean up.
+ * Bo (scripted) puts his trainee to work and makes a pizza. Pauses after Dinnertime and Cleanup.
  */
 import type { GameView } from '@fcm/engine';
 import { town } from '@fcm/engine/testing';
@@ -160,8 +160,8 @@ export const lesson04 = defineLesson({
       id: 'thrown-away',
       say: (ctx) =>
         ctx.view.milestones.first_throw_away?.claimedBy.includes('p1')
-          ? 'Clean up threw your burger away, and being first to throw food away won a milestone: a freezer. From the next Clean up it keeps up to 10 unsold items.'
-          : 'Clean up throws unsold food away unless you own a freezer. Make food in the round you can sell it.',
+          ? 'Cleanup threw your burger away, and being first to throw food away won a milestone: a freezer. From the next Cleanup it keeps up to 10 unsold items.'
+          : 'Cleanup throws unsold food away unless you own a freezer. Make food in the round you can sell it.',
       show: [{ ui: 'rail-p1' }],
       until: { next: true },
       glossary: 'freezer',
@@ -171,7 +171,7 @@ export const lesson04 = defineLesson({
   quiz: {
     pass: 2,
     questions: [
-      { kind: 'choice', q: 'What happens to unsold food at Clean up?', options: ['It keeps for next round', 'It is thrown away', 'It sells at half price'], answer: 1, why: 'Without a freezer, every unsold item is discarded at Clean up.' },
+      { kind: 'choice', q: 'What happens to unsold food at Cleanup?', options: ['It keeps for next round', 'It is thrown away', 'It sells at half price'], answer: 1, why: 'Without a freezer, every unsold item is discarded at Cleanup.' },
       { kind: 'choice', q: 'Must your CEO use its hire?', options: ['Yes, always', 'No, it can skip'], answer: 1, why: 'Hiring is optional: you left your CEO’s hire unused. Only cards marked auto must act.' },
       { kind: 'tap', q: 'Tap the tab where you choose who goes to work.', target: { ui: 'tab-company' }, why: 'The Company tab holds your chart: cards under the CEO work that round.' },
     ],
