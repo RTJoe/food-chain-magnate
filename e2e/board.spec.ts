@@ -21,9 +21,9 @@ async function openFixture(page: Page, fixture: string, viewer: string): Promise
   await expect(page.locator('#board-root canvas').first()).toBeVisible();
 }
 
-/** Selects a work card and starts its first action. */
-async function startAction(page: Page, card: string): Promise<void> {
-  await page.locator('.work-cards .emp', { hasText: card }).click();
+/** Selects a work card (by employee id: card text also lists what it trains into) and starts its first action. */
+async function startAction(page: Page, emp: string): Promise<void> {
+  await page.locator(`.work-cards .emp[data-emp="${emp}"]`).click();
   await page.locator('.card-actions .action-list button:not(.btn-ghost)').first().click();
 }
 
@@ -64,7 +64,7 @@ const strip = (page: Page) => page.locator('.pick-strip');
 test('route: pick a haul by clicking its ribbon on the board, then buy it', async ({ page }) => {
   const errors = trackErrors(page);
   await openFixture(page, 'working', 'p2');
-  await startAction(page, 'Cart Operator');
+  await startAction(page, 'cart_operator');
   await expect(page.locator('.haul-row')).toHaveCount(5);
   await expectBoardSpots(page);
   await expect(page.locator('.haul-row.is-active')).toContainText('6× beer'); // haul 1 is active by default
@@ -113,14 +113,14 @@ test('route: pick a haul by clicking its ribbon on the board, then buy it', asyn
   }
   // The cart operator is spent; the other haul-1 drinks (lemonade) were not bought.
   await page.getByRole('tab', { name: /Turn/ }).click();
-  await expect(page.locator('.work-cards .emp', { hasText: 'Cart Operator' })).toContainText('Done');
+  await expect(page.locator('.work-cards .emp[data-emp="cart_operator"]')).toContainText('Done');
   expect(errors).toEqual([]);
 });
 
 test('campaign: token picker, board placement, rotate with R, confirm', async ({ page }) => {
   const errors = trackErrors(page);
   await openFixture(page, 'working', 'p2');
-  await startAction(page, 'Marketing Trainee');
+  await startAction(page, 'marketing_trainee');
 
   // Token picker: every token shows its legal spot count; #13 is the 3×1 (two orientations).
   const tokens = page.locator('.token-row .token-card');
@@ -193,7 +193,7 @@ test.describe('phone', () => {
     await openFixture(page, 'working', 'p2');
     const dock = page.locator('.dock');
     await expect(dock).toHaveClass(/is-open/);
-    await startAction(page, 'Marketing Trainee');
+    await startAction(page, 'marketing_trainee');
     await expect(dock).toHaveClass(/is-open/); // the token picker lives in the sheet
 
     await page.locator('.token-card', { hasText: '#13' }).click();

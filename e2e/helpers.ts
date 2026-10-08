@@ -166,7 +166,10 @@ async function restructure(page: Page): Promise<string | null> {
 
 async function work(page: Page, opts: DriveOptions): Promise<string | null> {
   const budget = opts.workActions ?? 3;
-  const turnKey = `${await round(page)}:${(await page.locator('.prompt-head h2').textContent()) ?? ''}:${await page.locator('.topbar .turn-order .is-active').getAttribute('title').catch(() => '')}`;
+  // Short timeouts: a missing hook must not hang the whole test (the active seat can be absent between turns).
+  const head = (await page.locator('.prompt-head h2').first().textContent({ timeout: 2000 }).catch(() => '')) ?? '';
+  const seat = (await page.locator('.topbar [aria-label="Turn order"] [data-active]').first().getAttribute('data-player', { timeout: 1000 }).catch(() => '')) ?? '';
+  const turnKey = `${await round(page)}:${head}:${seat}`;
   let mem = workBudget.get(page);
   if (!mem || mem.key !== turnKey) {
     mem = { key: turnKey, used: 0, stuck: 0 };

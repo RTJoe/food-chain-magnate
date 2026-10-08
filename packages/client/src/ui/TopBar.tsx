@@ -157,6 +157,8 @@ function TurnTrack({ view: v }: { view: GameView }) {
             key={id}
             class={`track-slot ${active.has(id) ? "is-active" : ""}`}
             data-flip={`order:${id}`}
+            data-player={id}
+            data-active={active.has(id) ? "true" : undefined}
             title={`${i + 1}. ${v.players[id]?.name ?? id}`}
           >
             <span class="track-num" aria-hidden="true">

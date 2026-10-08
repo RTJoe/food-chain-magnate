@@ -25,7 +25,7 @@ test('what’s this: card, milestone and phase open the glossary; the rule opens
   await page.goto('/#/dev/working/p2');
   await expect(page.locator('#board-root canvas').first()).toBeVisible();
   await page.getByRole('tab', { name: /Staff/ }).click();
-  await page.locator('.market .emp', { hasText: 'Cart Operator' }).first().locator('.wt-btn').click();
+  await page.locator('.market .emp[data-emp="cart_operator"]').first().locator('.wt-btn').click();
   const pop = page.locator('.wt-pop');
   await expect(pop).toContainText('Cart Operator');
   await expect(pop).toContainText('For example');

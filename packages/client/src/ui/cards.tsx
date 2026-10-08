@@ -540,6 +540,7 @@ export function EmployeeCard({
     ...(plain ? {} : press),
     class: cls,
     "data-colour": d?.colour ?? "grey",
+    "data-emp": id,
     "data-flip": flip,
     "data-tutorial": tutorial,
     title: title ?? d?.text,
