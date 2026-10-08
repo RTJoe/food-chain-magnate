@@ -4,7 +4,7 @@
  * saved hot-seat game (bottom of this file).
  */
 import { signal } from '@preact/signals';
-import type { Action, GameConfig, PlayerId } from '@fcm/engine';
+import { restoredConfig, type Action, type GameConfig, type PlayerId } from '@fcm/engine';
 import type { BotLevel, RoomInfo, RoomStatus } from '@fcm/protocol';
 
 export interface RecentGame {
@@ -89,7 +89,9 @@ function loadHotseat(): SavedHotseat | null {
   try {
     const raw = globalThis.localStorage?.getItem(HOTSEAT_KEY);
     const s = raw ? (JSON.parse(raw) as SavedHotseat) : null;
-    return s && s.v === 1 && s.config && Array.isArray(s.actions) && typeof s.seed === 'number' ? s : null;
+    if (!(s && s.v === 1 && s.config && Array.isArray(s.actions) && typeof s.seed === 'number')) return null;
+    // A save from before rules versions existed replays under the version-1 rules.
+    return { ...s, config: restoredConfig(s.config) };
   } catch {
     return null;
   }

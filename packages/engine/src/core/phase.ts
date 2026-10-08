@@ -21,6 +21,7 @@ import { choosingQueue, currentChooser, finishOrder, normalizeOrder } from '../r
 import { beginTurn } from '../rules/working/stages.js';
 import { runDinnertime } from '../rules/dinnertime.js';
 import { enterPayday, fireFirst100Cfos, isPaydayComplete } from '../rules/payday.js';
+import { legacyRules } from './rulesVersion.js';
 import { runMarketing } from '../rules/marketing.js';
 import { isCleanupComplete, runCleanup } from '../rules/cleanup.js';
 
@@ -167,8 +168,8 @@ export function runUntilInput(ctx: EngineCtx): void {
           continue;
         }
         if (held(ctx, 'dinnertime')) continue;
-        if (s.config.intro) {
-          // DLX p5: the intro game skips the Payday phase. A First to Have $100 CFO is still fired.
+        if (s.config.intro && !legacyRules(s)) {
+          // DLX p5: the intro game skips the Payday phase (LEGACY(v1): it enters it, no salaries). A First to Have $100 CFO is still fired.
           fireFirst100Cfos(ctx);
           enterMarketing(ctx);
         } else enterPaydayPhase(ctx);

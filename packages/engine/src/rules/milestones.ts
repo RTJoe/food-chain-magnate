@@ -18,6 +18,7 @@ import type { FoodId, GameState, PlayerId } from '../types/index.js';
 import { FOODS } from '../content/foods.js';
 import { BASE_MILESTONES } from '../content/milestones.js';
 import { cardsAtWork, defOf, hasMilestone } from './pricing.js';
+import { legacyRules } from '../core/rulesVersion.js';
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -31,7 +32,8 @@ import { cardsAtWork, defOf, hasMilestone } from './pricing.js';
 export function milestoneAvailable(s: GameState, player: PlayerId, id: MilestoneId): boolean {
   const m = s.milestones[id];
   const p = s.players[player];
-  return Boolean(m && !m.removed && p && !p.bankrupt && !p.milestones[id]);
+  // LEGACY(v1): a bankrupt chain could still claim.
+  return Boolean(m && !m.removed && p && (!p.bankrupt || legacyRules(s)) && !p.milestones[id]);
 }
 
 function defs(ctx: HookContext): MilestoneDef[] {

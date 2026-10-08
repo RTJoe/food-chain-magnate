@@ -43,6 +43,7 @@ export { SALARY, salaryAfterFiring, salaryBreakdown, salariedCards, voluntarilyF
 export { submissionProblem, isOverfilled } from './rules/restructuring.js';
 export { freezerCapacity, stockOf } from './rules/cleanup.js';
 export { reserveOptions } from './rules/setup.js';
+export { RULES_VERSION, legacyRules, restoredConfig } from './core/rulesVersion.js';
 export { abilityStage, stageIndex, stagesFor } from './rules/working/stages.js';
 
 export { TUTORIAL_PAUSE_PHASES, type EnableTutorialOptions } from './modules/tutorial.js';

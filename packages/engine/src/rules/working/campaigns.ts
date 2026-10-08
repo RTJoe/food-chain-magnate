@@ -28,6 +28,7 @@ import { FOODS } from '../../content/foods.js';
 import { allEmpty, inBounds, paint, rect, touchesRoad } from '../../map/grid.js';
 import { distanceField, distanceToFootprint, playerRouteStarts, routeStartRoads, type DistanceField, sameRouteStart } from '../../map/pathfinding.js';
 import { launchesEternal } from '../milestones.js';
+import { legacyRules } from '../../core/rulesVersion.js';
 import { advanceTo, cardCheck, spend } from './stages.js';
 
 
@@ -155,7 +156,8 @@ export function applyCampaign(ctx: EngineCtx, a: WorkPlaceCampaign): void {
   const card = p.employees[a.cardUid];
   const def = card ? ctx.content.employees[card.employeeId] : undefined;
   // ketchup.md §12: giant billboards are always eternal (`alwaysEternal`).
-  const eternal = launchesEternal(ctx, a.playerId, a.campaignKind, a.goods) || (def?.ability.kind === 'marketing' && def.ability.alwaysEternal === true);
+  // LEGACY(v1): the billboard claiming First Billboard was not itself eternal.
+  const eternal = launchesEternal(ctx, a.playerId, a.campaignKind, legacyRules(ctx.state) ? undefined : a.goods) || (def?.ability.kind === 'marketing' && def.ability.alwaysEternal === true);
   const camp: Campaign = {
     id,
     owner: a.playerId,

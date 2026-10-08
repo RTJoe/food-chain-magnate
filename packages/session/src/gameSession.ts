@@ -86,10 +86,12 @@ export class GameSession {
 
   constructor(opts: GameSessionOptions) {
     this.engine = opts.engine;
-    this.config = opts.config;
     this.seed = opts.seed;
     this.bots = { ...(opts.bots ?? {}) };
     const initial = this.engine.createGame(opts.config, opts.seed);
+    // Keep the rules version the engine stamped, so a saved config replays under the same rules.
+    const rulesVersion = (initial.config as GameConfig | undefined)?.rulesVersion;
+    this.config = rulesVersion === undefined || opts.config.rulesVersion === rulesVersion ? opts.config : { ...opts.config, rulesVersion };
     const r = replayLog(this.engine, initial, opts.actions ?? [], { onFailure: opts.onReplayFailure ?? 'throw' });
     this.replayFailure = r.failure;
     this.state = r.state;

@@ -99,6 +99,14 @@ describe('Restructuring (base.md §4)', () => {
     expect(r.state.players.p1?.beach).toHaveLength(0);
   });
 
+  it('rules v1 (saved games): the same over-full layout takes the penalty', () => {
+    const { s, uids } = restructuring({ p1: ['management_trainee', 'waitress', 'waitress', 'waitress'], p2: [] });
+    s.config.rulesVersion = 1;
+    const r = actE(s, { type: 'restructure.submit', playerId: 'p1', structure: { ceoSubs: uids.p1 as Uid[], managerSubs: {} } });
+    expect(r.events.some((e) => e.type === 'structurePenalty' && e.player === 'p1')).toBe(true);
+    expect(r.state.players.p1?.beach).toHaveLength(4);
+  });
+
   it('DLX p13: more managers than CEO slots cannot be assigned, so the penalty applies', () => {
     const { s, uids } = restructuring({ p1: ['management_trainee', 'management_trainee', 'management_trainee', 'management_trainee'], p2: [] });
     const r = actE(s, { type: 'restructure.submit', playerId: 'p1', structure: { ceoSubs: uids.p1 as Uid[], managerSubs: {} } });

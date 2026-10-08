@@ -20,6 +20,7 @@ import { OK, reject, type Check } from '../../core/errors.js';
 import { cardPlace, hasEffect, ownsUnique } from '../../core/cards.js';
 import { contentFor, pipe } from '../../modules/registry.js';
 import { readCtx } from '../../core/context.js';
+import { legacyRules } from '../../core/rulesVersion.js';
 import { advanceTo, baseUses, cardCheck, emptyPileHiresFeasible, phantomTrainable, spend } from './stages.js';
 
 export { reachableTargets, type TrainTarget } from './stages.js';
@@ -104,7 +105,8 @@ export function validateTrain(s: GameState, a: WorkTrain): Check {
   }
   // DLX p16: this training must not strand another card hired from an empty pile this turn.
   const others = turn.mustTrain.filter((u) => u !== a.targetUid);
-  if (others.length && emptyPileHiresFeasible(s, turn)) {
+  // LEGACY(v1): not checked.
+  if (others.length && !legacyRules(s) && emptyPileHiresFeasible(s, turn)) {
     const uses = { ...turn.uses, [a.trainerUid]: left - steps };
     const supply = { ...s.supply, [a.toEmployeeId]: (s.supply[a.toEmployeeId] ?? 0) - 1 };
     if (!turn.mustTrain.includes(a.targetUid) && supply[target.employeeId] !== undefined) supply[target.employeeId] = (supply[target.employeeId] ?? 0) + 1;

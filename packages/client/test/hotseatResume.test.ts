@@ -1,7 +1,7 @@
 /** Hot-seat save and resume (P6): config + seed + actions rebuild the same game, and the store gets the replayed round's results back. */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { GameConfig, GameView } from '@fcm/engine';
-import { engine } from '@fcm/engine';
+import { engine, RULES_VERSION } from '@fcm/engine';
 import { runBot } from '@fcm/ai';
 import { LocalTransport } from '../src/net/localTransport.js';
 import { inlineBotRunner } from '../src/net/botRunner.js';
@@ -58,6 +58,28 @@ describe('hot-seat resume', () => {
     expect(summaries.value.map((s) => s.phase)).toEqual(expect.arrayContaining(['payday', 'marketing']));
     expect(log.value.length).toBeGreaterThan(0);
     r.close();
+  });
+
+  it('saves the rules version; a save from before versions resumes under the old rules (restaurants first)', async () => {
+    const t = new LocalTransport({ engine, config, seed: 3 });
+    t.connect();
+    expect(t.saveData()?.config.rulesVersion).toBe(RULES_VERSION);
+    expect(t.state?.phase.kind).toBe('setup.reserve');
+    t.close();
+    const old = { v: 1, config, seed: 3, bots: {}, actions: [], round: 0, phase: 'setup.restaurants', over: false, savedAt: 1 };
+    vi.stubGlobal('localStorage', { getItem: (k: string) => (k === 'fcm.hotseat' ? JSON.stringify(old) : null), setItem() {}, removeItem() {} });
+    vi.resetModules();
+    try {
+      const { savedHotseat } = await import('../src/state/recentGames.js');
+      const saved = savedHotseat.value;
+      expect(saved?.config.rulesVersion).toBe(1);
+      const r = new LocalTransport({ engine, config: saved!.config, seed: saved!.seed, prelude: saved!.actions });
+      r.connect();
+      expect(r.state?.phase.kind).toBe('setup.restaurants');
+      r.close();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('a game started from a state (fixtures, lessons) has nothing to save', () => {

@@ -147,7 +147,9 @@ export class LocalTransport implements Transport {
   saveData(): LocalSaveData | null {
     const s = this.state;
     if (!s || this.opts.state || !this.opts.config) return null;
-    return { config: this.opts.config, seed: s.seed, actions: [...this.applied], round: s.round, phase: s.phase.kind, over: s.phase.kind === 'gameOver' };
+    // The rules version createGame stamped, so a resume replays under the same rules.
+    const config = s.config.rulesVersion === undefined ? this.opts.config : { ...this.opts.config, rulesVersion: s.config.rulesVersion };
+    return { config, seed: s.seed, actions: [...this.applied], round: s.round, phase: s.phase.kind, over: s.phase.kind === 'gameOver' };
   }
 
   /** The bot seat deciding right now (null when none). */

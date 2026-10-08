@@ -20,6 +20,7 @@ import { payToBank } from './bank.js';
 import { cardsAtWork, hasMilestone, runPipeline, staticContent } from './pricing.js';
 import { pipe } from '../modules/registry.js';
 import { readCtx } from '../core/context.js';
+import { legacyRules } from '../core/rulesVersion.js';
 
 /** Base salary per salaried card (base.md §8.2). */
 export const SALARY = 5;
@@ -95,7 +96,8 @@ export function enterPayday(ctx: HookContext): void {
   const queue = s.turnOrder.filter((id) => s.players[id] && !s.players[id]?.bankrupt);
   for (const id of queue) (s.players[id] as PlayerState).salaryPaidThisRound = 0;
   s.phase = { kind: 'payday', queue, idx: 0, decided: [] };
-  fireFirst100Cfos(ctx);
+  // LEGACY(v1): the intro game fired no First to Have $100 CFO.
+  if (!(s.config.intro && legacyRules(s))) fireFirst100Cfos(ctx);
   if (s.config.intro) {
     // base.md §13: no salaries in the intro game (the phase loop skips Payday; this is a safety net).
     s.phase = { kind: 'payday', queue, idx: queue.length, decided: [...queue] };

@@ -20,6 +20,7 @@ import type { EngineCtx } from '../core/context.js';
 import { OK, reject, type Check } from '../core/errors.js';
 import { activePlayers, cardsInHand, ceoSlotsFor, defOf, isManager, managerSlots } from '../core/cards.js';
 import { contentFor } from '../modules/registry.js';
+import { legacyRules } from '../core/rulesVersion.js';
 
 /** Structural validity (not overfill). Returns a problem string or null. */
 export function submissionProblem(s: GameState, player: PlayerId, sub: StructureSubmission): string | null {
@@ -154,7 +155,8 @@ export function revealStructures(ctx: EngineCtx): void {
     if (!p || !sec?.structureDraft) continue;
     const draft = sec.structureDraft;
     const hand = cardsInHand(p);
-    const reseated = isOverfilled(s, id, draft) ? reseatStructure(s, id, draft) : null;
+    // LEGACY(v1): an over-full structure always took the penalty.
+    const reseated = isOverfilled(s, id, draft) && !legacyRules(s) ? reseatStructure(s, id, draft) : null;
     if (reseated) {
       p.structure = { ceo: p.structure.ceo, ceoSubs: reseated.ceoSubs, managerSubs: reseated.managerSubs };
     } else if (isOverfilled(s, id, draft)) {

@@ -8,7 +8,7 @@
  * choosing legal moves. Search bots that simulate past hidden information use `sampleState`.
  */
 import type { GameState, GameView, PlayerId, RngState, Structure } from '@fcm/engine';
-import { nextUint32, pick, reserveOptions, shuffle } from '@fcm/engine';
+import { legacyRules, nextUint32, pick, reserveOptions, shuffle } from '@fcm/engine';
 import { simpleStructure } from './heuristics.js';
 
 /**
@@ -43,7 +43,8 @@ export function sampleState(view: GameView, rng: RngState): GameState {
     if (id === me) continue;
     const sec = s.secrets[id] as { reserve: GameState['secrets'][PlayerId]['reserve']; structureDraft: Structure | null };
     const p = s.players[id];
-    const hasChosen = view.phase.kind !== 'setup.reserve' || view.submitted[id];
+    // Reserves come before first restaurants, except in version-1 games (restaurants first).
+    const hasChosen = view.phase.kind === 'setup.reserve' ? view.submitted[id] : !(view.phase.kind === 'setup.restaurants' && legacyRules(view));
     if (!sec.reserve && !p?.reserveCard && hasChosen && options.length && !view.config.intro) sec.reserve = pick(rng, options);
     if (view.phase.kind === 'restructuring' && view.submitted[id] && p) {
       const sub = simpleStructure(s, id);

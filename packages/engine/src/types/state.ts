@@ -84,6 +84,11 @@ export interface GameConfig {
   /** Intro game with milestones ("recommended second game", base.md §13). Ignored unless `intro`. */
   introMilestones: boolean;
   map: MapConfig;
+  /**
+   * Rules the game is played under (core/rulesVersion.ts). `createGame` stamps the current version
+   * when absent; a stored config without one is restored as version 1 (`restoredConfig`).
+   */
+  rulesVersion?: number;
 }
 
 // ---------------------------------------------------------------------------

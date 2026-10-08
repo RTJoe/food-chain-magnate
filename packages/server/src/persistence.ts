@@ -10,7 +10,7 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { Action, GameConfig } from '@fcm/engine';
+import { restoredConfig, type Action, type GameConfig } from '@fcm/engine';
 import type { RoomConfig, RoomStatus, Seat } from '@fcm/protocol';
 
 export const PERSIST_DEBOUNCE_MS = 250;
@@ -158,6 +158,8 @@ export class FilePersistence implements Persistence {
   private read(f: string): PersistedRoom | null {
     try {
       const rec = JSON.parse(readFileSync(join(this.dir, f), 'utf8')) as PersistedRoom;
+      // A game saved before rules versions existed replays under the version-1 rules.
+      if (rec.gameConfig) rec.gameConfig = restoredConfig(rec.gameConfig);
       if (rec.version === 1 && typeof rec.id === 'string' && SAFE_ID.test(rec.id)) return rec;
       if (rec.version === 1) this.log(`persistence: skipping ${f}: unsafe room id`);
     } catch (e) {

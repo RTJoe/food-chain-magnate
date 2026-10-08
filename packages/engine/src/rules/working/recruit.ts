@@ -17,7 +17,8 @@ import type { EngineCtx } from '../../core/context.js';
 import { OK, reject, type Check } from '../../core/errors.js';
 import { defOf, ownsUnique } from '../../core/cards.js';
 import { contentFor } from '../../modules/registry.js';
-import { advanceTo, cardCheck, emptyPileHiresFeasible, spend } from './stages.js';
+import { advanceTo, cardCheck, emptyPileHiresFeasible, reachableTargets, spend } from './stages.js';
+import { legacyRules } from '../../core/rulesVersion.js';
 
 /** Training uses still available this turn (trainer, coach, guru at work). */
 function trainingUsesLeft(s: GameState, p: PlayerState): number {
@@ -40,6 +41,14 @@ export function hireProblem(s: GameState, p: PlayerState, employeeId: EmployeeId
   // Empty pile (DLX p16): only if it can still be trained up this turn, into an available card,
   // alongside every other empty-pile hire of this turn (multi-step Coach/Guru training included).
   const turn = s.turn;
+  if (legacyRules(s)) {
+    // LEGACY(v1): one training use left per pending empty-pile hire, and one available next card.
+    if (trainingUsesLeft(s, p) <= (turn?.mustTrain.length ?? 0)) return `The ${def.name} pile is empty`;
+    if (reachableTargets(s, p, employeeId, 1).every((t) => (s.supply[t.to] ?? 0) <= 0 || ownsUnique(content, p, t.to))) {
+      return `The ${def.name} pile is empty and nothing it trains into is available`;
+    }
+    return null;
+  }
   if (!turn || trainingUsesLeft(s, p) <= 0) return `The ${def.name} pile is empty`;
   if (!emptyPileHiresFeasible(s, turn, [employeeId])) return `The ${def.name} pile is empty and it cannot be trained into an available card this turn`;
   return null;

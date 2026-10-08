@@ -23,6 +23,7 @@ import { createRng, shuffle } from './rng.js';
 import { makeCtx } from './context.js';
 import { runUntilInput } from './phase.js';
 import { setupRestaurantsPhase } from '../rules/setup.js';
+import { legacyRules, RULES_VERSION } from './rulesVersion.js';
 
 export function configProblem(config: GameConfig): string | null {
   if (!config || !Array.isArray(config.players)) return 'Missing players';
@@ -31,17 +32,20 @@ export function configProblem(config: GameConfig): string | null {
   if (n < 2 || n > max) return `Food Chain Magnate needs 2–${max} players`;
   const ids = new Set(config.players.map((p) => p.id));
   if (ids.size !== n || [...ids].some((id) => typeof id !== 'string' || !id)) return 'Player ids must be unique non-empty strings';
+  const v = config.rulesVersion;
+  if (v !== undefined && (!Number.isInteger(v) || v < 1 || v > RULES_VERSION)) return `Unknown rules version ${String(v)}`;
   return moduleSetProblem(config.modules ?? []);
 }
 
 export function createGame(config: GameConfig, seed: number): GameState {
   const problem = configProblem(config);
   if (problem) throw new Error(`createGame: ${problem}`);
-  const cfg: GameConfig = JSON.parse(JSON.stringify({ ...config, modules: config.modules ?? [], options: config.options ?? {}, introMilestones: config.introMilestones ?? false, map: config.map ?? { kind: 'random' } })) as GameConfig;
+  const cfg: GameConfig = JSON.parse(JSON.stringify({ ...config, modules: config.modules ?? [], options: config.options ?? {}, introMilestones: config.introMilestones ?? false, map: config.map ?? { kind: 'random' }, rulesVersion: config.rulesVersion ?? RULES_VERSION })) as GameConfig;
+  const legacy = legacyRules({ config: cfg });
   const n = cfg.players.length;
   // KX p15 (Lobbyists, map setup): "If playing with 5 or 6 players, you must include all 6 new map
   // tiles in the map pool." Tiles U–Y come with New Districts, so it joins such games.
-  if (n >= 5 && cfg.modules.includes('ketchup:lobbyists') && !cfg.modules.includes('ketchup:newDistricts')) cfg.modules.push('ketchup:newDistricts');
+  if (!legacy && n >= 5 && cfg.modules.includes('ketchup:lobbyists') && !cfg.modules.includes('ketchup:newDistricts')) cfg.modules.push('ketchup:newDistricts');
   const content = contentFor(cfg.modules);
   const rng = createRng(seed);
   const ids = { nextId: 1 };
@@ -121,7 +125,8 @@ export function createGame(config: GameConfig, seed: number): GameState {
     rng,
     nextId: ids.nextId,
     round: 0,
-    phase: cfg.intro ? setupRestaurantsPhase(turnOrder) : { kind: 'setup.reserve' },
+    // LEGACY(v1): first restaurants before reserve cards (the phase loop then asks for reserves).
+    phase: cfg.intro || legacy ? setupRestaurantsPhase(turnOrder) : { kind: 'setup.reserve' },
     awaiting: { kind: 'none', players: [] },
     turnOrder,
     players,
