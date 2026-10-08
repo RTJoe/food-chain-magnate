@@ -9,7 +9,7 @@
  * when the radio tiles ran out).
  */
 import type { EmployeeAbility, EmployeeDef, EmployeeId, ModuleId } from '../../types/content.js';
-import type { HookContext } from '../../types/module.js';
+import type { DinnerCandidate, HookContext, SaleBreakdown } from '../../types/module.js';
 import type { Rejected } from '../../types/actions.js';
 import type { Cell, ChoiceId, GameState, House, PendingChoice, PendingChoiceKind, PlayerId, PlayerState } from '../../types/state.js';
 import { reject } from '../../core/errors.js';
@@ -181,6 +181,15 @@ export function houseMultiplier(s: GameState, house: House): number {
   const garden = house.garden !== null;
   if (nextToPark(s, house)) return garden ? 3 : 2;
   return garden ? 2 : 1;
+}
+
+/** `saleRevenue` hook: food and drinks at the park price (Lobbyists; New Districts' park tile Z). */
+export function parkSaleRevenue(bd: SaleBreakdown, ctx: HookContext, { house, candidate }: { house: House; candidate: DinnerCandidate }): SaleBreakdown {
+  const multiplier = houseMultiplier(ctx.state, house);
+  if (multiplier === bd.multiplier) return bd;
+  const lines = bd.lines.map((l) => ({ ...l, each: candidate.unitPrice * multiplier }));
+  const diff = lines.reduce((a, l) => a + l.count * l.each, 0) - bd.lines.reduce((a, l) => a + l.count * l.each, 0);
+  return { ...bd, multiplier, lines, total: bd.total + diff };
 }
 
 // ---------------------------------------------------------------------------

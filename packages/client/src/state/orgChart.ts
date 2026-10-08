@@ -6,7 +6,9 @@
  *   a warning, not an error.
  * All functions are pure; the draft is a plain object (`StructureSubmission`).
  */
-import type { StructureSubmission, Uid } from '@fcm/engine';
+import { ceoSlotsFor, contentFor, openSlots as engineOpenSlots, orderSlotsBonus, revealedStructure } from '@fcm/engine';
+import type { GameView, PlayerId, StructureSubmission, Uid } from '@fcm/engine';
+import { pseudoState } from './engine.js';
 
 export type OrgDraft = StructureSubmission;
 
@@ -114,10 +116,30 @@ export function validateDraft(d: OrgDraft, rules: OrgRules): OrgValidation {
   return { ceo, managers, errors: [...new Set(errors)], overfilled, placed: seen.size };
 }
 
-/** Open slots for Order of Business (base.md §5.1): empty CEO + manager slots. */
-export function openSlots(v: OrgValidation): number {
-  if (v.overfilled) return 0;
-  return v.ceo.capacity - v.ceo.used + v.managers.reduce((n, m) => n + Math.max(0, m.capacity - m.used), 0);
+/** CEO slots of one player: the global value, or 4 after Ketchup's First Burger Sold (KX p19). */
+export function ceoSlotsOf(view: GameView, player: PlayerId): number {
+  return ceoSlotsFor(pseudoState(view, null), contentFor(view.config.modules), player);
+}
+
+export interface OrderSlots {
+  /** Open slots counted in Order of Business (DLX p13-14), bonus included. */
+  open: number;
+  /** Milestone bonus included in `open` (First Airplane +2). */
+  bonus: number;
+  /** The draft cannot be seated legally: only the CEO works (all CEO slots open). */
+  penalty: boolean;
+}
+
+/**
+ * Open slots the engine will count for `player` in Order of Business: for a Restructuring draft
+ * (after the reveal re-seats or penalises it, DLX p13), else for their current structure.
+ */
+export function orderSlots(view: GameView, player: PlayerId, draft?: OrgDraft | null): OrderSlots {
+  const s = pseudoState(view, null);
+  const bonus = orderSlotsBonus(s, player);
+  if (!draft) return { open: engineOpenSlots(s, player), bonus, penalty: false };
+  const out = revealedStructure(s, player, toSubmission(draft));
+  return { open: engineOpenSlots(s, player, out.structure), bonus, penalty: out.penalty };
 }
 
 /** Payload for `restructure.submit`: drop empty report lists. */

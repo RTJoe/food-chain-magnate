@@ -42,6 +42,8 @@ export interface BotGame {
   fellBack: string[];
   steps: number;
   maxMs: number;
+  /** Thinking time of every decision (ms, wall clock), in step order. */
+  ms: number[];
 }
 
 /** Play until game over or `maxRounds` completed rounds. Each seat's level comes from `levels`. */
@@ -52,11 +54,13 @@ export function playBots(config: GameConfig, seed: number, levels: Record<Player
   const fellBack: string[] = [];
   let maxMs = 0;
   let steps = 0;
+  const ms: number[] = [];
   while (state.phase.kind !== 'gameOver' && state.round <= maxRounds && steps < maxSteps) {
     const who = state.awaiting.players[0];
     if (!who) throw new Error(`nobody awaited in ${state.phase.kind}`);
     const r = runBotDetailed({ level: levels[who] ?? 'easy', view: redactFor(state, who), playerId: who, seed: decisionSeed(seed, state.history.seq, who), budgetMs }, engine);
     maxMs = Math.max(maxMs, r.ms);
+    ms.push(r.ms);
     if (r.fellBack) fellBack.push(`step ${steps} r${state.round} ${state.phase.kind} ${who}: ${r.error ?? 'bot answer invalid'} -> ${r.action.type}`);
     else if (r.internalFallback) fellBack.push(`step ${steps} r${state.round} ${state.phase.kind} ${who}: no valid move of its own (internal fallback) -> ${r.action.type}`);
     const applied = applyAction(state, r.action);
@@ -68,5 +72,25 @@ export function playBots(config: GameConfig, seed: number, levels: Record<Player
     actions.push(r.action);
     steps++;
   }
-  return { state, actions, rejected, fellBack, steps, maxMs };
+  return { state, actions, rejected, fellBack, steps, maxMs, ms };
+}
+
+/**
+ * Time decision `step` of a played game again (fastest of `tries`): a wall-clock outlier from a GC
+ * pause or a busy machine does not repeat, a decision that is really slow does.
+ */
+export function retimeDecision(config: GameConfig, seed: number, levels: Record<PlayerId, BotLevel>, actions: Action[], step: number, budgetMs = 1000, tries = 3): number {
+  let state = createGame(config, seed);
+  for (const a of actions.slice(0, step)) {
+    const r = applyAction(state, a);
+    if (!r.ok) throw new Error(`replay failed at ${a.type}: ${r.message}`);
+    state = r.state;
+  }
+  const who = state.awaiting.players[0] as PlayerId;
+  let best = Infinity;
+  for (let i = 0; i < tries; i++) {
+    const r = runBotDetailed({ level: levels[who] ?? 'easy', view: redactFor(state, who), playerId: who, seed: decisionSeed(seed, state.history.seq, who), budgetMs }, engine);
+    best = Math.min(best, r.ms);
+  }
+  return best;
 }

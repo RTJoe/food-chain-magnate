@@ -3,8 +3,7 @@
  * and the interaction model (state/interaction.ts, WP3) write them. Neither side imports the other.
  *
  * Data shapes mirror the engine view additions planned in ux-plan §4 (`rangeOverlay`,
- * `campaignReach`, `houseOutlook`) so engine results can be passed straight through; the 3D layer
- * derives a local fallback where the engine data is missing (three/overlays/fallback.ts).
+ * `campaignReach`, `houseOutlook`) so engine results are passed straight through.
  */
 import { signal } from '@preact/signals';
 import type { BuyerRoute, Cell, FoodId, HouseId, RouteStart, SourceId } from '@fcm/engine';

@@ -26,7 +26,7 @@ import {
 } from './minis/marketing.js';
 import { buildCoffeeShop, buildRestaurant, restaurantChain, restaurantHeight } from './minis/restaurant.js';
 import { buildDemandStack, demandKey, setPlaque, type PlaqueHold } from './minis/tokens.js';
-import { campaignAnchor, cellsToRect, freewayAnchor, houseFacing, ownerMark, parkMultiplier, playerColor, rectCenter, rectOf, ruralCenter, RURAL_SIZE, type Rect } from './layout.js';
+import { campaignAnchor, cellsToRect, freewayAnchor, freewayTurn, houseFacing, ownerMark, parkMultiplier, playerColor, rectCenter, rectOf, ruralCenter, RURAL_SIZE, type Rect } from './layout.js';
 import { makeChip } from './overlays/badges.js';
 import { COLORS } from '../theme.js';
 import type { Stage } from './scene.js';
@@ -555,8 +555,9 @@ function collect(view: GameView, b: Board, info: Record<string, HouseBoardInfo>)
         break;
       case 'freeway': {
         const color = playerColor(view, e.owner);
-        const a = freewayAnchor(b, e.side, e.offset);
-        items.push({ key: `entity:${e.id}`, id: e.id, kind: 'entity', sig: `fw:${color}:${e.side}:${e.offset}`, rect: a.rect, height: a.height, x: a.x, z: a.z, build: (c) => buildFreeway(c, { color, side: e.side }) });
+        const a = freewayAnchor(b, e.side, e.offset, e.lengthwise);
+        const turn = freewayTurn(b, e.side);
+        items.push({ key: `entity:${e.id}`, id: e.id, kind: 'entity', sig: `fw:${color}:${e.side}:${e.offset}:${e.lengthwise ? 'L' : 'E'}:${turn}`, rect: a.rect, height: a.height, x: a.x, z: a.z, build: (c) => buildFreeway(c, { color, side: e.side, lengthwise: !!e.lengthwise, turn }) });
         break;
       }
       default: {

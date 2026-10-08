@@ -228,13 +228,14 @@ export function ruralCentreFor(b: Board, side: Direction): [number, number] {
 }
 
 /** Dotted link from the freeway ramp end to the rural area, and a chip with the rural demand. */
-export function freewayLink(b: Board, side: Direction, offset: number, color: string): THREE.Group {
+export function freewayLink(b: Board, side: Direction, offset: number, color: string, lengthwise = false): THREE.Group {
   const g = new THREE.Group();
   g.name = 'freewayLink';
-  const a = freewayAnchor(b, side, offset);
+  const a = freewayAnchor(b, side, offset, lengthwise);
   const [dx, dz] = DELTA[side];
-  // From the ramp's raised end (3.6 out from the edge) to the rural area.
-  const p0 = new THREE.Vector3(a.x + dx * 4.2, 0.12, a.z + dz * 4.2);
+  // From the ramp's raised end (3.6 out from the edge), or the lengthwise deck's outer side, to the rural area.
+  const out = lengthwise ? 0.9 : 4.2;
+  const p0 = new THREE.Vector3(a.x + dx * out, 0.12, a.z + dz * out);
   const [rx, rz] = ruralCentreFor(b, side);
   const p1 = new THREE.Vector3(rx, 0.12, rz);
   const n = Math.max(2, Math.round(p0.distanceTo(p1) / 0.55));

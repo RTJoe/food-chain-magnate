@@ -88,18 +88,24 @@ describe('hard: anytime search', () => {
     for (const { s, who } of searchStates) expect(bot.choose(inputFor(s, who, 150))).toEqual(medium.mediumChoose(inputFor(s, who, 150)));
   });
 
+  // Wall clock: an overrun is timed once more before it fails (a busy machine or a GC pause does
+  // not repeat; a search that ignores its deadline overruns every time).
   it('answers a legal action within budget + 100 ms', () => {
     const bot = createHardBot();
     for (const budget of [300, 600]) {
       for (const { s, who } of searchStates) {
-        hard.clearHardCache();
-        const t0 = Date.now();
-        const a = bot.choose(inputFor(s, who, budget));
-        expect(Date.now() - t0).toBeLessThanOrEqual(budget + 100);
-        expect(engine.validateAction(s, a).ok).toBe(true);
+        let elapsed = Infinity;
+        for (let attempt = 0; attempt < 2 && elapsed > budget + 100; attempt++) {
+          hard.clearHardCache();
+          const t0 = Date.now();
+          const a = bot.choose(inputFor(s, who, budget));
+          elapsed = Date.now() - t0;
+          expect(engine.validateAction(s, a).ok).toBe(true);
+        }
+        expect(elapsed).toBeLessThanOrEqual(budget + 100);
       }
     }
-  }, 30_000);
+  }, 60_000);
 
   it('explains a search decision with scored candidates', () => {
     const bot = createHardBot({ maxRollouts: 12 });

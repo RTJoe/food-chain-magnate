@@ -3,15 +3,15 @@ import { useEffect } from 'preact/hooks';
 import { route, navigate } from '../state/router.js';
 import { connection, mode, room, view } from '../state/store.js';
 import { loadToken, resumeHotseat, resync, startOnline } from '../net/session.js';
+import { engine } from '@fcm/engine';
 import { savedHotseat } from '../state/recentGames.js';
-import { hotseatEngine } from '../state/engine.js';
 import { Button } from './common.js';
 import { Home } from './Home.js';
 import { Logo } from './icons.js';
 import { DevGallery, HotseatSetup } from './LocalGames.js';
 import { Lobby } from './Lobby.js';
 import { Learn } from './learn/index.js';
-import { Toasts } from './Overlays.js';
+import { ReloadRequired, Toasts } from './Overlays.js';
 import { LiveRegions } from './a11y.js';
 import { keyboardUser } from './uiState.js';
 import { WhatsThisLayer } from './glossary/WhatsThis.js';
@@ -36,7 +36,7 @@ export function App() {
     const first = firstRoute;
     firstRoute = false;
     const saved = savedHotseat.peek();
-    if (first && r.name === 'hotseat' && mode.value === null && saved && !saved.over) resumeHotseat(hotseatEngine(), saved);
+    if (first && r.name === 'hotseat' && mode.value === null && saved && !saved.over) resumeHotseat(engine, saved);
   }, []);
 
   // Follow the room we are in (created a room, or the server re-attached us to one).
@@ -61,6 +61,7 @@ export function App() {
     <>
       <Screen />
       <Toasts />
+      <ReloadRequired />
       <WhatsThisLayer />
       <LiveRegions />
     </>

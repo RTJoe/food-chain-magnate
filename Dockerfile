@@ -17,6 +17,10 @@ COPY tsconfig.base.json tsconfig.json ./
 COPY packages packages
 # The client bundles the rules reference (docs/rules/*.md?raw).
 COPY docs/rules docs/rules
+# Build identity (git SHA) baked into the client: hello sends it, so the server can ask a tab
+# opened before a deploy to reload (docs/protocol.md). Same ARG as the runtime stage below.
+ARG GIT_SHA=
+ENV VITE_BUILD_ID=$GIT_SHA
 RUN npm run build
 
 # --- runtime -----------------------------------------------------------------------------------

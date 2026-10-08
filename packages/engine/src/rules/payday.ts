@@ -3,8 +3,8 @@
  *
  * 1. Firing: all players decide **simultaneously** (`payday.fire` any number of times, then
  *    `payday.confirm`). Cards at work or on the beach may be fired; busy marketeers and the CEO
- *    may not. Each submission is applied at once (not yet hidden from players still deciding);
- *    salaries are settled only when everyone has confirmed.
+ *    may not. Each firing waits hidden in the player's secrets (`fireDraft`) and every draft is
+ *    applied, in turn order, when the last player confirms; salaries are settled then.
  * 2. Salaries: $5 per owned salaried card — structure, beach and busy marketeers.
  * 3. Mandatory discounts: $5 per unused recruiting-manager / HR-director recruit action, $15 with
  *    "First to Train", no marketeer salaries with "First Billboard". Minimum $0.
@@ -150,6 +150,24 @@ export function voluntarilyFireable(p: PlayerState): Uid[] {
   return [...cardsAtWork(p).filter((u) => u !== p.structure.ceo), ...p.beach];
 }
 
+/** Firings are hidden until everyone has decided (rules v4+). LEGACY(v3): applied at once. */
+function hiddenFiring(s: GameState): boolean {
+  return !rulesBefore(s, 4);
+}
+
+/** A player's voluntary firings sent this Payday but not yet revealed (rules v4+). */
+export function fireDraft(s: Pick<GameState, 'secrets'>, player: PlayerId): Uid[] {
+  return s.secrets?.[player]?.fireDraft ?? [];
+}
+
+/** Cards the player may still mark to fire this Payday (voluntarily fireable, not yet drafted). */
+export function stillFireable(s: GameState, player: PlayerId): Uid[] {
+  const p = s.players[player];
+  if (!p) return [];
+  const drafted = new Set(fireDraft(s, player));
+  return voluntarilyFireable(p).filter((u) => !drafted.has(u));
+}
+
 export function validatePaydayAction(state: GameState, action: PaydayFire | PaydayConfirm): Ok | Rejected {
   const ph = state.phase;
   if (ph.kind !== 'payday') return rej('WRONG_PHASE', 'Not in Payday');
@@ -169,12 +187,14 @@ export function validatePaydayAction(state: GameState, action: PaydayFire | Payd
   }
   if (action.type === 'payday.confirm') return { ok: true };
   const allowed = new Set(voluntarilyFireable(p));
+  const drafted = new Set(fireDraft(state, action.playerId));
   if (!Array.isArray(action.uids) || action.uids.length === 0) return rej('INVALID_PAYLOAD', 'No cards to fire');
   if (new Set(action.uids).size !== action.uids.length) return rej('INVALID_PAYLOAD', 'Duplicate card');
   for (const uid of action.uids) {
     if (!p.employees[uid]) return rej('NOT_OWNED', `Card ${uid} not owned`);
     if (uid === p.structure.ceo) return rej('ILLEGAL', 'The CEO cannot be fired');
     if (p.busy[uid]) return rej('CARD_UNAVAILABLE', 'Busy marketeers cannot be fired voluntarily');
+    if (drafted.has(uid)) return rej('CARD_UNAVAILABLE', 'That employee is already being fired');
     if (!allowed.has(uid)) return rej('CARD_UNAVAILABLE', `Card ${uid} cannot be fired`);
   }
   return { ok: true };
@@ -227,7 +247,9 @@ export function applyPaydayAction(ctx: HookContext, action: PaydayFire | PaydayC
     return;
   }
   if (action.type === 'payday.fire') {
-    for (const uid of action.uids) fireCard(ctx, action.playerId, uid, false);
+    const sec = s.secrets[action.playerId];
+    if (hiddenFiring(s) && sec) sec.fireDraft = [...(sec.fireDraft ?? []), ...action.uids];
+    else for (const uid of action.uids) fireCard(ctx, action.playerId, uid, false);
     advance(ctx);
     return;
   }
@@ -254,6 +276,7 @@ function advance(ctx: HookContext): void {
     s.awaiting = { kind: 'payday.fire', players: undecided };
     return;
   }
+  revealFirings(ctx, ph.queue);
   if (s.pending[0]?.kind === 'forcedFire') {
     s.awaiting = { kind: 'choice', players: [s.pending[0].player] };
     return;
@@ -278,6 +301,17 @@ function advance(ctx: HookContext): void {
     ph.idx += 1;
   }
   s.awaiting = { kind: 'none', players: [] };
+}
+
+/** Everyone has decided: apply every hidden firing, in turn order (rules v4+; DLX p29). */
+function revealFirings(ctx: HookContext, queue: readonly PlayerId[]): void {
+  for (const id of queue) {
+    const sec = ctx.state.secrets[id];
+    const draft = sec?.fireDraft;
+    if (!sec || !draft) continue;
+    delete sec.fireDraft;
+    for (const uid of draft) fireCard(ctx, id, uid, false);
+  }
 }
 
 /** Return a card to the supply. A fired busy marketeer's campaign stays and runs out normally. */

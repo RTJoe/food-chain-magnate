@@ -4,7 +4,7 @@ import type { Catalog } from './catalog.js';
 import { employeeName, foodCount, foodName, humanize, milestoneName, withArticle } from './catalog.js';
 import { tileName } from './boardLabels.js';
 import { collapseOffers, scoreMath } from './offers.js';
-import { isFinalBreak, phaseLabel, STAGE_LABELS } from './selectors.js';
+import { bankBreakText, phaseLabel, STAGE_LABELS } from './selectors.js';
 
 export type LogIcon = 'phase' | 'round' | 'hire' | 'train' | 'fire' | 'food' | 'cash' | 'board' | 'campaign' | 'milestone' | 'bank' | 'turn' | 'secret' | 'trophy' | 'info';
 
@@ -40,7 +40,15 @@ function goods(c: Catalog, g: FoodCounts | undefined): string {
 const campaignKindName = (kind: string): string => humanize(kind).toLowerCase();
 const capital = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
 
-export function describeEvent(e: GameEvent, view: GameView, c: Catalog, prev?: GameEvent): Line | null {
+/** Why a card left (engine `FireReason`); voluntary and cannot-pay read from "fires" / "had to fire". */
+const FIRE_REASON: Record<string, string> = {
+  milestone: ' (First to have $100: no CFO)',
+  bankrupt: ' (bankrupt)',
+  untrained: ' (hired from an empty pile but not trained)',
+};
+
+/** `phase`: the phase the event happened in, when known (the caller tracks `phaseChanged`). */
+export function describeEvent(e: GameEvent, view: GameView, c: Catalog, prev?: GameEvent, phase?: string | null): Line | null {
   const n = (id: PlayerId | null | undefined) => (id ? (view.players[id]?.name ?? id) : 'Someone');
   const L = (icon: LogIcon, text: string, player: PlayerId | null = null, header = false): Line => ({ icon, text, player, ...(header ? { header } : {}) });
   /** Same, pointing at board pieces. */
@@ -76,7 +84,7 @@ export function describeEvent(e: GameEvent, view: GameView, c: Catalog, prev?: G
     case 'setupPassed':
       return L('board', `${n(e.player)} passes on the first restaurant`, e.player);
     case 'reserveChosen':
-      return L('secret', e.card ? `You chose the $${e.card.amount} reserve card` : `${n(e.player)} chose a reserve card`, e.player);
+      return L('secret', e.card ? `You chose the $${e.card.amount} reserve card${e.card.kind === 'price' ? ` (base price $${e.card.basePrice})` : ''}` : `${n(e.player)} chose a reserve card`, e.player);
     case 'structureSubmitted':
       return L('secret', `${n(e.player)} submitted a structure`, e.player);
     case 'structureRetracted':
@@ -94,7 +102,7 @@ export function describeEvent(e: GameEvent, view: GameView, c: Catalog, prev?: G
     case 'employeeTrained':
       return L('train', `${n(e.player)} trains ${withArticle(employeeName(c, e.from))} into ${withArticle(employeeName(c, e.to))}`, e.player);
     case 'employeeFired':
-      return L('fire', `${n(e.player)} ${e.forced ? 'had to fire' : 'fires'} ${withArticle(employeeName(c, e.employeeId))}`, e.player);
+      return L('fire', `${n(e.player)} ${e.forced ? 'had to fire' : 'fires'} ${withArticle(employeeName(c, e.employeeId))}${FIRE_REASON[e.reason ?? ''] ?? ''}`, e.player);
     case 'cardSkipped':
     case 'cardsReturned':
       return null;
@@ -121,7 +129,8 @@ export function describeEvent(e: GameEvent, view: GameView, c: Catalog, prev?: G
     case 'gardenAdded':
       return T([e.houseId], L('board', `${n(e.player)} adds a garden to ${houseName(e.houseId)}`, e.player));
     case 'campaignPlaced': {
-      const num = e.campaign.number !== null ? ` #${e.campaign.number}` : '';
+      // Giant billboards carry no printed number (21-24 only order their runs, Q-K6).
+      const num = e.campaign.number !== null && e.campaign.kind !== 'giantBillboard' ? ` #${e.campaign.number}` : '';
       return T([e.campaign.id], L('campaign', `${n(e.player)} launches ${num ? `${campaignKindName(e.campaign.kind)}${num}` : withArticle(campaignKindName(e.campaign.kind))} for ${e.campaign.goods.map((g) => foodName(c, g).toLowerCase()).join(' + ')}`, e.player));
     }
     case 'entityPlaced': {
@@ -157,8 +166,7 @@ export function describeEvent(e: GameEvent, view: GameView, c: Catalog, prev?: G
     case 'cfoBonus':
       return L('cash', `${n(e.player)}'s CFO adds ${money(e.amount)}`, e.player);
     case 'bankBroke':
-      if (isFinalBreak(e.breakNo, view)) return L('bank', e.breakNo === 1 ? 'The bank breaks: the game ends after this Dinnertime' : 'The bank breaks a second time: the game ends');
-      return L('bank', `The bank breaks! Reserves add ${money(e.added)}`);
+      return L('bank', `The bank breaks${bankBreakText(e, view, phase)}`);
     case 'iouIssued':
       return L('bank', `${n(e.player)} gets an IOU for ${money(e.amount)}`, e.player);
     case 'bankrupt':
@@ -172,7 +180,7 @@ export function describeEvent(e: GameEvent, view: GameView, c: Catalog, prev?: G
     case 'demandPlaced': {
       const h = view.board.houses[e.houseId];
       const camp = e.campaignId ? view.board.campaigns[e.campaignId] : undefined;
-      const from = camp?.number != null ? ` (campaign #${camp.number})` : '';
+      const from = camp?.number != null && camp.kind !== 'giantBillboard' ? ` (campaign #${camp.number})` : '';
       return T([e.houseId], L('campaign', `House ${h?.label ?? e.houseId} wants ${wanted(e.tokens.map((t) => t.good))}${from}`, camp?.owner ?? null));
     }
     case 'marketingIncome':
@@ -188,7 +196,8 @@ export function describeEvent(e: GameEvent, view: GameView, c: Catalog, prev?: G
     case 'cashChanged':
       return null;
     case 'gameEnded': {
-      const w = e.ranking[0];
+      if (e.winner === null) return L('trophy', 'Every chain went bankrupt: no winner', null, true);
+      const w = e.winner ?? e.ranking[0];
       return L('trophy', `${n(w)} wins with ${money(e.cash[w ?? ''] ?? 0)}`, w ?? null, true);
     }
     default:

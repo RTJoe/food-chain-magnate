@@ -9,6 +9,7 @@ import { useSignal } from '@preact/signals';
 import type { Action } from '@fcm/engine';
 import { act } from '../../net/session.js';
 import { view } from '../../state/store.js';
+import { selection } from '../../state/interaction.js';
 import { openSummary, sheetOpen } from '../../ui/uiState.js';
 import { Button, IconButton } from '../../ui/common.js';
 import { Icon } from '../../ui/icons.js';
@@ -251,7 +252,8 @@ function useStripOnTop(cuts: Cutout[], strip: { current: HTMLElement | null }): 
       top.value = lowTarget;
       return;
     }
-    top.value = sheetOpen.value || lowTarget || openSummary.value !== null;
-  }, [JSON.stringify(cuts), sheetOpen.value, openSummary.value]);
+    // An open Inspect card sits at the bottom too: the step often talks about it.
+    top.value = sheetOpen.value || lowTarget || openSummary.value !== null || selection.value !== null;
+  }, [JSON.stringify(cuts), sheetOpen.value, openSummary.value, selection.value]);
   return top.value;
 }

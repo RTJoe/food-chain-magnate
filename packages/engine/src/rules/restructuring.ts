@@ -145,6 +145,19 @@ export function awaitingRestructure(s: GameState): PlayerId[] {
   return activePlayers(s).filter((id) => !s.secrets[id]?.structureDraft);
 }
 
+/**
+ * What a submission becomes at the reveal: as submitted, re-seated into a legal layout (DLX p13),
+ * or CEO alone when the cards cannot all be assigned (penalty, base.md §4.5). Pure; also used by
+ * the UI to preview open slots.
+ */
+export function revealedStructure(s: GameState, player: PlayerId, draft: StructureSubmission): { structure: StructureSubmission; penalty: boolean } {
+  if (!isOverfilled(s, player, draft)) return { structure: { ceoSubs: [...draft.ceoSubs], managerSubs: Object.fromEntries(Object.entries(draft.managerSubs).map(([k, v]) => [k, [...v]])) }, penalty: false };
+  // LEGACY(v1): an over-full structure always took the penalty.
+  const reseated = legacyRules(s) ? null : reseatStructure(s, player, draft);
+  if (reseated) return { structure: { ceoSubs: reseated.ceoSubs, managerSubs: reseated.managerSubs }, penalty: false };
+  return { structure: { ceoSubs: [], managerSubs: {} }, penalty: true };
+}
+
 /** Reveal all submissions at once (base.md §4.2), apply the overfill penalty, send the rest to the beach. */
 export function revealStructures(ctx: EngineCtx): void {
   const s = ctx.state;
@@ -155,16 +168,9 @@ export function revealStructures(ctx: EngineCtx): void {
     if (!p || !sec?.structureDraft) continue;
     const draft = sec.structureDraft;
     const hand = cardsInHand(p);
-    // LEGACY(v1): an over-full structure always took the penalty.
-    const reseated = isOverfilled(s, id, draft) && !legacyRules(s) ? reseatStructure(s, id, draft) : null;
-    if (reseated) {
-      p.structure = { ceo: p.structure.ceo, ceoSubs: reseated.ceoSubs, managerSubs: reseated.managerSubs };
-    } else if (isOverfilled(s, id, draft)) {
-      p.structure = { ceo: p.structure.ceo, ceoSubs: [], managerSubs: {} };
-      ctx.emit({ type: 'structurePenalty', player: id });
-    } else {
-      p.structure = structuredCopy(draft);
-    }
+    const out = revealedStructure(s, id, draft);
+    p.structure = { ceo: p.structure.ceo, ceoSubs: out.structure.ceoSubs, managerSubs: out.structure.managerSubs };
+    if (out.penalty) ctx.emit({ type: 'structurePenalty', player: id });
     const placed = new Set([...p.structure.ceoSubs, ...Object.values(p.structure.managerSubs).flat()]);
     p.beach = [...p.beach, ...hand.filter((u) => !placed.has(u))];
     sec.structureDraft = null;

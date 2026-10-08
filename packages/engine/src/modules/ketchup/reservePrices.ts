@@ -26,7 +26,7 @@ export { basePriceFromReserves } from '../../rules/bank.js';
 export const RESERVE_PRICES_MODULE: GameModule = {
   id: ID,
   name: 'Reserve Prices',
-  description: 'Reserve cards set the base unit price after the first bank break.',
+  description: 'Reserve cards set the base price after the first bank break.',
   hooks: {
     reserveOptions: () => PRICE_RESERVES.map((c) => ({ ...c })),
   },

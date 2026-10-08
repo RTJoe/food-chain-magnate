@@ -6,7 +6,7 @@
  */
 import type { CampaignKind, CampaignPlacement, FoodCounts, FoodId, PlayerId } from '@fcm/engine';
 import { type Ctx, type PlacementLegal, timeUp } from '../shared/ctx.js';
-import { addCounts, capacityOf, hasMs, isDrink, msOpen, roundsLeftEstimate, stockNow } from '../shared/facts.js';
+import { addCounts, capacityOf, hasMs, isDrink, msOpen, roundsLeftEstimate, stallPressure, stockNow } from '../shared/facts.js';
 import { potentialModel, canEverSupply, houseViews, unitRevenue, winProb, type HouseView } from '../shared/market.js';
 import { milestoneValue } from '../shared/values.js';
 import { chooseFood } from './archetype.js';
@@ -70,6 +70,12 @@ function makeScorer(c: Ctx, me: PlayerId): Scorer {
   const maxStock = addCounts(stockNow(c.s, me), capacityOf(c, me, cards, chooseFood(c, me)));
   const main = chooseFood(c, me);
   maxStock[main] = (maxStock[main] ?? 0) + 3;
+  // Flexible cooks (kitchen trainees) can make any of their foods: a mixed order is still servable.
+  for (const g of goods) {
+    if (g === main) continue;
+    const alt = addCounts(stockNow(c.s, me), capacityOf(c, me, cards, g))[g] ?? 0;
+    if (alt > (maxStock[g] ?? 0)) maxStock[g] = alt;
+  }
   return { c, me, houses, rounds: roundsLeftEstimate(c), myCampaignsOn, goods, supply, leak, maxStock };
 }
 
@@ -173,5 +179,6 @@ function describe(p: CampaignPlacement): string {
 
 /** Minimum value for placing a campaign at all (busy marketeers and eternal losses cost). */
 export function campaignThreshold(c: Ctx, me: PlayerId, salaried: boolean): number {
-  return hasMs(c.s, me, 'first_billboard') ? 6 : salaried ? 5 : 2;
+  // A stalled game (the bank is not falling) needs demand: any campaign that sells something.
+  return (hasMs(c.s, me, 'first_billboard') ? 6 : salaried ? 5 : 2) * (1 - 0.8 * stallPressure(c));
 }

@@ -14,7 +14,7 @@ import { readCtx } from './context.js';
 import { validateAction } from './reducer.js';
 import { legalInitialPlacements, reserveOptions } from '../rules/setup.js';
 import { freePositions, currentChooser } from '../rules/orderOfBusiness.js';
-import { voluntarilyFireable } from '../rules/payday.js';
+import { stillFireable } from '../rules/payday.js';
 import { freezerCapacity } from '../rules/cleanup.js';
 import { annotateNoAction, workingLegalActions, workingPlacements } from '../rules/working/index.js';
 
@@ -60,7 +60,7 @@ export function legalActions(state: GameState, playerId: PlayerId): LegalAction[
       break;
     case 'payday':
       if (s.awaiting.kind !== 'payday.fire' || !s.awaiting.players.includes(playerId)) break;
-      if (voluntarilyFireable(p).length) out.push({ kind: 'compose', label: 'Fire employees', actionType: 'payday.fire' });
+      if (stillFireable(s, playerId).length) out.push({ kind: 'compose', label: 'Fire employees', actionType: 'payday.fire' });
       ready('Done firing', { type: 'payday.confirm', playerId });
       break;
     case 'cleanup':

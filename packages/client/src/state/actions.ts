@@ -50,7 +50,7 @@ export function actionFromPlacement(legal: PlacementLegal, p: Placement, me: Pla
     case 'park':
       return { type: 'ketchup:lobbyists.placePark', playerId: me, cardUid, x: p.x, y: p.y, w: p.w, h: p.h, ...(p.cells ? { cells: p.cells } : {}), from: p.from };
     case 'freeway':
-      return { type: 'ketchup:ruralMarketeers.placeFreeway', playerId: me, choiceId, side: p.side, offset: p.offset };
+      return { type: 'ketchup:ruralMarketeers.placeFreeway', playerId: me, choiceId, side: p.side, offset: p.offset, ...(p.lengthwise ? { lengthwise: true } : {}) };
     case 'mapTile':
       return { type: 'ketchup:lobbyists.placeMapTile', playerId: me, choiceId, row: p.row, col: p.col, rotation: p.rotation, ...(p.templateId ? { templateId: p.templateId } : {}) };
     case 'pizzaRadio':
@@ -107,8 +107,9 @@ export function describePlacement(p: Placement, view?: GameView | null): string 
       return `Park at ${p.x},${p.y} · tile ${tileOf(p.x, p.y)}`;
     case 'freeway': {
       const b = view?.board;
-      const at = b ? freewayTile(p.side, p.offset, b.w, b.h) : null;
-      return `Freeway ${p.side} edge, offset ${p.offset}${at ? ` · beside ${at}` : ''}`;
+      const at = b ? freewayTile(p.side, p.lengthwise ? p.offset + 1 : p.offset, b.w, b.h) : null;
+      const where = p.lengthwise ? `offset ${p.offset}–${p.offset + 2} lengthwise` : `offset ${p.offset}`;
+      return `Freeway ${p.side} edge, ${where}${at ? ` · beside ${at}` : ''}`;
     }
     case 'mapTile': {
       const b = view?.board;
@@ -136,11 +137,11 @@ export function haulDrinks(p: Extract<Placement, { kind: 'buyerRoute' }>, view?:
   return [...by].map(([drink, count]) => ({ drink, count })).sort((a, b) => b.count - a.count || a.drink.localeCompare(b.drink));
 }
 
-/** One haul row: "2 beer, 2 lemonade · 1/2 borders" (air: tiles). */
+/** One haul row: "2 beer, 2 lemonade · 1/2 borders" (air range counts borders too, DLX p22). */
 export function describeHaul(p: Extract<Placement, { kind: 'buyerRoute' }>, view?: GameView | null): string {
   const drinks = haulDrinks(p, view);
   const what = drinks.length ? drinks.map((d) => `${d.count} ${d.drink.replace('_', ' ')}`).join(', ') : 'No drinks';
-  const unit = p.route.mode === 'air' ? 'tiles' : 'borders';
+  const unit = 'borders';
   const used = p.bordersUsed !== undefined && p.range !== undefined ? ` · ${p.bordersUsed}/${p.range} ${unit}` : '';
   return `${what}${used}`;
 }

@@ -419,5 +419,18 @@ describe('Lobbyists (ketchup.md §2)', () => {
       expect(mapTileProblem(s, 0, 1, 0, 'C')).toMatch(/freeway/);
       expect(mapTileProblem(s, 0, 2, 0, 'C')).toBeNull();
     });
+
+    it('KX p17 / Q-K21: a lengthwise freeway blocks the tile edge any part of it lies along', () => {
+      // Lengthwise over columns 8-10 on the north edge (beside tiles (1,1) and (1,2), both facing gaps).
+      const s = kb(2, [...M]).mutate((g) => {
+        g.tilePool = ['C'];
+        const ids = { nextId: g.nextId };
+        growBoard(g.board, contentFor(g.config.modules).tiles.B as TileDef, -1, 0, 0, ids);
+        g.nextId = ids.nextId;
+        g.board.entities['entity-fw'] = { kind: 'freeway', id: 'entity-fw', owner: 'p1', side: 'N', offset: 8, tile: '', lengthwise: true };
+      }).build();
+      expect(mapTileProblem(s, 0, 1, 0, 'C')).toMatch(/freeway/);
+      expect(mapTileProblem(s, 0, 2, 0, 'C')).toMatch(/freeway/);
+    });
   });
 });

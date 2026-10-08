@@ -1,6 +1,7 @@
 /**
  * Ketchup expansion pieces: park, lobbyist road works (hazard chevrons, barriers, cones), the
- * hazard-striped roadworks token, the freeway with its green FREEWAY gantry; generic fallback.
+ * hazard-striped roadworks token, the freeway (end-on ramp or lengthwise deck) with its green
+ * FREEWAY gantry; generic fallback.
  */
 import * as THREE from 'three';
 import type { Cell, Direction } from '@fcm/engine';
@@ -371,11 +372,17 @@ function freewayShape(color: string): Shape {
   return s;
 }
 
-/** Green highway sign: white condensed FREEWAY with an arrow either side. */
-function freewaySignTexture(): THREE.Texture {
+/**
+ * Which way the rural area lies for a van leaving the board by a freeway (M096): straight on for
+ * a freeway on the rural area's side, else the turn the van takes round the rim.
+ */
+export type FreewayTurn = 'ahead' | 'left' | 'right';
+
+/** Green highway sign: white condensed FREEWAY with an arrow either side, pointing `turn`. */
+function freewaySignTexture(turn: FreewayTurn = 'ahead'): THREE.Texture {
   const W = 384;
   const H = 142;
-  return decalTexture('freewaySign', W, H, (c) => {
+  return decalTexture(`freewaySign:${turn}`, W, H, (c) => {
     c.fillStyle = FREEWAY_GREEN;
     c.fillRect(0, 0, W, H);
     c.strokeStyle = HAZARD_WHITE;
@@ -387,39 +394,82 @@ function freewaySignTexture(): THREE.Texture {
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillText('FREEWAY', W / 2, H / 2 + 4);
+    const turnBy = turn === 'left' ? -Math.PI / 2 : turn === 'right' ? Math.PI / 2 : 0;
     for (const sx of [-1, 1]) {
-      const x = W / 2 + sx * 158;
+      c.save();
+      c.translate(W / 2 + sx * 158, 71);
+      c.rotate(turnBy);
       c.beginPath();
-      c.moveTo(x, 36);
-      c.lineTo(x + 18, 62);
-      c.lineTo(x + 7, 62);
-      c.lineTo(x + 7, 106);
-      c.lineTo(x - 7, 106);
-      c.lineTo(x - 7, 62);
-      c.lineTo(x - 18, 62);
+      c.moveTo(0, -35);
+      c.lineTo(18, -9);
+      c.lineTo(7, -9);
+      c.lineTo(7, 35);
+      c.lineTo(-7, 35);
+      c.lineTo(-7, -9);
+      c.lineTo(-18, -9);
       c.closePath();
       c.fill();
+      c.restore();
     }
   });
 }
 
-export function buildFreeway(ctx: MiniCtx, p: { color: string; side: Direction }): THREE.Group {
+/** The two faces of a sign board at (0, y, z): the board-facing one shows `turn`, the far one its mirror. */
+function signFaces(ctx: MiniCtx, parent: THREE.Object3D, y: number, z: number, turn: FreewayTurn): void {
+  const mirror: FreewayTurn = turn === 'left' ? 'right' : turn === 'right' ? 'left' : 'ahead';
+  for (const side of [1, -1]) {
+    const f = face(ctx, parent, freewaySignTexture(side < 0 ? turn : mirror), GANTRY.w, GANTRY.h);
+    f.position.set(0, y, z + side * 0.022);
+    if (side < 0) f.rotation.y = Math.PI;
+  }
+}
+
+/** Lengthwise freeway (rules v4): a 3x1 deck lying along the edge, under a sign gantry (canonical side S, centred). */
+function freewayAlongShape(color: string): Shape {
+  const pal = playerPalette(color);
+  const s = new Shape();
+  const L = 2.96;
+  s.add(box(L, 0.026, 0.92, 0.01), PAINT.concrete, { at: [0, 0, 0], jitter: 0.02 });
+  s.add(box(L - 0.06, 0.012, 0.74, 0), PAINT.asphalt, { at: [0, 0.022, 0], jitter: 0.02 });
+  for (const z of [-0.3, 0.3]) s.add(box(L - 0.1, 0.008, 0.03, 0), EDGE_YELLOW, { at: [0, 0.034, z], jitter: 0 });
+  for (let i = 0; i < 6; i++) s.add(box(0.24, 0.008, 0.04, 0), PAINT.lineWhite, { at: [-L / 2 + (i + 0.5) * (L / 6), 0.034, 0], jitter: 0 });
+  // Crash barriers across both ends (vans only cross the long sides).
+  for (const x of [-1, 1]) {
+    s.add(box(0.07, 0.13, 0.9, 0.02), PAINT.kerb, { at: [x * (L / 2 - 0.035), 0.02, 0] });
+    s.add(box(0.075, 0.03, 0.9, 0), pal.base, { at: [x * (L / 2 - 0.035), 0.15, 0], jitter: 0 });
+  }
+  // Sign gantry along the outer edge: posts on the barriers, the green board in the middle.
+  const top = GANTRY.y + GANTRY.h + 0.06;
+  for (const x of [-1, 1]) s.add(cyl(0.025, 0.025, top, 5), PAINT.metalDark, { at: [x * (L / 2 - 0.04), 0.02, 0.4], mat: 'metal' });
+  s.add(box(L - 0.04, 0.05, 0.05, 0.01), PAINT.metalDark, { at: [0, top, 0.4], mat: 'metal' });
+  s.add(box(GANTRY.w + 0.04, GANTRY.h + 0.04, 0.04, 0.01), FREEWAY_GREEN, { at: [0, GANTRY.y - 0.02, 0.4] });
+  s.add(box(0.14, 0.04, 0.04, 0.01), pal.base, { at: [0.42, GANTRY.y + GANTRY.h + 0.08, 0.4] });
+  return s;
+}
+
+/**
+ * The freeway: end-on, a ramp running out from the board edge (anchor = its foot on the edge);
+ * lengthwise (rules v4), a flat 3x1 deck along the edge (anchor = its centre). `turn` points the
+ * sign arrows at the rural area.
+ */
+export function buildFreeway(ctx: MiniCtx, p: { color: string; side: Direction; lengthwise?: boolean; turn?: FreewayTurn }): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Group();
   body.rotation.y = dirAngle(p.side);
   g.add(body);
+  const turn = p.turn ?? 'ahead';
+  if (p.lengthwise) {
+    blob(ctx, body, 3.1, 1.0, true, 0.5);
+    solid(ctx, body, miniGeo(`freewayAlong:${p.color}`, () => freewayAlongShape(p.color)));
+    signFaces(ctx, body, GANTRY.y + GANTRY.h / 2, 0.4, turn);
+    return g;
+  }
   const shadow = new THREE.Group();
   shadow.position.z = 1.9;
   body.add(shadow);
   blob(ctx, shadow, 1.2, 4.0, true, 0.5);
   solid(ctx, body, miniGeo(`freeway:${p.color}`, () => freewayShape(p.color)));
-  const y = FREEWAY.rise + GANTRY.y + GANTRY.h / 2;
-  const z = FREEWAY.run - 0.2;
-  for (const side of [1, -1]) {
-    const f = face(ctx, body, freewaySignTexture(), GANTRY.w, GANTRY.h);
-    f.position.set(0, y, z + side * 0.022);
-    if (side < 0) f.rotation.y = Math.PI;
-  }
+  signFaces(ctx, body, FREEWAY.rise + GANTRY.y + GANTRY.h / 2, FREEWAY.run - 0.2, turn);
   return g;
 }
 

@@ -79,6 +79,8 @@ export type ClientMessage = z.infer<typeof ClientMessage>;
 export const ErrorCode = z.enum([
   'BAD_MESSAGE',
   'PROTOCOL_MISMATCH',
+  /** The client runs another build than the server (an open tab after a deploy): reload the page. */
+  'RELOAD_REQUIRED',
   'NOT_IN_ROOM',
   'ROOM_NOT_FOUND',
   'ROOM_FULL',
@@ -93,6 +95,15 @@ export const ErrorCode = z.enum([
 ]);
 export type ErrorCode = z.infer<typeof ErrorCode>;
 
+const ChatLineShape = {
+  from: z.object({ clientId: z.string(), name: z.string(), seat: z.number().int().nullable() }),
+  text: z.string(),
+  ts: z.number(),
+};
+/** One chat message as kept by the room (server ring buffer, persisted with the room). */
+export const ChatLine = z.object(ChatLineShape);
+export type ChatLine = z.infer<typeof ChatLine>;
+
 export const ServerMessage = z.discriminatedUnion('t', [
   z.object({ t: z.literal('welcome'), clientId: z.string(), sessionToken: z.string(), serverVersion: z.string(), protocol: z.number().int(), room: RoomInfo.nullable() }),
   z.object({ t: z.literal('error'), code: ErrorCode, message: z.string(), ref: z.string().optional() }),
@@ -105,12 +116,9 @@ export const ServerMessage = z.discriminatedUnion('t', [
   z.object({ t: z.literal('game.rejected'), id: z.string(), code: z.string(), message: z.string() }),
   /** Undo rolled the game back to `seq`. */
   z.object({ t: z.literal('game.undone'), seq: Seq, view: ViewSchema, by: z.string() }),
-  z.object({
-    t: z.literal('chat'),
-    from: z.object({ clientId: z.string(), name: z.string(), seat: z.number().int().nullable() }),
-    text: z.string(),
-    ts: z.number(),
-  }),
+  z.object({ t: z.literal('chat'), ...ChatLineShape }),
+  /** The room's recent chat (after welcome or room.join), oldest first; replaces what the client shows. */
+  z.object({ t: z.literal('chat.history'), lines: z.array(ChatLine) }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
 

@@ -205,9 +205,10 @@ export function badgeSprite(tex: THREE.Texture, size = 0.42): THREE.Sprite {
  * dark chain disc, the advertised good(s) as token glyphs, and the campaign number on a teal
  * busy-marker disc with a cream numeral (Deluxe busy markers, art bible §6.13).
  */
-export function campaignBadgeTexture(number: number, goods: FoodId[], ring: string, edge: string, eternal = false): THREE.Texture {
+/** `number` null: no printed number (giant billboards show only ∞, KX p25). */
+export function campaignBadgeTexture(number: number | null, goods: FoodId[], ring: string, edge: string, eternal = false): THREE.Texture {
   const shown = goods.slice(0, 2);
-  const num = String(number);
+  const num = number === null ? '' : String(number);
   const chain = chainOfColor(ring);
   const markW = chain ? 98 : 0;
   const numW = Math.max(96, 46 + num.length * 34) + (eternal ? 50 : 0);
@@ -237,7 +238,7 @@ export function campaignBadgeTexture(number: number, goods: FoodId[], ring: stri
     ctx.lineWidth = 4;
     roundRect(ctx, x + 10, cy - 34, dw - 12, 68, 34);
     ctx.stroke();
-    text(ctx, eternal ? `${num} ∞` : num, x + 4 + dw / 2, cy + 3, 64, CREAM);
+    text(ctx, eternal ? (num ? `${num} ∞` : '∞') : num, x + 4 + dw / 2, cy + 3, 64, CREAM);
   });
 }
 

@@ -47,8 +47,8 @@ import type { GameView, LegalAction, Placement, PlacementSpec, Viewer } from './
 /** Typed options per module. Modules without options use `Record<string, never>`. */
 export interface ModuleOptionsMap {
   base: Record<string, never>;
-  /** No options yet: choosing which of U–Y join the pool is not implemented (questions.md Q-K26). */
-  'ketchup:newDistricts': Record<string, never>;
+  /** `tiles`: U–Y, U–Y and park tile Z, or only Z (Upmarket Area scenario; questions.md Q-K26). Default U–Y. */
+  'ketchup:newDistricts': { tiles?: 'districts' | 'districtsAndPark' | 'park' };
   /** No options: tile Z always joins the pool; every pair of adjacent road squares connects (DLX p8 E, p21). */
   'ketchup:lobbyists': Record<string, never>;
   'ketchup:newMilestones': Record<string, never>;

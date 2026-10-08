@@ -10,6 +10,9 @@
  *
  * Bot seats (docs/ai.md): when the engine awaits a bot, the transport waits a short delay, asks the
  * bot runner (a Web Worker in the browser) for a move on the bot's redacted view and applies it.
+ * Pacing follows the server's BotDriver: the full delay only for a bot's first move of a turn, at
+ * most `FOLLOW_UP_BOT_DELAY_MS` for its later moves, none for a forced move; and a move waits (up
+ * to `BOARD_WAIT_MS`) while the board still animates the previous one (`boardBusy`).
  * Bots never get the device: handoffs only go to human seats, and while bots think the current
  * human keeps their view. Undo rewinds past bot moves made after the human's own move.
  */
@@ -36,6 +39,8 @@ export interface LocalTransportOptions {
   botRunner?: LocalBotRunner;
   /** Delay before a bot moves, ms (default 400–900). */
   botDelay?: number | { min: number; max: number };
+  /** True while the board animates (Dinnertime vans, Marketing): a bot move waits for it, up to `BOARD_WAIT_MS`. */
+  boardBusy?: () => boolean;
   /**
    * Tutorial (docs/tutorial-plan.md §4.2): seats moved by a lesson script through `actFor`. They are
    * never handed the device and the device holder cannot act for them.
@@ -82,7 +87,13 @@ interface UndoEntry {
   seq: number;
 }
 
-const isNotImplemented = (e: unknown) => typeof e === 'object' && e !== null && (e as { code?: unknown }).code === 'NOT_IMPLEMENTED';
+/** Cap on a bot's later moves in the same turn (as the server's `FOLLOW_UP_BOT_DELAY_MS`). */
+export const FOLLOW_UP_BOT_DELAY_MS = 150;
+/** Longest a bot move waits for the board to finish animating. */
+export const BOARD_WAIT_MS = 4000;
+/** A bot whose move and fallback both failed is asked again this many times, this far apart. */
+const BOT_RETRIES = 3;
+const BOT_RETRY_MS = 1500;
 
 export class LocalTransport implements Transport {
   readonly kind = 'local' as const;
@@ -100,6 +111,10 @@ export class LocalTransport implements Transport {
   private botThinking: PlayerId | null = null;
   private botGen = 0;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The last bot move (seat and the seq after it): its next move in the same turn is a follow-up. */
+  private lastBotMove: { player: PlayerId; seq: number } | null = null;
+  /** Failed bot turns in a row at the same seq (see `BOT_RETRIES`). */
+  private botFailures = { seq: -1, count: 0 };
   /** Every action applied since the start state (prelude included), in order. */
   private applied: Action[] = [];
   /**
@@ -280,9 +295,7 @@ export class LocalTransport implements Transport {
     try {
       result = this.opts.engine.applyAction(s, a);
     } catch (e) {
-      const code = isNotImplemented(e) ? 'NOT_IMPLEMENTED' : 'INTERNAL';
-      const message = isNotImplemented(e) ? 'The rules engine cannot do that yet' : e instanceof Error ? e.message : String(e);
-      this.emit({ t: 'game.rejected', id, code, message });
+      this.emit({ t: 'game.rejected', id, code: 'INTERNAL', message: e instanceof Error ? e.message : String(e) });
       return;
     }
     if (!result.ok) {
@@ -312,6 +325,40 @@ export class LocalTransport implements Transport {
     return typeof d === 'number' ? Math.max(0, d) : Math.round(d.min + Math.random() * Math.max(0, d.max - d.min));
   }
 
+  /** Full delay for a turn's first move; capped for a follow-up; none for a forced move (M271). */
+  private delayFor(s: GameState, player: PlayerId): number {
+    const full = this.botDelayMs();
+    if (full <= 0) return 0;
+    try {
+      const legal = this.opts.engine.legalActions(s, player);
+      if (legal.length === 1 && legal[0]?.kind === 'ready') return 0;
+    } catch {
+      /* full delay */
+    }
+    const followUp = this.lastBotMove?.player === player && this.lastBotMove.seq === this.seq;
+    return followUp ? Math.min(full, FOLLOW_UP_BOT_DELAY_MS) : full;
+  }
+
+  /** Run `fn` once the board is idle, or after `BOARD_WAIT_MS` at most (M176). */
+  private whenBoardIdle(gen: number, fn: () => void): void {
+    const busy = this.opts.boardBusy;
+    if (!busy) return fn();
+    const until = Date.now() + BOARD_WAIT_MS;
+    const check = () => {
+      this.botTimer = null;
+      if (gen !== this.botGen) return;
+      let on = false;
+      try {
+        on = busy();
+      } catch {
+        on = false;
+      }
+      if (on && Date.now() < until) this.botTimer = setTimeout(check, 100);
+      else fn();
+    };
+    check();
+  }
+
   /** Start a bot move if the engine awaits a bot seat and none is thinking. */
   private scheduleBots(): void {
     const s = this.state;
@@ -324,12 +371,15 @@ export class LocalTransport implements Transport {
     this.botThinking = player;
     // Thinking starts at once and overlaps the human-feeling delay: the move lands after
     // whichever takes longer.
-    const delay = this.botDelayMs();
+    const delay = this.delayFor(s, player);
     let waited = delay <= 0;
     let result: { action: Action | null } | null = null;
+    let landed = false;
     const land = () => {
-      if (gen !== this.botGen || !waited || !result) return;
-      this.botMove(gen, seq, player, result.action);
+      if (gen !== this.botGen || !waited || !result || landed) return;
+      landed = true;
+      const action = result.action;
+      this.whenBoardIdle(gen, () => this.botMove(gen, seq, player, action));
     };
     if (!waited)
       this.botTimer = setTimeout(() => {
@@ -387,17 +437,35 @@ export class LocalTransport implements Transport {
       }
     }
     if (!a || !r || !r.ok) {
-      this.emit({ t: 'error', code: 'INTERNAL', message: `Bot ${player} could not move` });
+      // Ask again a few times (a fresh worker, another sample) before telling the table.
+      const f = this.botFailures.seq === seq ? this.botFailures : (this.botFailures = { seq, count: 0 });
+      f.count++;
+      if (f.count <= BOT_RETRIES) {
+        const gen = this.botGen;
+        this.botTimer = setTimeout(() => {
+          this.botTimer = null;
+          if (gen === this.botGen) this.scheduleBots();
+        }, BOT_RETRY_MS);
+        return;
+      }
+      this.emit({ t: 'error', code: 'INTERNAL', message: `Bot ${player} could not move. Undo your last move or start a new game.` });
       return;
     }
+    // Set before commit: commit schedules the next bot move, which may be this bot's follow-up.
+    this.lastBotMove = { player, seq: r.state.history.seq };
     this.commit(s, a, r, null);
   }
 
+  /** Redacted events, failing closed: never another player's secrets on a shared screen (M167). */
   private redactEvents(events: GameEvent[], viewer: Viewer): GameEvent[] {
     try {
       return this.opts.engine.redactEvents(events, viewer);
     } catch {
-      return events;
+      try {
+        return this.opts.engine.redactEvents(events, 'spectator');
+      } catch {
+        return [];
+      }
     }
   }
 

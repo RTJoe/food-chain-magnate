@@ -23,6 +23,8 @@ export type Mode = 'online' | 'hotseat' | 'dev' | 'tutorial';
 
 export interface ChatLine {
   id: number;
+  /** Sender (online); with `ts` and `text` it identifies a line replayed by `chat.history`. */
+  clientId?: string;
   name: string;
   seat: number | null;
   text: string;
@@ -75,6 +77,10 @@ export const toasts = signal<Toast[]>([]);
 export const handoff = signal<{ to: PlayerId } | null>(null);
 /** Sent but unanswered actions, by action id. */
 export const pending = signal<Record<string, Action>>({});
+/** The `expectedSeq` each pending action was sent with (see `trackPending`). */
+const pendingSeq = new Map<string, number>();
+/** Online: the server runs another build (a deploy since this tab loaded). The page must be reloaded. */
+export const reloadRequired = signal(false);
 export const settings = signal<Settings>(loadSettings());
 /** Hot-seat bot seats (online ones come from `room.seats`). */
 export const localBots = signal<Record<PlayerId, BotLevel>>({});
@@ -174,7 +180,7 @@ export function rejectionToast(code: string, message: string, id?: string): { te
   if (code === 'STALE') {
     return { text: id === 'undo' ? 'The game moved on while you were reconnecting, so your undo was not applied.' : 'The game moved on while you were reconnecting. Check the board and try again.', tone: 'info' };
   }
-  if (code === 'PROTOCOL_MISMATCH') return { text: 'A new version of the game is out. Reload the page to keep playing; your seat is kept.', tone: 'error' };
+  if (code === 'PROTOCOL_MISMATCH' || code === 'RELOAD_REQUIRED') return { text: 'A new version of the game is out. Reload the page to keep playing; your seat is kept.', tone: 'error' };
   if (code === 'UNDO_UNAVAILABLE' || /^nothing (of yours )?to undo$/i.test(message)) return { text: 'Nothing to undo', tone: 'info' };
   return { text: message || code, tone: 'error' };
 }
@@ -206,8 +212,10 @@ export const chatOpen = signal(false);
 function appendLog(v: GameView, s: number, events: readonly GameEvent[]): void {
   const c = buildCatalog(manifest.value, v.config.modules);
   const lines: LogLine[] = [];
+  let phase: string | null = null;
   for (const [i, e] of events.entries()) {
-    const d = describeEvent(e, v, c, events[i - 1]);
+    if (e.type === 'phaseChanged') phase = e.to.kind;
+    const d = describeEvent(e, v, c, events[i - 1], phase);
     if (d) lines.push({ ...d, id: nextLogId++, seq: s, round: v.round });
   }
   if (lines.length) log.value = [...log.value, ...lines].slice(-400);
@@ -254,11 +262,36 @@ export function resetStore(): void {
     handoff.value = null;
     pending.value = {};
     summaries.value = [];
+    reloadRequired.value = false;
     localBots.value = {};
   });
   phaseBuf = null;
+  pendingSeq.clear();
   boardBridge.setView(null, null, []);
 }
+
+/** Record a sent action until the server answers it (`game.applied` or `game.rejected`). */
+export function trackPending(id: string, action: Action, expectedSeq: number): void {
+  pendingSeq.set(id, expectedSeq);
+  pending.value = { ...pending.value, [id]: action };
+}
+
+/** Forget pending actions (answered, timed out or superseded). */
+export function dropPending(ids: readonly string[]): void {
+  const gone = ids.filter((id) => id in pending.value);
+  for (const id of ids) pendingSeq.delete(id);
+  if (!gone.length) return;
+  const next = { ...pending.value };
+  for (const id of gone) delete next[id];
+  pending.value = next;
+}
+
+/** Pending actions with the `expectedSeq` they were sent with (resent after a reconnect). */
+export function pendingActions(): { id: string; action: Action; expectedSeq: number }[] {
+  return Object.entries(pending.value).map(([id, action]) => ({ id, action, expectedSeq: pendingSeq.get(id) ?? seq.value }));
+}
+
+const chatKey = (l: { clientId?: string; ts: number; text: string }) => `${l.clientId ?? ''}|${l.ts}|${l.text}`;
 
 export interface HandleResult {
   /** The client missed a message (seq gap): request `game.resync`. */
@@ -295,6 +328,11 @@ export function handleServerMessage(raw: ServerMessage): HandleResult {
       return {};
     case 'error':
       if (msg.code === 'ROOM_NOT_FOUND') roomError.value = msg.message || 'Room not found';
+      // Another build on the server: a blocking "Reload" screen says it instead of a toast.
+      if (msg.code === 'RELOAD_REQUIRED' || msg.code === 'PROTOCOL_MISMATCH') {
+        reloadRequired.value = true;
+        return {};
+      }
       {
         const t = rejectionToast(msg.code, msg.message);
         pushToast(t.text, t.tone);
@@ -310,6 +348,9 @@ export function handleServerMessage(raw: ServerMessage): HandleResult {
       // Online, a snapshot behind what we already applied means the server lost moves (crash, no
       // flush): say so, and drop log lines for moves that no longer happened.
       const rewound = mode.value === 'online' && view.value !== null && msg.seq < seq.value;
+      // An action sent before `msg.seq` was either applied (the snapshot includes it) or overtaken:
+      // its own answer may never come (lost on a dropped socket), so stop waiting for it.
+      dropPending(pendingActions().filter((p) => p.expectedSeq < msg.seq).map((p) => p.id));
       batch(() => {
         if (rewound) {
           log.value = log.value.filter((l) => l.seq <= msg.seq);
@@ -334,17 +375,13 @@ export function handleServerMessage(raw: ServerMessage): HandleResult {
         collectSummaries(prev, msg.events);
         setView(msg.view, msg.seq);
         appendLog(msg.view, msg.seq, msg.events);
-        if (msg.actionId && pending.value[msg.actionId]) {
-          const { [msg.actionId]: _done, ...rest } = pending.value;
-          pending.value = rest;
-        }
+        if (msg.actionId) dropPending([msg.actionId]);
       });
       boardBridge.setView(msg.view, me.value, msg.events);
       return gap ? { resync: true } : {};
     }
     case 'game.rejected': {
-      const { [msg.id]: _gone, ...rest } = pending.value;
-      pending.value = rest;
+      dropPending([msg.id]);
       // Lessons show the engine's reason in the coach strip instead (tutorial/runner.ts).
       if (mode.value !== 'tutorial') {
         const t = rejectionToast(msg.code, msg.message, msg.id);
@@ -363,6 +400,7 @@ export function handleServerMessage(raw: ServerMessage): HandleResult {
     case 'chat': {
       const line: ChatLine = {
         id: nextChatId++,
+        clientId: msg.from.clientId,
         name: msg.from.name,
         seat: msg.from.seat,
         text: msg.text,
@@ -372,6 +410,27 @@ export function handleServerMessage(raw: ServerMessage): HandleResult {
       batch(() => {
         chat.value = [...chat.value, line].slice(-200);
         if (!chatOpen.value && !line.mine) unreadChat.value += 1;
+      });
+      return {};
+    }
+    case 'chat.history': {
+      // The room's chat as the server keeps it. Lines already shown keep their ids; new ones that
+      // came in while this client was away count as unread (not on a fresh page load).
+      const known = new Map(chat.value.map((l) => [chatKey(l), l]));
+      const reconnect = known.size > 0;
+      let unread = 0;
+      const lines = msg.lines.map((l): ChatLine => {
+        const had = known.get(chatKey({ clientId: l.from.clientId, ts: l.ts, text: l.text }));
+        if (had) return had;
+        const mine = l.from.clientId === clientId.value;
+        if (reconnect && !mine) unread++;
+        return { id: nextChatId++, clientId: l.from.clientId, name: l.from.name, seat: l.from.seat, text: l.text, ts: l.ts, mine };
+      });
+      // Server notices (rollback) are not in the history: keep them.
+      const notices = chat.value.filter((l) => l.clientId === 'server');
+      batch(() => {
+        chat.value = [...lines, ...notices].sort((a, b) => a.ts - b.ts).slice(-200);
+        if (!chatOpen.value && unread) unreadChat.value += unread;
       });
       return {};
     }

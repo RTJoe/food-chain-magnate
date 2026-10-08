@@ -190,9 +190,9 @@ function decalMat(tex: THREE.Texture): THREE.Material {
  * Camera-facing marker (advertised good + campaign number, never smaller on screen than a house
  * badge; "N ∞" for eternal campaigns) + duration pips.
  */
-export function addCampaignMarker(ctx: MiniCtx, parent: THREE.Object3D, v: CampaignVisual, top: number, pipAnchor: [number, number]): void {
+export function addCampaignMarker(ctx: MiniCtx, parent: THREE.Object3D, v: CampaignVisual, top: number, pipAnchor: [number, number], showNumber = true): void {
   const pal = playerPalette(v.color);
-  const badge = badgeSprite(campaignBadgeTexture(v.number, v.goods, pal.base, pal.dark, v.eternal), 0.44);
+  const badge = badgeSprite(campaignBadgeTexture(showNumber ? v.number : null, v.goods, pal.base, pal.dark, v.eternal), 0.44);
   badge.position.set(0, top, 0);
   badge.name = 'badge';
   badge.userData.minPx = BADGE_MIN_PX;
@@ -331,8 +331,8 @@ export function buildGiantBillboard(ctx: MiniCtx, v: CampaignVisual): THREE.Grou
   solid(ctx, g, miniGeo(`mk:giant:${L}`, () => billboardShape(L, D, true)));
   const sp = signSpec(L, D, true);
   signFace(ctx, g, v.goods, sp);
-  plateNumber(ctx, g, v.number, L, D);
-  addCampaignMarker(ctx, g, v, sp.y0 + sp.ph + 0.42, [L / 2 - 0.26, D / 2 - 0.2]);
+  // The rural tile has no printed number, only ∞ (KX p25; 21-24 only order the runs, Q-K6).
+  addCampaignMarker(ctx, g, v, sp.y0 + sp.ph + 0.42, [L / 2 - 0.26, D / 2 - 0.2], false);
   return g;
 }
 

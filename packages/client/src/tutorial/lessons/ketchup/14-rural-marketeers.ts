@@ -5,13 +5,16 @@
  *
  * Scenario: round 4, Working, Ada's turn. The rural area already wants 2 burgers and Ada has 2 in
  * stock, but no freeway exists yet. Her Rural Marketeer places a giant billboard, the milestone
- * lets her open a freeway on her own tile, and the rural area eats at her restaurant.
+ * lets her lay a freeway along the edge of her own tile, and the rural area eats at her restaurant.
  */
 import type { Action } from '@fcm/engine';
 import { defineLesson } from '../../dsl.js';
 import { BASE_COURSE, BO, continueAction, continueThroughPayday, endTurn, eventOf, kTown, ME, only, usd } from './shared.js';
 
-const FREEWAY = { side: 'W', offset: 2 } as const;
+/** Lengthwise along the west edge over rows 1-3, touching A1's road at row 2 (rules v4, Q-K21). */
+const FREEWAY = { side: 'W', offset: 1, lengthwise: true } as const;
+/** Any freeway on the west edge touching that road: end-on at row 2, or lengthwise over it. */
+const touchesRoad = (a: { side: string; offset: number; lengthwise?: boolean }) => a.side === 'W' && (a.lengthwise ? a.offset >= 0 && a.offset <= 2 : a.offset === 2);
 const ruralDemand = (v: { board: { houses: Record<string, { kind: string; demand: unknown[] }> } }) => Object.values(v.board.houses).find((h) => h.kind === 'rural')?.demand.length ?? 0;
 
 export const ruralMarketeersLesson = defineLesson({
@@ -58,16 +61,16 @@ export const ruralMarketeersLesson = defineLesson({
     },
     {
       id: 'freeway',
-      say: 'First Rural Marketeer Used lets you open a freeway. Put it on the west edge, at the top road of your tile A1.',
+      say: 'Your milestone opens a 3-square freeway. Lay it along the west edge so it touches the top road of your tile A1 (Rotate turns it).',
       show: [{ cell: [0, 2] }, { tile: 'A1' }],
-      allow: { actions: [only('ketchup:ruralMarketeers.placeFreeway', (a) => a.side === FREEWAY.side && a.offset === FREEWAY.offset)] },
+      allow: { actions: [only('ketchup:ruralMarketeers.placeFreeway', touchesRoad)] },
       until: { event: 'entityPlaced', where: (e) => e.type === 'entityPlaced' && e.entity.kind === 'freeway' },
       solution: (ctx): Action[] => {
         const head = ctx.view.pending[0];
         return head?.kind === 'freeway' ? [{ type: 'ketchup:ruralMarketeers.placeFreeway', playerId: ME, choiceId: head.id, ...FREEWAY }] : [];
       },
-      then: 'Deliveries to the rural area now count their borders from that road square: 0 from your door.',
-      hint: { say: 'Press "Place a freeway", then pick "Freeway W edge, offset 2".', show: [{ cell: [0, 2] }] },
+      then: 'End-on or lengthwise, deliveries to the rural area count their borders from the road it touches: 0 from your door.',
+      hint: { say: 'Press "Place a freeway", then pick "Freeway W edge, offset 1–3 lengthwise".', show: [{ cell: [0, 2] }] },
       glossary: 'freeway',
       checkpoint: true,
     },

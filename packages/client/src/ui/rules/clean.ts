@@ -59,7 +59,7 @@ function unwrapAttribution(sentence: string): string {
 
 const META_PARA = /^(?:\*\*)?(?:Sources?\b|Primary source|Deluxe cross-check|Authoritative spec|Count check|Evidence:|Confidence\b|Each module can be used)/i;
 /** Spec-writing notes: open questions, recommendations and pointers to other spec files. */
-const META_NOTE = /^\W*(?:.*\bnot stated\b|Not explicitly confirmed|Timing conflict unresolved)/;
+const META_NOTE = /^\W*(?:.*\bnot stated\b|Not explicitly confirmed|Timing conflict unresolved|.*\b(?:grids|orientation|per tile) below\b)/;
 const DROP_COLUMN = /^(?:conf\.?|confidence|sources?|pages|id)$/i;
 const headCell = (h: string) => stripCitations(h).replace(/^DLX\s+(\w)/, (_, c: string) => c.toUpperCase());
 const CONFIDENCE_SUFFIX = /\s+[—–-]\s+(?:High|Medium|Low|informational)\b.*$/;

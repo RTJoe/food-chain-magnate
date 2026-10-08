@@ -3,7 +3,7 @@
  * The real tables live in the engine (`content/employees.ts`, `content/milestones.ts`) and reach the
  * client through `ModuleManifest.content`; manifest entries always win over these.
  *
- * Mirrors docs/rules/employees.md §1–2, docs/rules/milestones.md and docs/rules/ketchup.md (module list).
+ * Mirrors docs/rules/employees.md §1–2, docs/rules/milestones.md.
  */
 import type {
   CardColour,
@@ -14,7 +14,6 @@ import type {
   MilestoneDef,
   MilestoneId,
   ModuleId,
-  ModuleManifest,
 } from '@fcm/engine';
 
 type Row = [
@@ -57,34 +56,34 @@ const mkt = (campaigns: EmployeeAbility & { kind: 'marketing' }) => campaigns;
 
 export const FALLBACK_EMPLOYEES: readonly EmployeeDef[] = (
   [
-    ['ceo', 'CEO', 0, false, false, false, 'ceo', 'ceo', { kind: 'ceo', slots: 3, recruits: 1 }, [], 'Hire 1 person. Always at work.'],
-    ['waitress', 'Waitress', 12, true, false, false, 'purple', 'service', { kind: 'waitress', tip: 3 }, [], 'Get $3. Win ties against chains with fewer waitresses.'],
-    ['management_trainee', 'Management Trainee', 18, true, false, false, 'black', 'manager', { kind: 'manager', slots: 2 }, ['junior_vp', 'new_business_developer', 'luxuries_manager'], 'Manager with 2 slots.'],
-    ['junior_vp', 'Junior Vice President', 12, false, true, false, 'black', 'manager', { kind: 'manager', slots: 3 }, ['vice_president', 'local_manager', 'discount_manager', 'recruiting_manager', 'coach'], 'Manager with 3 slots.'],
-    ['vice_president', 'Vice President', 6, false, true, false, 'black', 'manager', { kind: 'manager', slots: 4 }, ['senior_vp', 'regional_manager', 'guru'], 'Manager with 4 slots.'],
-    ['senior_vp', 'Senior Vice President', 6, false, true, false, 'black', 'manager', { kind: 'manager', slots: 5 }, ['executive_vp', 'cfo', 'hr_director'], 'Manager with 5 slots.'],
-    ['executive_vp', 'Executive Vice President', 3, false, true, true, 'black', 'manager', { kind: 'manager', slots: 10 }, [], 'Manager with 10 slots.'],
+    ['ceo', 'CEO', 0, false, false, false, 'ceo', 'ceo', { kind: 'ceo', slots: 3, recruits: 1 }, [], 'Hire 1 entry-level employee. Always at work.'],
+    ['waitress', 'Waitress', 12, true, false, false, 'purple', 'service', { kind: 'waitress', tip: 3 }, [], 'Get $3 cash. Win ties against restaurants with fewer waitresses.'],
+    ['management_trainee', 'Management Trainee', 18, true, false, false, 'black', 'manager', { kind: 'manager', slots: 2 }, ['junior_vp', 'new_business_developer', 'luxuries_manager'], 'Manager (2 slots).'],
+    ['junior_vp', 'Junior Vice President', 12, false, true, false, 'black', 'manager', { kind: 'manager', slots: 3 }, ['vice_president', 'local_manager', 'discount_manager', 'recruiting_manager', 'coach'], 'Manager (3 slots).'],
+    ['vice_president', 'Vice President', 6, false, true, false, 'black', 'manager', { kind: 'manager', slots: 4 }, ['senior_vp', 'regional_manager', 'guru'], 'Manager (4 slots).'],
+    ['senior_vp', 'Senior Vice President', 6, false, true, false, 'black', 'manager', { kind: 'manager', slots: 5 }, ['executive_vp', 'cfo', 'hr_director'], 'Manager (5 slots).'],
+    ['executive_vp', 'Executive Vice President', 3, false, true, true, 'black', 'manager', { kind: 'manager', slots: 10 }, [], 'Manager (10 slots).'],
     ['new_business_developer', 'New Business Developer', 6, false, true, false, 'purple', 'housing', { kind: 'newBusiness' }, [], 'Place a house or a garden.'],
-    ['luxuries_manager', 'Luxuries Manager', 3, false, true, true, 'salmon', 'pricing', { kind: 'price', delta: 10 }, [], 'Unit price +$10.'],
-    ['pricing_manager', 'Pricing Manager', 12, true, false, false, 'salmon', 'pricing', { kind: 'price', delta: -1 }, [], 'Unit price −$1.'],
-    ['discount_manager', 'Discount Manager', 6, false, true, false, 'salmon', 'pricing', { kind: 'price', delta: -3 }, [], 'Unit price −$3.'],
-    ['local_manager', 'Local Manager', 6, false, true, false, 'red', 'restaurant', { kind: 'restaurant', mode: 'local', range: 3, driveIn: true }, [], 'Place a restaurant within road range 3 (coming soon). Drive-in.'],
-    ['regional_manager', 'Regional Manager', 3, false, true, true, 'red', 'restaurant', { kind: 'restaurant', mode: 'regional', range: 'unlimited', driveIn: true }, [], 'Place a restaurant anywhere or move one. Opens now. Drive-in.'],
-    ['cfo', 'CFO', 3, false, true, true, 'purple', 'finance', { kind: 'cfo', percent: 50 }, [], '+50% of cash earned this round.'],
-    ['recruiting_girl', 'Recruiting Girl', 12, true, false, false, 'grey', 'recruiting', { kind: 'recruit', actions: 1, salaryDiscountPerUnused: 0 }, [], 'Hire 1 person.'],
-    ['recruiting_manager', 'Recruiting Manager', 6, false, true, false, 'grey', 'recruiting', { kind: 'recruit', actions: 2, salaryDiscountPerUnused: 5 }, [], '2x: hire 1 person or pay $5 less salary.'],
-    ['hr_director', 'HR Director', 3, false, true, true, 'grey', 'recruiting', { kind: 'recruit', actions: 4, salaryDiscountPerUnused: 5 }, [], '4x: hire 1 person or pay $5 less salary.'],
-    ['trainer', 'Trainer', 12, true, false, false, 'grey', 'training', { kind: 'train', actions: 1, maxStepsSameCard: 1 }, [], 'Train 1 person one step.'],
-    ['coach', 'Coach', 6, false, true, false, 'grey', 'training', { kind: 'train', actions: 2, maxStepsSameCard: 2 }, [], '2 training actions; may train one person two steps.'],
-    ['guru', 'Guru', 3, false, true, true, 'grey', 'training', { kind: 'train', actions: 3, maxStepsSameCard: 3 }, [], '3 training actions; may train one person three steps.'],
+    ['luxuries_manager', 'Luxuries Manager', 3, false, true, true, 'salmon', 'pricing', { kind: 'price', delta: 10 }, [], 'Price +$10.'],
+    ['pricing_manager', 'Pricing Manager', 12, true, false, false, 'salmon', 'pricing', { kind: 'price', delta: -1 }, [], 'Price −$1.'],
+    ['discount_manager', 'Discount Manager', 6, false, true, false, 'salmon', 'pricing', { kind: 'price', delta: -3 }, [], 'Price −$3.'],
+    ['local_manager', 'Local Manager', 6, false, true, false, 'red', 'restaurant', { kind: 'restaurant', mode: 'local', range: 3, driveIn: true }, [], 'Place a new restaurant (COMING SOON) within road range 3. Drive-in while at work.'],
+    ['regional_manager', 'Regional Manager', 3, false, true, true, 'red', 'restaurant', { kind: 'restaurant', mode: 'regional', range: 'unlimited', driveIn: true }, [], 'Place a new restaurant anywhere, or move one; opens immediately. Drive-in while at work.'],
+    ['cfo', 'CFO', 3, false, true, true, 'purple', 'finance', { kind: 'cfo', percent: 50 }, [], '+50% to cash earned this round.'],
+    ['recruiting_girl', 'Recruiting Girl', 12, true, false, false, 'grey', 'recruiting', { kind: 'recruit', actions: 1, salaryDiscountPerUnused: 0 }, [], 'Hire 1 entry-level employee.'],
+    ['recruiting_manager', 'Recruiting Manager', 6, false, true, false, 'grey', 'recruiting', { kind: 'recruit', actions: 2, salaryDiscountPerUnused: 5 }, [], 'Do 2 times: hire 1 entry-level employee, or pay $5 less salary.'],
+    ['hr_director', 'HR Director', 3, false, true, true, 'grey', 'recruiting', { kind: 'recruit', actions: 4, salaryDiscountPerUnused: 5 }, [], 'Do 4 times: hire 1 entry-level employee, or pay $5 less salary.'],
+    ['trainer', 'Trainer', 12, true, false, false, 'grey', 'training', { kind: 'train', actions: 1, maxStepsSameCard: 1 }, [], 'Train 1 employee on the beach.'],
+    ['coach', 'Coach', 6, false, true, false, 'grey', 'training', { kind: 'train', actions: 2, maxStepsSameCard: 2 }, [], 'Do 2 times: train 1 employee on the beach. You may use these on the same employee.'],
+    ['guru', 'Guru', 3, false, true, true, 'grey', 'training', { kind: 'train', actions: 3, maxStepsSameCard: 3 }, [], 'Do 3 times: train 1 employee on the beach. You may use these on the same employee.'],
     ['errand_boy', 'Errand Boy', 12, true, false, false, 'lightGreen', 'buyer', { kind: 'buyDrinks', mode: 'errand', range: 0, perSource: 1 }, ['cart_operator'], 'Get 1 drink of any type.'],
-    ['cart_operator', 'Cart Operator', 6, false, true, false, 'lightGreen', 'buyer', { kind: 'buyDrinks', mode: 'road', range: 2, perSource: 2 }, ['truck_driver'], '2 drinks per source on route. Road range 2.'],
-    ['truck_driver', 'Truck Driver', 6, false, true, false, 'lightGreen', 'buyer', { kind: 'buyDrinks', mode: 'road', range: 3, perSource: 3 }, ['zeppelin_pilot'], '3 drinks per source on route. Road range 3.'],
-    ['zeppelin_pilot', 'Zeppelin Pilot', 3, false, true, true, 'lightGreen', 'buyer', { kind: 'buyDrinks', mode: 'air', range: 4, perSource: 2 }, [], '2 drinks per source, ignores roads. Range 4.'],
-    ['marketing_trainee', 'Marketing Trainee', 12, true, false, false, 'blue', 'marketing', mkt({ kind: 'marketing', campaigns: ['billboard'], range: 2, maxDuration: 2 }), ['campaign_manager'], 'Billboard, max duration 2. Road range 2.'],
-    ['campaign_manager', 'Campaign Manager', 6, false, true, false, 'blue', 'marketing', mkt({ kind: 'marketing', campaigns: ['billboard', 'mailbox'], range: 3, maxDuration: 3 }), ['brand_manager'], 'Mailbox or billboard, max duration 3. Road range 3.'],
-    ['brand_manager', 'Brand Manager', 6, false, true, false, 'blue', 'marketing', mkt({ kind: 'marketing', campaigns: ['billboard', 'mailbox', 'airplane'], range: 'unlimited', maxDuration: 4 }), ['brand_director'], 'Airplane or lower, max duration 4. Unlimited range.'],
-    ['brand_director', 'Brand Director', 3, false, true, true, 'blue', 'marketing', mkt({ kind: 'marketing', campaigns: ['billboard', 'mailbox', 'airplane', 'radio'], range: 'unlimited', maxDuration: 5 }), [], 'Radio or lower, max duration 5. Unlimited range.'],
+    ['cart_operator', 'Cart Operator', 6, false, true, false, 'lightGreen', 'buyer', { kind: 'buyDrinks', mode: 'road', range: 2, perSource: 2 }, ['truck_driver'], 'Get 2 drinks from each source on the route. Road range 2.'],
+    ['truck_driver', 'Truck Driver', 6, false, true, false, 'lightGreen', 'buyer', { kind: 'buyDrinks', mode: 'road', range: 3, perSource: 3 }, ['zeppelin_pilot'], 'Get 3 drinks from each source on the route. Road range 3.'],
+    ['zeppelin_pilot', 'Zeppelin Pilot', 3, false, true, true, 'lightGreen', 'buyer', { kind: 'buyDrinks', mode: 'air', range: 4, perSource: 2 }, [], 'Get 2 drinks from each source on the route, ignoring roads. Zeppelin range 4.'],
+    ['marketing_trainee', 'Marketing Trainee', 12, true, false, false, 'blue', 'marketing', mkt({ kind: 'marketing', campaigns: ['billboard'], range: 2, maxDuration: 2 }), ['campaign_manager'], 'Place a billboard, max duration 2. Road range 2.'],
+    ['campaign_manager', 'Campaign Manager', 6, false, true, false, 'blue', 'marketing', mkt({ kind: 'marketing', campaigns: ['billboard', 'mailbox'], range: 3, maxDuration: 3 }), ['brand_manager'], 'Place a mailbox or lower, max duration 3. Road range 3.'],
+    ['brand_manager', 'Brand Manager', 6, false, true, false, 'blue', 'marketing', mkt({ kind: 'marketing', campaigns: ['billboard', 'mailbox', 'airplane'], range: 'unlimited', maxDuration: 4 }), ['brand_director'], 'Place an airplane or lower, max duration 4. Unlimited range.'],
+    ['brand_director', 'Brand Director', 3, false, true, true, 'blue', 'marketing', mkt({ kind: 'marketing', campaigns: ['billboard', 'mailbox', 'airplane', 'radio'], range: 'unlimited', maxDuration: 5 }), [], 'Place a radio or lower, max duration 5. Unlimited range.'],
     ['kitchen_trainee', 'Kitchen Trainee', 12, true, false, false, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['burger', 'pizza'], amount: 1, timing: 'working' }, ['burger_cook', 'pizza_cook'], 'Produce 1 burger or 1 pizza.'],
     ['burger_cook', 'Burger Cook', 6, false, true, false, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['burger'], amount: 3, timing: 'working' }, ['burger_chef'], 'Produce 3 burgers.'],
     ['burger_chef', 'Burger Chef', 3, false, true, true, 'oliveGreen', 'kitchen', { kind: 'produce', foods: ['burger'], amount: 8, timing: 'working' }, [], 'Produce 8 burgers.'],
@@ -139,7 +138,7 @@ export const FALLBACK_MILESTONES: readonly MilestoneDef[] = (
     ['first_pizza_produced', 'First pizza produced', 'Gain a Pizza Cook.'],
     ['first_waitress', 'First waitress played', 'Waitresses earn $5 each.'],
     ['first_throw_away', 'First to throw away', 'Gain a freezer: keep up to 10 goods.'],
-    ['first_lower_prices', 'First to lower prices', 'Unit price −$1 for the rest of the game.'],
+    ['first_lower_prices', 'First to lower prices', 'Item price −$1 for the rest of the game.'],
     ['first_cart_operator', 'First cart operator played', 'Road and air buyers +1 range.'],
     ['first_airplane', 'First airplane', '+2 open slots when choosing turn order.'],
     ['first_radio', 'First radio', 'Your radios place 2 demand per house.'],
@@ -168,57 +167,3 @@ export const FALLBACK_MILESTONES: readonly MilestoneDef[] = (
     ['ketchup:ketchup', 'Someone sells your demand', 'Ketchup: dinnertime score −1.', 'ketchup:ketchup'],
   ] satisfies MRow[]
 ).map(ms);
-
-const mod = (id: ModuleId, name: string, description: string, extra: Partial<ModuleManifest> = {}): ModuleManifest => ({
-  id,
-  name,
-  description,
-  requires: [],
-  conflicts: [],
-  options: {},
-  content: {},
-  ...extra,
-});
-
-/** Lobby module list when the engine cannot list modules yet (docs/rules/ketchup.md module list). */
-export const FALLBACK_MODULES: readonly ModuleManifest[] = [
-  mod('ketchup:newDistricts', 'New Districts', 'Five new map tiles with apartment blocks that hold unlimited demand.', {
-    options: {
-      tiles: {
-        type: 'multiselect',
-        label: 'Tiles in the pool',
-        values: ['U', 'V', 'W', 'X', 'Y'].map((t) => ({ value: t, label: `Tile ${t}` })),
-        default: ['U', 'V', 'W', 'X', 'Y'],
-      },
-    },
-  }),
-  mod('ketchup:lobbyists', 'Lobbyists', 'Lobbyists build new roads and parks; roadworks slow down rivals.', {
-    options: {
-      includeTileZ: { type: 'boolean', label: 'Add the two-park tile Z', default: true },
-      parallelRoadsConnect: {
-        type: 'enum',
-        label: 'Parallel roads connect',
-        values: [
-          { value: 'lobbyistOnly', label: 'Lobbyist roads only' },
-          { value: 'everywhere', label: 'Everywhere' },
-        ],
-        default: 'lobbyistOnly',
-      },
-    },
-  }),
-  mod('ketchup:newMilestones', 'New Milestones', 'Replaces all base milestones with 17 new ones.', { conflicts: ['ketchup:hardChoices'] }),
-  mod('ketchup:coffee', 'Coffee', 'Baristas brew coffee and open coffee shops that sell to passing diners.'),
-  mod('ketchup:kimchi', 'Kimchi', 'A Kimchi Master adds kimchi as a side dish that wins ties.'),
-  mod('ketchup:sushi', 'Sushi', 'Sushi cooks serve houses with a garden before anyone else.'),
-  mod('ketchup:noodles', 'Noodles', 'Noodle cooks feed houses nobody else can serve.'),
-  mod('ketchup:ketchup', 'Ketchup', 'Earn a milestone when a rival sells to demand you created.'),
-  mod('ketchup:fryChefs', 'Fry Chefs', 'Fry chefs earn $10 for every house you sell to.'),
-  mod('ketchup:massMarketeers', 'Mass Marketeers', 'Each mass marketeer runs every campaign an extra time.'),
-  mod('ketchup:nightShift', 'Night Shift Managers', 'Salary-free employees work twice.'),
-  mod('ketchup:ruralMarketeers', 'Rural Marketeers', 'A rural area off the map, reached by freeways and giant billboards.'),
-  mod('ketchup:gourmetCritics', 'Gourmet Food Critics', 'Gourmet guides market to every house with a garden.'),
-  mod('ketchup:reservePrices', 'Reserve Prices', 'Alternative reserve cards change the base unit price.'),
-  mod('ketchup:movieStars', 'Movie Stars', 'Movie stars win ties and pick turn order first.'),
-  mod('ketchup:hardChoices', 'Hard Choices', 'Unclaimed milestones are removed after round 2 or 3.', { conflicts: ['ketchup:newMilestones'] }),
-  mod('ketchup:sixPlayers', 'Six Players', 'Adds a sixth chain and a 4x6 map.', { requires: ['ketchup:newDistricts'] }),
-];

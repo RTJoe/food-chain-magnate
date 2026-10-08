@@ -3,8 +3,8 @@ import type { BotLevel } from '@fcm/protocol';
 import { Icon } from './icons.js';
 
 export const BOT_LEVELS: { value: BotLevel; label: string; hint: string }[] = [
-  { value: 'easy', label: 'Easy', hint: 'Sensible but beatable' },
-  { value: 'medium', label: 'Medium', hint: 'A solid opponent' },
+  { value: 'easy', label: 'Easy', hint: 'For learning: slow and passive' },
+  { value: 'medium', label: 'Medium', hint: 'A solid opponent: the usual pick' },
   { value: 'hard', label: 'Hard', hint: 'Thinks ahead' },
 ];
 export const botLevelLabel = (l: BotLevel): string => BOT_LEVELS.find((b) => b.value === l)?.label ?? l;

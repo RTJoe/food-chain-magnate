@@ -3,7 +3,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useId, useRef } from 'preact/hooks';
 import type { PlayerId, Viewer } from '@fcm/engine';
 import { navigate } from '../state/router.js';
-import { connection, dismissToast, handoff, holdToast, me, mode, prompt, reconnectAttempt, room, settings, toasts, updateSettings, view } from '../state/store.js';
+import { connection, dismissToast, handoff, holdToast, me, mode, prompt, reconnectAttempt, reloadRequired, room, settings, toasts, updateSettings, view } from '../state/store.js';
 import { acceptHandoff, endSession, leaveRoom, reconnectNow, replacedElsewhere, resync, setDevViewer, undo } from '../net/session.js';
 import { connectionBanner, END_HOTSEAT_CONFIRM, hotseatAtRisk } from '../state/connection.js';
 import { Button, IconButton, PlayerBadge, Toggle } from './common.js';
@@ -48,6 +48,24 @@ export function ConnectionBanner() {
         </Button>
       )}
     </div>
+  );
+}
+
+/**
+ * Online: the server runs a newer build than this tab (M259). Old rules in this tab would show
+ * wrong prompts and moves, so nothing else is usable until the page is reloaded.
+ */
+export function ReloadRequired() {
+  if (!reloadRequired.value) return null;
+  return (
+    <Modal title="A new version is out" class="reload-required">
+      <p>The game was updated since this page was opened. Reload to keep playing; your seat and your games are kept.</p>
+      <div class="row gap end">
+        <Button variant="primary" icon="undo" onClick={() => location.reload()}>
+          Reload
+        </Button>
+      </div>
+    </Modal>
   );
 }
 

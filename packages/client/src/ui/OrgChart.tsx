@@ -5,8 +5,9 @@ import { isManager, managerSlots } from "../state/catalog.js";
 import {
   draftFromStructure,
   emptyDraft,
+  ceoSlotsOf,
   handUids,
-  openSlots,
+  orderSlots,
   placeCard,
   placementError,
   removeCard,
@@ -91,7 +92,7 @@ export function OrgChartEditor({
   prompt?: Prompt;
 }) {
   const ceoSlots =
-    prompt?.kind === "restructure" ? prompt.ceoSlots : v.ceoSlots;
+    prompt?.kind === "restructure" ? prompt.ceoSlots : ceoSlotsOf(v, p.id);
   const submitted = Boolean(v.submitted[p.id] || v.mine?.structureDraft);
   const rules = rulesFor(p, ceoSlots);
   const candidates = restructureCandidates(p);
@@ -118,6 +119,7 @@ export function OrgChartEditor({
   const selected = useSignal<Uid | null>(null);
   const error = useSignal<string | null>(null);
   const check = validateDraft(d, rules);
+  const order = orderSlots(v, p.id, d);
   const hand = handUids(candidates, d);
   const locked = submitted;
 
@@ -208,7 +210,11 @@ export function OrgChartEditor({
             {m.used}/{m.capacity}
           </Pill>
         ))}
-        <Pill tone="info">{openSlots(check)} open slot{openSlots(check) === 1 ? '' : 's'}</Pill>
+        <Pill tone={order.penalty ? "danger" : "info"}>
+          {order.penalty ? "Overfilled: CEO alone, " : ""}
+          {order.open} open slot{order.open === 1 ? "" : "s"}
+          {order.bonus ? ` (incl. +${order.bonus} First Airplane)` : ""}
+        </Pill>
       </div>
 
       <div class="org-tree">
@@ -319,8 +325,10 @@ export function OrgChartEditor({
       ))}
       {check.overfilled && (
         <p class="org-warn" role="alert">
-          {Icon.info({ size: 16 })} Overfilled: if you submit this, every card
-          except your CEO goes to the beach this round.
+          {Icon.info({ size: 16 })}{" "}
+          {order.penalty
+            ? "Overfilled: if you submit this, every card except your CEO goes to the beach this round."
+            : "More cards than slots in this layout, but they fit a legal one: they will be re-seated at the reveal."}
         </p>
       )}
 

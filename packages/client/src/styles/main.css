@@ -426,7 +426,7 @@ body[data-screen='table'] { overflow: hidden; }
 
 /* --- 2D board ------------------------------------------------------------------ */
 .board2d { pointer-events: auto; position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-.board2d svg { width: 100%; height: 100%; max-height: 100%; filter: drop-shadow(0 8px 18px rgba(43, 42, 51, 0.2)); }
+.board2d > svg { width: 100%; height: 100%; max-height: 100%; filter: drop-shadow(0 8px 18px rgba(43, 42, 51, 0.2)); }
 .b2d-label { font-size: 0.7px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; fill: var(--c-ink); pointer-events: none; }
 .b2d-label.is-light { fill: #fff; }
 .b2d-ghost { fill-opacity: 0.35; stroke: var(--c-highlight-ok); stroke-width: 0.12; cursor: pointer; animation: pulse 1.4s ease-in-out infinite; }
@@ -477,6 +477,8 @@ body[data-screen='table'] { overflow: hidden; }
 .held-pick { display: grid; gap: 6px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px dashed var(--c-focus); background: #f2f8fd; font-size: 0.88rem; }
 .held-pick > span:first-child { display: flex; align-items: center; gap: 6px; font-weight: 700; }
 .haul-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; max-height: 360px; overflow-y: auto; }
+.haul-more > summary { cursor: pointer; padding: 6px 2px; }
+.haul-more > .haul-list { max-height: 240px; }
 .haul-row { align-items: center; gap: 10px; min-height: var(--touch); }
 .haul-rank { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--c-surface-sunk); font-weight: 800; font-size: 0.75rem; }
 .haul-row.is-active .haul-rank { background: var(--c-focus); color: #fff; }
@@ -562,6 +564,7 @@ body[data-screen='table'] { overflow: hidden; }
   .dock.is-open { transform: none; }
   .sheet-handle { display: flex; align-items: center; gap: 8px; min-height: var(--touch); width: 100%; padding: 4px 14px; border: 0; background: none; cursor: pointer; position: relative; font-family: var(--font-head); font-size: 1.05rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; flex: none; }
   .sheet-handle.is-mine { color: var(--c-accent); }
+  .sheet-handle { touch-action: none; }
   .sheet-grip { position: absolute; top: 4px; left: 50%; margin-left: -20px; width: 40px; height: 4px; border-radius: 2px; background: var(--c-line); }
   .sheet-title { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-top: 4px; }
   .dock-tabs { order: 2; border-bottom: 0; border-top: 2px solid var(--c-teal); padding: 0 5px 5px; }
@@ -736,7 +739,7 @@ body[data-screen='table'] { overflow: hidden; }
 .table.is-picking .b2d-piece { cursor: default; }
 /* Ghosts are drawn only: the SVG's click handler picks among overlapping spots (ui/Board2D.tsx spotAt). */
 .b2d-ghost { fill-opacity: 0.4; stroke: var(--c-highlight-legal); stroke-width: 0.12; pointer-events: none; animation: pulse 1.4s ease-in-out infinite; }
-.table.is-picking .board2d svg { cursor: pointer; }
+.table.is-picking .board2d > svg { cursor: pointer; }
 .b2d-ghost.is-hover, .b2d-ghost.is-on { fill-opacity: 0.8; animation: none; }
 .b2d-ghost.is-on { stroke: var(--c-ink); stroke-width: 0.16; }
 .b2d-ghost text { stroke: none; fill-opacity: 1; font-size: 1.2px; }

@@ -5,11 +5,13 @@
  */
 import type { EmployeeAbility, GameView, HouseOutlook, HouseId, PlayerId, PlayerState, Uid } from '@fcm/engine';
 import { employeeName, foodName, isManager, managerSlots, milestoneName, type Catalog } from '../../state/catalog.js';
-import { handUids, openSlots, placedUids, validateDraft, type OrgDraft, type OrgRules } from '../../state/orgChart.js';
+import { handUids, orderSlots, placedUids, validateDraft, type OrgDraft, type OrgRules } from '../../state/orgChart.js';
 import { collapseOffers, scoreMath } from '../../state/offers.js';
 import { restructureCandidates, workStages } from '../../state/selectors.js';
 import { mustFireIfShort, paydayFigures, salaryGoods } from '../../state/payday.js';
 import { milestoneOpen } from '../../state/campaignRules.js';
+import { pseudoState } from '../../state/engine.js';
+import { stockOf } from '@fcm/engine';
 import type { CoachLevel } from './coach.js';
 
 export type HintId =
@@ -133,13 +135,19 @@ function orderOfBusiness(i: HintInput, p: PlayerState, out: Hint[]): void {
     out.push({ id: 'order_position', level: 'light', key: `${v.round}`, text, term: 'open_slots' });
     return;
   }
-  const s = p.structure;
-  const open = openSlots(validateDraft({ ceoSubs: s.ceoSubs, managerSubs: s.managerSubs }, orgRules(i.catalog, p, i.ceoSlots ?? v.ceoSlots))) + (p.milestones.first_airplane ? 2 : 0);
+  // The engine's count (Ketchup CEO slots and First Airplane +2 included, DLX p14).
+  const slots = (id: PlayerId) => orderSlots(v, id);
+  const mineSlots = slots(p.id);
+  const open = mineSlots.open;
+  const bonus = mineSlots.bonus ? ` (incl. +${mineSlots.bonus} First Airplane)` : '';
+  // Ties go to whoever was earlier in last round's turn order (DLX p14).
+  const tied = queue.filter((id) => id !== p.id && slots(id).open === open).map((id) => v.players[id]?.name ?? id);
+  const tie = tied.length ? ` ${tied.join(' and ')} ${tied.length === 1 ? 'has' : 'have'} the same; ties go to the earlier place in last round's turn order.` : '';
   out.push({
     id: 'order_position',
     level: 'light',
     key: `${v.round}`,
-    text: `You have ${open} open slot${open === 1 ? '' : 's'}, so you choose your turn-order position ${ordinal(pos + 1)} of ${queue.length}.`,
+    text: `You have ${open} open slot${open === 1 ? '' : 's'}${bonus}.${tie} You choose your turn-order position ${ordinal(pos + 1)} of ${queue.length}.`,
     term: 'open_slots',
   });
 }
@@ -166,7 +174,8 @@ function working(i: HintInput, p: PlayerState, out: Hint[]): void {
   }
 
   if (myTurn && v.turn?.stage === 'food' && i.outlook) {
-    const stock = p.inventory;
+    // Frozen goods are still stock and sell at Dinnertime (DLX p34).
+    const stock = stockOf(pseudoState(v, p.id), p.id);
     for (const [hid, h] of Object.entries(v.board.houses)) {
       if (!h.demand.length) continue;
       const o = i.outlook(hid);
@@ -240,7 +249,7 @@ function bank(i: HintInput, out: Hint[]): void {
     key: `${b.breaks}`,
     text: ends
       ? `The bank is down to ${money(b.cash)}. If it hits $0 at Dinnertime the game ends after that Dinnertime: count what the next one will pay.`
-      : `The bank is down to ${money(b.cash)} of ${money(start)}. When it hits $0 at Dinnertime, reserve cards refill it and CEO slots may change.`,
+      : `The bank is down to ${money(b.cash)} of ${money(start)}. When it hits $0 at Dinnertime, reserve cards refill it and ${v.config.modules.includes('ketchup:reservePrices' as never) ? 'the base price' : 'CEO slots'} may change.`,
     term: 'bank_break',
   });
 }

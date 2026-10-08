@@ -22,16 +22,26 @@ export function inlineBotRunner(): LocalBotRunner {
   };
 }
 
-/** A Web Worker runner; falls back to inline if the worker cannot start. */
+/** A job not answered within its thinking budget plus this is abandoned (as the server's BOT_JOB_GRACE_MS). */
+export const BOT_JOB_GRACE_MS = 10_000;
+
+/**
+ * A Web Worker runner; falls back to inline if the worker cannot start. A job that runs past its
+ * budget + `BOT_JOB_GRACE_MS` (a bot stuck in a loop) is rejected, so the transport plays the
+ * fallback move, and the worker is replaced.
+ */
 export function workerBotRunner(): LocalBotRunner {
   if (typeof Worker === 'undefined') return inlineBotRunner();
   let worker: Worker | null = null;
   let broken = false;
   let nextId = 1;
-  const waiting = new Map<number, { resolve: (a: Action) => void; reject: (e: Error) => void }>();
+  const waiting = new Map<number, { resolve: (a: Action) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   const inline = inlineBotRunner();
   const failAll = (e: Error) => {
-    for (const w of waiting.values()) w.reject(e);
+    for (const w of waiting.values()) {
+      clearTimeout(w.timer);
+      w.reject(e);
+    }
     waiting.clear();
   };
   const start = (): Worker | null => {
@@ -46,6 +56,7 @@ export function workerBotRunner(): LocalBotRunner {
       const w = waiting.get(e.data.id);
       if (!w) return;
       waiting.delete(e.data.id);
+      clearTimeout(w.timer);
       if (e.data.action) w.resolve(e.data.action);
       else w.reject(new Error(e.data.error ?? 'bot failed'));
     };
@@ -64,7 +75,16 @@ export function workerBotRunner(): LocalBotRunner {
       if (!w) return inline.run(req);
       const id = nextId++;
       return new Promise<Action>((resolve, reject) => {
-        waiting.set(id, { resolve, reject });
+        const timer = setTimeout(() => {
+          if (!waiting.has(id)) return;
+          // Stuck: a worker cannot be interrupted, only replaced (the next job starts a new one).
+          if (worker === w) {
+            w.terminate();
+            worker = null;
+          }
+          failAll(new Error('bot timed out'));
+        }, Math.max(0, req.budgetMs ?? 0) + BOT_JOB_GRACE_MS);
+        waiting.set(id, { resolve, reject, timer });
         w.postMessage({ id, req });
       });
     },

@@ -24,6 +24,7 @@ import { makeCtx } from './context.js';
 import { runUntilInput } from './phase.js';
 import { setupRestaurantsPhase } from '../rules/setup.js';
 import { legacyRules, RULES_VERSION } from './rulesVersion.js';
+import { NEW_DISTRICTS_TILE_OPTIONS, newDistrictsPool } from '../modules/ketchup/newDistricts.js';
 
 export function configProblem(config: GameConfig): string | null {
   if (!config || !Array.isArray(config.players)) return 'Missing players';
@@ -34,6 +35,8 @@ export function configProblem(config: GameConfig): string | null {
   if (ids.size !== n || [...ids].some((id) => typeof id !== 'string' || !id)) return 'Player ids must be unique non-empty strings';
   const v = config.rulesVersion;
   if (v !== undefined && (!Number.isInteger(v) || v < 1 || v > RULES_VERSION)) return `Unknown rules version ${String(v)}`;
+  const tiles = (config.options as { 'ketchup:newDistricts'?: { tiles?: unknown } } | undefined)?.['ketchup:newDistricts']?.tiles;
+  if (tiles !== undefined && !NEW_DISTRICTS_TILE_OPTIONS.includes(tiles as never)) return 'Unknown New Districts tile option';
   return moduleSetProblem(config.modules ?? []);
 }
 
@@ -88,10 +91,13 @@ export function createGame(config: GameConfig, seed: number): GameState {
     layout = cfg.map.layout.map((row) => row.map((e) => ({ templateId: e.templateId, rotation: e.rotation })));
   } else {
     const [rows, cols] = mapSize(n);
-    const pool = (Object.values(content.tiles) as NonNullable<(typeof content.tiles)[TileTemplateId]>[])
-      .filter((t) => !t.requiresModule || cfg.modules.includes(t.requiresModule))
-      .map((t) => t.id)
-      .sort();
+    const pool = newDistrictsPool(
+      cfg,
+      (Object.values(content.tiles) as NonNullable<(typeof content.tiles)[TileTemplateId]>[])
+        .filter((t) => !t.requiresModule || cfg.modules.includes(t.requiresModule))
+        .map((t) => t.id)
+        .sort(),
+    );
     const drawn = drawLayout(rng, pool, content.tiles, rows, cols, { requireAllDrinks: cfg.intro });
     layout = drawn.layout;
     tilePool = drawn.leftover;

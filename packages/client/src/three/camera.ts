@@ -79,6 +79,8 @@ export class CameraController {
   onTopChange: (top: boolean) => void = () => {};
   /** Last pointer / wheel / key input on the board (performance.now() ms); the follow camera waits on it. */
   lastUserInput = -Infinity;
+  /** The pose before `reveal` widened the framing for off-board pick spots. */
+  private beforeReveal: { pose: Pose; at: number } | null = null;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -257,6 +259,35 @@ export class CameraController {
       this.clampWant();
       this.onChange();
     } else this.focusRect(x0, z0, x1, z1);
+  }
+
+  /**
+   * Bring a world rectangle on screen (M291: a pick whose spots lie off the board, such as
+   * freeways and extra map tiles, on a phone): widen the framing at the current yaw so it fits.
+   * Nothing when it is already in view. `unreveal` puts the camera back afterwards.
+   */
+  reveal(r: { x0: number; z0: number; x1: number; z1: number }): boolean {
+    if (this.inView(r.x0, r.z0, r.x1, r.z1, 0.04)) return false;
+    const target = new THREE.Vector3((r.x0 + r.x1) / 2, 0, (r.z0 + r.z1) / 2);
+    const tilt = this.top ? TOP_TILT : this.want.tilt;
+    const d = this.fitDistance(r, this.want.yaw, target, tilt, 0.97, 0.92);
+    this.beforeReveal ??= { pose: clonePose(this.want), at: performance.now() };
+    this.bounds.maxD = Math.max(this.bounds.maxD, d * 1.2);
+    this.want.target.copy(target);
+    this.want.dist = clamp(Math.max(d, this.want.dist), this.bounds.minD, this.bounds.maxD);
+    this.clampWant();
+    this.onChange();
+    return true;
+  }
+
+  /** Undo `reveal`: back to the pose before it, unless the player moved the camera since. */
+  unreveal(): void {
+    const b = this.beforeReveal;
+    this.beforeReveal = null;
+    if (!b || this.lastUserInput > b.at) return;
+    this.want = clonePose(b.pose);
+    if (this.top) this.want.tilt = TOP_TILT;
+    this.onChange();
   }
 
   /** Whether a ground rectangle is inside the free area (panels excluded) with a margin, from the camera's pose now. */

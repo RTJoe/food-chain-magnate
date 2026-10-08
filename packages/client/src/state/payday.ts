@@ -30,7 +30,8 @@ export function paydayFigures(view: GameView, me: PlayerId, fired: readonly Uid[
   const s = pseudoState(view, me);
   const content = contentFor(view.config.modules);
   const now = salaryBreakdown(s, content, me);
-  const next = salaryAfterFiring(s, content, me, fired);
+  // Firings already sent but not yet revealed (rules v4: hidden until everyone has decided).
+  const next = salaryAfterFiring(s, content, me, [...(view.mine?.fireDraft ?? []), ...fired]);
   const goodsUsed = Math.min(countOf(goods), next.salaried);
   return {
     before: now.total,

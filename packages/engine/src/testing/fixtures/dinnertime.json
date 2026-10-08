@@ -250,7 +250,7 @@
       "beach": [],
       "busy": {
         "p2-cm": [
-          "cmp-p2-mb7"
+          "cmp-p2-mb9"
         ],
         "p2-bd": [
           "cmp-p2-rd1"
@@ -313,7 +313,7 @@
       "beach": [],
       "busy": {
         "p3-bm": [
-          "cmp-p3-ap4"
+          "cmp-p3-ap5"
         ]
       },
       "inventory": {
@@ -2029,7 +2029,7 @@
         {
           "kind": "campaign",
           "tile": "tile-38",
-          "occupant": "cmp-p2-mb7",
+          "occupant": "cmp-p2-mb9",
           "road": null
         },
         {
@@ -3351,7 +3351,7 @@
           {
             "good": "pizza",
             "by": "p2",
-            "campaign": "cmp-p2-mb7"
+            "campaign": "cmp-p2-mb9"
           }
         ]
       },
@@ -3395,17 +3395,17 @@
           {
             "good": "beer",
             "by": "p3",
-            "campaign": "cmp-p3-ap4"
+            "campaign": "cmp-p3-ap5"
           },
           {
             "good": "beer",
             "by": "p3",
-            "campaign": "cmp-p3-ap4"
+            "campaign": "cmp-p3-ap5"
           },
           {
             "good": "lemonade",
             "by": "p3",
-            "campaign": "cmp-p3-ap4"
+            "campaign": "cmp-p3-ap5"
           }
         ]
       },
@@ -3635,10 +3635,10 @@
         "linked": [],
         "placedRound": 3
       },
-      "cmp-p2-mb7": {
-        "id": "cmp-p2-mb7",
+      "cmp-p2-mb9": {
+        "id": "cmp-p2-mb9",
         "owner": "p2",
-        "number": 7,
+        "number": 9,
         "kind": "mailbox",
         "goods": [
           "pizza"
@@ -3657,10 +3657,10 @@
         "linked": [],
         "placedRound": 3
       },
-      "cmp-p3-ap4": {
-        "id": "cmp-p3-ap4",
+      "cmp-p3-ap5": {
+        "id": "cmp-p3-ap5",
         "owner": "p3",
-        "number": 4,
+        "number": 5,
         "kind": "airplane",
         "goods": [
           "beer"
@@ -3918,10 +3918,10 @@
   "marketingTiles": [
     2,
     3,
-    5,
+    4,
     6,
+    7,
     8,
-    9,
     10,
     12,
     13,

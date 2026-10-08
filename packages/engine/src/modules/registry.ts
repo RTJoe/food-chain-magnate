@@ -44,10 +44,6 @@ export function registerModule(m: GameModule): void {
   resolveCache.clear();
 }
 
-export function getModule(id: ModuleId): GameModule | undefined {
-  return REGISTRY.get(id);
-}
-
 export function allModules(): GameModule[] {
   return [...REGISTRY.values()];
 }

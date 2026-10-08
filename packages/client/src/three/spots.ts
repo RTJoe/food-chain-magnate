@@ -5,6 +5,7 @@
  * - Campaigns: spot = anchor square + tile number (`campaign:x,y:#n`); variants = orientations
  *   (landscape / portrait / square) at that anchor, one each. Airplanes are keyed by side + offset,
  *   rural giant billboards by side, gourmet guides by tile number.
+ * - Freeways: spot = side + the edge square the piece centres on; variants = end-on / lengthwise.
  * - Everything else: placements sharing a hit rectangle (entrance corners, garden sides...).
  */
 import type { Board, CampaignOrientation, Placement } from '@fcm/engine';
@@ -32,6 +33,8 @@ export interface SpotIndex {
 export function orientationOf(p: Placement): CampaignOrientation | null {
   if (p.kind === 'lobbyistRoad') return p.cells.length < 2 ? 'square' : p.cells[0]!.y === p.cells[1]!.y ? 'landscape' : 'portrait';
   if (p.kind === 'park') return p.w === p.h ? 'square' : p.w > p.h ? 'landscape' : 'portrait';
+  // Freeways (rules v4): end-on runs across its edge, lengthwise along it.
+  if (p.kind === 'freeway') return (p.side === 'N' || p.side === 'S') === !!p.lengthwise ? 'landscape' : 'portrait';
   if (p.kind !== 'campaign') return null;
   if (p.orientation) return p.orientation;
   const pl = p.placement;
@@ -48,6 +51,8 @@ export function spotKeyFor(b: Board, p: Placement): string {
     if (a) return `lobbyistRoad:${a.x},${a.y}:L${p.cells.length}`;
   }
   if (p.kind === 'park') return `park:${p.x},${p.y}:${Math.min(p.w, p.h)}x${Math.max(p.w, p.h)}`;
+  // Freeways pivot on the edge square they centre on: end-on at `offset`, lengthwise its middle.
+  if (p.kind === 'freeway') return `freeway:${p.side}:${p.lengthwise ? p.offset + 1 : p.offset}`;
   if (p.kind !== 'campaign') return spotKey(b, p);
   const pl = p.placement;
   switch (pl.kind) {
@@ -65,7 +70,7 @@ export function spotKeyFor(b: Board, p: Placement): string {
 /** Within a campaign spot, placements that look the same (differ only in range start) collapse. */
 function variantKey(p: Placement): string {
   if (p.kind === 'campaign') return orientationOf(p) ?? JSON.stringify(p.placement);
-  if (p.kind === 'lobbyistRoad' || p.kind === 'park') return orientationOf(p) ?? JSON.stringify(p);
+  if (p.kind === 'lobbyistRoad' || p.kind === 'park' || p.kind === 'freeway') return orientationOf(p) ?? JSON.stringify(p);
   return JSON.stringify(p);
 }
 
@@ -84,7 +89,7 @@ export function groupSpots(b: Board, placements: readonly Placement[]): SpotInde
       seen.set(k, new Map());
     }
     const vs = seen.get(k)!;
-    const vk = p.kind === 'campaign' || p.kind === 'lobbyistRoad' || p.kind === 'park' ? variantKey(p) : null;
+    const vk = p.kind === 'campaign' || p.kind === 'lobbyistRoad' || p.kind === 'park' || p.kind === 'freeway' ? variantKey(p) : null;
     const dup = vk !== null ? vs.get(vk) : undefined;
     if (dup !== undefined) {
       of.set(p, { spot: s, idx: dup });

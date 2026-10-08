@@ -109,7 +109,9 @@ function edgeRect(b: Board, side: Direction, offset: number, width: number, dist
   return { x: b.w + dist - thick / 2, y: offset, w: thick, h: width };
 }
 
-function freewayRect(b: Board, side: Direction, offset: number): Rect {
+/** End-on: a stub running out from the edge square; lengthwise (rules v4): a 3x1 strip along the edge. */
+function freewayRect(b: Board, side: Direction, offset: number, lengthwise = false): Rect {
+  if (lengthwise) return edgeRect(b, side, offset + 0.1, 2.8, 0.5, 0.7);
   const len = hasRural(b) && side === ruralSide(b) ? RURAL_GAP : 1.6;
   return edgeRect(b, side, offset + 0.15, 0.7, len / 2, len);
 }
@@ -169,7 +171,7 @@ function shapeOf(b: Board | null | undefined, p: Placement): Rect | null {
       return guideRect(b, Object.values(b.campaigns).filter((c) => c.placement.kind === 'offBoard').length);
     }
     case 'freeway':
-      return b ? freewayRect(b, p.side, p.offset) : null;
+      return b ? freewayRect(b, p.side, p.offset, p.lengthwise) : null;
     default:
       return null;
   }
@@ -205,7 +207,7 @@ function pieceRect(b: Board, id: string): Rect | null {
   if (e.kind === 'coffeeShop' || e.kind === 'roadworks') return { x: e.x, y: e.y, w: 1, h: 1 };
   if (e.kind === 'park') return { x: e.x, y: e.y, w: e.w, h: e.h };
   if (e.kind === 'lobbyistRoad') return bbox(e.cells);
-  return freewayRect(b, e.side, e.offset);
+  return freewayRect(b, e.side, e.offset, e.lengthwise);
 }
 
 const CORNER: Record<string, [number, number]> = { NW: [0, 0], NE: [1, 0], SE: [1, 1], SW: [0, 1] };
@@ -254,13 +256,21 @@ export function spotsFor(b: Board, mode: InteractionMode, orient: string | null)
     if (orient && o && o !== 'square' && o !== orient) continue;
     const r = shapeOf(b, p);
     if (!r) continue;
-    const key = `${p.kind}:${r.x},${r.y},${r.w},${r.h}`;
+    // Freeways: end-on and lengthwise around one edge square are variants (Rotate turns it).
+    const key = p.kind === 'freeway' ? `freeway:${p.side}:${p.lengthwise ? p.offset + 1 : p.offset}` : `${p.kind}:${r.x},${r.y},${r.w},${r.h}`;
     const s = out.get(key) ?? { key, rect: r, variants: [] };
+    if (s.variants.length) s.rect = unionRect(s.rect, r);
     s.variants.push(p);
     out.set(key, s);
   }
   return out;
 }
+
+const unionRect = (a: Rect, b: Rect): Rect => {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+};
 
 const contains = (r: Rect, x: number, y: number) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 
@@ -816,7 +826,12 @@ export function Board2D() {
         <rect x={-0.62} y={-0.62} width={b.w + 1.24} height={b.h + 1.24} rx={0.12} fill={BOARD.rim} stroke={BOARD.chromeShade} stroke-width={0.08} />
         <g class="b2d-map">
           {b.cells.map((row, y) =>
-            row.map((cell, x) => <rect key={`${x},${y}`} x={x} y={y} width={1.01} height={1.01} fill={cell.road?.underConstruction ? BOARD.gravel : CELL_FILL[cell.kind] ?? CELL_FILL.empty} />),
+            // Squares outside every placed tile (an extra map tile grew the board) stay table rim, not grass.
+            row.map((cell, x) =>
+              !cell.tile && b.tiles.length ? null : (
+                <rect key={`${x},${y}`} x={x} y={y} width={1.01} height={1.01} fill={cell.road?.underConstruction ? BOARD.gravel : CELL_FILL[cell.kind] ?? CELL_FILL.empty} />
+              ),
+            ),
           )}
         </g>
         <RoadMarks b={b} />
@@ -826,12 +841,18 @@ export function Board2D() {
         })}
         {/* Tile seams: a hairline of at least 1.25 px at any zoom (rules count tile borders). */}
         <g class="b2d-seams" aria-hidden="true" pointer-events="none">
-          {Array.from({ length: b.cols + 1 }, (_, i) => (
-            <line key={`c${i}`} x1={i * 5} y1={0} x2={i * 5} y2={b.h} stroke={BOARD.seamOnRoad} stroke-width={1.25} vector-effect="non-scaling-stroke" />
-          ))}
-          {Array.from({ length: b.rows + 1 }, (_, i) => (
-            <line key={`r${i}`} x1={0} y1={i * 5} x2={b.w} y2={i * 5} stroke={BOARD.seamOnRoad} stroke-width={1.25} vector-effect="non-scaling-stroke" />
-          ))}
+          {b.tiles.length ? (
+            b.tiles.map((t) => <rect key={t.id} x={t.col * 5} y={t.row * 5} width={5} height={5} fill="none" stroke={BOARD.seamOnRoad} stroke-width={1.25} vector-effect="non-scaling-stroke" />)
+          ) : (
+            <>
+              {Array.from({ length: b.cols + 1 }, (_, i) => (
+                <line key={`c${i}`} x1={i * 5} y1={0} x2={i * 5} y2={b.h} stroke={BOARD.seamOnRoad} stroke-width={1.25} vector-effect="non-scaling-stroke" />
+              ))}
+              {Array.from({ length: b.rows + 1 }, (_, i) => (
+                <line key={`r${i}`} x1={0} y1={i * 5} x2={b.w} y2={i * 5} stroke={BOARD.seamOnRoad} stroke-width={1.25} vector-effect="non-scaling-stroke" />
+              ))}
+            </>
+          )}
         </g>
         {/* Square numbers on the rim (list rows say "at x,y") and tile names (lessons say "tile B2"). */}
         <g class="b2d-axis" aria-hidden="true">
@@ -847,18 +868,12 @@ export function Board2D() {
           ))}
         </g>
         <g class="b2d-tilenames" aria-hidden="true">
-          {b.tiles.length
-            ? Array.from({ length: b.rows * b.cols }, (_, i) => {
-                const r = Math.floor(i / b.cols);
-                const c = i % b.cols;
-                return (
-                  <text key={`t${i}`} x={c * 5 + 0.12} y={r * 5 + 0.42}>
-                    {String.fromCharCode(65 + c)}
-                    {r + 1}
-                  </text>
-                );
-              })
-            : null}
+          {b.tiles.map((t) => (
+            <text key={`t${t.id}`} x={t.col * 5 + 0.12} y={t.row * 5 + 0.42}>
+              {String.fromCharCode(65 + t.col)}
+              {t.row + 1}
+            </text>
+          ))}
         </g>
 
         {range && (
@@ -921,6 +936,7 @@ export function Board2D() {
           const icon = Math.min(0.9, small * 0.55);
           return (
             <g key={cp.id} class="b2d-piece b2d-campaign" data-id={cp.id} onClick={() => tapPiece(cp.id, 'campaign')}>
+              <title>{`${cp.kind[0]!.toUpperCase()}${cp.kind.slice(1)}${cp.number !== null ? ` #${cp.number}` : ''}: ${cp.goods.join(', ')}`}</title>
               <rect x={r.x + 0.08} y={r.y + 0.08} width={r.w - 0.16} height={r.h - 0.16} rx={0.12} fill={COLORS.surface} stroke={colorOf(cp.owner)} stroke-width={0.14} />
               {cp.number !== null && (
                 <text x={r.x + 0.32} y={r.y + 0.36} class="b2d-label b2d-small">
@@ -988,7 +1004,7 @@ export function Board2D() {
               </g>
             );
           if (e.kind === 'freeway') {
-            const r = freewayRect(b, e.side, e.offset);
+            const r = freewayRect(b, e.side, e.offset, e.lengthwise);
             return <rect key={e.id} class="b2d-piece" data-id={e.id} onClick={tap} x={r.x} y={r.y} width={r.w} height={r.h} rx={0.15} fill={BOARD.road} stroke={colorOf(e.owner)} stroke-width={0.12} />;
           }
           return null;
@@ -1052,9 +1068,11 @@ export function Board2D() {
           const extra = on ? extraOf(shown) : null;
           const fill = mode.kind === 'place' || mode.kind === 'campaign' ? mode.color : COLORS.highlightOk;
           const tile = shown?.kind === 'mapTile' ? shown.templateId : null;
+          // A freeway spot covers both orientations; draw the one shown.
+          const r = shown?.kind === 'freeway' ? (shapeOf(b, shown) ?? s.rect) : s.rect;
           return (
             <g key={s.key} class={`b2d-ghost ${on ? 'is-on' : ''} ${hoverKey.value?.startsWith(`${s.key}#`) ? 'is-hover' : ''}`}>
-              <rect x={s.rect.x + 0.05} y={s.rect.y + 0.05} width={s.rect.w - 0.1} height={s.rect.h - 0.1} rx={0.2} fill={fill} />
+              <rect x={r.x + 0.05} y={r.y + 0.05} width={r.w - 0.1} height={r.h - 0.1} rx={0.2} fill={fill} />
               {on && shown && (shown.kind === 'restaurant' || shown.kind === 'moveRestaurant') && (
                 <circle cx={shown.x + 0.3 + (CORNER[shown.entrance]?.[0] ?? 0) * 1.4} cy={shown.y + 0.3 + (CORNER[shown.entrance]?.[1] ?? 0) * 1.4} r={0.24} fill={COLORS.surface} stroke={COLORS.ink} stroke-width={0.06} />
               )}

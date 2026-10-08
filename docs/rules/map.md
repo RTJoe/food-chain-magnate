@@ -11,17 +11,17 @@ Primary source: **DLX** Deluxe base rulebook (printed pages p2, p8–10, p21–2
 ## 2. Road connectivity rules (normative)
 - **[DLX differs] Square-adjacency rule (DLX p8 item E, p21):** roads are a grid of road squares. Any two orthogonally adjacent road squares are connected, within a tile **or across a tile border**, regardless of the printed art (the yellow edge line does not block). Consequences:
   - Midpoint exits connect as before.
-  - Two road squares facing each other across a shared tile edge at any position connect. E.g. tile C's outer ring next to another tile's edge road connects along every adjacent pair.
+  - Two road squares facing each other across a shared tile edge at any position connect. E.g. a ring road along a tile's edge, next to another tile's edge road, connects along every adjacent pair.
   - This supersedes JD 1514116 ("only in the middle"). High: DLX text is explicit and the DLX p23 Collection Example shows it: its route crosses the same tile border twice, at two different squares (borders '1' and '2'), so at least one crossing is away from the midpoint. See `questions.md` Q-M1.
 - Exceptions (not connected even though adjacent):
-  - **Bridges (overpass):** tiles G and P. The N–S road and the W–E road share (2,2) without connecting. A route goes straight through (2,2) and cannot turn there (DLX p8 item F; JD 1455378).
-  - **Capped road ends** (KX-DLX p3–4): tile X π stubs end at the apartment; tile W's road ends at house 25. They connect to the building, not to each other.
+  - **Bridges (overpass):** two base tiles have a bridge on their centre square. The N–S road and the W–E road share it without connecting. A route goes straight through the bridge and cannot turn there (DLX p8 item F; JD 1455378).
+  - **Capped road ends** (KX-DLX p3–4): the four short road stubs around the big Ketchup apartment end at the building; on another Ketchup tile a road ends at house 25. They connect to the building, not to each other.
   - **Restaurant entrance:** two roads touching one entrance corner do not connect through it (DLX p23).
   - Under-construction Lobbyist roads (Ketchup).
 - In the 20 base tiles and U–Z, every printed road segment is internally connected and no two separate printed segments on one tile are orthogonally adjacent (checked against the grids below), so the rule only changes **cross-tile** links.
 - Road exits listed per tile below are the edge-midpoint exits from the art. With the DLX rule, code should derive cross-tile links from square adjacency, not from the exit list.
 - Bridges and all roads bound mailbox areas; two roads touching only at a corner also block mail (DLX p31).
-- **Two-segment tiles:** E, J, M each carry two separate roads that do not touch.
+- **Two-segment tiles:** three base tiles each carry two separate roads that do not touch.
 
 ## 3. Notation
 Rows top→bottom 0–4, columns left→right 0–4. `(r,c)`.

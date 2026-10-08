@@ -190,6 +190,35 @@ describe('voluntary firing (base.md §8.1)', () => {
     expect(validatePaydayAction(ctx.state, confirm('p1'))).toMatchObject({ ok: false, code: 'ALREADY_SUBMITTED' });
   });
 
+  it('firings stay secret until everyone has decided (DLX p29), then apply in turn order', () => {
+    const ctx = payday(make());
+    act(ctx, fire('p2', 'p2cook'));
+    // p1 has not decided: p2's firing is not applied, not announced, and hidden from p1's view.
+    expect(ctx.state.players.p2?.employees.p2cook).toBeDefined();
+    expect(ctx.of('employeeFired')).toHaveLength(0);
+    expect(redactFor(ctx.state, 'p1').mine?.fireDraft).toBeUndefined();
+    expect(redactFor(ctx.state, 'p2').mine?.fireDraft).toEqual(['p2cook']);
+    expect(validatePaydayAction(ctx.state, fire('p2', 'p2cook'))).toMatchObject({ ok: false, code: 'CARD_UNAVAILABLE' });
+    act(ctx, confirm('p2'));
+    act(ctx, fire('p1', 'cook'));
+    expect(ctx.of('employeeFired')).toHaveLength(0);
+    act(ctx, confirm('p1'));
+    expect(ctx.of('employeeFired').map((e) => [e.player, e.uid])).toEqual([
+      ['p1', 'cook'],
+      ['p2', 'p2cook'],
+    ]);
+    expect(ctx.state.secrets.p1?.fireDraft).toBeUndefined();
+    expect(ctx.state.players.p2?.employees.p2cook).toBeUndefined();
+  });
+
+  it('LEGACY(v3): a firing is applied as soon as it is sent', () => {
+    const ctx = payday(make());
+    ctx.state.config.rulesVersion = 3;
+    act(ctx, fire('p2', 'p2cook'));
+    expect(ctx.state.players.p2?.employees.p2cook).toBeUndefined();
+    expect(ctx.of('employeeFired')).toHaveLength(1);
+  });
+
   it('cards at work and on the beach can be fired; the CEO and busy marketeers cannot', () => {
     const b = make();
     const ctx = payday(b);

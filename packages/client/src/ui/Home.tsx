@@ -2,16 +2,16 @@ import { useSignal } from '@preact/signals';
 import { ROOM_CODE_ALPHABET } from '@fcm/protocol';
 import { navigate } from '../state/router.js';
 import { connection, settings, updateSettings } from '../state/store.js';
-import type { Phase } from '@fcm/engine';
+import { engine, type Phase } from '@fcm/engine';
 import { clearHotseat, forgetRoom, recentGames, savedHotseat, type RecentGame } from '../state/recentGames.js';
 import { createRoom, resumeHotseat, startOnline } from '../net/session.js';
-import { hotseatEngine } from '../state/engine.js';
 import { phaseLabel } from '../state/selectors.js';
 import { Button, IconButton } from './common.js';
 import { Icon, LogoLockup } from './icons.js';
 import { continueEntry } from './learn/index.js';
 import { hasLearnProgress, learnProgress } from '../tutorial/progress.js';
 import './learn/learn.css';
+import { BUILD_LABEL } from '../state/buildInfo.js';
 
 const cleanCode = (s: string) =>
   s
@@ -91,7 +91,7 @@ function SavedHotseatGame() {
   const names = g.config.players.map((p) => p.name).join(', ');
   const where = g.over ? 'Game over' : `${g.round > 0 ? `Round ${g.round} · ` : ''}${phaseLabel({ kind: g.phase } as Phase)}`;
   const resume = () => {
-    if (resumeHotseat(hotseatEngine(), g)) navigate({ name: 'hotseat' });
+    if (resumeHotseat(engine, g)) navigate({ name: 'hotseat' });
   };
   return (
     <section class="home-games glass" aria-label="Hot-seat game" style={{ padding: '12px 18px', marginBottom: '18px' }}>
@@ -212,6 +212,18 @@ export function Home() {
           </>
         )}
         <span class="muted">An unofficial fan implementation. All art is original.</span>
+        {!import.meta.env.DEV && (
+          <>
+            <span aria-hidden="true">·</span>
+            <a href="licenses.txt" target="_blank" rel="noopener">
+              Open-source licences
+            </a>
+          </>
+        )}
+        <span aria-hidden="true">·</span>
+        <span class="muted small build-id" title="Version and build">
+          v{BUILD_LABEL}
+        </span>
       </footer>
     </main>
   );

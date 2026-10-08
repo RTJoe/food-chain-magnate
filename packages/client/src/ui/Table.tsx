@@ -218,11 +218,33 @@ function useBoardAnimating(): boolean {
 function Dock() {
   const tab = dockTab.value;
   const pr = prompt.value;
+  // Phone sheet grip: a swipe up or down (40 px) opens or closes it; a tap still toggles.
+  const drag = useRef<{ y: number; swiped: boolean } | null>(null);
   const tabs = TABS.filter((t) => t.id !== 'chat' || mode.value === 'online');
   const mine = isMyTurn.value;
   return (
     <aside class={`dock glass ${sheetOpen.value ? 'is-open' : ''}`} aria-label="Game panels">
-      <button type="button" class={`sheet-handle ${mine ? 'is-mine' : ''}`} onClick={() => (sheetOpen.value = !sheetOpen.value)} aria-expanded={sheetOpen.value}>
+      <button
+        type="button"
+        class={`sheet-handle ${mine ? 'is-mine' : ''}`}
+        onPointerDown={(e) => {
+          drag.current = { y: e.clientY, swiped: false };
+          e.currentTarget.setPointerCapture?.(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (!d || d.swiped || Math.abs(e.clientY - d.y) < 40) return;
+          d.swiped = true;
+          sheetOpen.value = e.clientY < d.y;
+        }}
+        onPointerCancel={() => (drag.current = null)}
+        onClick={() => {
+          const swiped = drag.current?.swiped;
+          drag.current = null;
+          if (!swiped) sheetOpen.value = !sheetOpen.value;
+        }}
+        aria-expanded={sheetOpen.value}
+      >
         <span class="sheet-grip" aria-hidden="true" />
         <span class="sheet-title">
           {mine && <span class="dot is-on" aria-hidden="true" />}

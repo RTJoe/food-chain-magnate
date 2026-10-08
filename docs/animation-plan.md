@@ -78,7 +78,7 @@ Sequencing vs overlapping:
   - otherwise `finish()` the running timeline (jump to end, clean up actors) and start the new one;
   - the animation layer is never more than ~4 s behind the real state.
 - Hot-seat handoff, reconnect, snapshot (`events` empty): `finish()` then nothing plays; the closing caption from the last batch is kept.
-- Bots in a Web Worker produce the same batches as humans; nothing special.
+- Bots in a Web Worker produce the same batches as humans. Hot-seat bots (`LocalTransport`, option `boardBusy`) hold each move while the canvas reports `data-anim="playing"`, up to 4 s, so a Dinnertime or Marketing timeline plays out instead of being cut by the bot's instant answer (M176). Online bots keep the server's pacing.
 
 ---
 

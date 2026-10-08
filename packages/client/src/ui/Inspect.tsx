@@ -87,10 +87,18 @@ function Goods({ goods, size = 18 }: { goods: readonly FoodId[]; size?: number }
 function campaignLine(v: GameView, camp: Campaign): string {
   const c = catalog.value;
   const left = camp.eternal ? '∞' : `${camp.remaining} left`;
-  return `${camp.number !== null ? `#${camp.number} ` : ''}${KIND_LABEL[camp.kind] ?? humanize(camp.kind)} · ${name(v, camp.owner)} · ${camp.goods.map((g) => foodName(c, g).toLowerCase()).join(' + ')} · ${left}`;
+  return `${camp.number !== null && camp.kind !== 'giantBillboard' ? `#${camp.number} ` : ''}${KIND_LABEL[camp.kind] ?? humanize(camp.kind)} · ${name(v, camp.owner)} · ${camp.goods.map((g) => foodName(c, g).toLowerCase()).join(' + ')} · ${left}`;
 }
 
 
+
+/** Ketchup variant of an offer: the goods it sells beyond the exact order ("sushi", "kimchi"). */
+function variantOf(items: Partial<Record<FoodId, number>> | undefined, demand: readonly FoodId[]): string | null {
+  if (!items) return null;
+  const c = catalog.value;
+  const extra = (Object.keys(items) as FoodId[]).filter((g) => (items[g] ?? 0) > 0 && !demand.includes(g));
+  return extra.length ? `with ${extra.map((g) => foodName(c, g).toLowerCase()).join(' + ')}` : null;
+}
 
 function HouseCard({ id, view: v }: { id: HouseId; view: GameView }) {
   const h = v.board.houses[id];
@@ -133,6 +141,7 @@ function HouseCard({ id, view: v }: { id: HouseId; view: GameView }) {
                   <PlayerBadge view={v} id={s.player} size={20} hidden />
                   <span class="inspect-row-main">
                     <b>{name(v, s.player)}</b> {scoreTerms(s)} = <b>{s.score}</b>
+                    {variantOf(s.items, demand) && <span class="muted small"> · {variantOf(s.items, demand)}</span>}
                   </span>
                   {wins ? <span class="inspect-win">wins</span> : !s.canSupply && demand.length > 0 ? <span class="muted small">can’t supply</span> : null}
                 </button>
@@ -261,7 +270,7 @@ function SourceCard({ id, view: v }: { id: SourceId; view: GameView }) {
   if (!s) return null;
   return (
     <>
-      <Head eyebrow="Drink source" title={<span class="row gap">{foodName(c, s.drink as FoodId)}</span>} id={id} term="drink_source" />
+      <Head eyebrow="Drink supplier" title={<span class="row gap">{foodName(c, s.drink as FoodId)}</span>} id={id} term="drink_source" />
       <div class="inspect-chips">
         <FoodIcon food={s.drink as FoodId} size={24} />
         <Pill>Square {s.x},{s.y}</Pill>

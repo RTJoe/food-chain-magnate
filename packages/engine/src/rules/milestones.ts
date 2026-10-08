@@ -218,16 +218,6 @@ export function launchesEternal(ctx: HookContext, player: PlayerId, kind: string
 }
 
 /**
- * Called by the reducer at the end of each player's working turn and at the end of each
- * automatic phase. Claims are immediate (see `onMilestoneEvent`), so this only re-checks
- * state-based conditions (cash during Dinnertime). Crossing out happens in Cleanup step D
- * (`crossOutMilestones`), which is what makes same-round sharing work.
- */
-export function finalizeMilestones(ctx: HookContext): void {
-  for (const player of ctx.state.turnOrder) checkCashMilestones(ctx, player);
-}
-
-/**
  * Cleanup step D (base.md §10): every milestone claimed this round becomes unavailable to
  * everyone else. Also removes unclaimed milestones whose `removeAfterRound` has come (Ketchup).
  */

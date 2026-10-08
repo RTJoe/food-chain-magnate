@@ -24,6 +24,7 @@ import { blob, releaseTree, solid } from '../minis/ctx.js';
 import { InstanceProxy } from '../instancer.js';
 import { box, miniGeo, playerPalette, Shape } from '../minis/kit.js';
 import type { Stage } from '../scene.js';
+import { chainMarkTexture, chainOfColor } from '../labels.js';
 
 export type ActorKind =
   | 'van'
@@ -118,6 +119,7 @@ export class ActorPool {
     obj.visible = true;
     if (obj.parent !== this.root) this.root.add(obj);
     this.live.add(obj);
+    if (obj.userData.markFlag) this.stage.trackSized(obj);
     this.stage.invalidate();
     return obj;
   }
@@ -126,6 +128,7 @@ export class ActorPool {
   release(obj: THREE.Object3D): void {
     if (!this.live.delete(obj)) return;
     obj.visible = false;
+    if (obj.userData.markFlag) this.stage.untrackSized(obj);
     const k = obj.userData.actorKey as string;
     let list = this.free.get(k);
     if (!list) this.free.set(k, (list = []));
@@ -175,12 +178,41 @@ export class ActorPool {
   private build(spec: ActorSpec, k: string): THREE.Object3D {
     const b = builders.get(spec.kind) ?? placeholder;
     const obj = b(this.ctx, spec);
+    addMarkFlag(obj, spec);
     obj.userData.actorKey = k;
     obj.userData.actor = spec;
     obj.visible = false;
     this.root.add(obj);
     return obj;
   }
+}
+
+const FLAG_KINDS = new Set<ActorKind>(['van', 'scooter', 'cart', 'truck']);
+const flagMats = new Map<string, THREE.SpriteMaterial>();
+
+/**
+ * Phone tier (`lite` vehicles drop the door decal and are ~10 px long at the default camera): a
+ * chain-mark roundel floats over the vehicle with a minimum on-screen size, so whose van it is
+ * reads at a glance (animation-plan WP-B: chain colour and mark readable at 390 px).
+ */
+function addMarkFlag(obj: THREE.Object3D, spec: ActorSpec): void {
+  if (!FLAG_KINDS.has(spec.kind) || !spec.color || !spec.variant?.split(':').includes('lite')) return;
+  const chain = chainOfColor(spec.color);
+  if (!chain) return;
+  let mat = flagMats.get(spec.color);
+  if (!mat) {
+    mat = new THREE.SpriteMaterial({ map: chainMarkTexture(chain, spec.color), depthWrite: false, depthTest: false, transparent: true, toneMapped: false });
+    flagMats.set(spec.color, mat);
+  }
+  const flag = new THREE.Sprite(mat);
+  flag.name = 'markFlag';
+  flag.position.set(0, 0.62, 0);
+  flag.center.set(0.5, 0);
+  flag.renderOrder = 20;
+  flag.scale.set(0.3, 0.3, 1);
+  Object.assign(flag.userData, { minPx: 60, baseH: 0.3, aspect: 1, maxK: 12 });
+  obj.add(flag);
+  obj.userData.markFlag = true;
 }
 
 /** Placeholder actor: a chain-coloured box with a light nose block at +x and a shadow blob. */

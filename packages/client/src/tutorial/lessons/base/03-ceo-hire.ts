@@ -103,7 +103,7 @@ export const lesson03 = defineLesson({
       allow: { ui: ['tab-market'] },
       until: { signal: 'dockTab', equals: 'market' },
       solution: [{ tap: { ui: 'tab-market' } }],
-      then: 'Every pile is limited: when it is empty, nobody can hire that card.',
+      then: 'Every pile is limited: when it is empty, you can hire that card only if you train it up the same turn.',
       hint: { say: 'Tap Staff at the top of the panel.', show: [{ ui: 'tab-market' }] },
       glossary: 'supply',
     },

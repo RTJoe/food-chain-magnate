@@ -17,11 +17,15 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { GameState, House } from '../../../src/index.js';
+import type { TileTemplateId } from '../../../src/types/content.js';
 import { contentFor } from '../../../src/modules/registry.js';
 import { sourcesAdjacentToPath } from '../../../src/map/pathfinding.js';
 import { gardenPlacementProblem } from '../../../src/rules/working/development.js';
 import { baseDemandCapacity } from '../../../src/rules/marketing.js';
 import { dine, kb, market } from './helpers.js';
+import { configProblem, createGame } from '../../../src/core/createGame.js';
+import { newDistrictsPool } from '../../../src/modules/ketchup/newDistricts.js';
+import { cfg } from '../../helpers/game.js';
 
 const M = ['ketchup:newDistricts'] as const;
 const NDMAP = [
@@ -38,7 +42,8 @@ describe('New Districts (ketchup.md §1)', () => {
     it('§1: adds tiles U, V, W, X, Y to the pool; tile Z belongs to Lobbyists', () => {
       const tiles = Object.keys(contentFor([...M]).tiles);
       expect(tiles).toEqual(expect.arrayContaining(['A', 'T', 'U', 'V', 'W', 'X', 'Y']));
-      expect(tiles).not.toContain('Z');
+      const drawn = createGame({ ...cfg(2), modules: [...M], map: { kind: 'random' } }, 5);
+      expect([...drawn.board.tiles.map((t) => t.templateId), ...drawn.tilePool]).not.toContain('Z');
       expect(Object.keys(contentFor([]).tiles)).not.toContain('U');
       expect(Object.keys(contentFor(['ketchup:lobbyists']).tiles)).toContain('Z');
     });
@@ -126,6 +131,44 @@ describe('New Districts (ketchup.md §1)', () => {
       const s = nd().build();
       expect(gardenPlacementProblem(s, house(s, 'π').id, 'W')).toMatch(/Only printed houses/);
       expect(gardenPlacementProblem(s, house(s, '9¾').id, 'S')).toMatch(/Only printed houses/);
+    });
+  });
+
+  describe('option tiles: the park tile Z and the Upmarket Area scenario (KX p2, Q-K26)', () => {
+    const base = 'ABCDEFGHIJKLMNOPQRST'.split('') as TileTemplateId[];
+    const pool = (modules: string[], tiles?: string, players = 2) =>
+      newDistrictsPool({ modules: modules as never, options: tiles ? { 'ketchup:newDistricts': { tiles: tiles as 'park' } } : {}, players: cfg(players).players }, [...base, ...(['U', 'V', 'W', 'X', 'Y'] as TileTemplateId[])]).filter((t) => !base.includes(t));
+
+    it('U–Y by default; U–Z or only Z by option; Lobbyists always adds Z', () => {
+      expect(pool([...M])).toEqual(['U', 'V', 'W', 'X', 'Y']);
+      expect(pool([...M], 'districtsAndPark')).toEqual(['U', 'V', 'W', 'X', 'Y', 'Z']);
+      expect(pool([...M], 'park')).toEqual(['Z']);
+      expect(pool([...M, 'ketchup:lobbyists'])).toEqual(['U', 'V', 'W', 'X', 'Y', 'Z']);
+    });
+
+    it('U–Y still join when the game needs them: 6 players, Lobbyists at 5+ (KX p15)', () => {
+      expect(pool([...M, 'ketchup:sixPlayers'], 'park', 6)).toEqual(['U', 'V', 'W', 'X', 'Y', 'Z']);
+      expect(pool([...M, 'ketchup:lobbyists'], 'park', 5)).toEqual(['U', 'V', 'W', 'X', 'Y', 'Z']);
+      expect(pool([...M, 'ketchup:lobbyists'], 'park', 4)).toEqual(['Z']);
+    });
+
+    it('a random map with only the park tile draws from the base tiles and Z', () => {
+      for (const seed of [1, 2, 3]) {
+        const g = createGame({ ...cfg(3), modules: [...M], options: { 'ketchup:newDistricts': { tiles: 'park' } }, map: { kind: 'random' } }, seed);
+        const all = [...g.board.tiles.map((t) => t.templateId), ...g.tilePool].sort();
+        expect(all).toEqual([...base, 'Z']);
+      }
+      expect(configProblem({ ...cfg(2), modules: [...M], options: { 'ketchup:newDistricts': { tiles: 'nope' as 'park' } } })).toMatch(/tile option/);
+    });
+
+    it('parks price houses ×2 / ×3 without Lobbyists', () => {
+      const scene = (withPark: boolean) => {
+        const b = nd();
+        if (withPark) b.entity({ kind: 'park', id: 'entity-p1', x: 4, y: 5, w: 1, h: 2, printed: true });
+        return b.restaurant('p1', 8, 8, 'NW').inventory('p1', { burger: 1 }).demand(25, ['burger']);
+      };
+      expect(dine(scene(false)).of('sale')).toEqual([expect.objectContaining({ player: 'p1', total: 20 })]);
+      expect(dine(scene(true)).of('sale')).toEqual([expect.objectContaining({ player: 'p1', total: 30, lines: [{ good: 'burger', count: 1, each: 30 }] })]);
     });
   });
 });

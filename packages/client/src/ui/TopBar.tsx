@@ -1,5 +1,5 @@
 import { useEffect } from "preact/hooks";
-import type { GameView } from "@fcm/engine";
+import type { GameView, ModuleId } from "@fcm/engine";
 import { bankBreaksToEnd, PHASE_STEPS, phaseIndex, phaseLabel } from "../state/selectors.js";
 import { connection, mode, view } from "../state/store.js";
 import { IconButton, PlayerBadge } from "./common.js";
@@ -110,14 +110,16 @@ function PhaseStepper({
 function BankChip({ view: v }: { view: GameView }) {
   const b = v.bank;
   const ends = bankBreaksToEnd(v);
+  // Reserve Prices (KX p28): the first break sets the base price for the rest of the game.
+  const price = v.config.modules.includes("ketchup:reservePrices" as ModuleId) ? `base price $${v.basePrice}` : null;
   return (
     <div
       class={`bank is-wt ${b.breaks > 0 ? "is-broken" : ""}`}
       data-tutorial="bank"
       data-flip="bank"
-      title={`Bank: $${b.cash}${b.reserveOpened ? " (reserve opened)" : ""}. What’s a bank break?`}
+      title={`Bank: $${b.cash}${b.reserveOpened ? " (reserve opened)" : ""}${price ? `, ${price}` : ""}. What’s a bank break?`}
       role="button"
-      aria-label={`Bank $${b.cash}, ${b.breaks} of ${ends} breaks${b.reserveOpened ? ", reserve added" : ""}. What’s a bank break?`}
+      aria-label={`Bank $${b.cash}, ${b.breaks} of ${ends} breaks${b.reserveOpened ? ", reserve added" : ""}${price ? `, ${price}` : ""}. What’s a bank break?`}
       tabIndex={0}
       onClick={(e) => whatsThis("bank_break", e.currentTarget)}
       {...whatsThisKeys("bank_break")}
@@ -128,7 +130,7 @@ function BankChip({ view: v }: { view: GameView }) {
         <i class={b.breaks >= 1 ? "is-on" : ""}>1</i>
         {ends >= 2 && <i class={b.breaks >= 2 ? "is-on" : ""}>2</i>}
       </span>
-      {b.reserveOpened && <span class="bank-reserve">reserve added</span>}
+      {b.reserveOpened && <span class="bank-reserve">{price && b.breaks > 0 ? price : "reserve added"}</span>}
     </div>
   );
 }

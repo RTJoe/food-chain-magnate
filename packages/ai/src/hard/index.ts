@@ -13,6 +13,7 @@
  * - Setup, Cleanup and pending choices: Medium (search gains little there).
  */
 import type { Action, GameState, Uid } from '@fcm/engine';
+import { fireDraft } from '@fcm/engine';
 import type { Bot, BotExplanation, BotInput, ScoredAlternative } from '../types.js';
 import { fallbackAction } from '../heuristics.js';
 import { isValid, makeCtx, type Ctx } from '../shared/ctx.js';
@@ -45,7 +46,10 @@ export interface HardOptions {
    * off over two rounds), 1 with more than 4 players or under 1 s (rollouts get too dear).
    */
   horizon?: number;
-  /** Phases that search (default all four); others play Medium. For ablations. */
+  /**
+   * Phases that search; others play Medium. Default: all four, but only Working at 4+ players
+   * with Ketchup modules (see `crowded`).
+   */
   phases?: readonly ('restructuring' | 'orderOfBusiness' | 'working' | 'payday')[];
   /**
    * Budget cap (ms) for the Order of Business and Payday searches. Ablations (ai-strategy.md §4.7)
@@ -54,6 +58,9 @@ export interface HardOptions {
    */
   quickPhaseMs?: number;
 }
+
+/** Resolved options; `phases` unset means the default for the table (`crowded`). */
+type Opts = Required<Omit<HardOptions, 'phases'>> & Pick<HardOptions, 'phases'>;
 
 const DEFAULTS = { minBudgetMs: 150, safetyMs: 80, margin: 2, quickPhaseMs: 300 };
 
@@ -115,14 +122,28 @@ interface Run<T> {
   combos?: (ranked: SearchCandidate<T>[]) => Labeled<T>[];
 }
 
+const ALL_PHASES = ['restructuring', 'orderOfBusiness', 'working', 'payday'] as const;
+const CROWDED_PHASES = ['working'] as const;
+
+/**
+ * 4+ players with Ketchup modules: rollouts are dear and the Medium opponent model is weakest
+ * (it ignores most module cards), so two-round rollouts and the Restructuring / Order of business
+ * / Payday searches mostly pick noise. Bench (1 Hard + 3 Medium, all modules, 1.5 s, 4 rotations
+ * × 15 seeds, two seed sets, busy machine): horizon 2 with every phase won 10-18 % (mean place
+ * score 0.44-0.47); horizon 1 with Working only 37-38 % (0.70-0.71).
+ */
+function crowded(c: Ctx): boolean {
+  return c.s.turnOrder.length >= 4 && c.s.config.modules.length > 0;
+}
+
 function medium(input: BotInput, why: string): Decision {
   const d = mediumDecide(input);
   return { action: d.action, info: { extra: { search: why }, ...(d.fellBack ? { warnings: ['medium fallback'] } : {}) } };
 }
 
-function runSearch<T>(c: Ctx, input: BotInput, opts: Required<HardOptions>, t0: number, r: Run<T>) {
+function runSearch<T>(c: Ctx, input: BotInput, opts: Opts, t0: number, r: Run<T>) {
   const nearBreak = roundsLeftEstimate(c) < 3;
-  const horizon = opts.horizon || (c.s.turnOrder.length > 4 || input.budgetMs < 1000 ? 1 : 2);
+  const horizon = opts.horizon || (c.s.turnOrder.length > 4 || input.budgetMs < 1000 || crowded(c) ? 1 : 2);
   const K = sampleCount(c, nearBreak);
   const samples: GameState[] = [];
   for (let i = 0; i < K; i++) samples.push(makeSample(c, input.rng, i));
@@ -169,18 +190,19 @@ function once(action: Action, phase: GameState['phase']['kind'], round: number):
 }
 
 /** The input with its budget capped for a quick-phase search. */
-function quick(input: BotInput, opts: Required<HardOptions>): BotInput {
+function quick(input: BotInput, opts: Opts): BotInput {
   return input.budgetMs > opts.quickPhaseMs ? { ...input, budgetMs: opts.quickPhaseMs } : input;
 }
 
-function decide(input: BotInput, opts: Required<HardOptions>): Decision {
+function decide(input: BotInput, opts: Opts): Decision {
   const t0 = Date.now();
   const c = makeCtx(input);
   const s = c.s;
   const me = c.me;
   if (s.pending[0]?.player === me) return medium(input, 'pending choice');
   if (input.budgetMs <= opts.minBudgetMs) return medium(input, 'budget');
-  if (!(opts.phases as readonly string[]).includes(s.phase.kind)) return medium(input, 'phase not searched');
+  const phases = opts.phases ?? (crowded(c) ? CROWDED_PHASES : ALL_PHASES);
+  if (!(phases as readonly string[]).includes(s.phase.kind)) return medium(input, 'phase not searched');
   const arch = (): string | undefined => {
     try {
       return chooseArchetype(c).id;
@@ -212,7 +234,7 @@ function decide(input: BotInput, opts: Required<HardOptions>): Decision {
   }
 }
 
-function decideWork(c: Ctx, input: BotInput, opts: Required<HardOptions>, t0: number, arch: () => string | undefined): Decision {
+function decideWork(c: Ctx, input: BotInput, opts: Opts, t0: number, arch: () => string | undefined): Decision {
   const key = cacheKey(c, 'work');
   const seq = c.view.history.seq;
   const hit = cache.get(key);
@@ -254,13 +276,14 @@ function decideWork(c: Ctx, input: BotInput, opts: Required<HardOptions>, t0: nu
   return { action, info: details };
 }
 
-function decidePayday(c: Ctx, input: BotInput, opts: Required<HardOptions>, t0: number, arch: () => string | undefined): Decision {
+function decidePayday(c: Ctx, input: BotInput, opts: Opts, t0: number, arch: () => string | undefined): Decision {
   const me = c.me;
   const confirm: Action = { type: 'payday.confirm', playerId: me };
   const fire = (uids: Uid[]): Action => ({ type: 'payday.fire', playerId: me, uids });
   const key = cacheKey(c, 'payday');
   const seq = c.view.history.seq;
   const hit = cache.get(key);
+  if (fireDraft(c.s, me).length && isValid(c, confirm)) return { action: confirm, info: { extra: { search: 'fired; confirm' } } };
   if (hit?.kind === 'payday' && hit.seq === seq && isValid(c, confirm)) return { action: confirm, info: { extra: { search: 'fired; confirm' } } };
   const cands = fireCands(c);
   if (cands.length <= 1) return medium(input, 'one firing set');
@@ -286,13 +309,13 @@ function decidePayday(c: Ctx, input: BotInput, opts: Required<HardOptions>, t0: 
 }
 
 /** `decide` with safety nets; any net that catches notes an internal fallback (shared/fallback.ts). */
-function safeDecide(input: BotInput, opts: Required<HardOptions>): Decision {
+function safeDecide(input: BotInput, opts: Opts): Decision {
   const d = guardedDecide(input, opts);
   if (d.info?.warnings?.length) noteInternalFallback();
   return d;
 }
 
-function guardedDecide(input: BotInput, opts: Required<HardOptions>): Decision {
+function guardedDecide(input: BotInput, opts: Opts): Decision {
   let d: Decision | null = null;
   try {
     d = decide(input, opts);
@@ -312,14 +335,14 @@ function guardedDecide(input: BotInput, opts: Required<HardOptions>): Decision {
 }
 
 export function createHardBot(options: HardOptions = {}): Bot {
-  const opts: Required<HardOptions> = {
+  const opts: Opts = {
     weights: options.weights ?? WEIGHTS,
     maxRollouts: options.maxRollouts ?? Infinity,
     minBudgetMs: options.minBudgetMs ?? DEFAULTS.minBudgetMs,
     safetyMs: options.safetyMs ?? DEFAULTS.safetyMs,
     margin: options.margin ?? DEFAULTS.margin,
     horizon: options.horizon ?? 0,
-    phases: options.phases ?? ['restructuring', 'orderOfBusiness', 'working', 'payday'],
+    ...(options.phases ? { phases: options.phases } : {}),
     quickPhaseMs: options.quickPhaseMs ?? DEFAULTS.quickPhaseMs,
   };
   return {

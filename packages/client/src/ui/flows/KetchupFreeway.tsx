@@ -1,6 +1,7 @@
 /**
  * Freeway (ux-plan §2.4, WP5): board pick on an outer edge; the ghost shows the ramp and a dotted
- * link to the rural area with its demand, so the connection is visible before committing.
+ * link to the rural area with its demand, so the connection is visible before committing. From
+ * rules v4 the 3x1 piece also lies lengthwise along the edge: R / Rotate turns it (Q-K21).
  */
 import { useMemo } from 'preact/hooks';
 import type { Placement } from '@fcm/engine';
@@ -18,11 +19,13 @@ export function KetchupFreewayFlow({ legal, placements, onDone, onCancel }: Flow
   };
   useBoardMode(mode, { onPlacement: pick, onCancel });
   const rural = v ? Object.values(v.board.houses).find((h) => h.kind === 'rural') : undefined;
+  const lengthwise = placements.some((p) => p.kind === 'freeway' && p.lengthwise);
   return (
     <div class="flow kf-flow">
       <FlowHead title={legal.label} onCancel={onCancel} />
       <p class="muted small">
-        The freeway joins the rural area to the road at this edge: deliveries to the rural area count their distance from here.
+        The freeway joins the rural area to the road it touches at this edge: deliveries to the rural area count their distance from there.
+        {lengthwise ? ' It is 3 squares long: end-on it touches one edge square, lengthwise up to 3. Rotate turns it.' : ''}
         {rural && rural.demand.length > 0 ? ` The rural area wants ${rural.demand.length} item${rural.demand.length === 1 ? '' : 's'} now.` : ''}
       </p>
       {placements.length === 0 ? (

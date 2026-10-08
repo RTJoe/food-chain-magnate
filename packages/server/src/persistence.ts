@@ -1,6 +1,6 @@
 /**
  * Room persistence (architecture §4.5): `<dataDir>/rooms/<id>.json` holding the room config,
- * seats (with hashed session tokens), status, seed and the action log. Writes are debounced per
+ * seats (with hashed session tokens), status, seed, the action log and the last 100 chat lines. Writes are debounced per
  * room and atomic (tmp + rename). On boot the server indexes every file, restores games in
  * progress and loads the rest on demand. Files are deleted after a retention period of inactivity.
  * A game whose log no longer replays (engine rules change) is restored up to its last valid action;
@@ -11,7 +11,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { restoredConfig, type Action, type GameConfig } from '@fcm/engine';
-import type { RoomConfig, RoomStatus, Seat } from '@fcm/protocol';
+import type { ChatLine, RoomConfig, RoomStatus, Seat } from '@fcm/protocol';
 
 export const PERSIST_DEBOUNCE_MS = 250;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -44,6 +44,8 @@ export interface PersistedRoom {
   seed: number | null;
   gameConfig: GameConfig | null;
   actions: Action[];
+  /** The room's recent chat, oldest first (absent in older files and in rooms nobody chatted in). */
+  chat?: ChatLine[];
 }
 
 export interface Persistence {

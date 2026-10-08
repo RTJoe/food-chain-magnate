@@ -22,11 +22,20 @@
  *   - a marketeer busy on an eternal campaign has no salary whatever its type, and First Billboard
  *     waives only the base marketeers (payday.ts; Q-K35);
  *   - coffee routes: only locations that would sell on every best route sell (coffee.ts; Q-K18).
- * - 3: current rules.
+ * - 3: rulings of the rules v3 release. Differences, each marked `LEGACY(v3)` where it is kept (also
+ *   in force for versions 1 and 2):
+ *   - Payday: a voluntary firing is applied (and shown to everyone) as soon as it is sent, instead
+ *     of staying hidden until every player has decided (payday.ts; DLX p29, M030).
+ *   - stacked training (First to pay $20): no multi-trainer `work.train`, so a chain of trainers
+ *     cannot skip an empty intermediate pile, and empty-pile hires count one trainer each
+ *     (train.ts, stages.ts; Q-W10, M037).
+ *   - freeway: placed end-on only (one edge square); no lengthwise 3-square placement
+ *     (ruralMarketeers.ts; Q-K21, M114).
+ * - 4: current rules.
  */
 import type { GameConfig } from '../types/state.js';
 
-export const RULES_VERSION = 3;
+export const RULES_VERSION = 4;
 
 type Versioned = { config: Pick<GameConfig, 'rulesVersion'> };
 

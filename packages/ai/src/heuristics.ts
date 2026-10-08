@@ -362,7 +362,7 @@ export function actionFromPlacement(s: GameState, player: PlayerId, la: Placemen
     case 'mapTile':
       return { type: 'ketchup:lobbyists.placeMapTile', playerId: player, choiceId, row: pl.row, col: pl.col, rotation: pl.rotation, ...(pl.templateId ? { templateId: pl.templateId } : {}) };
     case 'freeway':
-      return { type: 'ketchup:ruralMarketeers.placeFreeway', playerId: player, choiceId, side: pl.side, offset: pl.offset };
+      return { type: 'ketchup:ruralMarketeers.placeFreeway', playerId: player, choiceId, side: pl.side, offset: pl.offset, ...(pl.lengthwise ? { lengthwise: true } : {}) };
     case 'pizzaRadio':
       return { type: 'ketchup:newMilestones.placePizzaRadio', playerId: player, choiceId, x: pl.x, y: pl.y };
     case 'freeMailbox':

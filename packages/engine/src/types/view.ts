@@ -75,7 +75,8 @@ export type Placement =
   | { kind: 'lobbyistRoad'; cells: Cell[]; arrows: { from: Cell; dir: Direction }[]; from: RouteStart; piece?: string }
   /** x, y, w, h = bounding box; `cells` = the squares; `piece`: park tile id ('I', 'T', 'L'). */
   | { kind: 'park'; x: number; y: number; w: number; h: number; from: RouteStart; cells?: Cell[]; piece?: string }
-  | { kind: 'freeway'; side: Direction; offset: number }
+  /** `offset`: the first of the squares it covers along `side`; `lengthwise`: 3 squares along the edge (rules v4), else end-on (1). */
+  | { kind: 'freeway'; side: Direction; offset: number; lengthwise?: true }
   | { kind: 'mapTile'; row: number; col: number; rotation: Rotation; templateId?: TileTemplateId }
   | { kind: 'pizzaRadio'; x: number; y: number }
   | { kind: 'freeMailbox'; x: number; y: number };

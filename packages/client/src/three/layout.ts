@@ -32,6 +32,20 @@ export function ruralSide(b: Board): Direction {
   return 'E';
 }
 
+const CLOCKWISE: Direction[] = ['N', 'E', 'S', 'W'];
+
+/**
+ * Which way the rural area lies for a van leaving by a freeway on `side` (M096: every freeway
+ * leads there): straight on from the rural area's side, else the turn it takes round the rim
+ * (clockwise = a right turn; the opposite side goes clockwise, as anim/choreos/dinner.ts does).
+ */
+export function freewayTurn(b: Board, side: Direction): 'ahead' | 'left' | 'right' {
+  const r = ruralSide(b);
+  if (r === side) return 'ahead';
+  const cw = (CLOCKWISE.indexOf(r) - CLOCKWISE.indexOf(side) + 4) % 4;
+  return cw === 3 ? 'left' : 'right';
+}
+
 export function ruralCenter(b: Board): [number, number] {
   const side = ruralSide(b);
   const len = side === 'N' || side === 'S' ? b.w : b.h;
@@ -45,13 +59,14 @@ export function hasRural(b: Board): boolean {
 
 /**
  * What the camera framing depends on: the grid (size and tiles; a change re-bases coordinates),
- * the rural area's side (it moves to the first freeway) and the airplane strips in use.
+ * the rural area's side (it moves to the first freeway), the airplane strips in use and the freeways.
  */
 export function boardFrameKey(b: Board): { grid: string; rural: string; key: string } {
   const grid = `${b.w}x${b.h}:${b.tiles.map((t) => t.id).join(',')}`;
   const rural = hasRural(b) ? ruralSide(b) : '';
   const air = [...new Set(Object.values(b.campaigns).flatMap((c) => (c.placement.kind === 'airplane' ? [c.placement.side] : [])))].sort().join('');
-  return { grid, rural, key: `${grid}|${rural}|${air}` };
+  const fw = Object.values(b.entities).flatMap((e) => (e.kind === 'freeway' ? [`${e.side}${e.offset}${e.lengthwise ? 'L' : ''}`] : [])).sort().join(',');
+  return { grid, rural, key: `${grid}|${rural}|${air}|${fw}` };
 }
 
 /** Off-board spots for gourmet guides: the four outer rim corners, then along the north rim. */
@@ -164,8 +179,16 @@ export function campaignAnchor(b: Board, p: CampaignPlacement, guideIndex = 0): 
   }
 }
 
-/** Freeway foot (on the board edge) for side/offset. */
-export function freewayAnchor(b: Board, side: Direction, offset: number): Anchor {
+/**
+ * Freeway anchor. End-on: its foot on the board edge at `offset`, the ramp running out 3.6.
+ * Lengthwise (rules v4): the centre of a 3x1 deck one square deep along `offset … offset + 2`.
+ */
+export function freewayAnchor(b: Board, side: Direction, offset: number, lengthwise = false): Anchor {
+  if (lengthwise) {
+    const s = edgeStrip(side, offset, 3, b.w, b.h, 0.5 - edgeGap(b, side, offset, 3));
+    const rect = s.along === 'x' ? { x0: s.x - 1.55, z0: s.z - 0.6, x1: s.x + 1.55, z1: s.z + 0.6 } : { x0: s.x - 0.6, z0: s.z - 1.55, x1: s.x + 0.6, z1: s.z + 1.55 };
+    return { x: s.x, z: s.z, y: 0, rotY: 0, rect, height: 1.3 };
+  }
   const s = edgeStrip(side, offset, 1, b.w, b.h, -edgeGap(b, side, offset));
   const [dx, dz] = DELTA[side];
   const far = { x: s.x + dx * 3.6, z: s.z + dz * 3.6 };
@@ -232,7 +255,7 @@ export function placementHitRect(b: Board, p: Placement): Rect | null {
     case 'campaign':
       return campaignAnchor(b, p.placement).rect;
     case 'freeway':
-      return freewayAnchor(b, p.side, p.offset).rect;
+      return freewayAnchor(b, p.side, p.offset, p.lengthwise).rect;
     case 'buyerRoute':
       return null;
     default: {
@@ -292,6 +315,15 @@ export function frameRect(b: Board): Rect {
     else if (side === 'S') r.z1 = Math.max(r.z1, b.h + air);
     else if (side === 'W') r.x0 = Math.min(r.x0, -air);
     else r.x1 = Math.max(r.x1, b.w + air);
+  }
+  // Freeways (M096): every one is a link to the rural area, so the whole ramp stays in view.
+  for (const e of Object.values(b.entities)) {
+    if (e.kind !== 'freeway') continue;
+    const f = freewayAnchor(b, e.side, e.offset, e.lengthwise).rect;
+    r.x0 = Math.min(r.x0, f.x0);
+    r.z0 = Math.min(r.z0, f.z0);
+    r.x1 = Math.max(r.x1, f.x1);
+    r.z1 = Math.max(r.z1, f.z1);
   }
   if (hasRural(b)) {
     const [cx, cz] = ruralCenter(b);

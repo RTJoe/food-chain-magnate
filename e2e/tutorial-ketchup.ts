@@ -135,7 +135,7 @@ export async function performKetchup(page: Page, a: A): Promise<boolean> {
       await choiceRow(page, /map tile/i, `at row ${String(a.row)}, col ${String(a.col)} · turned ${Number(a.rotation) * 90}°`, done);
       return true;
     case 'ketchup:ruralMarketeers.placeFreeway':
-      await choiceRow(page, /freeway/i, `Freeway ${String(a.side)} edge, offset ${String(a.offset)}`, done);
+      await choiceRow(page, /freeway/i, `Freeway ${String(a.side)} edge, offset ${a.lengthwise ? `${String(a.offset)}–${Number(a.offset) + 2} lengthwise` : `${String(a.offset)} ·`}`, done);
       return true;
     case 'ketchup:newMilestones.placePizzaRadio':
       await choiceRow(page, /pizza radio/i, `Square ${String(a.x)},${String(a.y)}`, done);

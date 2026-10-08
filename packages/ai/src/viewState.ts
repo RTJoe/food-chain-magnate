@@ -3,7 +3,8 @@
  * legalPlacements, previews, applyAction) can run on what a seat may know.
  *
  * Hidden in a view (engine core/redact.ts): the rng and seed, other players' reserve cards (until
- * revealed) and Restructuring drafts (until the reveal), and the order of the leftover map tiles.
+ * revealed), Restructuring drafts (until the reveal), Payday firings (until everyone has decided)
+ * and the order of the leftover map tiles.
  * Nothing hidden changes which actions are legal for the viewer, so `viewState` is enough for
  * choosing legal moves. Search bots that simulate past hidden information use `sampleState`.
  */
@@ -29,6 +30,7 @@ export function viewState(view: GameView): GameState {
  * - other players' hidden reserve cards: uniform over the reserve options in play.
  * - other players' submitted but unrevealed structures: a plausible structure built from their
  *   (open) hand, so applying the last submission reveals something sensible.
+ * - other players' unrevealed Payday firings: none (keeping everyone is always legal).
  * - leftover map tiles: shuffled.
  * Call it once per sample; average decisions over samples (e.g. ISMCTS / PIMC).
  */

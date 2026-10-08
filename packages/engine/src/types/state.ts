@@ -268,6 +268,8 @@ export interface PlayerSecrets {
   reserve: ReserveCard | null;
   /** Submitted but not yet revealed structure (Restructuring). */
   structureDraft: Structure | null;
+  /** Payday voluntary firings sent but not yet revealed (rules v4+; DLX p29 simultaneous). */
+  fireDraft?: Uid[];
 }
 
 // ---------------------------------------------------------------------------
@@ -467,8 +469,12 @@ export type ModuleEntity =
     }
   /** ketchup.md §2 roadworks marker; removed in Cleanup. */
   | { kind: 'roadworks'; id: EntityId; x: number; y: number; road: EntityId }
-  /** ketchup.md §12 freeway beside an outer tile edge, touching a road on that tile. */
-  | { kind: 'freeway'; id: EntityId; owner: PlayerId; side: Direction; offset: number; tile: TileId };
+  /**
+   * ketchup.md §12 freeway (a 3x1 piece) beside an outer tile edge, touching a road on that tile.
+   * End-on it covers 1 square of the edge (`offset`); `lengthwise` (rules v4) it lies along the
+   * edge over `offset … offset + 2`.
+   */
+  | { kind: 'freeway'; id: EntityId; owner: PlayerId; side: Direction; offset: number; tile: TileId; lengthwise?: true };
 
 export type ModuleEntityKind = ModuleEntity['kind'];
 

@@ -87,7 +87,7 @@ export function saveCheckpoint(id: LessonId, stepId: string, stepIndex: number, 
   patchLesson(id, { status: prev.status === 'passed' ? 'passed' : 'started', stepId, stepIndex, steps, actions: [...actions] });
 }
 
-/** Steps done: the checkpoint is cleared so the next start is fresh (the quiz is next). */
+/** Quiz finished: the checkpoint is cleared so the next start is fresh. */
 export function clearCheckpoint(id: LessonId): void {
   const { stepId: _s, actions: _a, ...rest } = lessonProgress(id);
   const cur = learnProgress.value;
@@ -138,9 +138,4 @@ export function importProgress(json: string): boolean {
   if (!p) return false;
   write(p);
   return true;
-}
-
-/** Tests: forget everything. */
-export function resetProgress(): void {
-  write(empty());
 }

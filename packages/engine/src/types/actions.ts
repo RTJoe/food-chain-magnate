@@ -104,6 +104,12 @@ export interface WorkTrain extends A<'work.train'> {
   toEmployeeId: EmployeeId;
   path?: EmployeeId[];
   coffeeShop?: CoffeeShopPlacement;
+  /**
+   * Stacked training in one action (First to pay $20; rules v4, questions.md Q-W10): each trainer
+   * and the steps it puts on the card, in path order. The first is `trainerUid`; the steps add up
+   * to the path length. Only the final card must be available.
+   */
+  trainers?: { uid: Uid; steps: number }[];
 }
 /** base.md §6.5. `food` when the card offers a choice (kitchen trainee). All-or-nothing amount. */
 export interface WorkProduce extends A<'work.produce'> {
@@ -225,6 +231,8 @@ export interface RuralPlaceFreeway extends A<'ketchup:ruralMarketeers.placeFreew
   choiceId: ChoiceId;
   side: Direction;
   offset: number;
+  /** Lies along the edge over offset … offset + 2 (rules v4); else end-on. */
+  lengthwise?: boolean;
 }
 /** ketchup.md §3 First pizza sold: resolves a `pizzaRadio` choice. */
 export interface NewMilestonesPlacePizzaRadio extends A<'ketchup:newMilestones.placePizzaRadio'> {

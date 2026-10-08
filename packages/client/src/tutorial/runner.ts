@@ -37,6 +37,8 @@ import { haulDrinks } from '../state/actions.js';
 import { isBoardTarget, selectionFor, selectionMatches, targetBoardIds, targetUiNames, targetWorldRects } from './targets.js';
 
 export type RunnerStatus = 'steps' | 'quiz' | 'done';
+/** Checkpoint step id for "steps done, quiz open". */
+const QUIZ_STEP = '__quiz';
 
 export interface QuizResult {
   correct: number;
@@ -169,7 +171,8 @@ export class TutorialRunner {
   start(resume = true): void {
     const lesson = this.lesson;
     const prog = lessonProgress(lesson.id);
-    let at = resume && prog.stepId ? lesson.steps.findIndex((s) => s.id === prog.stepId) : 0;
+    // A checkpoint at QUIZ_STEP replays every move and reopens the quiz.
+    let at = resume && prog.stepId ? (prog.stepId === QUIZ_STEP ? lesson.steps.length : lesson.steps.findIndex((s) => s.id === prog.stepId)) : 0;
     if (at < 0) at = 0;
     const prelude = at > 0 ? (prog.actions ?? []) : [];
     const base = { state: lessonStart(lesson).state, learner: this.me, scripted: scriptedSeats(lesson), bots: botSeats(lesson) };
@@ -190,7 +193,10 @@ export class TutorialRunner {
     this.listen();
     activeTutorial.value = this;
     this.exposeForTests();
-    this.enterStep(at, { resumed: at > 0 });
+    if (at >= lesson.steps.length) {
+      this.stepIndex.value = lesson.steps.length - 1;
+      this.finishSteps();
+    } else this.enterStep(at, { resumed: at > 0 });
   }
 
   dispose(): void {
@@ -442,7 +448,8 @@ export class TutorialRunner {
   private finishSteps(): void {
     this.clearTimers();
     tutorialHighlight.value = [];
-    clearCheckpoint(this.lesson.id);
+    // Keep the moves: a reload during the quiz resumes at the quiz, not at the lesson start.
+    saveCheckpoint(this.lesson.id, QUIZ_STEP, this.lesson.steps.length, this.lesson.steps.length, this.actions);
     // Phones: tap questions need the board (no sheet, no Summary card over it); the check lives on the coach card.
     sheetOpen.value = false;
     this.applyEffects([{ summary: 'close' }]);
@@ -757,6 +764,7 @@ export class TutorialRunner {
   private finishQuiz(answers: boolean[]): void {
     const correct = answers.filter(Boolean).length;
     const total = this.lesson.quiz.questions.length;
+    clearCheckpoint(this.lesson.id);
     const r = recordQuiz(this.lesson.id, correct, total, this.lesson.quiz.pass, lessonBadgeId(this.lesson), courseBadges);
     this.result.value = { correct, total, ...r };
     this.status.value = 'done';

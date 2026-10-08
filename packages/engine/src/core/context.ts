@@ -11,7 +11,6 @@ import { contentFor, lifecycle, pipe, type EngineContent, type PipelineName } fr
 import { onMilestoneEvent } from '../rules/milestones.js';
 import { allocId } from './ids.js';
 import { randomInt, shuffle } from './rng.js';
-import { NotImplementedError } from './errors.js';
 
 export interface EngineCtx extends HookContext {
   content: EngineContent;
@@ -20,16 +19,6 @@ export interface EngineCtx extends HookContext {
   readonly: boolean;
   /** Pipeline runner (also used by C2's `runPipeline`). */
   pipe(name: PipelineName, value: unknown, args: unknown): unknown;
-}
-
-/** Run a C2-owned function; until it is implemented its NotImplementedError is swallowed. */
-export function seam<T>(fn: () => T, fallback: T): T {
-  try {
-    return fn();
-  } catch (e) {
-    if (e instanceof NotImplementedError) return fallback;
-    throw e;
-  }
 }
 
 export function makeCtx(state: GameState, readonly = false): EngineCtx {
@@ -56,7 +45,7 @@ export function makeCtx(state: GameState, readonly = false): EngineCtx {
       depth++;
       try {
         lifecycle(ctx, 'onEvent', event);
-        seam(() => onMilestoneEvent(ctx, event), undefined);
+        onMilestoneEvent(ctx, event);
       } finally {
         depth--;
       }

@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { ReserveCard } from '@fcm/engine';
-import type { ServerMessageOf } from '@fcm/protocol';
+import { ENGINE_VERSION, type ReserveCard } from '@fcm/engine';
+import { PROTOCOL_VERSION, type ServerMessageOf } from '@fcm/protocol';
 import type { RunningServer } from '../src/server.js';
 import { boot, tempDir, TestClient } from './helpers.js';
 
@@ -15,6 +15,12 @@ async function start(opts: Parameters<typeof boot>[0] = {}) {
   servers.push(s);
   return s;
 }
+async function rawClient(s: RunningServer) {
+  const c = await TestClient.open(s);
+  clients.push(c);
+  return c;
+}
+
 async function connect(s: RunningServer, hello: Parameters<typeof TestClient.connect>[1] = {}) {
   const c = await TestClient.connect(s, hello);
   clients.push(c);
@@ -234,6 +240,49 @@ describe('server (integration, toy engine)', () => {
     guest.send({ t: 'chat', text: 'hello there' });
     const m = await host.next('chat');
     expect(m).toMatchObject({ text: 'hello there', from: { clientId: guest.clientId, name: 'Bob', seat: 1 } });
+  });
+
+  it('keeps chat with the room: replayed after a reload and after a restart (M255)', async () => {
+    const dataDir = tempDir();
+    const s1 = await start({ dataDir, persistDebounceMs: 10 });
+    const { host, guest, roomId } = await startedGame(s1);
+    guest.send({ t: 'chat', text: 'first' });
+    await host.next('chat');
+    const token = host.token;
+    await host.close();
+    // Sent while the host is offline: it arrives with the history on reconnect.
+    guest.send({ t: 'chat', text: 'while you were away' });
+    await guest.next('chat', (m) => m.text === 'while you were away');
+    const h2 = await connect(s1, { sessionToken: token });
+    const hist = await h2.next('chat.history');
+    expect(hist.lines.map((l) => l.text)).toEqual(['first', 'while you were away']);
+    expect(hist.lines[0]?.from).toMatchObject({ clientId: guest.clientId, name: 'Bob', seat: 1 });
+    await h2.close();
+    await guest.close();
+    clients.length = 0;
+    await s1.close();
+    servers.length = 0;
+    const rec = JSON.parse(readFileSync(join(dataDir, 'rooms', `${roomId}.json`), 'utf8'));
+    expect(rec.chat).toHaveLength(2);
+
+    const s2 = await start({ dataDir, persistDebounceMs: 10 });
+    const h3 = await connect(s2, { sessionToken: token });
+    expect((await h3.next('chat.history')).lines.map((l) => l.text)).toEqual(['first', 'while you were away']);
+  });
+
+  it('asks a tab of another build to reload (M259)', async () => {
+    const s = await start({ buildId: 'abc1234' });
+    const c = await rawClient(s);
+    c.send({ t: 'hello', clientVersion: `${ENGINE_VERSION}+old5678`, protocol: PROTOCOL_VERSION });
+    expect(await c.next('error')).toMatchObject({ code: 'RELOAD_REQUIRED' });
+    c.send({ t: 'hello', clientVersion: '0.0.1', protocol: PROTOCOL_VERSION });
+    expect(await c.next('error')).toMatchObject({ code: 'RELOAD_REQUIRED' });
+    c.send({ t: 'hello', clientVersion: `${ENGINE_VERSION}+abc1234`, protocol: PROTOCOL_VERSION });
+    await c.next('welcome');
+    // Without a build id (dev) only the engine version counts.
+    const d = await rawClient(s);
+    d.send({ t: 'hello', clientVersion: ENGINE_VERSION, protocol: PROTOCOL_VERSION });
+    await d.next('welcome');
   });
 
   it('persists rooms and restores them after a restart', async () => {

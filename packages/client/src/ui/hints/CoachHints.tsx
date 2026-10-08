@@ -7,6 +7,7 @@ import { interactionMode } from '../../state/boardBridge.js';
 import { outlookFor, reachPreview } from '../../state/guidance.js';
 import { hoverPlacement, pendingPlacement, previewGood } from '../../state/interaction.js';
 import { catalog, draft, me, prompt, view } from '../../state/store.js';
+import { ceoSlotsOf } from '../../state/orgChart.js';
 import { Segmented } from '../common.js';
 import { Icon } from '../icons.js';
 import { openRules, whatsThis } from '../glossary/api.js';
@@ -39,7 +40,7 @@ export function CoachHints() {
         me: who,
         catalog: catalog.value,
         draft: d,
-        ceoSlots: pr?.kind === 'restructure' ? pr.ceoSlots : v.ceoSlots,
+        ceoSlots: pr?.kind === 'restructure' ? pr.ceoSlots : who ? ceoSlotsOf(v, who) : v.ceoSlots,
         ghostReach,
         outlook: (hid) => outlookFor(v, who, hid),
       },

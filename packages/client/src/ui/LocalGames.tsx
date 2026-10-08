@@ -1,11 +1,10 @@
 /** Hot-seat setup (#/hotseat) and the dev fixture gallery (#/dev/:fixture/:viewer). Both run the engine in-process. */
 import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
-import type { ChainId, GameConfig, Viewer } from '@fcm/engine';
+import { engine, type ChainId, type GameConfig, type Viewer } from '@fcm/engine';
 import { FIXTURES, type FixtureName } from '@fcm/engine/testing';
 import type { BotLevel, RoomConfig } from '@fcm/protocol';
 import { CHAIN_COLORS, PLAYER_COLORS } from '../theme.js';
-import { hotseatEngine, hybridEngine, realEngineReady } from '../state/engine.js';
 import { navigate } from '../state/router.js';
 import { me, mode, settings, view } from '../state/store.js';
 import { startFixture, startHotseat } from '../net/session.js';
@@ -21,7 +20,6 @@ export function HotseatSetup() {
   const names = useSignal<string[]>(PLAYER_COLORS.map((c, i) => (i === 0 && settings.value.name.trim()) || c.name));
   /** Seat index → bot level (absent = human). */
   const bots = useSignal<Record<number, BotLevel>>({});
-  const real = realEngineReady();
   const n = cfg.value.seatCount;
 
   const start = () => {
@@ -41,7 +39,7 @@ export function HotseatSetup() {
     };
     const botSeats = Object.fromEntries(Object.entries(bots.value).filter(([i]) => Number(i) < c.seatCount).map(([i, level]) => [`p${Number(i) + 1}`, level]));
     try {
-      startHotseat(hotseatEngine(), config, undefined, real ? botSeats : {});
+      startHotseat(engine, config, undefined, botSeats);
     } catch (e) {
       alert(`Could not start: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -59,11 +57,6 @@ export function HotseatSetup() {
           <h1>Hot-seat table</h1>
         </div>
       </header>
-      {!real && (
-        <p class="banner-note">
-          {Icon.info({ size: 16 })} The rules engine is still being built. Until it is ready, hot-seat plays the toy game (produce food, sell it, break the bank).
-        </p>
-      )}
       <div class="lobby-grid">
         <section class="glass lobby-seats">
           <div class="section-head">
@@ -85,8 +78,7 @@ export function HotseatSetup() {
                     names.value = next;
                   }}
                 />
-                {real && (
-                  <select
+                <select
                     class="input input-sm bot-level"
                     aria-label={`Player ${i + 1} is played by`}
                     value={bots.value[i] ?? 'human'}
@@ -105,7 +97,6 @@ export function HotseatSetup() {
                       </option>
                     ))}
                   </select>
-                )}
               </li>
             ))}
           </ul>
@@ -140,7 +131,7 @@ export function DevGallery({ fixture, viewer }: { fixture: string | null; viewer
     const key = `${name}/${who}`;
     if (started.value === key && mode.value === 'dev') return;
     started.value = key;
-    startFixture(hybridEngine(), FIXTURES[name](), who);
+    startFixture(engine, FIXTURES[name](), who);
   }, [name, who]);
 
   if (name && view.value) return null; // App renders the table.

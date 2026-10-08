@@ -172,6 +172,70 @@ describe('3b train (base.md §6.3)', () => {
     expect(u.players.p1?.employees[w.beach[0] as Uid]?.employeeId).toBe('senior_vp');
   });
 
+  describe('stacked training through an empty pile (Q-W10, DLX p16/p34; rules v4)', () => {
+    const stacked = (opts: { milestone?: boolean; empty?: string[] } = {}) => {
+      const w = workingTurn(base(), 'p1', { work: ['trainer', 'trainer', 'coach'], beach: ['management_trainee'], milestones: opts.milestone === false ? [] : ['first_pay_20'] });
+      for (const id of opts.empty ?? ['junior_vp', 'vice_president']) w.s.supply[id as 'junior_vp'] = 0;
+      const [t1, t2, coach] = w.work as [Uid, Uid, Uid];
+      const mt = w.beach[0] as Uid;
+      const train: Action = { type: 'work.train', playerId: 'p1', trainerUid: t1, targetUid: mt, toEmployeeId: 'executive_vp', trainers: [{ uid: t1, steps: 1 }, { uid: t2, steps: 1 }, { uid: coach, steps: 2 }] };
+      return { ...w, t1, t2, coach, mt, train };
+    };
+
+    it('2 trainers and a coach train a Management Trainee 4 steps past empty Junior VP and VP piles', () => {
+      const { s, t1, t2, coach, mt, train } = stacked();
+      expect(rejected(s, { type: 'work.train', playerId: 'p1', trainerUid: t1, targetUid: mt, toEmployeeId: 'junior_vp' }).code).toBe('SUPPLY_EMPTY');
+      const evp = s.supply.executive_vp as number;
+      const t = act(s, train);
+      expect(t.players.p1?.employees[mt]?.employeeId).toBe('executive_vp');
+      expect(t.supply.executive_vp).toBe(evp - 1);
+      expect(t.supply.junior_vp).toBe(0);
+      expect(t.supply.vice_president).toBe(0);
+      expect([t1, t2, coach].map((u) => t.turn?.uses[u])).toEqual([0, 0, 0]);
+    });
+
+    it('the legal actions offer the stacked training to the lead trainer', () => {
+      const { s, t1, mt } = stacked();
+      const offers = legalActions(s, 'p1').filter((l) => l.kind === 'ready' && l.action.type === 'work.train' && l.action.trainerUid === t1 && l.action.targetUid === mt);
+      const tos = offers.map((l) => (l.kind === 'ready' && l.action.type === 'work.train' ? l.action.toEmployeeId : ''));
+      expect(tos).toContain('executive_vp');
+      expect(tos).toContain('senior_vp');
+    });
+
+    it('needs "First to pay $20", steps that add up, and rules v4', () => {
+      const { s, train } = stacked({ milestone: false });
+      expect(rejected(s, train).message).toMatch(/First to pay \$20/);
+      const ok = stacked();
+      const short = { ...ok.train, trainers: [{ uid: ok.t1, steps: 1 }, { uid: ok.t2, steps: 1 }] } as Action;
+      expect(rejected(ok.s, short).message).toMatch(/add up to 4/);
+      const v3 = { ...ok.s, config: { ...ok.s.config, rulesVersion: 3 } };
+      expect(rejected(v3, ok.train).code).toBe('INVALID_PAYLOAD');
+    });
+
+    it('an empty-pile hire may count on stacked trainers (v4), not under v3', () => {
+      const { s, ceo } = stacked({ empty: ['management_trainee', 'junior_vp'] });
+      const hire: Action = { type: 'work.recruit', playerId: 'p1', cardUid: ceo, employeeId: 'management_trainee' };
+      const t = act(s, hire);
+      const phantom = t.turn?.mustTrain[0] as Uid;
+      expect(phantom).toBeDefined();
+      const v3 = { ...s, config: { ...s.config, rulesVersion: 3 } };
+      // v3: each hire needs one trainer reaching an available card on its own: the coach reaches VP.
+      expect(validateAction(v3, hire).ok).toBe(true);
+      const noCoach = workingTurn(base(), 'p1', { work: ['trainer', 'trainer'], milestones: ['first_pay_20'] });
+      noCoach.s.supply.management_trainee = 0;
+      for (const id of ['junior_vp', 'new_business_developer', 'luxuries_manager'] as const) noCoach.s.supply[id] = 0;
+      const hire2: Action = { type: 'work.recruit', playerId: 'p1', cardUid: noCoach.ceo, employeeId: 'management_trainee' };
+      expect(validateAction(noCoach.s, hire2).ok).toBe(true);
+      expect(validateAction({ ...noCoach.s, config: { ...noCoach.s.config, rulesVersion: 3 } }, hire2).ok).toBe(false);
+      const h = act(noCoach.s, hire2);
+      const mt = h.turn?.mustTrain[0] as Uid;
+      const [a, b] = noCoach.work as [Uid, Uid];
+      const done = act(h, { type: 'work.train', playerId: 'p1', trainerUid: a, targetUid: mt, toEmployeeId: 'vice_president', trainers: [{ uid: a, steps: 1 }, { uid: b, steps: 1 }] });
+      expect(done.players.p1?.employees[mt]?.employeeId).toBe('vice_president');
+      expect(done.turn?.mustTrain).toEqual([]);
+    });
+  });
+
   it('§6.3: a coach may split its two actions over two cards', () => {
     const { s, work, beach } = workingTurn(base(), 'p1', { work: ['coach'], beach: ['errand_boy', 'kitchen_trainee'] });
     let t = act(s, { type: 'work.train', playerId: 'p1', trainerUid: work[0] as Uid, targetUid: beach[0] as Uid, toEmployeeId: 'cart_operator' });

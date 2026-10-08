@@ -1,6 +1,6 @@
 /** In-memory rooms (architecture §4.2): unique 5-char codes, activity tracking, idle GC. */
 import { randomInt } from 'node:crypto';
-import { ROOM_CODE_ALPHABET, type RoomConfig } from '@fcm/protocol';
+import { ROOM_CODE_ALPHABET, type ChatLine, type RoomConfig } from '@fcm/protocol';
 import { Room, type BotDriver, type GameSession } from '@fcm/session';
 
 export const ROOM_CODE_LENGTH = 5;
@@ -16,6 +16,8 @@ export interface RoomEntry {
   lastActivity: number;
   /** Last real room activity (persisted as `updatedAt`; drives file retention). */
   updatedAt: number;
+  /** Recent chat, oldest first (persisted; replayed to members on (re)connect and join). */
+  chat: ChatLine[];
   /** One-off message for each member on (re)connect, e.g. "rolled back after an update". */
   notice?: { text: string; seen: Set<string> };
 }
@@ -38,7 +40,7 @@ export class RoomStore {
   }
 
   add(room: Room, game: GameSession | null, updatedAt = this.now()): RoomEntry {
-    const entry: RoomEntry = { room, game, bots: null, lastActivity: this.now(), updatedAt };
+    const entry: RoomEntry = { room, game, bots: null, lastActivity: this.now(), updatedAt, chat: [] };
     this.rooms.set(room.id, entry);
     return entry;
   }

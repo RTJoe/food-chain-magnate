@@ -313,7 +313,8 @@ function statusText(r: MilestoneRow, mine: boolean, names: string): string {
   if (mine) return "Claimed by you";
   if (r.removed)
     return r.claimedBy.length ? `Gone, claimed by ${names}` : "Gone";
-  if (r.claimedBy.length) return `Claimed by ${names}: closes at Cleanup`;
+  // Same-round claims are shared (DLX p11): others can still claim it until Cleanup.
+  if (r.claimedBy.length) return r.available ? `Claimed by ${names}: you can still claim it this round` : `Claimed by ${names}: closes at Cleanup`;
   return r.removeAfterRound !== null
     ? `Open until round ${r.removeAfterRound}`
     : "Open";
@@ -389,7 +390,7 @@ export function Milestones() {
   const v = view.value;
   if (!v) return null;
   const c = catalog.value;
-  const rows = trayOrder(c, milestoneRows(v));
+  const rows = trayOrder(c, milestoneRows(v, me.value));
   if (!rows.length)
     return <Empty icon="star">No milestones in this game.</Empty>;
   const viewer = me.value;

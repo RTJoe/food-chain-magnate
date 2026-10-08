@@ -20,9 +20,9 @@ import {
   routeStartRoads,
   tileRCOf,
 } from '../../map/pathfinding.js';
-import { abilityStage, advanceTo, canAct, cardCheck, phantomTrainable, stageCheck, stageIndex, stagesFor, turnCheck, unusedDiscountActions } from './stages.js';
+import { abilityStage, advanceTo, canAct, cardCheck, phantomTrainable, stackedTraining, stageCheck, stageIndex, stagesFor, turnCheck, unusedDiscountActions } from './stages.js';
 import { applyRecruit, hireProblem, validateRecruit } from './recruit.js';
-import { applyTrain, reachableTargets, validateTrain } from './train.js';
+import { applyTrain, reachableTargets, stackedShares, validateTrain } from './train.js';
 import { applyProduce, validateProduce } from './produce.js';
 import { applyBuyDrinks, buyerStats, validateBuyDrinks } from './buyDrinks.js';
 import { applyCampaign, campaignPlacementProblem, rangeField, validateCampaign } from './campaigns.js';
@@ -215,6 +215,21 @@ export function workingLegalActions(s: GameState, player: PlayerId): LegalAction
             out.push({
               kind: 'ready',
               label: `${def.name}: train ${content.employees[card.employeeId]?.name ?? card.employeeId}${atWork ? ' (at work)' : ''} → ${content.employees[tt.to]?.name ?? tt.to}`,
+              action,
+            });
+          }
+          // Stacked training (First to pay $20, Q-W10): further targets with other trainers joining in.
+          if (!stackedTraining(s, player)) continue;
+          for (const tt of reachableTargets(s, p, card.employeeId, 16)) {
+            if (tt.path.length <= Math.min(left, a.maxStepsSameCard)) continue;
+            const trainers = stackedShares(s, player, uid, target, tt.path.length);
+            if (!trainers) continue;
+            const action = { type: 'work.train' as const, playerId: player, trainerUid: uid, targetUid: target, toEmployeeId: tt.to as EmployeeId, path: tt.path, trainers };
+            if (!validateTrain(s, action).ok) continue;
+            const others = trainers.slice(1).map((t) => defOf(content, p, t.uid)?.name ?? t.uid).join(', ');
+            out.push({
+              kind: 'ready',
+              label: `${def.name}: train ${content.employees[card.employeeId]?.name ?? card.employeeId}${atWork ? ' (at work)' : ''} → ${content.employees[tt.to]?.name ?? tt.to} (with ${others})`,
               action,
             });
           }

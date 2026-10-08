@@ -45,7 +45,7 @@ import { COLORS } from '../theme.js';
 import { BoardKeyScope } from './keyScope.js';
 import type { CameraController, PointerInfo } from './camera.js';
 import { DELTA, DIRS, OPPOSITE } from './coords.js';
-import { campaignAnchor, cellsToRect, freewayAnchor, gardenRect, houseFacing, parkMultiplier, placementCells, placementHitRect, rectCenter, rectOf, type Rect } from './layout.js';
+import { campaignAnchor, cellsToRect, frameRect, freewayAnchor, freewayTurn, gardenRect, houseFacing, parkMultiplier, placementCells, placementHitRect, rectCenter, rectOf, type Rect } from './layout.js';
 import { blockedTexture, makeChip } from './overlays/badges.js';
 import { APARTMENT_BADGE_Y, HOUSE_BADGE_Y, buildGarden, buildHouse } from './minis/buildings.js';
 import { owned, releaseTree, type MiniCtx } from './minis/ctx.js';
@@ -75,7 +75,7 @@ type SpotMode = Extract<InteractionMode, { kind: 'place' | 'campaign' }>;
 const isSpotMode = (m: InteractionMode): m is SpotMode => m.kind === 'place' || m.kind === 'campaign';
 const isCampaignSpot = (s: Spot | null | undefined) => s?.variants[0]?.kind === 'campaign';
 /** Spots whose variants are orientations of one piece (R turns it in place; sticky preference). */
-const ORIENTED = new Set<Placement['kind']>(['campaign', 'lobbyistRoad', 'park']);
+const ORIENTED = new Set<Placement['kind']>(['campaign', 'lobbyistRoad', 'park', 'freeway']);
 const isOrientedSpot = (s: Spot | null | undefined) => !!s?.variants[0] && ORIENTED.has(s.variants[0].kind);
 
 export class Interaction {
@@ -184,11 +184,31 @@ export class Interaction {
     ghostOrientation.value = this.campaignOrientation(mode);
     this.clearGhost();
     this.buildSpots();
+    this.revealSpots();
     this.highlighted = mode.kind === 'inspect' ? mode.ids : [];
     this.refreshRings();
     if (this.lastPointer) this.hover(this.lastPointer);
     this.autoStage();
     this.stage.invalidate();
+  }
+
+  /**
+   * M291: a pick whose spots lie off the board (freeways, extra map tiles, airplane strips, rural
+   * sides) widens the camera to the board plus every spot, so none is off screen on a phone; the
+   * camera goes back when the pick ends (unless the player moved it meanwhile).
+   */
+  private revealSpots(): void {
+    const b = this.rec.board;
+    let r: Rect | null = null;
+    if (isSpotMode(this.mode) && b) {
+      const off = this.spots.filter((s) => s.hit.x0 < -0.01 || s.hit.z0 < -0.01 || s.hit.x1 > b.w + 0.01 || s.hit.z1 > b.h + 0.01);
+      if (off.length) {
+        r = frameRect(b);
+        for (const s of off) r = { x0: Math.min(r.x0, s.hit.x0), z0: Math.min(r.z0, s.hit.z0), x1: Math.max(r.x1, s.hit.x1), z1: Math.max(r.z1, s.hit.z1) };
+      }
+    }
+    if (r) this.cam.reveal(r);
+    else this.cam.unreveal();
   }
 
   /** A single off-board spot (gourmet guide) has nothing to aim at: stage it so Confirm is all that is left. */
@@ -843,7 +863,7 @@ export class Interaction {
     }
     // Ketchup previews (WP5): roadworks on the squares the arrows point at; the rural link.
     if (p.kind === 'lobbyistRoad') wrap.add(roadworksPreview({ inst: this.stage.inst }, b, p.arrows));
-    if (p.kind === 'freeway') wrap.add(freewayLink(b, p.side, p.offset, color));
+    if (p.kind === 'freeway') wrap.add(freewayLink(b, p.side, p.offset, color, p.lengthwise));
     if (p.kind === 'park') wrap.add(parkPricePreview(b, p));
     if (p.kind === 'campaign' && p.placement.kind === 'offBoard') {
       const r = this.rectFor(s, idx);
@@ -1065,8 +1085,8 @@ export function buildGhost(ctx: MiniCtx, b: Board, p: Placement, color: string):
       return at(buildLobbyistRoad(ctx, { color, cells: p.cells, underConstruction: true, arrows: p.arrows, origin: [x, z] }), x, z);
     }
     case 'freeway': {
-      const a = freewayAnchor(b, p.side, p.offset);
-      return at(buildFreeway(ctx, { color, side: p.side }), a.x, a.z);
+      const a = freewayAnchor(b, p.side, p.offset, p.lengthwise);
+      return at(buildFreeway(ctx, { color, side: p.side, lengthwise: !!p.lengthwise, turn: Object.values(b.entities).some((e) => e.kind === 'freeway') ? freewayTurn(b, p.side) : 'ahead' }), a.x, a.z);
     }
     case 'mapTile': {
       // The real tile (roads, houses, drinks) turned as it will be placed (WP5).

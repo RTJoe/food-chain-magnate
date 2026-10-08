@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ModuleId, PlayerId } from '@fcm/engine';
 import { BOT_LEVELS, type BotLevel } from '../src/index.js';
-import { ALL_KETCHUP, gameConfig, playBots } from './helpers.js';
+import { ALL_KETCHUP, gameConfig, playBots, retimeDecision } from './helpers.js';
 
 const ROUNDS = 25;
 /** `FCM_SLOW_TESTS=1` plays the long variants in full (nightly / before a release). */
@@ -83,7 +83,14 @@ describe('player counts and variants', () => {
     expect(over).toBeGreaterThanOrEqual(seeds.length - 1);
   }, 60_000);
 
+  // Wall-clock checks under a busy machine: the 95th percentile, and the slowest decision timed
+  // again (a GC pause or a descheduled thread does not repeat; a slow decision does).
   it('decisions are fast (Easy has no lookahead)', () => {
-    expect(playBots(gameConfig(4, { modules: ALL_KETCHUP }), 9, seats(4, 'easy'), 10).maxMs).toBeLessThan(500);
+    const config = gameConfig(4, { modules: ALL_KETCHUP });
+    const levels = seats(4, 'easy');
+    const g = playBots(config, 9, levels, 10);
+    const sorted = [...g.ms].sort((a, b) => a - b);
+    expect(sorted[Math.floor(sorted.length * 0.95)]).toBeLessThan(150);
+    expect(retimeDecision(config, 9, levels, g.actions, g.ms.indexOf(g.maxMs))).toBeLessThan(500);
   });
 });

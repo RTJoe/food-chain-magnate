@@ -22,7 +22,7 @@ export interface Outbound {
 export type SessionRejectCode = 'STALE' | 'NOT_SEATED' | 'UNDO_UNAVAILABLE' | 'UNDO_CONFLICT' | 'ENGINE_ERROR' | 'INVALID_PAYLOAD';
 
 /** Action types whose payload is hidden from other viewers until the engine reveals it. */
-const SECRET_ACTIONS: ReadonlySet<string> = new Set(['setup.chooseReserve', 'restructure.submit', 'cleanup.freezer']);
+const SECRET_ACTIONS: ReadonlySet<string> = new Set(['setup.chooseReserve', 'restructure.submit', 'payday.fire', 'cleanup.freezer']);
 
 /**
  * Simultaneous decisions (base.md §2.7, §4, §8, §10): other players' moves cannot change what they

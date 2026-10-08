@@ -21,6 +21,7 @@ import { readCtx } from '../../core/context.js';
 import { OK, reject, type Check } from '../../core/errors.js';
 import { cardPlace, cardsAtWork, defOf, hasEffect, ownsUnique } from '../../core/cards.js';
 import { contentFor, pipe } from '../../modules/registry.js';
+import { rulesBefore } from '../../core/rulesVersion.js';
 
 /** Sub-steps for this player (base order; Ketchup lobbyists only when that module is on). */
 export function stagesFor(s: GameState, player: PlayerId, ctx: EngineCtx = readCtx(s)): WorkStage[] {
@@ -272,9 +273,75 @@ export function reachableTargets(s: GameState, _p: PlayerState | undefined, from
   return out;
 }
 
+/** How many copies of a card are at work (module `cardUses`, e.g. Night Shift doubles salary-free cards). */
+export function copiesOf(s: GameState, player: string, uid: Uid): number {
+  const p = s.players[player];
+  const card = p?.employees[uid];
+  const def = card ? contentFor(s.config.modules).employees[card.employeeId] : undefined;
+  const base = baseUses(def);
+  if (!card || !def || base <= 0 || !s.config.modules.length) return 1;
+  const out = pipe(readCtx(s), 'cardUses', { uid, uses: base }, { player, card, def });
+  return Math.max(1, Math.floor(out.uses / base));
+}
+
+/**
+ * Stacked training as one action (questions.md Q-W10): with "First to pay $20" (stackTraining)
+ * several trainers may put their steps on one card in a single `work.train`, and only the final
+ * card must be available (DLX p16; designer: "Only the final personnel card has to be available",
+ * non-existing cards may be "borrowed" within the turn). LEGACY(v3): not available.
+ */
+export function stackedTraining(s: GameState, player: PlayerId): boolean {
+  if (rulesBefore(s, 4)) return false;
+  return hasEffect(s, contentFor(s.config.modules), player, 'stackTraining').length > 0;
+}
+
+/** Training cards at work with uses left: how many steps each may put on one card. */
+function trainersAtWork(s: GameState, p: PlayerState, uses: Record<Uid, number>, stacking: boolean): { uid: Uid; left: number; cap: number }[] {
+  const content = contentFor(s.config.modules);
+  return Object.keys(uses).flatMap((uid) => {
+    const a = defOf(content, p, uid)?.ability;
+    if (a?.kind !== 'train' || (uses[uid] ?? 0) <= 0 || cardPlace(p, uid) !== 'work') return [];
+    // A card working as several copies (Night Shift) counts as that many trainers when training stacks.
+    return [{ uid, left: uses[uid] ?? 0, cap: a.maxStepsSameCard * (stacking ? copiesOf(s, p.id, uid) : 1) }];
+  });
+}
+
+/**
+ * Can stacked trainers cover every card's steps? Card j needs `lengths[j]` steps; a trainer puts at
+ * most `cap` on one card and `left` in all (a small bipartite flow, augmented one step at a time).
+ */
+function stepsFit(lengths: number[], trainers: { left: number; cap: number }[]): boolean {
+  const flow = lengths.map(() => trainers.map(() => 0));
+  const used = trainers.map(() => 0);
+  const augment = (j: number, seen: Set<number>): boolean => {
+    const row = flow[j] as number[];
+    for (let t = 0; t < trainers.length; t++) {
+      const tr = trainers[t] as { left: number; cap: number };
+      if (seen.has(t) || (row[t] ?? 0) >= tr.cap) continue;
+      seen.add(t);
+      if ((used[t] ?? 0) < tr.left) {
+        row[t] = (row[t] ?? 0) + 1;
+        used[t] = (used[t] ?? 0) + 1;
+        return true;
+      }
+      for (let k = 0; k < lengths.length; k++) {
+        const other = flow[k] as number[];
+        if ((other[t] ?? 0) > 0 && augment(k, seen)) {
+          other[t] = (other[t] ?? 0) - 1;
+          row[t] = (row[t] ?? 0) + 1;
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  for (let j = 0; j < lengths.length; j++) for (let n = 0; n < (lengths[j] ?? 0); n++) if (!augment(j, new Set())) return false;
+  return true;
+}
+
 /**
  * Can a card hired from an empty pile still be trained this turn? (Some training card at work
- * has uses left and reaches an available, allowed target.)
+ * has uses left and reaches an available, allowed target; with stacked training, several together.)
  */
 export function phantomTrainable(s: GameState, turn: TurnState, uid: Uid): boolean {
   const p = s.players[turn.player];
@@ -282,11 +349,16 @@ export function phantomTrainable(s: GameState, turn: TurnState, uid: Uid): boole
   if (!p || !card) return false;
   const content = contentFor(s.config.modules);
   const noCfo = hasEffect(s, content, turn.player, 'ceoIsCfo').length > 0;
+  const allowed = (to: EmployeeId) => (s.supply[to] ?? 0) > 0 && !ownsUnique(content, p, to, uid) && !(noCfo && content.employees[to]?.ability.kind === 'cfo');
+  if (stackedTraining(s, turn.player)) {
+    const reach = trainersAtWork(s, p, turn.uses, true).reduce((n, t) => n + Math.min(t.left, t.cap), 0);
+    return reach > 0 && reachableTargets(s, p, card.employeeId, reach).some((t) => allowed(t.to));
+  }
   for (const [tUid, left] of Object.entries(turn.uses)) {
     const a = defOf(content, p, tUid)?.ability;
     if (a?.kind !== 'train' || left <= 0 || cardPlace(p, tUid) !== 'work') continue;
     const reach = reachableTargets(s, p, card.employeeId, Math.min(left, a.maxStepsSameCard));
-    if (reach.some((t) => (s.supply[t.to] ?? 0) > 0 && !ownsUnique(content, p, t.to, uid) && !(noCfo && content.employees[t.to]?.ability.kind === 'cfo'))) return true;
+    if (reach.some((t) => allowed(t.to))) return true;
   }
   return false;
 }
@@ -309,6 +381,35 @@ export function emptyPileHiresFeasible(s: GameState, turn: TurnState, extra: Emp
     ...extra.map((employeeId) => ({ employeeId })),
   ];
   if (!cards.length) return true;
+  if (stackedTraining(s, turn.player)) {
+    // Stacked training (Q-W10): trainers share out their steps; each card needs an available final card.
+    const pool = trainersAtWork(s, p, uses, true);
+    const reach = pool.reduce((n, t) => n + Math.min(t.left, t.cap), 0);
+    const stock: Partial<Record<EmployeeId, number>> = { ...supply };
+    const taken1x = new Set<EmployeeId>();
+    const lengths: number[] = [];
+    const place = (i: number): boolean => {
+      const card = cards[i];
+      if (!card) return true;
+      for (const target of reachableTargets(s, p, card.employeeId, reach)) {
+        const def = content.employees[target.to];
+        if ((stock[target.to] ?? 0) <= 0 || ownsUnique(content, p, target.to, card.uid) || (def?.unique && taken1x.has(target.to))) continue;
+        if (noCfo && def?.ability.kind === 'cfo') continue;
+        lengths.push(target.path.length);
+        if (stepsFit(lengths, pool)) {
+          stock[target.to] = (stock[target.to] ?? 0) - 1;
+          if (def?.unique) taken1x.add(target.to);
+          const ok = place(i + 1);
+          stock[target.to] = (stock[target.to] ?? 0) + 1;
+          if (def?.unique) taken1x.delete(target.to);
+          if (ok) return true;
+        }
+        lengths.pop();
+      }
+      return false;
+    };
+    return place(0);
+  }
   const trainers = Object.keys(uses).flatMap((tUid) => {
     const a = defOf(content, p, tUid)?.ability;
     return a?.kind === 'train' && (uses[tUid] ?? 0) > 0 && cardPlace(p, tUid) === 'work' ? [{ uid: tUid, cap: a.maxStepsSameCard }] : [];

@@ -2,7 +2,7 @@
  * Binds one transport to the store: handshake, session token, resync on reconnect, room and game
  * commands. UI components call these functions and never touch a transport directly.
  */
-import { ENGINE_VERSION, type Action, type EngineApi, type GameConfig, type GameState, type PlayerId, type Viewer } from '@fcm/engine';
+import { type Action, type EngineApi, type GameConfig, type GameState, type PlayerId, type Viewer } from '@fcm/engine';
 import { PROTOCOL_VERSION, type BotLevel, type ClientMessage, type RoomConfig, type ServerMessage } from '@fcm/protocol';
 import {
   clientId,
@@ -10,9 +10,11 @@ import {
   handleServerMessage,
   handoff,
   localBots,
+  dropPending,
   me,
   mode,
   pending,
+  pendingActions,
   pushToast,
   reconnectAttempt,
   resetStore,
@@ -20,8 +22,10 @@ import {
   room,
   seq,
   settings,
+  trackPending,
   type Mode,
 } from '../state/store.js';
+import { CLIENT_VERSION } from '../state/buildInfo.js';
 import { clearHotseat, forgetRoom, rememberRoom, saveHotseat, type SavedHotseat } from '../state/recentGames.js';
 import { LocalTransport, type ActResult } from './localTransport.js';
 import { workerBotRunner } from './botRunner.js';
@@ -33,6 +37,10 @@ export const SESSION_KEY = 'fcm.session';
 let transport: Transport | null = null;
 let unsubs: (() => void)[] = [];
 let actionCounter = 0;
+/** An online action unanswered this long is given up (the UI unblocks and the game resyncs). */
+const PENDING_TIMEOUT_MS = 15_000;
+/** Reconnected with actions still pending: resend them once the snapshot shows they were not applied. */
+let resendAfterSnapshot = false;
 /** Room to join once the handshake completes (deep link #/room/:id). */
 let wantRoom: { id: string; spectate: boolean } | null = null;
 /** Last room we asked to join (to forget it from "Your games" if the server no longer has it). */
@@ -69,7 +77,10 @@ function attach(t: Transport, m: Mode): void {
     }),
     t.onMessage((incoming) => {
       let msg = incoming;
+      // Another build on the server: stop reconnecting; the "Reload" screen takes over.
+      if (msg.t === 'error' && (msg.code === 'RELOAD_REQUIRED' || msg.code === 'PROTOCOL_MISMATCH') && t.kind === 'socket') queueMicrotask(() => t.close());
       if (msg.t === 'welcome') {
+        resendAfterSnapshot = Object.keys(pending.value).length > 0;
         saveToken(msg.sessionToken);
         const want = wantRoom;
         wantRoom = null;
@@ -90,6 +101,10 @@ function attach(t: Transport, m: Mode): void {
       if (t.kind === 'socket') trackRoom(msg);
       const r = handleServerMessage(msg);
       if (r.resync) send({ t: 'game.resync' });
+      if (msg.t === 'game.snapshot' && resendAfterSnapshot) {
+        resendAfterSnapshot = false;
+        resendPending(msg.seq);
+      }
       continueChain(msg);
     }),
   );
@@ -119,11 +134,23 @@ function detach(): void {
 function hello(): void {
   const token = loadToken();
   const name = settings.value.name.trim();
-  send({ t: 'hello', clientVersion: ENGINE_VERSION, protocol: PROTOCOL_VERSION, ...(token ? { sessionToken: token } : {}), ...(name ? { name } : {}) });
+  send({ t: 'hello', clientVersion: CLIENT_VERSION, protocol: PROTOCOL_VERSION, ...(token ? { sessionToken: token } : {}), ...(name ? { name } : {}) });
 }
 
 function send(msg: ClientMessage): void {
   transport?.send(msg);
+}
+
+/**
+ * After a reconnect, actions still pending were sent at the snapshot's seq (older ones were just
+ * dropped by the store): the server never applied them, so they go again with the same id (the
+ * server never applies an id twice).
+ */
+function resendPending(snapSeq: number): void {
+  for (const p of pendingActions()) {
+    if (p.expectedSeq === snapSeq) send({ t: 'game.action', id: p.id, expectedSeq: p.expectedSeq, action: p.action });
+    else dropPending([p.id]);
+  }
 }
 
 export const displayName = (): string => settings.value.name.trim().slice(0, 24) || 'Player';
@@ -214,8 +241,18 @@ export function act(action: Action): string | null {
   }
   const id = `${clientId.value ?? 'c'}-${Date.now().toString(36)}-${(actionCounter++).toString(36)}`;
   const a = { ...action, playerId: who } as Action;
-  pending.value = { ...pending.value, [id]: a };
+  trackPending(id, a, seq.value);
   send({ t: 'game.action', id, expectedSeq: seq.value, action: a });
+  // Safety net: an answer lost on the way must not leave the action buttons disabled for good.
+  if (transport?.kind === 'socket') {
+    const t = transport;
+    setTimeout(() => {
+      if (transport !== t || !(id in pending.value)) return;
+      chains.delete(id);
+      dropPending([id]);
+      send({ t: 'game.resync' });
+    }, PENDING_TIMEOUT_MS);
+  }
   return id;
 }
 
@@ -247,6 +284,9 @@ export const resync = () => send({ t: 'game.resync' });
 
 // --- Hot-seat and dev -------------------------------------------------------------
 
+/** The 3D board is playing a timeline (three/index.ts sets `data-anim` on its canvas): local bots wait for it. */
+const boardBusy = (): boolean => typeof document !== 'undefined' && document.querySelector('canvas[data-anim="playing"]') !== null;
+
 /** Hot-seat game; `bots` marks seats played by bots (computed in a Web Worker). `prelude` replays a saved game. */
 export function startHotseat(engine: EngineApi, config: GameConfig, seed?: number, bots: Record<PlayerId, BotLevel> = {}, prelude: Action[] = []): void {
   const withBots = Object.keys(bots).length > 0;
@@ -262,7 +302,7 @@ export function startHotseat(engine: EngineApi, config: GameConfig, seed?: numbe
     config,
     ...(seed !== undefined ? { seed } : {}),
     handoff: true,
-    ...(withBots ? { bots, botRunner: workerBotRunner() } : {}),
+    ...(withBots ? { bots, botRunner: workerBotRunner(), boardBusy } : {}),
     ...(prelude.length ? { prelude } : {}),
     // Every move is saved (debounced; at once when the page hides) so a reload can resume.
     onChange: () => {
@@ -331,7 +371,7 @@ export function startTutorial(engine: EngineApi, opts: TutorialStart): LocalTran
     undo: false,
     scripted: opts.scripted ?? [],
     prelude: opts.prelude ?? [],
-    ...(withBots ? { bots, botRunner: workerBotRunner(), ...(opts.botDelay !== undefined ? { botDelay: opts.botDelay } : {}) } : {}),
+    ...(withBots ? { bots, botRunner: workerBotRunner(), boardBusy, ...(opts.botDelay !== undefined ? { botDelay: opts.botDelay } : {}) } : {}),
   });
   attach(t, 'tutorial');
   localBots.value = { ...bots };

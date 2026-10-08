@@ -82,7 +82,20 @@ describe('edge pieces on a grown board', () => {
     expect(edgeGap(b, 'W', 2)).toBe(0);
     expect(edgeGap(b, 'N', 7)).toBe(0); // a fully empty column keeps the board edge
     expect(freewayAnchor(b, 'E', 2).x).toBe(5);
+    // Lengthwise: centred one square out, along rows 1-3.
+    expect(freewayAnchor(b, 'E', 1, true)).toMatchObject({ x: 5.5, z: 2.5 });
     const plane = campaignAnchor(b, { kind: 'airplane', side: 'E', offset: 1, width: 3 });
     expect(plane.x).toBeCloseTo(5 + 1.7);
+  });
+});
+
+describe('freeway signs (M096)', () => {
+  it('every freeway points the way to the rural area', async () => {
+    const { freewayTurn } = await import('../src/three/layout.js');
+    const b = (sides: string[]) => ({ w: 10, h: 10, entities: Object.fromEntries(sides.map((side, i) => [`f${i}`, { kind: 'freeway', id: `f${i}`, side, offset: 2 }])) }) as never;
+    expect(freewayTurn(b(['E']), 'E')).toBe('ahead');
+    expect(freewayTurn(b(['E', 'N']), 'N')).toBe('right');
+    expect(freewayTurn(b(['E', 'S']), 'S')).toBe('left');
+    expect(freewayTurn(b(['E', 'W']), 'W')).toBe('right');
   });
 });

@@ -15,7 +15,7 @@
  *   an arrow points at gets a roadworks marker (+1 distance for every road route, Q-K2), unless
  *   it already has one. New roads connect to every road square they touch (map.md §2).
  * - Parks: adjacent to a road square within road range 2 of `from` (same measure as campaigns).
- *   Price effect (×2, ×3 with a garden) lives in `saleRevenue` via `houseMultiplier`.
+ *   Price effect (×2, ×3 with a garden) lives in `saleRevenue` (shared `parkSaleRevenue`; New Districts applies it without Lobbyists).
  * - Cleanup: roadworks removed, roads flipped to normal roads.
  * - "First Lobbyist Used" (module milestone): the first player(s) to place a road or park add one
  *   tile chosen from the leftover tiles, orthogonally adjacent to the map, any rotation (Q-K8), not
@@ -23,7 +23,7 @@
  */
 import type { LobbyistPlaceMapTile, LobbyistPlacePark, LobbyistPlaceRoad, RouteStart } from '../../types/actions.js';
 import type { Direction, MilestoneDef, Rotation, TileDef, TileTemplateId } from '../../types/content.js';
-import type { GameModule, HookContext, SaleBreakdown } from '../../types/module.js';
+import type { GameModule, HookContext } from '../../types/module.js';
 import type { Cell, GameState, PlayerId } from '../../types/state.js';
 import type { LegalAction, Placement } from '../../types/view.js';
 import { OK, reject } from '../../core/errors.js';
@@ -34,7 +34,7 @@ import { distanceField, distanceToFootprint, fieldAt, playerRouteStarts, roadAt,
 import { awardMilestone } from '../../rules/milestones.js';
 import { advanceTo, canAct, cardCheck, spend, stageCheck, stageIndex, stagesFor } from '../../rules/working/stages.js';
 import type { EngineCtx } from '../../core/context.js';
-import { headChoice, houseMultiplier, isRejected, kcard, moduleState, pushChoice, registerChoiceKind, resolveHead } from './shared.js';
+import { headChoice, isRejected, parkSaleRevenue, kcard, moduleState, pushChoice, registerChoiceKind, resolveHead } from './shared.js';
 
 const ID = 'ketchup:lobbyists' as const;
 
@@ -341,7 +341,8 @@ export function mapTileProblem(s: GameState, row: number, col: number, rotation:
       for (let i = p.offset; i < p.offset + p.width; i++) if (exposed(i)) return 'An airplane is in the way';
     }
     for (const e of Object.values(b.entities)) {
-      if (e.kind === 'freeway' && e.side === side && exposed(e.offset)) return 'A freeway is in the way';
+      // A lengthwise freeway (rules v4) lies along 3 lines of the edge, end-on along 1.
+      if (e.kind === 'freeway' && e.side === side && [0, 1, 2].slice(0, e.lengthwise ? 3 : 1).some((k) => exposed(e.offset + k))) return 'A freeway is in the way';
     }
   }
   return null;
@@ -510,13 +511,7 @@ export const LOBBYISTS_MODULE: GameModule = {
       }
       if (changed) relinkRoads(s.board);
     },
-    saleRevenue(bd: SaleBreakdown, ctx, { house, candidate }): SaleBreakdown {
-      const multiplier = houseMultiplier(ctx.state, house);
-      if (multiplier === bd.multiplier) return bd;
-      const lines = bd.lines.map((l) => ({ ...l, each: candidate.unitPrice * multiplier }));
-      const diff = lines.reduce((a, l) => a + l.count * l.each, 0) - bd.lines.reduce((a, l) => a + l.count * l.each, 0);
-      return { ...bd, multiplier, lines, total: bd.total + diff };
-    },
+    saleRevenue: parkSaleRevenue,
     legalActions(list, ctx, { player }) {
       const s = ctx.state;
       const head = s.pending[0];

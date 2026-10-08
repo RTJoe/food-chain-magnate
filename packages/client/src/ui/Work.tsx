@@ -5,7 +5,8 @@ import { employeeName, foodName } from '../state/catalog.js';
 import { cardStage, cardsAtWork, employeeIdOf, employeeSort, hireOptions, STAGE_LABELS, trainableUids, trainOptions, workStages, type TrainOption } from '../state/selectors.js';
 import { readyLabel } from '../state/actions.js';
 import { paydayFigures } from '../state/payday.js';
-import { catalog, legal, me, mode, pending } from '../state/store.js';
+import { catalog, legal, manifest, me, mode, pending } from '../state/store.js';
+import { actionProblem } from '../state/guidance.js';
 import { act, undo } from '../net/session.js';
 import { Button, EmployeeCard, Empty } from './common.js';
 import { FoodIcon, Icon } from './icons.js';
@@ -42,7 +43,7 @@ export function WorkPanel({ view: v, player: p }: { view: GameView; player: Play
   const selStage = selId ? cardStage(c.employees[selId]) : null;
   const selIdx = selStage ? stages.indexOf(selStage) : -1;
 
-  if (sel.action) return <ActionFlow view={v} player={p} legal={sel.action} />;
+  if (sel.action) return <ActionFlow legal={sel.action} />;
 
   return (
     <div class="work">
@@ -59,6 +60,11 @@ export function WorkPanel({ view: v, player: p }: { view: GameView; player: Play
       <p class="muted small">
         {selIdx > now ? `Acting here closes ${stages.slice(now, selIdx).map((s) => STAGE_LABELS[s]).join(' and ')}.` : 'Pick an employee to see what they can do. Sub-steps only move forward: acting in a later one closes the earlier ones.'}
       </p>
+      {turn && turn.player === p.id && turn.mustTrain.length > 0 && (
+        <p class="org-warn" role="alert">
+          {Icon.info({ size: 16 })} You hired {turn.mustTrain.map((u) => employeeName(c, employeeIdOf(p, u) ?? 'ceo')).join(' and ')} from an empty pile: train {turn.mustTrain.length === 1 ? 'it' : 'them'} this turn (DLX p16). End turn comes back once {turn.mustTrain.length === 1 ? 'it is' : 'they are'} trained, or Undo the hire.
+        </p>
+      )}
       <div class="work-cards">
         {cards.map((uid) => {
           const id = employeeIdOf(p, uid);
@@ -323,10 +329,21 @@ function TrainGrid({ view: v, player: p, trainerUid, actions, busy }: { view: Ga
   const maxSteps = Math.min(ability?.kind === 'train' ? ability.maxStepsSameCard : 1, v.turn?.uses[trainerUid] ?? 1);
   const legalTo = new Map<EmployeeId, ReadyLegal>();
   for (const l of byTarget.get(t) ?? []) if (l.action.type === 'work.train') legalTo.set(l.action.toEmployeeId, l);
-  const options = trainOptions(v, c, mine, t, maxSteps);
+  // Stacked training (First to pay $20): other trainers join in, so destinations reach further.
+  const stackedMax = Math.max(0, ...[...legalTo.values()].map((l) => (l.action.type === 'work.train' && l.action.trainers ? (l.action.path?.length ?? 0) : 0)));
+  const options = trainOptions(v, c, mine, t, Math.max(maxSteps, stackedMax));
   const fromId = employeeIdOf(p, t) ?? 'ceo';
   // Engine destinations the client's career table does not list still get a row.
-  const extra = [...legalTo.keys()].filter((id) => !options.some((o) => o.id === id)).map((id) => ({ id, steps: 1, path: [id], ok: true }) as TrainOption);
+  const extra = [...legalTo.entries()]
+    .filter(([id]) => !options.some((o) => o.id === id))
+    .map(([id, l]) => {
+      const path = (l.action.type === 'work.train' && l.action.path) || [id];
+      return { id, steps: path.length, path, ok: true } as TrainOption;
+    });
+  const helpers = (l: ReadyLegal | undefined): string => {
+    const tr = l?.action.type === 'work.train' ? l.action.trainers : undefined;
+    return tr && tr.length > 1 ? ` · with ${tr.slice(1).map((x) => employeeName(c, employeeIdOf(p, x.uid) ?? 'ceo')).join(' + ')}` : '';
+  };
   return (
     <div class="inline-picker">
       <div class="row gap">
@@ -342,7 +359,8 @@ function TrainGrid({ view: v, player: p, trainerUid, actions, busy }: { view: Ga
       <div class="train-options">
         {[...options, ...extra].map((o) => {
           const l = legalTo.get(o.id);
-          const reason = l ? undefined : (o.reason ?? (o.steps > maxSteps ? 'Too many steps' : 'Not allowed now'));
+          // The engine's own reason (e.g. First to have $100: no CFO, DLX p34) before the generic one.
+          const reason = l ? undefined : (o.reason ?? (o.steps > maxSteps ? 'Too many steps' : (mine && actionProblem(v, mine, { type: 'work.train', playerId: mine, trainerUid, targetUid: t, toEmployeeId: o.id, path: o.path }, manifest.value)) || 'Not allowed now'));
           const coffee = c.employees[o.id]?.category === 'coffee';
           return (
             <button
@@ -368,6 +386,7 @@ function TrainGrid({ view: v, player: p, trainerUid, actions, busy }: { view: Ga
               </span>
               <span class="muted small">
                 {o.steps} step{o.steps > 1 ? 's' : ''} · {v.supply[o.id] ?? 0} left
+                {helpers(l)}
                 {reason ? ` · ${reason}` : ''}
                 {coffee && l ? ' · places a coffee shop' : ''}
               </span>
@@ -379,154 +398,8 @@ function TrainGrid({ view: v, player: p, trainerUid, actions, busy }: { view: Ga
   );
 }
 
-/** Sub-flow for compose/placement actions. */
-function ActionFlow({ view: v, player: p, legal: l }: { view: GameView; player: PlayerState; legal: LegalAction }) {
-  const back = () => (workSelection.value = { cardUid: workSelection.value.cardUid, action: null });
-  if (l.kind === 'placement') return <PlacementFlow legal={l} onDone={resetWorkSelection} onCancel={back} />;
-  if (l.kind === 'compose' && l.cardUid) {
-    if (l.actionType === 'work.recruit') return <HirePicker view={v} cardUid={l.cardUid} onBack={back} />;
-    if (l.actionType === 'work.train') return <TrainPicker view={v} player={p} trainerUid={l.cardUid} onBack={back} />;
-    if (l.actionType === 'work.produce') return <ProducePicker player={p} cardUid={l.cardUid} onBack={back} />;
-  }
-  return (
-    <div class="flow">
-      <div class="flow-head">
-        <h4>{l.label}</h4>
-        <Button size="sm" variant="ghost" icon="x" onClick={back}>
-          Back
-        </Button>
-      </div>
-      <Empty>This action is not supported by the client yet.</Empty>
-    </div>
-  );
-}
-
-function FlowHead({ title, onBack }: { title: string; onBack: () => void }) {
-  return (
-    <div class="flow-head">
-      <h4>{title}</h4>
-      <Button size="sm" variant="ghost" icon="x" onClick={onBack}>
-        Back
-      </Button>
-    </div>
-  );
-}
-
-function HirePicker({ view: v, cardUid, onBack }: { view: GameView; cardUid: Uid; onBack: () => void }) {
-  const mine = me.value;
-  if (!mine) return null;
-  const opts = hireOptions(v, catalog.value, mine);
-  return (
-    <div class="flow">
-      <FlowHead title="Hire an entry-level employee" onBack={onBack} />
-      <p class="muted small">New hires go to the beach: they work from next round, and can be trained this turn.</p>
-      <div class="card-grid">
-        {opts.map((o) => (
-          <EmployeeCard
-            key={o.id}
-            id={o.id}
-            flip={`market:${o.id}`}
-            tutorial={`hire-${o.id}`}
-            compact
-            dimmed={!o.ok}
-            highlight={o.ok}
-            onClick={o.ok ? () => (act({ type: 'work.recruit', playerId: mine, cardUid, employeeId: o.id }), resetWorkSelection()) : undefined}
-            title={o.reason ?? catalog.value.employees[o.id]?.text}
-            badge={<span class="supply">×{o.supply}</span>}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function TrainPicker({ view: v, player: p, trainerUid, onBack }: { view: GameView; player: PlayerState; trainerUid: Uid; onBack: () => void }) {
-  const mine = me.value;
-  const c = catalog.value;
-  const target = useSignal<Uid | null>(null);
-  if (!mine) return null;
-  const trainerId = employeeIdOf(p, trainerUid);
-  const ability = trainerId ? c.employees[trainerId]?.ability : undefined;
-  const maxSteps = Math.min(ability?.kind === 'train' ? ability.maxStepsSameCard : 1, v.turn?.uses[trainerUid] ?? 1);
-  const targets = trainableUids(v, c, mine);
-  return (
-    <div class="flow">
-      <FlowHead title={target.value ? 'Train into…' : 'Train whom?'} onBack={target.value ? () => (target.value = null) : onBack} />
-      {!target.value ? (
-        targets.length ? (
-          <>
-            <p class="muted small">Only cards on the beach can be trained (including this turn’s hires).</p>
-            <div class="card-grid">
-              {targets.map((u) => (
-                <EmployeeCard key={u} id={employeeIdOf(p, u) ?? 'ceo'} flip={`card:${p.id}:${u}`} tutorial={`train-target-${u}`} compact highlight onClick={() => (target.value = u)} />
-              ))}
-            </div>
-          </>
-        ) : (
-          <Empty icon="beach">Nobody on the beach can be trained.</Empty>
-        )
-      ) : (
-        <div class="train-options">
-          {trainOptions(v, c, mine, target.value, maxSteps).map((o) => (
-            <button
-              key={o.id}
-              type="button"
-              class="train-opt"
-              data-tutorial={`train-${o.id}`}
-              disabled={!o.ok}
-              title={o.reason}
-              onClick={() => {
-                act({ type: 'work.train', playerId: mine, trainerUid, targetUid: target.value as Uid, toEmployeeId: o.id, ...(o.steps > 1 ? { path: o.path } : {}) });
-                resetWorkSelection();
-              }}
-            >
-              <span class="train-path">
-                {o.path.map((id, i) => (
-                  <span key={id}>
-                    {i > 0 && Icon.chevronRight({ size: 12 })}
-                    {employeeName(c, id)}
-                  </span>
-                ))}
-              </span>
-              <span class="muted small">
-                {o.steps} step{o.steps > 1 ? 's' : ''}
-                {o.reason ? ` · ${o.reason}` : ''} · {v.supply[o.id] ?? 0} left
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ProducePicker({ player: p, cardUid, onBack }: { player: PlayerState; cardUid: Uid; onBack: () => void }) {
-  const c = catalog.value;
-  const mine = me.value;
-  const id = employeeIdOf(p, cardUid) as EmployeeId | undefined;
-  const ability = id ? c.employees[id]?.ability : undefined;
-  const foods: FoodId[] = ability?.kind === 'produce' ? ability.foods : [];
-  if (!mine) return null;
-  return (
-    <div class="flow">
-      <FlowHead title="What to cook?" onBack={onBack} />
-      <div class="chip-row">
-        {foods.map((f) => (
-          <button
-            key={f}
-            type="button"
-            class="chip chip-food chip-lg"
-            data-tutorial={`produce-${f}`}
-            onClick={() => {
-              act({ type: 'work.produce', playerId: mine, cardUid, food: f });
-              resetWorkSelection();
-            }}
-          >
-            <FoodIcon food={f} size={26} />
-            {ability?.kind === 'produce' ? ability.amount : 1} {foodName(c, f)}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+/** Sub-flow for placement actions (the engine emits no compose actions while Working). */
+function ActionFlow({ legal: l }: { legal: LegalAction }) {
+  if (l.kind !== 'placement') return null;
+  return <PlacementFlow legal={l} onDone={resetWorkSelection} onCancel={() => (workSelection.value = { cardUid: workSelection.value.cardUid, action: null })} />;
 }

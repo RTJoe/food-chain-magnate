@@ -1,5 +1,7 @@
 /** Pure derivations over a `GameView` for the UI. No signals here, so they are easy to test. */
-import { FOODS } from '@fcm/engine';
+import { FOODS, ownsUnique } from '@fcm/engine';
+// The engine's own helpers, not client copies, so the 1x rule and the structure never drift.
+export { cardsAtWork, ownsUnique } from '@fcm/engine';
 import type {
   EmployeeDef,
   EmployeeId,
@@ -70,6 +72,25 @@ export function workStages(view: GameView): WorkStage[] {
 export const bankBreaksToEnd = (v: Pick<GameView, 'config'>): number => (v.config.intro ? 1 : 2);
 export const isFinalBreak = (breakNo: number, v: Pick<GameView, 'config'>): boolean => breakNo >= bankBreaksToEnd(v);
 
+/**
+ * One sentence for a bank break, without the leading "The bank breaks". Final break: the game
+ * ends after this Dinnertime, or after the next one when it broke during Marketing (KX p18). First
+ * break: the reserve refill and the new CEO slots, or the new base price with Reserve Prices (KX p28).
+ */
+export function bankBreakText(b: { breakNo: number; added: number; ceoSlots: number; basePrice: number }, v: Pick<GameView, 'config'>, phase?: string | null): string {
+  if (isFinalBreak(b.breakNo, v)) {
+    const again = b.breakNo === 2 ? ' a second time' : '';
+    return phase === 'marketing'
+      ? `${again} during Marketing: play continues until the next Dinnertime, then the game ends`
+      : `${again}: the game ends after this Dinnertime (no Payday)`;
+  }
+  const after = v.config.modules.includes('ketchup:reservePrices' as GameView['config']['modules'][number]) ? `Base price is now $${b.basePrice}` : `CEO slots are now ${b.ceoSlots}`;
+  return `! Reserves add $${b.added}. ${after}`;
+}
+
+/** True when the game ended with every chain bankrupt: nobody wins (base.md §12). */
+export const noWinner = (v: Pick<GameView, 'phase'>): boolean => v.phase.kind === 'gameOver' && v.phase.reason === 'allBankrupt';
+
 export const STAGE_LABELS: Record<WorkStage, string> = {
   recruit: 'Hire',
   train: 'Train',
@@ -114,12 +135,6 @@ export function player(view: GameView, id: PlayerId | null | undefined): PlayerS
   return id ? view.players[id] : undefined;
 }
 
-/** Cards in the structure: CEO, CEO slots, then each manager's reports. */
-export function cardsAtWork(p: PlayerState): Uid[] {
-  const s = p.structure;
-  return [s.ceo, ...s.ceoSubs, ...s.ceoSubs.flatMap((m) => s.managerSubs[m] ?? [])];
-}
-
 export const busyUids = (p: PlayerState): Uid[] => Object.keys(p.busy);
 
 /** Cards a player may put in their structure during Restructuring: everything but the CEO and busy marketeers. */
@@ -132,28 +147,10 @@ export function employeeIdOf(p: PlayerState, uid: Uid): EmployeeId | undefined {
   return p.employees[uid]?.employeeId;
 }
 
-/** Owned employee ids (beach and busy included), for the 1x rule. */
-export function ownedIds(p: PlayerState): Set<string> {
-  return new Set(Object.values(p.employees).map((c) => c.employeeId));
-}
-
-function uniqueKey(c: Catalog, id: EmployeeId): string {
-  return c.employees[id]?.uniqueGroup ?? id;
-}
-
-export function ownsUnique(c: Catalog, p: PlayerState, id: EmployeeId): boolean {
-  const def = c.employees[id];
-  if (!def?.unique) return false;
-  const key = uniqueKey(c, id);
-  return Object.values(p.employees).some((o) => c.employees[o.employeeId]?.unique && uniqueKey(c, o.employeeId) === key);
-}
-
 export function foodList(counts: FoodCounts | undefined): [FoodId, number][] {
   if (!counts) return [];
   return FOODS.map((f) => [f.id, counts[f.id] ?? 0] as [FoodId, number]).filter(([, n]) => n > 0);
 }
-
-export const foodTotal = (counts: FoodCounts | undefined): number => foodList(counts).reduce((n, [, c]) => n + c, 0);
 
 /** Players by cash (desc), ties to earlier turn order (base.md §12). */
 export function standings(view: GameView): PlayerId[] {
@@ -299,16 +296,17 @@ export interface MilestoneRow {
   id: MilestoneId;
   claimedBy: PlayerId[];
   removed: boolean;
+  /** `me` can still claim it: not gone, not theirs, and unclaimed or first claimed this round (DLX p11). */
   available: boolean;
   removeAfterRound: number | null;
 }
 
-export function milestoneRows(view: GameView): MilestoneRow[] {
+export function milestoneRows(view: GameView, me: PlayerId | null = null): MilestoneRow[] {
   return (Object.entries(view.milestones) as [MilestoneId, NonNullable<GameView['milestones'][MilestoneId]>][]).map(([id, m]) => ({
     id,
     claimedBy: m.claimedBy,
     removed: m.removed,
-    available: !m.removed && m.claimedBy.length === 0,
+    available: !m.removed && !(me && m.claimedBy.includes(me)) && (m.claimedBy.length === 0 || (me !== null && (m.claimedRound === null || m.claimedRound === view.round))),
     removeAfterRound: m.removeAfterRound,
   }));
 }

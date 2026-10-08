@@ -16,7 +16,7 @@ import { redactEvents, redactFor } from './core/redact.js';
 import { derivePrompt } from './core/prompt.js';
 import { replay } from './core/replay.js';
 import { allModules, manifestOf } from './modules/registry.js';
-import { campaignReach, houseCellsReach, houseOutlook, placementProblem, rangeOverlay } from './rules/outlook.js';
+import { campaignReach, houseCapacities, houseCellsReach, houseOutlook, placementProblem, rangeOverlay } from './rules/outlook.js';
 import { enableTutorial as enableTutorialWith, type EnableTutorialOptions } from './modules/tutorial.js';
 import { makeCtx } from './core/context.js';
 import { runUntilInput } from './core/phase.js';
@@ -26,12 +26,11 @@ export { BASE_WORK_STAGE_ORDER } from './types/state.js';
 export { createRng, nextUint32, nextFloat, randomInt, shuffle, pick } from './core/rng.js';
 export { allocId, idKind, type IdKind } from './core/ids.js';
 export { clone } from './core/clone.js';
-export { NotImplementedError } from './core/errors.js';
 export { FOODS, DRINKS } from './content/foods.js';
 export { BASE_EMPLOYEES } from './content/employees.js';
 export { registerModule } from './modules/registry.js';
 export { createGame, validateAction, applyAction, legalActions, legalPlacements, redactFor, redactEvents, derivePrompt, replay };
-export { campaignReach, houseCellsReach, houseOutlook, placementProblem, rangeOverlay };
+export { campaignReach, houseCapacities, houseCellsReach, houseOutlook, placementProblem, rangeOverlay };
 
 /**
  * Read-only rules helpers for AI players (@fcm/ai) and tools. Pure functions over a state; they
@@ -39,8 +38,9 @@ export { campaignReach, houseCellsReach, houseOutlook, placementProblem, rangeOv
  */
 export { contentFor } from './modules/registry.js';
 export { cardsAtWork, cardsInHand, cardPlace, ceoSlotsFor, defOf, isManager, managerSlots, ownsUnique } from './core/cards.js';
-export { SALARY, salaryAfterFiring, salaryBreakdown, salariedCards, voluntarilyFireable } from './rules/payday.js';
-export { submissionProblem, isOverfilled } from './rules/restructuring.js';
+export { SALARY, fireDraft, salaryAfterFiring, salaryBreakdown, salariedCards, stillFireable, voluntarilyFireable } from './rules/payday.js';
+export { submissionProblem, isOverfilled, revealedStructure } from './rules/restructuring.js';
+export { openSlots, orderSlotsBonus } from './rules/orderOfBusiness.js';
 export { freezerCapacity, stockOf } from './rules/cleanup.js';
 export { reserveOptions } from './rules/setup.js';
 export { RULES_VERSION, legacyRules, restoredConfig, rulesBefore } from './core/rulesVersion.js';

@@ -7,6 +7,7 @@ Source of truth: `packages/protocol/src/messages.ts` and `room.ts` (TypeScript t
 - WebSocket at `ws://<host>:<port>/ws` (default port 3000). Same origin as the client.
 - Each frame is one JSON object with a string discriminator `t`.
 - `PROTOCOL_VERSION = 1`. The client sends it in `hello`; a mismatch gets `error PROTOCOL_MISMATCH`.
+- `clientVersion` is `ENGINE_VERSION`, plus `+<build id>` when the client bundle knows its build (git SHA). The server answers `error RELOAD_REQUIRED` when the engine version differs, or when both sides know their build id and they differ: an open tab from before a deploy runs old rules. The client stops reconnecting and asks the player to reload; the seat is kept.
 - The protocol validates envelopes only. For `game.action` it checks that `action.type` is a known engine action type and `action.playerId` is a string. The server overwrites `playerId` from the seat. The engine validates everything else and answers with `game.rejected`.
 - Max frame size: 256 KB.
 
@@ -14,7 +15,7 @@ Source of truth: `packages/protocol/src/messages.ts` and `room.ts` (TypeScript t
 
 | `t` | Fields | Who | Notes |
 |---|---|---|---|
-| `hello` | `clientVersion: string`, `protocol: number`, `sessionToken?: string`, `name?: string` | anyone | First message. A known `sessionToken` re-attaches the previous seat (§4.3). |
+| `hello` | `clientVersion: string` (`<engine version>[+<build id>]`), `protocol: number`, `sessionToken?: string`, `name?: string` | anyone | First message. A known `sessionToken` re-attaches the previous seat (§4.3). |
 | `room.create` | `name: string` (1–24), `config?: Partial<RoomConfig>` | anyone | Creates a room; the sender becomes host and joins it. |
 | `room.join` | `roomId: string` (5 chars, `A–Z` minus I/O, `2–9`), `name`, `spectate?: boolean` | anyone | Joins as unseated member, or spectator. |
 | `room.leave` | — | member | Leaves the room (keeps the seat reserved while playing). |
@@ -37,14 +38,15 @@ Source of truth: `packages/protocol/src/messages.ts` and `room.ts` (TypeScript t
 | `t` | Fields | Notes |
 |---|---|---|
 | `welcome` | `clientId`, `sessionToken`, `serverVersion` (`0.1.0`, or `0.1.0+<git sha>` when the build id is known), `protocol`, `room: RoomInfo \| null` | Reply to `hello`. Store `sessionToken` in `localStorage['fcm.session']`. |
-| `error` | `code: ErrorCode`, `message`, `ref?` | Non-game errors. Codes: `BAD_MESSAGE`, `PROTOCOL_MISMATCH`, `NOT_IN_ROOM`, `ROOM_NOT_FOUND`, `ROOM_FULL`, `SEAT_TAKEN`, `NOT_HOST`, `NOT_SEATED`, `GAME_NOT_STARTED`, `CANNOT_START`, `RATE_LIMITED` (also after too many `room.join` misses on one connection), `NOT_IMPLEMENTED`, `INTERNAL`. |
+| `error` | `code: ErrorCode`, `message`, `ref?` | Non-game errors. Codes: `BAD_MESSAGE`, `PROTOCOL_MISMATCH`, `RELOAD_REQUIRED`, `NOT_IN_ROOM`, `ROOM_NOT_FOUND`, `ROOM_FULL`, `SEAT_TAKEN`, `NOT_HOST`, `NOT_SEATED`, `GAME_NOT_STARTED`, `CANNOT_START`, `RATE_LIMITED` (also after too many `room.join` misses on one connection), `NOT_IMPLEMENTED`, `INTERNAL`. |
 | `pong` | `ts` (echo), `serverTs` | |
 | `room.update` | `room: RoomInfo` | Any lobby/seat/connection change. |
 | `game.snapshot` | `seq`, `view: GameView`, `manifest: ModuleManifest[]`, `me: PlayerId \| null` | On start, join, reconnect, resync. Full redacted view. |
 | `game.applied` | `seq`, `actionId: string \| null`, `action`, `events: GameEvent[]`, `view` | After every applied action, per viewer (events and view redacted for that viewer). `actionId` is set only for the sender. |
 | `game.rejected` | `id` (the action id), `code` (engine `RejectCode`, `INVALID_PAYLOAD` or `INTERNAL`), `message` | Only to the sender. |
 | `game.undone` | `seq`, `view`, `by: PlayerId` | Game rolled back to `seq`. |
-| `chat` | `from: { clientId, name, seat \| null }`, `text`, `ts` | |
+| `chat` | `from: { clientId, name, seat \| null }`, `text`, `ts` | To every connected member. Kept in the room's history. |
+| `chat.history` | `lines: { from, text, ts }[]` | The room's last 100 chat messages, oldest first, after `welcome` (re-attached to a room) and after `room.join`. Persisted with the room, so it survives reloads and restarts. Replaces the client's chat list. |
 
 ## Shared types
 

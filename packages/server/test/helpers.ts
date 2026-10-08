@@ -41,12 +41,18 @@ export class TestClient {
     });
   }
 
-  static async connect(server: RunningServer, hello: { name?: string; sessionToken?: string } = {}): Promise<TestClient> {
+  /** An open socket that has not sent hello yet. */
+  static async open(server: RunningServer): Promise<TestClient> {
     const c = new TestClient(`ws://127.0.0.1:${server.port}/ws`);
     await new Promise<void>((res, rej) => {
       c.ws.once('open', () => res());
       c.ws.once('error', rej);
     });
+    return c;
+  }
+
+  static async connect(server: RunningServer, hello: { name?: string; sessionToken?: string } = {}): Promise<TestClient> {
+    const c = await TestClient.open(server);
     c.send({ t: 'hello', clientVersion: 'test', protocol: PROTOCOL_VERSION, ...hello });
     const w = await c.next('welcome');
     c.clientId = w.clientId;

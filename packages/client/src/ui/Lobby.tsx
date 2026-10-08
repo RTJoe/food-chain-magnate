@@ -1,8 +1,7 @@
 import { useSignal } from '@preact/signals';
-import type { ModuleId, ModuleManifest, OptionField } from '@fcm/engine';
+import type { ModuleManifest, OptionField } from '@fcm/engine';
 import type { BotLevel, RoomConfig, RoomInfo, Seat } from '@fcm/protocol';
 import { availableModules } from '../state/engine.js';
-import { FALLBACK_MODULES } from '../state/fallbackContent.js';
 import { joinUrl, navigate } from '../state/router.js';
 import { amHost, clientId, connection, mySeat, room, roomError, settings, updateSettings } from '../state/store.js';
 import { addBot, displayName, joinRoom, kick, leaveRoom, removeBot, setReady, setRoomConfig, sit, stand, startGame, startOnline } from '../net/session.js';
@@ -11,11 +10,11 @@ import { Icon, Logo } from './icons.js';
 import { QrCode } from './QrCode.js';
 import { ChatBox } from './Chat.js';
 import { BOT_LEVELS, BotBadge } from './bots.js';
+import { applyScenario, introIdle, lobbyistsNeedDistricts, ND, SCENARIOS, scenarioOf, toggleModule, withRequiredModules } from '../state/lobbySettings.js';
 
-/** Modules offered in the lobby: the engine's list when it has expansion modules, else the fallback list. */
+/** Modules offered in the lobby: the engine's expansion modules. */
 export function lobbyModules(): ModuleManifest[] {
-  const list = (availableModules() ?? []).filter((m) => m.id !== 'base');
-  return list.length ? list : [...FALLBACK_MODULES];
+  return availableModules().filter((m) => m.id !== 'base');
 }
 
 export function Lobby({ roomId }: { roomId: string }) {
@@ -154,13 +153,17 @@ function LobbyRoom({ room: r }: { room: RoomInfo }) {
           <div class="section-head">
             <h2>Seats</h2>
             <span class="muted small">
-              {seated.length}/{r.config.seatCount} seated · pick a seat to pick your colour
+              {seated.length}/{r.config.seatCount} seated · colours go to filled seats in seat order
             </span>
           </div>
           <ul class="seat-list">
-            {r.seats.slice(0, r.config.seatCount).map((s) => (
-              <SeatRow key={s.index} seat={s} room={r} mine={seat?.index === s.index} host={host} />
-            ))}
+            {r.seats.slice(0, r.config.seatCount).map((s) => {
+              // The game deals colours (and chains) to the filled seats in order (session room.ts),
+              // so show each filled seat the colour it will play.
+              const rank = seated.indexOf(s);
+              const color = rank >= 0 ? (r.seats[rank]?.color ?? s.color) : s.color;
+              return <SeatRow key={s.index} seat={{ ...s, color }} room={r} mine={seat?.index === s.index} host={host} />;
+            })}
           </ul>
           <div class="seat-me">
             {seat ? (
@@ -283,30 +286,6 @@ function SeatRow({ seat: s, room: r, mine, host }: { seat: Seat; room: RoomInfo;
   );
 }
 
-/** Applies a module toggle with `requires`/`conflicts` (sixPlayers needs newDistricts; hardChoices vs newMilestones). */
-export function toggleModule(cfg: RoomConfig, mods: readonly ModuleManifest[], id: ModuleId, on: boolean): RoomConfig {
-  const set = new Set(cfg.modules);
-  const byId = new Map(mods.map((m) => [m.id, m]));
-  if (on) {
-    const add = (m: ModuleId) => {
-      if (set.has(m)) return;
-      set.add(m);
-      for (const c of byId.get(m)?.conflicts ?? []) set.delete(c);
-      for (const r of byId.get(m)?.requires ?? []) add(r);
-    };
-    add(id);
-  } else {
-    const drop = (m: ModuleId) => {
-      set.delete(m);
-      for (const other of mods) if (set.has(other.id) && other.requires.includes(m)) drop(other.id);
-    };
-    drop(id);
-  }
-  let seatCount = cfg.seatCount;
-  if (!set.has('ketchup:sixPlayers') && seatCount > 5) seatCount = 5;
-  return { ...cfg, modules: mods.map((m) => m.id).filter((m) => set.has(m)), seatCount };
-}
-
 /** Player count, intro game and modules. Used by the online lobby and the hot-seat setup. */
 export function GameSettings({ config: cfg, editable, onChange }: { config: RoomConfig; editable: boolean; onChange: (c: RoomConfig) => void }) {
   const mods = lobbyModules();
@@ -326,7 +305,7 @@ export function GameSettings({ config: cfg, editable, onChange }: { config: Room
           onChange={(n) => {
             let next = { ...cfg, seatCount: n };
             if (n === 6 && !six) next = { ...toggleModule(cfg, mods, 'ketchup:sixPlayers', true), seatCount: 6 };
-            update(next);
+            update(withRequiredModules(next, mods));
           }}
           options={[2, 3, 4, 5, 6].map((n) => ({ value: n, label: String(n), disabled: !editable }))}
         />
@@ -336,7 +315,7 @@ export function GameSettings({ config: cfg, editable, onChange }: { config: Room
         disabled={!editable}
         onChange={(b) => update({ ...cfg, intro: b, introMilestones: b ? cfg.introMilestones : false })}
         label="Intro game"
-        description="No reserve cards and no salaries; the game ends when the bank first breaks."
+        description="No reserve cards, milestones or salaries; $75 per player in the bank; all three drink supplier types on the map; the game ends when the bank first breaks."
       />
       {cfg.intro && (
         <Toggle
@@ -348,15 +327,32 @@ export function GameSettings({ config: cfg, editable, onChange }: { config: Room
         />
       )}
       <h3 class="subhead">Expansion modules</h3>
+      {mods.some((m) => m.id === ND) && (
+        <label class="field">
+          <span class="field-label">Scenario (Ketchup rulebook p2)</span>
+          <select class="input" disabled={!editable} value={scenarioOf(cfg)} onChange={(e) => update(applyScenario(cfg, mods, (e.currentTarget as HTMLSelectElement).value))}>
+            <option value="">Custom</option>
+            {SCENARIOS.map((sc) => (
+              <option key={sc.id} value={sc.id}>
+                {sc.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <ul class="module-list">
         {mods.map((m) => {
           const on = cfg.modules.includes(m.id);
           // Skip "Needs …" when the module text already says what it requires.
           const needs = m.requires.length && !/\brequires\b/i.test(m.description) ? `Needs ${m.requires.map((x) => mods.find((y) => y.id === x)?.name ?? x).join(', ')}. ` : '';
           const clash = m.conflicts.length ? `Not with ${m.conflicts.map((x) => mods.find((y) => y.id === x)?.name ?? x).join(', ')}.` : '';
+          const idle = introIdle(cfg, m.id);
+          // KX p15: Lobbyists at 5+ players keeps New Districts on.
+          const held = m.id === ND && on && lobbyistsNeedDistricts(cfg);
+          const note = held ? ' Needed by Lobbyists at 5+ players.' : m.id === 'ketchup:lobbyists' && cfg.seatCount >= 5 ? ' Adds New Districts at 5+ players.' : '';
           return (
             <li key={m.id} class={`module ${on ? 'is-on' : ''}`}>
-              <Toggle checked={on} disabled={!editable} onChange={(b) => update(toggleModule(cfg, mods, m.id, b))} label={m.name} description={`${m.description} ${needs}${clash}`.trim()} />
+              <Toggle checked={on && !idle} disabled={!editable || Boolean(idle) || held} onChange={(b) => update(toggleModule(cfg, mods, m.id, b))} label={m.name} description={`${m.description} ${needs}${clash}${note}${idle ? ` ${idle}` : ''}`.trim()} />
               {on && Object.keys(m.options).length > 0 && <ModuleOptions module={m} cfg={cfg} editable={editable} onChange={update} />}
             </li>
           );

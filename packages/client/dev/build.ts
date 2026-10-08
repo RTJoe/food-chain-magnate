@@ -222,6 +222,7 @@ const SCENARIOS: Record<string, Scenario> = {
     return { next, events: [{ type: 'entityRemoved', entityId: e.id, kind: e.kind }] };
   },
   'Freeway placed': (v) => entity(v, (next, id) => ({ kind: 'freeway', id, owner: firstPlayer(next), side: 'E', offset: 2, tile: next.board.tiles[0]!.id })),
+  'Freeway placed (lengthwise)': (v) => entity(v, (next, id) => ({ kind: 'freeway', id, owner: firstPlayer(next), side: 'S', offset: 1, lengthwise: true, tile: next.board.tiles[0]!.id })),
   'Map tile added': (v) => {
     // Pretend the bottom-right tile was just added: prev = the view without it.
     const t = [...v.board.tiles].sort((a, b) => b.row - a.row || b.col - a.col)[0];

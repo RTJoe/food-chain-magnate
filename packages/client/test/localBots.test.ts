@@ -133,4 +133,38 @@ describe('LocalTransport bots', () => {
     const last = msgs.filter((m) => m.t === 'game.applied').pop();
     expect(last?.t === 'game.applied' && last.action.playerId).toBe(first);
   });
+
+  it('a bot move waits while the board animates (M176)', async () => {
+    let busy = true;
+    const t = new LocalTransport({ engine, config: config(2), seed: 3, handoff: false, bots: { p1: 'easy', p2: 'easy' }, botRunner: inlineBotRunner(), botDelay: 0, boardBusy: () => busy });
+    const applied: ServerMessage[] = [];
+    t.onMessage((m) => m.t === 'game.applied' && applied.push(m));
+    t.connect();
+    await new Promise((r) => setTimeout(r, 250));
+    expect(applied).toHaveLength(0);
+    busy = false;
+    await new Promise((r) => setTimeout(r, 250));
+    expect(applied.length).toBeGreaterThan(0);
+    t.close();
+  });
+
+  it('redaction fails closed: an engine error never shows the raw events (M167)', async () => {
+    const leaky = { ...engine, redactEvents: (ev: Parameters<typeof engine.redactEvents>[0], viewer: Parameters<typeof engine.redactEvents>[1]) => {
+      if (viewer !== 'spectator') throw new Error('boom');
+      return engine.redactEvents(ev, viewer);
+    } };
+    const t = new LocalTransport({ engine: leaky, config: config(2), seed: 4, handoff: false });
+    const msgs: ServerMessage[] = [];
+    t.onMessage((m) => msgs.push(m));
+    t.connect();
+    await flush();
+    const snap = msgs.find((m) => m.t === 'game.snapshot');
+    const v = snap && snap.t === 'game.snapshot' ? snap.view : null;
+    const who = t.viewer as string;
+    const action = runBot({ level: 'easy', view: v as GameView, playerId: who, seed: 1, budgetMs: 10 });
+    t.send({ t: 'game.action', id: 'r1', expectedSeq: v?.history.seq ?? 0, action });
+    await flush();
+    const a = msgs.find((m) => m.t === 'game.applied');
+    expect(a && a.t === 'game.applied' ? a.events.filter((e) => e.type === 'reserveChosen' && 'card' in e) : ['missing']).toEqual([]);
+  });
 });

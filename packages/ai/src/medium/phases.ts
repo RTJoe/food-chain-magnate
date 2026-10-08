@@ -3,9 +3,9 @@
  * Cleanup freezer (ai-strategy.md §3.4, §3.7, §3.8).
  */
 import type { Action, FoodCounts, FoodId, ReserveCard, Uid } from '@fcm/engine';
-import { cardsAtWork, freezerCapacity, salaryBreakdown, salariedCards, stockOf, voluntarilyFireable } from '@fcm/engine';
+import { cardsAtWork, fireDraft, freezerCapacity, salaryBreakdown, salariedCards, stockOf, voluntarilyFireable } from '@fcm/engine';
 import { placementsOf, readyOf, type Ctx } from '../shared/ctx.js';
-import { roundsLeftEstimate } from '../shared/facts.js';
+import { roundsLeftEstimate, stallPressure } from '../shared/facts.js';
 import { basePriceModel, houseViews, winProb } from '../shared/market.js';
 import { cardValue } from '../shared/values.js';
 import { chooseArchetype } from './archetype.js';
@@ -123,6 +123,17 @@ export function fireCandidates(c: Ctx, n = 4): Uid[][] {
     if (base.includes(u)) continue;
     if (planned.has(u) ? tight && idle(c, u) : keepValue(c, u, planned) < 5 || rounds < 1.5) base.push(u);
   }
+  // Stalled game: salaried overhead outside the plan that sat on the beach this round only pays
+  // salary back to the bank. Cooks and buyers stay (a card trained this round is on the beach too,
+  // and once it exists the plan no longer lists the shortfall it was trained for).
+  if (stallPressure(c) >= 0.5) {
+    const atWork = new Set(cardsAtWork(p));
+    for (const u of pool) {
+      const kind = c.content.employees[p.employees[u]?.employeeId ?? 'ceo']?.ability.kind;
+      if (kind === 'produce' || kind === 'buyDrinks') continue;
+      if (!base.includes(u) && !atWork.has(u) && !p.busy[u] && !planned.has(u)) base.push(u);
+    }
+  }
   const out: Uid[][] = [base];
   for (let k = 0; k < pool.length && out.length < n; k++) {
     const u = pool[k] as Uid;
@@ -132,8 +143,10 @@ export function fireCandidates(c: Ctx, n = 4): Uid[][] {
 }
 
 export function choosePayday(c: Ctx): Action[] {
-  const fire = fireCandidates(c, 1)[0] ?? [];
   const confirm: Action = { type: 'payday.confirm', playerId: c.me };
+  // Rules v4: a sent firing waits hidden until everyone confirms; the decision is made.
+  if (fireDraft(c.s, c.me).length) return [confirm];
+  const fire = fireCandidates(c, 1)[0] ?? [];
   return fire.length ? [{ type: 'payday.fire', playerId: c.me, uids: fire }, confirm] : [confirm];
 }
 

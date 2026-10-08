@@ -148,7 +148,9 @@ export const lesson04 = defineLesson({
       // Fire the cook (the forced choice), then pay; the UI does both in one tap ("Fire 1 and pay $0").
       repeatSolution: true,
       solution: (ctx) => {
-        const cook = uidsOf(ctx.view, 'p1', 'burger_cook');
+        // A sent firing stays hidden (and the card owned) until both players have decided.
+        const drafted = ctx.view.mine?.fireDraft ?? [];
+        const cook = uidsOf(ctx.view, 'p1', 'burger_cook').filter((u) => !drafted.includes(u));
         if (cook.length) return [{ type: 'payday.fire', playerId: 'p1', uids: cook }];
         return ctx.view.awaiting.players.includes('p1') ? [{ type: 'payday.confirm', playerId: 'p1' }] : [];
       },

@@ -26,6 +26,8 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     sourcemap: true,
+    // Third-party licence notices for every bundled dependency (MIT and friends require them to ship).
+    license: { fileName: 'licenses.txt' },
     // The three.js library is one lazy chunk of ~600 kB minified (~150 kB gzip), loaded only once a
     // game view exists (main.tsx). Everything on the first screen stays well under this limit.
     chunkSizeWarningLimit: 700,

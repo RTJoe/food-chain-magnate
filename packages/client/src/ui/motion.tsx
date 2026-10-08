@@ -25,6 +25,7 @@ import { animationSpeed, skipAnimations } from '../state/interaction.js';
 import { boardPulse, cashClaims, motionBatch, onBeforeMotion, type MotionBatch } from '../state/motion.js';
 import { catalog } from '../state/store.js';
 import { announce } from '../state/announce.js';
+import { isFinalBreak } from '../state/selectors.js';
 
 // ---------------------------------------------------------------------------
 // Timing, reduced motion, Skip
@@ -348,11 +349,17 @@ function effect(e: GameEvent, b: MotionBatch, old: Map<string, Snap>, chip: (p: 
         bank.classList.add('motion-crack');
         setTimeout(() => bank.classList.remove('motion-crack'), ms(1.2));
       }
-      pushBanner({ text: `Bank break ${e.breakNo}`, tone: 'danger', icon: '!' });
+      const final = b.view ? isFinalBreak(e.breakNo, b.view) : false;
+      pushBanner({ text: final ? 'The bank breaks for the last time' : `Bank break ${e.breakNo}`, tone: 'danger', icon: '!' });
       break;
     }
     case 'gameEnded': {
-      const w = b.view?.players[e.ranking[0] ?? ''];
+      // Every chain bankrupt: nobody wins (base.md §12), so no winner banner and no confetti.
+      if (e.winner === null) {
+        pushBanner({ text: 'Game over: no winner', tone: 'danger', icon: '!', hold: 4 });
+        break;
+      }
+      const w = b.view?.players[e.winner ?? e.ranking[0] ?? ''];
       pushBanner({ text: w ? `${w.name} wins!` : 'Game over', tone: 'gold', icon: '🏆', confetti: true, hold: 4 });
       break;
     }

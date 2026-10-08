@@ -3,7 +3,7 @@
  * evaluated and effects applied by rules/milestones.ts and the phase code that reads
  * `PlayerState.milestones`. No copy counts (milestones.md general rule 5).
  */
-import type { MilestoneDef, MilestoneId } from '../types/content.js';
+import type { MilestoneDef } from '../types/content.js';
 
 const m = (def: Omit<MilestoneDef, 'module'>): MilestoneDef => ({ module: 'base', ...def });
 
@@ -122,7 +122,7 @@ export const BASE_MILESTONES: readonly MilestoneDef[] = [
     trigger: { kind: 'startOfDinnertime', condition: 'lowerPrices' },
     effects: [{ kind: 'unitPrice', delta: -1 }],
     timing: 'immediately',
-    text: 'Unit price permanently −$1.',
+    text: 'Item price permanently −$1.',
     rulesRef: 'milestones.md; base.md §7; DLX p28, p35',
   }),
   m({
@@ -171,7 +171,3 @@ export const BASE_MILESTONES: readonly MilestoneDef[] = [
     rulesRef: 'milestones.md; base.md §6.3, §8.5; DLX p29, p34',
   }),
 ];
-
-export const BASE_MILESTONE_BY_ID: Readonly<Partial<Record<MilestoneId, MilestoneDef>>> = Object.fromEntries(
-  BASE_MILESTONES.map((d) => [d.id, d]),
-);

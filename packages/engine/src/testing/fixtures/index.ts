@@ -140,20 +140,20 @@ export function dinnertimeFixture(): GameState {
     .marketeerCampaign('campaign_manager', 'p2-cm', {
       owner: 'p2',
       kind: 'mailbox',
-      number: 7,
+      number: 9,
       goods: ['pizza'],
       placement: { kind: 'board', x: 4, y: 8, w: 1, h: 1 },
       remaining: 2,
-      id: 'cmp-p2-mb7',
+      id: 'cmp-p2-mb9',
     })
     .marketeerCampaign('brand_manager', 'p3-bm', {
       owner: 'p3',
       kind: 'airplane',
-      number: 4,
+      number: 5,
       goods: ['beer'],
       placement: { kind: 'airplane', side: 'S', offset: 5, width: 3 },
       remaining: 3,
-      id: 'cmp-p3-ap4',
+      id: 'cmp-p3-ap5',
     })
     .marketeerCampaign('brand_director', 'p2-bd', {
       owner: 'p2',
@@ -166,8 +166,8 @@ export function dinnertimeFixture(): GameState {
     })
     .demand(1, ['burger', 'burger'], 'p1', 'cmp-p1-bb11')
     .demand(2, ['burger'], 'p1', 'cmp-p1-bb11')
-    .demand(5, ['beer', 'beer', 'lemonade'], 'p3', 'cmp-p3-ap4')
-    .demand(18, ['pizza'], 'p2', 'cmp-p2-mb7')
+    .demand(5, ['beer', 'beer', 'lemonade'], 'p3', 'cmp-p3-ap5')
+    .demand(18, ['pizza'], 'p2', 'cmp-p2-mb9')
     .demand(12, ['lemonade', 'lemonade'], 'p2', 'cmp-p2-rd1')
     .card('p1', 'waitress', 'work', 'p1-w')
     .card('p1', 'pricing_manager', 'work', 'p1-pm')

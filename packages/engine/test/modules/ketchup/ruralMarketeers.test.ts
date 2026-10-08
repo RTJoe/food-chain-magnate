@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { Action, GameState, ModuleEntity, Uid } from '../../../src/index.js';
 import { legalPlacements } from '../../../src/index.js';
 import { contentFor } from '../../../src/modules/registry.js';
-import { RURAL_MARKETEERS_MODULE, freewayProblem, ruralDistance, ruralHouse } from '../../../src/modules/ketchup/ruralMarketeers.js';
+import { RURAL_MARKETEERS_MODULE, freewayPlacements, freewayProblem, ruralDistance, ruralHouse } from '../../../src/modules/ketchup/ruralMarketeers.js';
 import { clone } from '../../../src/core/clone.js';
 import { isSalaried } from '../../../src/rules/payday.js';
 import { act, rejected, workingTurn } from '../../helpers/game.js';
@@ -27,7 +27,7 @@ const giant = (cardUid: Uid, side: 'N' | 'E' | 'S' | 'W', extra: Partial<Extract
   ...extra,
 });
 
-const fw = (id: string, side: 'N' | 'E' | 'S' | 'W', offset: number): ModuleEntity => ({ kind: 'freeway', id, owner: 'p1', side, offset, tile: 't0' });
+const fw = (id: string, side: 'N' | 'E' | 'S' | 'W', offset: number, lengthwise = false): ModuleEntity => ({ kind: 'freeway', id, owner: 'p1', side, offset, tile: 't0', ...(lengthwise ? { lengthwise: true as const } : {}) });
 
 /** Working turn with n rural marketeers at work on a real game. */
 const turn = (n = 1, extraWork: string[] = []) => workingTurn(kgame(2, [...M]), 'p1', { work: [...Array(n).fill(RM), ...extraWork] as never });
@@ -258,6 +258,66 @@ describe('Rural Marketeers - First Rural Marketeer Used / freeways (ketchup.md Â
     expect(rejected(s, plane(7, 1, 4)).message).toMatch(/cover a freeway/);
     act(s, plane(8, 1, 4));
     act(s, plane(8, 3, 5));
+  });
+});
+
+describe('Rural Marketeers - the 3x1 freeway (Q-K21, rules v4)', () => {
+  it('Q-K21: a lengthwise freeway lies along the edge over 3 squares; any of them may touch the road', () => {
+    const { t } = withChoice();
+    const base = { type: 'ketchup:ruralMarketeers.placeFreeway' as const, playerId: 'p1', choiceId: t.pending[0]?.id as string };
+    // Road at x = 2 on the N edge: spans 0-2, 1-3 and 2-4 all touch it.
+    for (const offset of [0, 1, 2]) expect(freewayProblem(t, 'N', offset, true)).toBeNull();
+    expect(freewayProblem(t, 'N', 3, true)).toMatch(/touch a road/);
+    const u = act(t, { ...base, side: 'N', offset: 0, lengthwise: true });
+    expect(Object.values(u.board.entities)).toContainEqual(expect.objectContaining({ kind: 'freeway', side: 'N', offset: 0, lengthwise: true }));
+  });
+
+  it('Q-K21: a lengthwise freeway may not stick out past the map edge', () => {
+    const { t } = withChoice();
+    const w = t.board.w;
+    expect(freewayProblem(t, 'N', w - 3, true)).toBeNull();
+    expect(freewayProblem(t, 'N', w - 2, true)).toMatch(/beside the map/);
+  });
+
+  it('Q-K21: no part of a lengthwise freeway may overlap an airplane or another freeway', () => {
+    const s = kb(2, [...M]).ruralArea().entity(fw('f1', 'N', 7)).build();
+    expect(freewayProblem(s, 'N', 5, true)).toMatch(/already a freeway/);
+    expect(freewayProblem(s, 'N', 0, true)).toBeNull();
+    const l = kb(2, [...M]).ruralArea().entity(fw('f1', 'N', 1, true)).build();
+    expect(freewayProblem(l, 'N', 2)).toMatch(/already a freeway/);
+    expect(freewayProblem(l, 'N', 4, true)).toMatch(/touch a road/);
+    expect(freewayProblem(l, 'N', 5, true)).toBeNull();
+    const a = clone(s);
+    a.board.campaigns.air = { id: 'air', owner: 'p2', number: 5, kind: 'airplane', goods: ['pizza'], placement: { kind: 'airplane', side: 'W', offset: 6, width: 1 }, remaining: 3, eternal: false, marketeer: null, source: 'marketeer', linked: [], placedRound: 1 };
+    expect(freewayProblem(a, 'W', 7, true)).toBeNull();
+    expect(freewayProblem(a, 'W', 6, true)).toMatch(/airplane/);
+    expect(freewayProblem(a, 'W', 5, true)).toMatch(/airplane/);
+  });
+
+  it('Q-K21: legal placements offer both orientations; the airplane check covers the whole span', () => {
+    const s = kb(2, [...M]).ruralArea().entity(fw('f1', 'N', 6, true)).build();
+    const ps = freewayPlacements(s);
+    expect(ps).toContainEqual({ kind: 'freeway', side: 'W', offset: 7 });
+    expect(ps).toContainEqual({ kind: 'freeway', side: 'W', offset: 6, lengthwise: true });
+    expect(ps.some((p) => p.side === 'N' && p.offset >= 4 && p.offset <= 8)).toBe(false);
+  });
+
+  it('LEGACY(v3): games before rules version 4 only place the freeway end-on', () => {
+    const s = kb(2, [...M]).ruralArea().build();
+    const old = clone(s);
+    old.config.rulesVersion = 3;
+    expect(freewayProblem(old, 'N', 1, true)).toMatch(/end-on/);
+    expect(freewayProblem(old, 'N', 2)).toBeNull();
+    expect(freewayPlacements(old).every((p) => !p.lengthwise)).toBe(true);
+    expect(freewayPlacements(s).some((p) => p.lengthwise)).toBe(true);
+  });
+
+  it('Q-K21 / Q-K7: a lengthwise freeway reaches the rural area from any road square it touches', () => {
+    const b = kb(2, [...M]).ruralArea().restaurant('p1', 3, 3, 'NW').inventory('p1', { burger: 3 }).demand(1000, ['burger']);
+    // Spans x = 5-7 on the N edge: its road square is x = 7 (tile col 1), 1 border from the restaurant.
+    const ctx = dine(b.entity(fw('f1', 'N', 5, true)));
+    expect(ctx.of('sale')[0]).toMatchObject({ distance: 1 });
+    expect(ctx.of('sale')[0]!.route!.exit).toMatchObject({ side: 'N', cell: { x: 7, y: 0 } });
   });
 });
 

@@ -57,7 +57,7 @@ import {
 import { awardMilestone, checkCashMilestones } from '../../rules/milestones.js';
 import { payFromBank, payToBank } from '../../rules/bank.js';
 import { unitPrice } from '../../rules/pricing.js';
-import { freewayCell } from './ruralMarketeers.js';
+import { freewayRoads } from './ruralMarketeers.js';
 import { rulesBefore } from '../../core/rulesVersion.js';
 import { headChoice, houseMultiplier, isRejected, kcard, pushChoice, registerChoiceKind, resolveHead, addExtraLuxuriesManager, workDefs } from './shared.js';
 
@@ -205,7 +205,7 @@ export function coffeeRouteSellers(s: GameState, house: House, dest: Restaurant)
   if (!locations.length) return [];
   const board = s.board;
   const ruralEnds = rural
-    ? Object.values(board.entities).flatMap((e) => (e.kind === 'freeway' ? [freewayCell(s, e.side, e.offset)] : [])).filter((c) => roadAt(board, c))
+    ? Object.values(board.entities).flatMap((e) => (e.kind === 'freeway' ? freewayRoads(s, e) : []))
     : [];
   // Distance as Dinnertime measures it (ruralMarketeers.ts `ruralDistance` for the rural area, Q-K7).
   const distanceOf = (r: Restaurant): number | null => {

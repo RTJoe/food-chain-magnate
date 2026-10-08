@@ -35,12 +35,24 @@ describe('Board2D picking', () => {
     expect([...spotsFor(board, mode, 'portrait').values()][0]!.rect).toMatchObject({ w: 1, h: 2 });
   });
 
+  it('freeway end-on and lengthwise around one edge square are variants of one spot', () => {
+    const fw = (offset: number, lengthwise = false): Placement => ({ kind: 'freeway', side: 'E', offset, ...(lengthwise ? { lengthwise: true } : {}) }) as Placement;
+    const mode = { kind: 'place' as const, label: 'x', color: '#f00', placementKind: 'freeway', placements: [fw(2), fw(1, true), fw(0, true), fw(2, true)] as never };
+    const spots = spotsFor(board, mode as never, null);
+    expect(spots.size).toBe(3);
+    expect(spots.get('freeway:E:2')?.variants).toHaveLength(2);
+  });
+
   it('off-board placements are drawn beside the map; guides and routes stay in the list', () => {
     const air = footprint({ kind: 'campaign', campaignKind: 'airplane', tileNumber: 1, placement: { kind: 'airplane', side: 'N', offset: 2, width: 3 } } as Placement, board)!;
     expect(air.y + air.h).toBeLessThan(0);
     expect(air).toMatchObject({ x: 2, w: 3 });
     const fw = footprint({ kind: 'freeway', side: 'E', offset: 4 } as Placement, board)!;
     expect(fw.x).toBeGreaterThanOrEqual(10);
+    // Lengthwise (rules v4): a strip along the edge over 3 squares.
+    const along = footprint({ kind: 'freeway', side: 'E', offset: 4, lengthwise: true } as Placement, board)!;
+    expect(along.x).toBeGreaterThanOrEqual(10);
+    expect(along.h).toBeGreaterThan(2.5);
     expect(footprint({ kind: 'mapTile', row: -1, col: 0, rotation: 0 } as Placement, board)).toMatchObject({ x: 0, y: -5, w: 5, h: 5 });
     expect(footprint({ kind: 'campaign', campaignKind: 'gourmetGuide', tileNumber: 17, placement: { kind: 'offBoard' } } as Placement, board)).toBeNull();
   });

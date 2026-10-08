@@ -1,4 +1,5 @@
 import { useSignal } from '@preact/signals';
+import { useEffect, useRef } from 'preact/hooks';
 import type { GameView, MilestoneId, PlayerId, ReserveCard } from '@fcm/engine';
 import { milestoneName } from '../state/catalog.js';
 import { busyUids, cardsAtWork, cashRankLabel } from '../state/selectors.js';
@@ -15,10 +16,23 @@ import { lessonSeatWaiting } from '../tutorial/runner.js';
 
 export function PlayerPanels() {
   const v = view.value;
+  const railRef = useRef<HTMLElement>(null);
+  const awaited = v?.awaiting.players.join(',') ?? '';
+  // A scrolling rail (phones): bring the awaited panel into view, your own first.
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail || rail.scrollWidth <= rail.clientWidth + 1) return;
+    const el = rail.querySelector<HTMLElement>('.ppanel.is-active.is-me') ?? rail.querySelector<HTMLElement>('.ppanel.is-active');
+    if (!el) return;
+    const r = rail.getBoundingClientRect();
+    const e = el.getBoundingClientRect();
+    const dx = e.left < r.left ? e.left - r.left - 8 : e.right > r.right ? e.right - r.right + 8 : 0;
+    if (dx) rail.scrollBy?.({ left: dx, behavior: 'smooth' });
+  }, [awaited, me.value]);
   if (!v) return null;
   const order = v.turnOrder;
   return (
-    <aside class="rail" aria-label="Players">
+    <aside class="rail" aria-label="Players" ref={railRef}>
       {order.map((id) => (
         <PlayerPanel key={id} view={v} id={id} />
       ))}

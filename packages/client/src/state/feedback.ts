@@ -95,12 +95,6 @@ export function showCaption(c: DistributiveOmit<PhaseCaption, 'key'>, holdMs = 0
     }, holdMs);
 }
 
-export function clearCaption(): void {
-  if (captionTimer) clearTimeout(captionTimer);
-  captionTimer = null;
-  phaseCaption.value = null;
-}
-
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 // ---------------------------------------------------------------------------

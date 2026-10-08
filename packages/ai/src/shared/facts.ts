@@ -168,3 +168,44 @@ export function roundsLeftEstimate(c: Ctx): number {
     return Math.max(1, Math.min(12, pool / rate));
   });
 }
+
+/** New Milestones: $ leaving the bank each Restructuring for the first discount manager's owner. */
+export const BURN = 100;
+export const BURN_MS = 'ketchup:first_discount_manager_used' as MilestoneId;
+
+/** Total price cut (positive $) of `uids` (New Milestones bank burn needs $3 or more). */
+export function discountOf(c: Ctx, pid: PlayerId, uids: readonly Uid[]): number {
+  const p = c.s.players[pid];
+  if (!p) return 0;
+  return -uids.reduce((a, u) => a + Math.min(0, priceDeltaOf(defOf(c.content, p, u))), 0);
+}
+
+/** Can `pid` burn $100 a round (New Milestones): holds the milestone and owns $3+ of price cuts. */
+export function burnsBank(c: Ctx, pid: PlayerId): boolean {
+  const p = c.s.players[pid];
+  if (!p || !hasMs(c.s, pid, BURN_MS)) return false;
+  return discountOf(c, pid, Object.keys(p.employees).filter((u) => !p.busy[u])) >= 3;
+}
+
+/**
+ * How badly the game is stalling, 0..1 (bots are stateless, so this is read from the state alone).
+ * The bank only falls by what Dinnertime pays out minus the salaries paid back in at Payday; when
+ * that net drain would take many more rounds to empty the bank, late in the game, nothing is
+ * pushing towards the end (small maps, price wars, idle salaried cards). Medium then places more
+ * campaigns, puts more marketeers to work and fires salaried cards that sat on the beach.
+ */
+export function stallPressure(c: Ctx): number {
+  return memo(c, 'stall', () => {
+    const s = c.s;
+    if (s.config.intro || s.round < 10) return 0;
+    const players = s.turnOrder.filter((id) => !s.players[id]?.bankrupt);
+    let net = 0;
+    for (const id of players) net += Math.max(0, s.players[id]?.earningsThisRound ?? 0) - salaryBreakdown(s, c.content, id).total + (burnsBank(c, id) ? BURN : 0);
+    let pool = s.bank.cash;
+    if (s.bank.breaks === 0) for (const id of players) pool += c.view.visibleReserves[id]?.amount ?? 200;
+    const rounds = pool / Math.max(1, net);
+    const slow = Math.max(0, Math.min(1, (rounds - 8) / 12));
+    const late = Math.max(0, Math.min(1, (s.round - 10) / 5));
+    return slow * late;
+  });
+}

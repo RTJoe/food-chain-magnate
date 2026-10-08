@@ -12,13 +12,13 @@
 import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import type { JSX } from 'preact';
-import type { GameEvent, GameView, ModuleId, PlayerId } from '@fcm/engine';
-import { employeeName, foodName } from '../state/catalog.js';
+import type { GameEvent, GameView, PlayerId } from '@fcm/engine';
+import { employeeName, foodName, humanize } from '../state/catalog.js';
 import { boardRenderer } from '../state/boardBridge.js';
 import { boardFeedback, campaignInfo, campaignSteps, currentBeat, dinnerFeedback, dinnerSteps, phaseCaption, requestReplay, type CampaignStep, type DinnerStep, type PhaseCaption } from '../state/feedback.js';
 import { reachPreview } from '../state/guidance.js';
 import { saleCaptionText, scoreTerms } from '../state/offers.js';
-import { isFinalBreak } from '../state/selectors.js';
+import { bankBreakText } from '../state/selectors.js';
 import { cameraCommand, finishAnimations, select, selection } from '../state/interaction.js';
 import { catalog, me, summaries, view, type PhaseSummary } from '../state/store.js';
 import { Button, Cash, IconButton, PlayerBadge } from './common.js';
@@ -302,7 +302,7 @@ function Dinner({ view: v, events }: { view: GameView; events: GameEvent[] }) {
       )}
       {breaks.map((b) => (
         <p key={b.breakNo} class="org-warn">
-          {Icon.bank({ size: 16 })} The bank broke{isFinalBreak(b.breakNo, v) ? `${b.breakNo === 2 ? ' again' : ''}: the game ends after this Dinnertime (no Payday)` : `: reserves revealed, $${b.added} added${v.config.modules.includes('ketchup:reservePrices' as ModuleId) ? `, base price now $${b.basePrice}` : `, CEO slots now ${b.ceoSlots}`}`}.
+          {Icon.bank({ size: 16 })} The bank breaks{bankBreakText(b, v, 'dinnertime')}.
         </p>
       ))}
       {of(events, 'bankrupt').map((b) => (
@@ -391,7 +391,7 @@ function Payday({ view: v, events }: { view: GameView; events: GameEvent[] }) {
               <PlayerBadge view={v} id={f.player} size={18} hidden />
               <span>
                 {nameOf(v, f.player)} fired a {employeeName(c, f.employeeId)}
-                {f.forced ? ' (could not pay)' : ''}
+                {f.reason === 'milestone' ? ' (First to have $100: no CFO)' : f.reason === 'bankrupt' ? ' (bankrupt)' : f.forced ? ' (could not pay)' : ''}
               </span>
             </li>
           ))}
@@ -438,7 +438,7 @@ function Marketing({ view: v, events }: { view: GameView; events: GameEvent[] })
   const cur = at >= 0 ? steps[at] : undefined;
   const label = (st: CampaignStep) => {
     const cm = camp(st.campaignId);
-    const name = cm?.number != null ? `Campaign #${cm.number}` : cm ? `${cm.kind} campaign` : 'Campaign';
+    const name = cm?.number != null && cm.kind !== 'giantBillboard' ? `Campaign #${cm.number}` : cm ? `${humanize(cm.kind)} campaign` : 'Campaign';
     return st.expired ? `${name} (ended)` : name;
   };
   return (
@@ -461,7 +461,7 @@ function Marketing({ view: v, events }: { view: GameView; events: GameEvent[] })
                 style={cm ? sxVars(v, cm.owner) : undefined}
                 onClick={() => go(i)}
               >
-                {cm?.number != null ? `#${cm.number}` : i + 1}
+                {cm?.number != null && cm.kind !== 'giantBillboard' ? `#${cm.number}` : i + 1}
               </button>
             );
           }}
@@ -509,6 +509,11 @@ function Marketing({ view: v, events }: { view: GameView; events: GameEvent[] })
       )}
       {income.length > 0 && <p class="small">Marketing income: {income.map((x) => `${nameOf(v, x.player)} $${x.amount}`).join(', ')}</p>}
       {expired.length > 0 && <p class="muted small">{expired.length} campaign{expired.length > 1 ? 's' : ''} ran out; their marketeers come back.</p>}
+      {of(events, 'bankBroke').map((b) => (
+        <p key={b.breakNo} class="org-warn">
+          {Icon.bank({ size: 16 })} The bank breaks{bankBreakText(b, v, 'marketing')}.
+        </p>
+      ))}
     </>
   );
 }

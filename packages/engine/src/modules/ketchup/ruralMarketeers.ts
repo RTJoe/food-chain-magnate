@@ -10,12 +10,14 @@
  * - The rural area is a house with no squares (created at setup, Dinnertime order 1000 = last).
  *   Each giant billboard places 2 tokens per marketing pass (`demandAmount` ×2: "Apartments and
  *   the Rural area receive two counters per Marketeer"); no maximum demand.
- * - Dinnertime distance (Q-K7): freeways connect the rural area to the road square they touch; the
- *   distance is the borders crossed from a restaurant to that square (the touched tile is 0).
+ * - Dinnertime distance (Q-K7): freeways connect the rural area to the road squares they touch; the
+ *   distance is the borders crossed from a restaurant to the nearest one (the touched tile is 0).
  *   With no freeway nobody reaches it. Fry chefs, noodles and kimchi apply; sushi does not.
  * - "First Rural Marketeer Used": the first player(s) to place a giant billboard may place one
- *   freeway at once (optional choice): beside an outer board edge, touching a road square on that
- *   edge, not on an airplane's position (airplanes may not cover a freeway either). 3 freeways.
+ *   freeway at once (optional choice). The freeway is a 3x1 piece (Q-K21) beside an outer board
+ *   edge: end-on (touching 1 edge square) or, from rules v4, lengthwise along the edge (3 squares,
+ *   not sticking out past it). At least one touched square is a road; never on an airplane's
+ *   position (airplanes may not cover a freeway either). 3 freeways.
  */
 import type { RuralPlaceFreeway } from '../../types/actions.js';
 import type { Direction, MilestoneDef } from '../../types/content.js';
@@ -29,6 +31,7 @@ import type { SaleRoute } from '../../types/events.js';
 import { contentFor } from '../registry.js';
 import { defOf } from '../../core/cards.js';
 import { awardMilestone } from '../../rules/milestones.js';
+import { rulesBefore } from '../../core/rulesVersion.js';
 import { cardCheck } from '../../rules/working/stages.js';
 import { headChoice, isRejected, kcard, pushChoice, registerChoiceKind, resolveHead } from './shared.js';
 
@@ -54,50 +57,93 @@ export const ruralHouse = (s: GameState): House | undefined => Object.values(s.b
 // ---------------------------------------------------------------------------
 
 /**
- * The square a freeway at (side, offset) touches: the first map square in from that board edge
- * (on a board grown by First Lobbyist Used the outer tile edge may lie inside the bounding box).
+ * The first map square in from board edge `side` on line `i` (column for N/S, row for E/W), and
+ * how deep it lies (on a board grown by First Lobbyist Used the outer tile edge may lie inside the
+ * bounding box). Null when the line has no map square.
  */
-export function freewayCell(s: GameState, side: Direction, offset: number): Cell {
+function edgeSquare(s: GameState, side: Direction, i: number): { cell: Cell; depth: number } | null {
   const { w, h } = s.board;
   const len = side === 'N' || side === 'S' ? h : w;
-  const at = (i: number): Cell => {
+  const at = (d: number): Cell => {
     switch (side) {
       case 'N':
-        return { x: offset, y: i };
+        return { x: i, y: d };
       case 'S':
-        return { x: offset, y: h - 1 - i };
+        return { x: i, y: h - 1 - d };
       case 'W':
-        return { x: i, y: offset };
+        return { x: d, y: i };
       case 'E':
-        return { x: w - 1 - i, y: offset };
+        return { x: w - 1 - d, y: i };
     }
   };
-  for (let i = 0; i < len; i++) if (onMap(s.board, at(i))) return at(i);
-  return at(0);
+  for (let d = 0; d < len; d++) if (onMap(s.board, at(d))) return { cell: at(d), depth: d };
+  return null;
+}
+
+/** The square a freeway line at (side, offset) touches: the first map square in from that board edge. */
+export function freewayCell(s: GameState, side: Direction, offset: number): Cell {
+  return edgeSquare(s, side, offset)?.cell ?? (side === 'N' ? { x: offset, y: 0 } : side === 'S' ? { x: offset, y: s.board.h - 1 } : side === 'W' ? { x: 0, y: offset } : { x: s.board.w - 1, y: offset });
+}
+
+type FreewayAt = { side: Direction; offset: number; lengthwise?: boolean | undefined };
+
+/**
+ * Lines of its edge a freeway covers (Q-K21: the piece is 3x1). End-on it touches one square;
+ * lengthwise (rules v4) it lies along the edge over offset … offset + 2.
+ */
+export function freewaySpan(f: Pick<FreewayAt, 'offset' | 'lengthwise'>): number[] {
+  return f.lengthwise ? [f.offset, f.offset + 1, f.offset + 2] : [f.offset];
+}
+
+/** The map squares a freeway touches, one per line it covers. */
+export function freewayCells(s: GameState, f: FreewayAt): Cell[] {
+  return freewaySpan(f).map((i) => freewayCell(s, f.side, i));
+}
+
+/** The road squares a freeway connects to the rural area (Q-K7, KX p26: distance "starting from any Freeway"). */
+export function freewayRoads(s: GameState, f: FreewayAt): Cell[] {
+  return freewayCells(s, f).filter((c) => onMap(s.board, c) && roadAt(s.board, c));
 }
 
 const freeways = (s: GameState) => Object.values(s.board.entities).filter((e): e is Extract<typeof e, { kind: 'freeway' }> => e.kind === 'freeway');
 
-export function freewayProblem(s: GameState, side: Direction, offset: number): string | null {
-  if (!DIRECTIONS.includes(side) || !Number.isInteger(offset)) return 'Bad freeway position';
+/**
+ * Why a freeway cannot go at (side, offset) (null = legal). KX p25: beside the outer edge of a map
+ * tile, orthogonally adjacent to a road "by 1 or more squares", never over an airplane's position.
+ * Q-K21 (designer rulings): the 3x1 piece goes end-on or lengthwise, any of its squares may touch
+ * the road, and it may not stick out past the map's edge.
+ */
+export function freewayProblem(s: GameState, side: Direction, offset: number, lengthwise: boolean | undefined = false): string | null {
+  if (!DIRECTIONS.includes(side) || !Number.isInteger(offset) || (lengthwise !== undefined && typeof lengthwise !== 'boolean')) return 'Bad freeway position';
+  // LEGACY(v3): games before rules version 4 only place the freeway end-on (one edge square).
+  if (lengthwise && rulesBefore(s, 4)) return 'Freeways go end-on in this game';
   if (freeways(s).length >= FREEWAYS) return 'No freeways left';
   const len = side === 'N' || side === 'S' ? s.board.w : s.board.h;
-  if (offset < 0 || offset >= len) return 'Freeways go beside the map';
-  const c = freewayCell(s, side, offset);
-  if (!onMap(s.board, c) || !roadAt(s.board, c)) return 'A freeway must touch a road on the map edge';
+  const span = freewaySpan({ offset, lengthwise });
+  if (offset < 0 || span[span.length - 1]! >= len) return 'Freeways go beside the map';
+  const squares = span.map((i) => edgeSquare(s, side, i));
+  if (!lengthwise && !squares[0]) return 'A freeway must touch a road on the map edge';
+  // Lengthwise it lies flat against one straight stretch of the outer edge.
+  if (squares.some((q) => !q) || new Set(squares.map((q) => q!.depth)).size > 1) return 'A freeway may not stick out past the map edge';
+  if (!squares.some((q) => roadAt(s.board, q!.cell))) return 'A freeway must touch a road on the map edge';
+  const covers = (from: number, width: number) => span.some((i) => i >= from && i < from + width);
   for (const camp of Object.values(s.board.campaigns)) {
     const p = camp.placement;
-    if (p.kind === 'airplane' && p.side === side && offset >= p.offset && offset < p.offset + p.width) return 'A freeway may not overlap an airplane';
+    if (p.kind === 'airplane' && p.side === side && covers(p.offset, p.width)) return 'A freeway may not overlap an airplane';
   }
-  if (freeways(s).some((f) => f.side === side && f.offset === offset)) return 'There is already a freeway there';
+  if (freeways(s).some((f) => f.side === side && freewaySpan(f).some((i) => span.includes(i)))) return 'There is already a freeway there';
   return null;
 }
 
 export function freewayPlacements(s: GameState): Extract<Placement, { kind: 'freeway' }>[] {
   const out: Extract<Placement, { kind: 'freeway' }>[] = [];
+  const both = !rulesBefore(s, 4);
   for (const side of DIRECTIONS) {
     const len = side === 'N' || side === 'S' ? s.board.w : s.board.h;
-    for (let offset = 0; offset < len; offset++) if (!freewayProblem(s, side, offset)) out.push({ kind: 'freeway', side, offset });
+    for (let offset = 0; offset < len; offset++) {
+      if (!freewayProblem(s, side, offset)) out.push({ kind: 'freeway', side, offset });
+      if (both && !freewayProblem(s, side, offset, true)) out.push({ kind: 'freeway', side, offset, lengthwise: true });
+    }
   }
   return out;
 }
@@ -106,7 +152,7 @@ registerChoiceKind('freeway', (s) => freewayPlacements(s).length > 0);
 
 /** Rural-area distance for a chain: nearest open restaurant to any freeway's road square. */
 export function ruralDistance(s: GameState, player: PlayerId): { restaurantId: string; distance: number } | null {
-  const ends = freeways(s).map((f) => freewayCell(s, f.side, f.offset)).filter((c) => roadAt(s.board, c));
+  const ends = freeways(s).flatMap((f) => freewayRoads(s, f));
   if (!ends.length) return null;
   let best: { restaurantId: string; distance: number } | null = null;
   const rs = Object.values(s.board.restaurants)
@@ -127,9 +173,7 @@ export function ruralDistance(s: GameState, player: PlayerId): { restaurantId: s
 export function ruralRoute(s: GameState, restaurantId: string): SaleRoute | null {
   const r = s.board.restaurants[restaurantId];
   if (!r) return null;
-  const ends = freeways(s)
-    .map((f) => ({ side: f.side, cell: freewayCell(s, f.side, f.offset) }))
-    .filter((e) => roadAt(s.board, e.cell));
+  const ends = freeways(s).flatMap((f) => freewayRoads(s, f).map((cell) => ({ side: f.side, cell })));
   if (!ends.length) return null;
   const found = shortestRoute(s.board, restaurantRouteStarts(s.board, r), new Map(ends.map((e) => [cellIndex(s.board, e.cell), 0])));
   const end = found?.path[found.path.length - 1];
@@ -172,7 +216,7 @@ export const RURAL_MARKETEERS_MODULE: GameModule = {
     careerAdditions: { marketing_trainee: ['ketchup:rural_marketeer'] },
     marketingTiles: GIANT_BILLBOARDS.map((number) => ({ number, kind: 'giantBillboard' as const, module: ID, w: 0, h: 0 })),
     milestones: [FIRST_RURAL],
-    entities: [{ kind: 'freeway', name: 'Freeway', module: ID, w: 1, h: 1, limit: { scope: 'total', count: FREEWAYS }, rulesRef: 'ketchup.md §12' }],
+    entities: [{ kind: 'freeway', name: 'Freeway', module: ID, w: 3, h: 1, limit: { scope: 'total', count: FREEWAYS }, rulesRef: 'ketchup.md §12' }],
   },
   actions: {
     'ketchup:ruralMarketeers.placeFreeway': {
@@ -180,14 +224,16 @@ export const RURAL_MARKETEERS_MODULE: GameModule = {
         const a = action as RuralPlaceFreeway;
         const head = headChoice(state, a.playerId, a.choiceId, 'freeway');
         if (isRejected(head)) return head;
-        const problem = freewayProblem(state, a.side, a.offset);
+        const problem = freewayProblem(state, a.side, a.offset, a.lengthwise);
         return problem ? reject('ILLEGAL_PLACEMENT', problem) : OK;
       },
       apply(ctx, action) {
         const a = action as RuralPlaceFreeway;
         const s = ctx.state;
         const id = ctx.id('entity');
-        const entity = { kind: 'freeway' as const, id, owner: a.playerId, side: a.side, offset: a.offset, tile: tileOf(s.board, freewayCell(s, a.side, a.offset)) };
+        const at = { side: a.side, offset: a.offset, ...(a.lengthwise ? { lengthwise: true as const } : {}) };
+        const touched = freewayRoads(s, at)[0] ?? freewayCell(s, a.side, a.offset);
+        const entity = { kind: 'freeway' as const, id, owner: a.playerId, ...at, tile: tileOf(s.board, touched) };
         s.board.entities[id] = entity;
         ctx.emit({ type: 'entityPlaced', player: a.playerId, entity: { ...entity } });
         resolveHead(ctx, a.choiceId);
@@ -205,7 +251,7 @@ export const RURAL_MARKETEERS_MODULE: GameModule = {
       }
       if (kind === 'airplane' && !problem && placement?.kind === 'airplane') {
         for (const f of freeways(s)) {
-          if (f.side === placement.side && f.offset >= placement.offset && f.offset < placement.offset + placement.width) return 'An airplane may not cover a freeway';
+          if (f.side === placement.side && freewaySpan(f).some((i) => i >= placement.offset && i < placement.offset + placement.width)) return 'An airplane may not cover a freeway';
         }
       }
       return problem;

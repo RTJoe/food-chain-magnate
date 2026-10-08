@@ -8,7 +8,7 @@
 import type { EmployeeDef, FoodCounts, PlayerId, StructureSubmission, Uid } from '@fcm/engine';
 import { cardsInHand, ceoSlotsFor, defOf, isOverfilled, managerSlots, submissionProblem } from '@fcm/engine';
 import { memo, type Ctx } from '../shared/ctx.js';
-import { addCounts, capacityOf, msOpen, roundsLeftEstimate, stockNow } from '../shared/facts.js';
+import { addCounts, BURN_MS, capacityOf, discountOf, hasMs, msOpen, roundsLeftEstimate, stallPressure, stockNow } from '../shared/facts.js';
 import { basePriceModel, finishIncome, houseViews, modelWith, rivalStock, sellerOf, shadowDinner, winProb, potentialModel, unitRevenue } from '../shared/market.js';
 import { cardValue, milestoneValue } from '../shared/values.js';
 import { orgPlan, tilesLeft, type OrgPlan } from './orgPlanner.js';
@@ -33,6 +33,10 @@ interface Eval {
   cardMilestones: { ids: string[]; value: number }[];
   /** Extra income one kimchi in stock would bring (Ketchup kimchi wins every house I can serve). */
   kimchiGain: number;
+  /** Worth of burning $100 of the bank this round (New Milestones first discount manager), 0 if I cannot. */
+  burnValue: number;
+  /** stallPressure: the bank is not falling late in the game. */
+  stall: number;
 }
 
 function makeEval(c: Ctx, me: PlayerId): Eval {
@@ -46,7 +50,20 @@ function makeEval(c: Ctx, me: PlayerId): Eval {
   for (const pid of c.s.turnOrder) if (pid !== me) stockRivals[pid] = rivalStock(c, pid);
   const roundsLeft = roundsLeftEstimate(c);
   const plan = orgPlan(c, me);
-  return { c, me, plan, defs, stockRivals, roundsLeft, campaignSlots: campaignSlotValues(c, me), cardMilestones: cardMilestones(c, me, roundsLeft), kimchiGain: kimchiGain(c, me, plan, stockRivals) };
+  const stall = stallPressure(c);
+  return { c, me, plan, defs, stockRivals, roundsLeft, campaignSlots: campaignSlotValues(c, me), cardMilestones: cardMilestones(c, me, roundsLeft), kimchiGain: kimchiGain(c, me, plan, stockRivals), burnValue: burnValue(c, me, stall), stall };
+}
+
+/**
+ * New Milestones, first discount manager used: $100 leaves the bank each round I seat $3+ of price
+ * cuts. Ending the game sooner is worth most to the leader, and to everyone once the game stalls.
+ */
+function burnValue(c: Ctx, me: PlayerId, stall: number): number {
+  if (!hasMs(c.s, me, BURN_MS)) return 0;
+  const cash = (pid: PlayerId) => c.s.players[pid]?.cash ?? 0;
+  const rivals = c.s.turnOrder.filter((pid) => pid !== me && !c.s.players[pid]?.bankrupt);
+  const lead = cash(me) - Math.max(0, ...rivals.map(cash));
+  return (lead >= 0 ? 8 : 0) + 25 * stall;
 }
 
 /** Income one kimchi adds when every card I own (not busy) works: houses won on kimchi priority plus the kimchi sold. */
@@ -86,17 +103,24 @@ function cardMilestones(c: Ctx, me: PlayerId, roundsLeft: number): { ids: string
 export function campaignSlotValues(c: Ctx, me: PlayerId): number[] {
   return memo(c, `campSlots:${me}`, () => {
     const m = potentialModel(c, me);
+    const stall = stallPressure(c);
     const vals: number[] = [];
+    // Stalled game: a second campaign on a house with room still adds demand (few houses).
+    const more: number[] = [];
     for (const h of houseViews(c)) {
       const mine = sellerOf(h, me);
       if (!mine || mine.distance > 4) continue;
       if (h.capacity !== null && h.nDemand >= h.capacity) continue;
-      vals.push(winProb(c, h, m, me, 'burger', true) * unitRevenue(c, h, m, me, 'burger') * (1 - mine.distance * 0.08));
+      const v = winProb(c, h, m, me, 'burger', true) * unitRevenue(c, h, m, me, 'burger') * (1 - mine.distance * 0.08);
+      vals.push(v);
+      if (stall > 0 && (h.capacity === null || h.capacity - h.nDemand >= 2)) more.push(v * stall);
     }
     vals.sort((a, b) => b - a);
     const slots: number[] = [];
     for (let i = 0; i + 1 < vals.length && slots.length < 4; i += 2) slots.push(((vals[i] ?? 0) + (vals[i + 1] ?? 0)) * 1.6);
     if (vals.length % 2 === 1 && slots.length < 4) slots.push((vals[vals.length - 1] ?? 0) * 1.6);
+    more.sort((a, b) => b - a);
+    for (const v of more) if (slots.length < 5) slots.push(v * 1.6);
     return slots;
   });
 }
@@ -183,6 +207,7 @@ function scoreSet(e: Eval, atWork: Uid[]): number {
     }
   }
   for (const ms of e.cardMilestones) if (atWork.some((u) => ms.ids.includes(defs.get(u)?.id ?? ''))) v += ms.value;
+  if (e.burnValue > 0 && discountOf(c, me, atWork) >= 3) v += e.burnValue;
   // Campaigns: the k-th marketeer gets the k-th best slot.
   for (let i = 0; i < marketeers; i++) v += e.campaignSlots[i] ?? 0;
   if (marketeers > 0 && msOpen(s, me, 'first_billboard') && s.marketingTiles.length) v += milestoneValue(s, me, 'first_billboard', h);

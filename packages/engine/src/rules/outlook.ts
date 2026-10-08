@@ -58,6 +58,14 @@ function reachOf(ctx: EngineCtx, camp: Campaign): HouseId[] {
 
 const capacityOf = (ctx: EngineCtx, house: House): number | null => runPipeline(ctx, 'demandCapacity', baseDemandCapacity(house), { house });
 
+/** Demand capacity of every house (null = unlimited), modules included: the cheap part of `houseOutlook` (roof plaques). */
+export function houseCapacities(state: GameState): Record<HouseId, number | null> {
+  const ctx = readCtx(state);
+  const out: Record<HouseId, number | null> = {};
+  for (const [id, house] of Object.entries(state.board.houses)) out[id] = capacityOf(ctx, house);
+  return out;
+}
+
 /** Reach preview for a campaign that may not exist yet (marketing rules base.md §9, DLX p30–32). */
 export function campaignReach(state: GameState, query: CampaignReachQuery): CampaignReachPreview {
   const ctx = readCtx(state);
@@ -257,7 +265,7 @@ function actionFor(state: GameState, player: PlayerId, spec: PlacementSpec, p: P
     case 'park':
       return { type: 'ketchup:lobbyists.placePark', playerId, cardUid, x: p.x, y: p.y, w: p.w, h: p.h, from: p.from };
     case 'freeway':
-      return { type: 'ketchup:ruralMarketeers.placeFreeway', playerId, choiceId, side: p.side, offset: p.offset };
+      return { type: 'ketchup:ruralMarketeers.placeFreeway', playerId, choiceId, side: p.side, offset: p.offset, ...(p.lengthwise ? { lengthwise: true } : {}) };
     case 'mapTile':
       return { type: 'ketchup:lobbyists.placeMapTile', playerId, choiceId, row: p.row, col: p.col, rotation: p.rotation, ...(p.templateId ? { templateId: p.templateId } : {}) };
     case 'pizzaRadio':

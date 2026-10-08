@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createGame } from '@fcm/engine';
 import { HOST_TRANSFER_MS, Room } from '../src/index.js';
 
 function lobby(n = 3, now = { t: 1000 }) {
@@ -69,6 +70,22 @@ describe('Room', () => {
     expect(config).toMatchObject({ players: [{ id: 'p1', name: 'P0' }, { id: 'p2', name: 'P1' }], map: { kind: 'random' } });
     expect(room.viewerOf('c0')).toBe('p1');
     expect(room.viewerOf('c2')).toBe('spectator');
+  });
+
+  it('passes the Upmarket Area setup (New Districts: only park tile Z) to the engine (KX p2, Q-K26)', () => {
+    const { room } = lobby(2);
+    const upmarket = { modules: ['ketchup:newMilestones', 'ketchup:newDistricts', 'ketchup:gourmetCritics', 'ketchup:sushi'], options: { 'ketchup:newDistricts': { tiles: 'park' } } };
+    expect(room.patchConfig('c0', upmarket as never).ok).toBe(true);
+    room.sit('c0', 0);
+    room.sit('c1', 1);
+    room.setReady('c0', true);
+    room.setReady('c1', true);
+    const r = room.start('c0', (c) => createGame(c, 7));
+    if (!r.ok) throw new Error(r.message);
+    expect(r.value.config.options).toEqual({ 'ketchup:newDistricts': { tiles: 'park' } });
+    const tiles = [...r.value.board.tiles.map((t) => t.templateId), ...r.value.tilePool];
+    expect(tiles).toContain('Z');
+    expect(tiles.filter((t) => 'UVWXY'.includes(t))).toEqual([]);
   });
 
   it('does not commit start when the engine throws', () => {

@@ -180,7 +180,7 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
   const offBoard = spots.filter((p) => listOnly(p));
   const mode = useMemo(
     // The board opens once the good is chosen too, so the phone sheet never collapses over the good chips.
-    () => (chosen && boardSpots.length && !held.value && (!wantsGoods || good) ? boardModeFor(legal, boardSpots, { color: playerColor(), tileNumber: chosen.number, label: `#${chosen.number} ${KIND_LABEL[chosen.kind].toLowerCase()} ${tokenSize(chosen)}` }) : null),
+    () => (chosen && boardSpots.length && !held.value && (!wantsGoods || good) ? boardModeFor(legal, boardSpots, { color: playerColor(), tileNumber: chosen.number, label: `${chosen.kind === 'giantBillboard' ? '' : `#${chosen.number} `}${KIND_LABEL[chosen.kind].toLowerCase()} ${tokenSize(chosen)}` }) : null),
     [chosen?.number, boardSpots, held.value, good],
   );
 
@@ -242,7 +242,7 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
                   onClick={() => chooseToken(t.number)}
                 >
                   <span class="token-top">
-                    <span class="token-num">#{t.number}</span>
+                    {t.kind !== 'giantBillboard' && <span class="token-num">#{t.number}</span>}
                     <TokenGlyph kind={t.kind} def={t.def} />
                   </span>
                   <span class="token-kind">
@@ -313,7 +313,7 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
             <div class="row gap">
               {offBoard.map((p, i) => (
                 <Button key={i} variant="primary" icon="pin" class="placement-btn" onClick={() => pick(p)}>
-                  Place #{chosen.number} {describePlacement(p, v).replace(/^Tile #\d+ /, '')}
+                  Place {chosen.kind === 'giantBillboard' ? 'the giant billboard' : `#${chosen.number}`} {describePlacement(p, v).replace(/^Tile #\d+ /, '')}
                 </Button>
               ))}
             </div>
@@ -326,7 +326,7 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
           {usable.map((t) => (
             <section key={t.number}>
               <span class="field-label">
-                #{t.number} · {KIND_LABEL[t.kind]} {tokenSize(t)}
+                {t.kind !== 'giantBillboard' && `#${t.number} · `}{KIND_LABEL[t.kind]} {tokenSize(t)}
               </span>
               <PlacementRows placements={t.spots} onPick={pick} />
             </section>

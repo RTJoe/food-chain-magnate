@@ -421,6 +421,7 @@ export function mountScene(el: HTMLElement, store?: SceneStore): () => void {
   } catch (err) {
     // No WebGL: leave the overlay's 2D board in place.
     console.warn('3D board unavailable', err);
+    pushToast('3D board unavailable on this device: showing the flat board.');
     return () => {};
   }
   const v = store?.view?.value;
@@ -438,5 +439,4 @@ export function mountScene(el: HTMLElement, store?: SceneStore): () => void {
 
 export type { HoverInfo } from './interaction.js';
 export type { OverlayKind, ReachOptions } from './overlays/index.js';
-export { localCampaignReach, localRangeField, playerStarts } from './overlays/fallback.js';
 export type { Tier } from './scene.js';

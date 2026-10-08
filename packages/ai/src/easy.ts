@@ -20,6 +20,7 @@
 import type { Action, EmployeeDef, FoodId, GameState, LegalAction, Placement, PlayerId, StructureSubmission, Uid } from '@fcm/engine';
 import {
   abilityStage,
+  fireDraft,
   cardsAtWork,
   cardsInHand,
   ceoSlotsFor,
@@ -113,6 +114,8 @@ function decide(c: Ctx): Action[] {
     case 'working':
       return decideWork(c);
     case 'payday': {
+      // Rules v4: a sent firing waits hidden until everyone confirms; the decision is made.
+      if (fireDraft(s, me).length) return [{ type: 'payday.confirm', playerId: me }];
       const fire = easyFiring(c);
       return [...(fire.length ? [{ type: 'payday.fire', playerId: me, uids: fire } as Action] : []), { type: 'payday.confirm', playerId: me }];
     }
@@ -457,7 +460,8 @@ function freewayGain(c: Ctx, la: PlacementLegal, pl: Placement): number {
   const before = c.memo.get('easyRural') as number | undefined;
   const base = before ?? ruralStanding(c, c.s);
   if (before === undefined) c.memo.set('easyRural', base);
-  return ruralStanding(c, r.state) - base;
+  // Lengthwise (3 edge squares) only when it gains more than end-on: it takes more airplane room.
+  return ruralStanding(c, r.state) - base - (pl.kind === 'freeway' && pl.lengthwise ? 0.001 : 0);
 }
 
 /**

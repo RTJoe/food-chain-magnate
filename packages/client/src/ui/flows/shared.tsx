@@ -9,7 +9,6 @@ import type { FoodId, Placement } from '@fcm/engine';
 import { actionFromPlacement, describePlacement, type PlacementOptions } from '../../state/actions.js';
 import { boardBridge, boardRenderer, interactionMode, isPickMode, type InteractionMode } from '../../state/boardBridge.js';
 import { foodName } from '../../state/catalog.js';
-import { realEngineReady } from '../../state/engine.js';
 import { activeCandidate, setActiveCandidate, type SelectionKind } from '../../state/interaction.js';
 import { catalog, me, myPlayer, settings, view } from '../../state/store.js';
 import { keyboardUser } from '../uiState.js';
@@ -81,7 +80,7 @@ export function FlowHead({ title, onCancel, label = 'Cancel' }: { title: Compone
 }
 
 export function NoSpots({ children }: { children?: ComponentChildren }) {
-  return <Empty icon="map">{children ?? (realEngineReady() ? 'No legal spot for this right now.' : 'Board placements need the rules engine (still being built).')}</Empty>;
+  return <Empty icon="map">{children ?? 'No legal spot for this right now.'}</Empty>;
 }
 
 /** Placements the 3D board does not draw (off-board campaigns, errand fetches): picked from the list. */

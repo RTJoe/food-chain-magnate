@@ -106,7 +106,7 @@ describe('pending choices and reserve cards', () => {
 
   it('Reserve Prices cards set the base price, not CEO slots', () => {
     const text = reserveRule([{ kind: 'price', amount: 200, basePrice: 5 } as never]);
-    expect(text).toMatch(/base unit price/);
+    expect(text).toMatch(/sets the base price/);
     expect(text).toMatch(/CEO slots do not change/);
     expect(reserveRule([{ kind: 'standard', amount: 100, ceoSlots: 2 }])).toMatch(/CEO slots/);
   });

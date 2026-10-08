@@ -6,7 +6,7 @@
 import { randomBytes } from 'node:crypto';
 import type { RawData, WebSocket } from 'ws';
 import { ENGINE_VERSION, type EngineApi } from '@fcm/engine';
-import { PROTOCOL_VERSION, parseClientMessage, type ClientMessage, type ClientMessageOf, type ErrorCode, type RoomStatus, type ServerMessage } from '@fcm/protocol';
+import { ChatLine, PROTOCOL_VERSION, parseClientMessage, type ClientMessage, type ClientMessageOf, type ErrorCode, type RoomStatus, type ServerMessage } from '@fcm/protocol';
 import { BotDriver, GameSession, inlineBotRunner, isOccupied, Room, type BotDelay, type BotRunner, type Outbound } from '@fcm/session';
 import { DEFAULT_LIMITS, TokenBucket, type Limits } from './limits.js';
 import { LOBBY_RETENTION_MS, ROOM_RETENTION_MS, type Persistence, type PersistedRoom } from './persistence.js';
@@ -18,6 +18,8 @@ export const SERVER_VERSION = '0.1.0';
 /** Chat flood control: at most this many messages per window. */
 const CHAT_BURST = 8;
 const CHAT_WINDOW_MS = 5_000;
+/** Chat messages a room keeps (and persists) for members who reload, reconnect or join later. */
+export const CHAT_HISTORY = 100;
 /** How often the retention sweep runs (from `tick`). */
 const RETENTION_SWEEP_MS = 60 * 60 * 1000;
 /** When the session cap is reached, roomless sessions unseen this long are dropped first. */
@@ -347,6 +349,7 @@ export class Hub {
       this.indexRecord(rec);
       this.adoptSeats(rec);
       const entry = this.store.add(room, game, rec.updatedAt);
+      entry.chat = restoredChat(rec.chat);
       if (game?.replayFailure) this.rolledBack(entry, rec);
       this.attachBots(entry);
       return entry;
@@ -493,6 +496,9 @@ export class Hub {
     if (msg.protocol !== PROTOCOL_VERSION) {
       return this.sendTo(conn, { t: 'error', code: 'PROTOCOL_MISMATCH', message: `Server speaks protocol ${PROTOCOL_VERSION}` });
     }
+    if (this.staleClient(msg.clientVersion)) {
+      return this.sendTo(conn, { t: 'error', code: 'RELOAD_REQUIRED', message: `The server runs version ${this.serverVersion}; reload the page`, ref: 'hello' });
+    }
     let token = msg.sessionToken;
     let session = token ? this.sessions.resume(token) : undefined;
     if (!session || !token) {
@@ -526,9 +532,26 @@ export class Hub {
     if (entry) {
       this.roomChanged(entry, false);
       if (entry.game) this.send(session.clientId, entry.game.snapshot(entry.room.viewerOf(session.clientId)));
+      this.sendChatHistory(entry, session.clientId);
       this.sendNotice(entry, session.clientId);
       entry.bots?.poke();
     }
+  }
+
+  /**
+   * An open tab from another build (after a deploy) runs other rules for prompts and legal moves:
+   * `clientVersion` is `<engine version>[+<build id>]`. Builds are compared only when both are known;
+   * a client that sends no semver (tools, tests) is not checked.
+   */
+  private staleClient(clientVersion: string): boolean {
+    const [engine = '', build] = clientVersion.split('+');
+    if (!/^\d+\.\d+\.\d+$/.test(engine)) return false;
+    if (engine !== ENGINE_VERSION) return true;
+    return Boolean(this.buildId && build && build !== this.buildId);
+  }
+
+  private sendChatHistory(entry: RoomEntry, clientId: string): void {
+    this.send(clientId, { t: 'chat.history', lines: entry.chat });
   }
 
   private createRoom(conn: Conn, session: ClientSession, msg: ClientMessageOf<'room.create'>): void {
@@ -561,6 +584,7 @@ export class Hub {
     if (!msg.spectate) this.reclaimOrphanSeat(entry, session);
     this.roomChanged(entry);
     if (entry.game) this.send(session.clientId, entry.game.snapshot(entry.room.viewerOf(session.clientId)));
+    this.sendChatHistory(entry, session.clientId);
     this.sendNotice(entry, session.clientId);
     entry.bots?.poke();
   }
@@ -592,7 +616,11 @@ export class Hub {
     if (conn.chat.length >= CHAT_BURST) return this.sendTo(conn, { t: 'error', code: 'RATE_LIMITED', message: 'Slow down', ref: 'chat' });
     conn.chat.push(t);
     const seat = entry.room.seatOf(session.clientId);
-    const msg: ServerMessage = { t: 'chat', from: { clientId: session.clientId, name: session.name, seat: seat ? seat.index : null }, text, ts: t };
+    const line: ChatLine = { from: { clientId: session.clientId, name: session.name, seat: seat ? seat.index : null }, text, ts: t };
+    entry.chat.push(line);
+    if (entry.chat.length > CHAT_HISTORY) entry.chat.splice(0, entry.chat.length - CHAT_HISTORY);
+    this.persist(entry);
+    const msg: ServerMessage = { t: 'chat', ...line };
     for (const m of entry.room.members.values()) if (m.connected) this.send(m.clientId, msg);
   }
 
@@ -647,6 +675,7 @@ export class Hub {
       seed: entry.game?.seed ?? null,
       gameConfig: entry.game?.config ?? null,
       actions: entry.game?.actions ?? [],
+      ...(entry.chat.length ? { chat: entry.chat } : {}),
     };
     this.indexRecord(rec);
     return rec;
@@ -673,4 +702,13 @@ export class Hub {
     }
     ws.send(JSON.stringify(msg));
   }
+}
+
+/** Chat read back from a room file: well-formed lines only, at most `CHAT_HISTORY` (older files have none). */
+function restoredChat(raw: unknown): ChatLine[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((l) => {
+    const r = ChatLine.safeParse(l);
+    return r.success ? [r.data] : [];
+  }).slice(-CHAT_HISTORY);
 }

@@ -8,23 +8,29 @@
  * Bankrupt chains take no part and keep their place at the end.
  */
 import type { OrderChoosePosition } from '../types/actions.js';
-import type { GameState, PlayerId } from '../types/state.js';
+import type { GameState, PlayerId, Structure } from '../types/state.js';
 import type { EngineCtx } from '../core/context.js';
 import { OK, reject, type Check } from '../core/errors.js';
 import { activePlayers, ceoSlotsFor, defOf, hasEffect, managerSlots } from '../core/cards.js';
 import { contentFor, pipe } from '../modules/registry.js';
 
-export function openSlots(s: GameState, player: PlayerId): number {
+/** Extra open slots from milestones (First Airplane +2, DLX p14). */
+export function orderSlotsBonus(s: GameState, player: PlayerId): number {
+  return hasEffect(s, contentFor(s.config.modules), player, 'orderSlots').reduce((n, e) => n + e.amount, 0);
+}
+
+/** Open slots of `player` (their structure, or `structure` for a preview), milestone bonus included. */
+export function openSlots(s: GameState, player: PlayerId, structure?: Pick<Structure, 'ceoSubs' | 'managerSubs'>): number {
   const p = s.players[player];
   if (!p) return 0;
+  const st = structure ?? p.structure;
   const content = contentFor(s.config.modules);
-  let open = Math.max(0, ceoSlotsFor(s, content, player) - p.structure.ceoSubs.length);
-  for (const uid of p.structure.ceoSubs) {
+  let open = Math.max(0, ceoSlotsFor(s, content, player) - st.ceoSubs.length);
+  for (const uid of st.ceoSubs) {
     const slots = managerSlots(defOf(content, p, uid));
-    if (slots > 0) open += Math.max(0, slots - (p.structure.managerSubs[uid]?.length ?? 0));
+    if (slots > 0) open += Math.max(0, slots - (st.managerSubs[uid]?.length ?? 0));
   }
-  for (const e of hasEffect(s, content, player, 'orderSlots')) open += e.amount;
-  return open;
+  return open + orderSlotsBonus(s, player);
 }
 
 export function choosingQueue(ctx: EngineCtx): PlayerId[] {

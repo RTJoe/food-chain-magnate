@@ -117,8 +117,8 @@ export function createRouteLookup(board: () => Board | null): RouteLookup {
       let follow = roadPath(pts);
       let back = roadPath([...pts].reverse());
       let ground: SaleTrip['ground'];
-      if (exit) {
-        // Up the freeway deck instead of under it (animation-plan §2.11).
+      if (exit && !lengthwiseExit(b, exit)) {
+        // Up the freeway deck instead of under it (animation-plan §2.11). A lengthwise deck is flat.
         const [dx, dz] = DELTA[exit.side];
         const [cx, cz] = centre(exit.cell);
         ground = freewayGround([cx + dx * 0.5, cz + dz * 0.5], [dx, dz]);
@@ -167,4 +167,10 @@ export function createRouteLookup(board: () => Board | null): RouteLookup {
       return { mode: 'air', pts, follow, stops };
     },
   };
+}
+
+/** Whether the freeway a van leaves by lies lengthwise along the edge (rules v4: a flat deck, no ramp). */
+function lengthwiseExit(b: Board, exit: { cell: { x: number; y: number }; side: Direction }): boolean {
+  const i = exit.side === 'N' || exit.side === 'S' ? exit.cell.x : exit.cell.y;
+  return Object.values(b.entities).some((e) => e.kind === 'freeway' && e.lengthwise === true && e.side === exit.side && i >= e.offset && i < e.offset + 3);
 }

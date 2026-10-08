@@ -13,6 +13,7 @@ import { act, actChain, undo } from '../net/session.js';
 import { Button, Cash, EmployeeCard, Empty, PlayerBadge, Pill, Stepper } from './common.js';
 import { FoodIcon, Icon } from './icons.js';
 import { OrgChartEditor } from './OrgChart.js';
+import { orderSlots } from '../state/orgChart.js';
 import { PlacementFlow } from './flows/index.js';
 import { LegalButton, WorkPanel } from './Work.js';
 import { SeatControl } from './PlayerPanels.js';
@@ -160,7 +161,7 @@ function FirstRestaurantPanel({ canPass }: { canPass: boolean }) {
   const picking = useSignal(true);
   return (
     <div class="setup-restaurant">
-      <p class="muted small">Your first restaurant goes on an empty 2×2 spot with its entrance on a road. At most one restaurant per map tile.</p>
+      <p class="muted small">Place it on an empty 2×2 spot with its entrance corner next to a road. No two entrances may share a map tile (the rest of the restaurant may).</p>
       {place && picking.value ? (
         <PlacementFlow legal={place} onDone={() => (picking.value = false)} onCancel={() => (picking.value = false)} />
       ) : (
@@ -186,6 +187,9 @@ function reserveTitle(r: ReserveCard): string {
   return r.kind === 'standard' ? `${r.ceoSlots} CEO slots` : `Price $${r.basePrice}`;
 }
 
+const sameReserve = (a: ReserveCard, b: ReserveCard): boolean =>
+  a.kind === b.kind && a.amount === b.amount && (a.kind === 'standard' ? b.kind === 'standard' && a.ceoSlots === b.ceoSlots : b.kind === 'price' && a.basePrice === b.basePrice);
+
 function ReservePanel({ view: v, options }: { view: GameView; options: ReserveCard[] }) {
   const mine = me.value;
   const chosen = v.mine?.reserve ?? null;
@@ -195,7 +199,7 @@ function ReservePanel({ view: v, options }: { view: GameView; options: ReserveCa
       <p class="muted small">{reserveRule(options)}</p>
       <div class="reserve-cards">
         {options.map((o, i) => {
-          const on = chosen !== null && chosen.kind === o.kind && chosen.amount === o.amount && (o.kind !== 'standard' || (chosen.kind === 'standard' && chosen.ceoSlots === o.ceoSlots));
+          const on = chosen !== null && sameReserve(chosen, o);
           return (
             <button
               key={i}
@@ -203,7 +207,7 @@ function ReservePanel({ view: v, options }: { view: GameView; options: ReserveCa
               class={`reserve-card ${on ? 'is-on' : ''}`}
               data-tutorial={`reserve-${o.amount}${o.kind === 'price' ? `-${o.basePrice}` : ''}`}
               aria-pressed={on}
-              disabled={busyNow() || !mine}
+              disabled={busyNow() || !mine || (done && !on)}
               onClick={() => mine && act({ type: 'setup.chooseReserve', playerId: mine, card: o })}
             >
               <Cash amount={o.amount} size="xl" />
@@ -214,7 +218,7 @@ function ReservePanel({ view: v, options }: { view: GameView; options: ReserveCa
       </div>
       {done && (
         <Pill tone="ok" icon="check">
-          Chosen. You can change it until everyone has picked.
+          Chosen. Use Undo to change it until everyone has picked.
         </Pill>
       )}
       <StillDeciding view={v} />
@@ -256,10 +260,23 @@ function OrderPanel({ view: v, free }: { view: GameView; free: number[] }) {
             </li>
           );
         })}
+        {/* Bankrupt chains keep the last places and do not choose (Q-W9). */}
+        {phase &&
+          v.turnOrder
+            .filter((id) => !phase.queue.includes(id))
+            .map((id, j) => (
+              <li key={`out-${id}`}>
+                <span class="order-slot is-taken">
+                  <span class="order-pos">{ordinal(phase.queue.length + j + 1)}</span>
+                  <PlayerBadge view={v} id={id} size={26} />
+                  <span class="muted small">out</span>
+                </span>
+              </li>
+            ))}
       </ol>
       {phase && phase.queue.length > 0 && (
         <p class="muted small">
-          Choosing order: {phase.queue.map((id) => v.players[id]?.name ?? id).join(' → ')}
+          Choosing order (open slots): {phase.queue.map((id) => `${v.players[id]?.name ?? id} (${orderSlots(v, id).open})`).join(' → ')}
         </p>
       )}
     </div>
@@ -514,17 +531,18 @@ function ChoicePanel({ player: p, choice }: { player: PlayerState; choice: Pendi
 export function Standings({ view: v, ranking }: { view: GameView; ranking: PlayerId[] }) {
   const order = ranking.length ? ranking : standings(v);
   const reason = v.phase.kind === 'gameOver' ? v.phase.reason : null;
+  const nobody = reason === 'allBankrupt';
   return (
     <div class="standings">
-      {reason && <p class="muted small">{reason === 'bankBroke' ? 'The bank broke for the last time.' : 'Every chain went bankrupt.'} Most cash wins; ties go to the earlier turn order.</p>}
+      {reason && <p class="muted small">{nobody ? 'Every chain went bankrupt: everyone loses.' : 'The bank broke for the last time. Most cash wins; ties go to the earlier turn order.'}</p>}
       <ol class="standings-list">
         {order.map((id, i) => {
           const p = v.players[id];
           if (!p) return null;
           const ms = Object.keys(p.milestones).length;
           return (
-            <li key={id} class={`standing ${i === 0 ? 'is-winner' : ''} ${id === me.value ? 'is-me' : ''}`}>
-              <span class="standing-rank">{i === 0 ? Icon.trophy({ size: 22 }) : i + 1}</span>
+            <li key={id} class={`standing ${i === 0 && !nobody ? 'is-winner' : ''} ${id === me.value ? 'is-me' : ''}`}>
+              <span class="standing-rank">{i === 0 && !nobody ? Icon.trophy({ size: 22 }) : i + 1}</span>
               <PlayerBadge view={v} id={id} size={32} hidden />
               <span class="standing-name">
                 <b>{p.name}</b>

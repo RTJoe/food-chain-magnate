@@ -319,7 +319,7 @@ Dinnertime is always empty in rounds 1–2 (no demand exists yet) except waitres
 
 ## 8. Phase 5 — Payday (DLX p29)
 
-1. **Firing:** players **simultaneously** decide whether to fire any cards at work or on the beach. Fired cards return to the supply. Busy marketeers cannot be fired voluntarily. **[DLX differs]** JD 2185563 (2019) said firing is in turn order; DLX says simultaneous. Use simultaneous (hidden or ordered-irrelevant choice). High.
+1. **Firing:** players **simultaneously** decide whether to fire any cards at work or on the beach. Fired cards return to the supply. Busy marketeers cannot be fired voluntarily. **[DLX differs]** JD 2185563 (2019) said firing is in turn order; DLX says simultaneous. Use simultaneous (hidden or ordered-irrelevant choice). High. Here (rules v4) each player’s firings stay secret until everyone has confirmed, then all are applied in turn order; games saved under rules v1–v3 apply each firing at once.
 2. **Salaries:** $5 for every owned card with a salary icon: in the structure, on the beach, **and busy marketeers** (except marketeers covered by "First Billboard Campaign"). Salaries go to the bank.
 3. **Discounts (all mandatory; cannot pay voluntarily):**
    - $5 per unused recruit action on recruiting managers / HR directors at work. A card fired in step 1 gives none (JD BGG 2692106; questions.md Q-B9; rules v3).
