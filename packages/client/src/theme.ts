@@ -3,7 +3,7 @@
  * See docs/art-bible.md §2 and docs/visual-style.md: the rulebook's flat print colours (paper,
  * coral and teal brand pair, chrome trays), sampled by eye; no product art is copied.
  */
-import type { ChainId, FoodId } from '@fcm/engine';
+import type { CardColour, ChainId, FoodId } from '@fcm/engine';
 
 export const COLORS = {
   // UI surfaces and text
@@ -69,18 +69,22 @@ export const COLORS = {
   warn: '#e8a530',
   /** Red X / planning red: white text on it 6.3:1. */
   danger: '#aa3839',
-  // Board
-  grass: '#a6d27c',
-  lot: '#e9dfc4',
-  road: '#5b5a63',
-  roadLine: '#f4ead5',
-  houseWall: '#f2e6cf',
-  houseRoof: '#c8693f',
-  apartment: '#b8b2c8',
-  garden: '#5f9e4a',
-  park: '#6fb35a',
-  water: '#7cc4e0',
-  tileEdge: '#cbbd9c',
+  // Board. Aliases kept for the 3D builders that still read them, mapped to the art-bible print
+  // and plastic values (docs/art-bible.md §2 "Map, houses, goods"): no pre-bible colours remain.
+  /** Tile print ground (the off-white board; the pre-bible grass). */
+  grass: '#f5f2e8',
+  /** Plates under pieces (restaurant and marketing bases): the tile grid colour. */
+  lot: '#e3dfd3',
+  road: '#7c787b',
+  /** Dashed centre line. */
+  roadLine: '#f4f4f2',
+  /** House plastic (Special Edition burgundy). */
+  houseWall: '#7a2f48',
+  houseRoof: '#5e2236',
+  apartment: '#b2658e',
+  /** Garden plastic (lime). */
+  garden: '#a9bd62',
+  park: '#537938',
   shadow: '#1f1d26',
   highlightOk: '#5ad17a',
   /** Legal-spot tint during board picks: saturated mustard, readable on grass and road alike. */
@@ -171,18 +175,68 @@ export const CHAIN_NAMES: Record<ChainId, string> = {
   siap_faji: 'Siap Faji',
 };
 
-/** Goods are also told apart by token shape (docs/visual-style.md), never by colour alone. */
+/**
+ * The key print colour of each good (docs/art-bible.md §2 "Goods"): bun, cheese, bottle green,
+ * lemonade, soda red, coffee, kimchi, sushi filling, noodles. Goods are also told apart by token
+ * shape (goodsGlyphs.ts), never by colour alone; the wooden token bodies are in GOOD_GLYPHS.
+ */
 export const FOOD_COLORS: Record<FoodId, string> = {
-  burger: '#8d5a2b',
-  pizza: '#ef6f3c',
-  beer: '#e0b23a',
-  lemonade: '#f5ec7a',
-  soft_drink: '#6b2f2a',
+  burger: '#c98a4b',
+  pizza: '#d4883a',
+  beer: '#3e8e4d',
+  lemonade: '#ffec46',
+  soft_drink: '#d8262a',
   coffee: '#4a3226',
-  kimchi: '#c8412f',
+  kimchi: '#d84a2a',
   sushi: '#e98b8b',
   noodles: '#f2d79b',
 };
+
+/**
+ * Employee card title bands by card colour (docs/art-bible.md §2 "Employee card families"), each
+ * darkened where needed so the white script title passes WCAG AA (4.5:1) at every rendered size:
+ * kitchen green, drinks (yellow) green, marketing blue, planning red, purple, recruiter / trainer
+ * grey, manager black, pricing salmon (darkened), CEO charcoal, coffee teal.
+ */
+export const CARD_COLORS: Record<CardColour, string> = {
+  ceo: '#494944',
+  black: '#353633',
+  grey: '#5d5f5b',
+  purple: '#8350a8',
+  red: '#aa3839',
+  salmon: '#b8503d',
+  blue: '#3d6fb0',
+  oliveGreen: '#2f7a3f',
+  lightGreen: '#557a1f',
+  teal: '#2f6f73',
+};
+
+/** Milestone tile bands (base rulebook p.34–35) with their title text colour (AA at 11 px bold). */
+export const MILESTONE_BANDS = {
+  grey: { band: '#5d5f5b', ink: '#ffffff' },
+  purple: { band: '#8350a8', ink: '#ffffff' },
+  green: { band: '#70c83f', ink: '#262626' },
+  lightGreen: { band: '#a9d46f', ink: '#262626' },
+  blue: { band: '#4a6fba', ink: '#ffffff' },
+  salmon: { band: '#e07a66', ink: '#262626' },
+  red: { band: '#aa3839', ink: '#ffffff' },
+} as const;
+export type MilestoneBand = keyof typeof MILESTONE_BANDS;
+
+/**
+ * Banknote paper per denomination (docs/art-bible.md §2 "Money"; $20 and $100 are our
+ * extrapolation) and the engraving ink, which reads at 7:1 or better on every note.
+ */
+export const MONEY_COLORS = {
+  1: '#8fc9a0',
+  5: '#b9c6e8',
+  10: '#f2dc7e',
+  20: '#9fd3cf',
+  50: '#f3b4a4',
+  100: '#b8c4b0',
+  ink: '#3c3a36',
+} as const;
+export type Denomination = 1 | 5 | 10 | 20 | 50 | 100;
 
 /** `#rrggbb` → 0xrrggbb for THREE.Color. */
 export const hex = (css: string): number => Number.parseInt(css.slice(1), 16);
@@ -222,4 +276,5 @@ export function applyTheme(root: HTMLElement = document.documentElement): void {
     root.style.setProperty(`--player-${i}-ink`, inkOn(p.base));
   });
   for (const [k, v] of Object.entries(FOOD_COLORS)) root.style.setProperty(`--food-${kebab(k)}`, v);
+  for (const [k, v] of Object.entries(CARD_COLORS)) root.style.setProperty(`--card-${kebab(k)}`, v);
 }

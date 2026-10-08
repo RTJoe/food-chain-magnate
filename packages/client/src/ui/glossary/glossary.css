@@ -8,7 +8,7 @@
 .wt-btn:hover, .wt-btn:focus-visible { opacity: 1; background: var(--c-surface-sunk); color: var(--c-ink); }
 .wt-btn:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; }
 .wt-btn-light { color: inherit; }
-.emp-tags .wt-btn { width: 16px; height: 16px; font-size: 10px; margin-left: auto; }
+.emp-wt { width: 16px; height: 16px; font-size: 10px; }
 
 .wt-scrim { position: fixed; inset: 0; z-index: 64; background: rgba(43, 42, 51, 0.3); animation: fade 0.15s ease-out; }
 .wt-pop { position: fixed; z-index: 65; max-height: min(70vh, 560px); overflow-y: auto; padding: 4px 14px 12px; box-shadow: var(--shadow-lg); animation: rise 0.15s ease-out; }
@@ -22,6 +22,12 @@
 .wt-example { margin: 0; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--c-surface-sunk); font-size: 0.9rem; line-height: 1.4; }
 .wt-example-label { display: block; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--c-ink-muted); margin-bottom: 2px; }
 .wt-facts { display: grid; gap: 4px; }
+/* The card itself beside its facts (ui/cards.tsx). */
+.wt-card-facts { display: block; }
+.wt-card-facts::after { content: ''; display: block; clear: both; }
+.wt-card-facts > * + * { margin-top: 4px; }
+.wt-card { float: left; width: 132px; margin: 2px 12px 4px 0; }
+.wt-card .emp-card { width: 132px; }
 .wt-fact-row { display: flex; flex-wrap: wrap; gap: 4px; }
 .wt-fact { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--c-line); font-size: 0.78rem; font-weight: 700; }
 .wt-card-text { margin: 0; font-size: 0.85rem; color: var(--c-ink-muted); }
@@ -30,7 +36,7 @@
 .wt-foot { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--c-line); padding-top: 4px; }
 .phase-steps li, .phase-current { position: relative; }
 .phase-wt { margin-left: 4px; }
-.milestone-body b .wt-btn, .inspect-head h3 .wt-btn { margin-left: 6px; }
+.inspect-head h3 .wt-btn { margin-left: 6px; }
 .market-detail b .wt-btn { margin-left: 6px; }
 .phase-steps li.is-wt, .bank.is-wt { cursor: help; }
 .phase-steps li.is-wt:focus-visible, .bank.is-wt:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; border-radius: 8px; }

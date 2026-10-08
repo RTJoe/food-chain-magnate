@@ -5,7 +5,7 @@
  * of 1.25 css px, so tile borders stay countable at any zoom and on phones. High contrast doubles
  * the width, draws it in ink and tints every other tile 6%.
  *
- * Also: tile coordinate labels on the coordinate band (columns A, B, ...; rows 1, 2, ...).
+ * Also: tile coordinate labels printed on the table beside the map (columns A, B, ...; rows 1, 2, ...).
  */
 import * as THREE from 'three';
 import type { Board } from '@fcm/engine';
@@ -221,7 +221,8 @@ function rimLabelTexture(text: string): THREE.Texture {
   const ctx = c.getContext('2d')!;
   const draw = () => {
     ctx.clearRect(0, 0, 128, 128);
-    ctx.fillStyle = BOARD.rimInk;
+    // Printed on the wood (no frame): cream ink, 6:1 on the table.
+    ctx.fillStyle = BOARD.rim;
     ctx.font = `700 104px ${LABEL_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -247,12 +248,12 @@ function rimLabelTexture(text: string): THREE.Texture {
 
 const LABEL_FONT = '"Barlow Condensed", "Arial Narrow", system-ui, sans-serif';
 
-/** `off`: distance of the label centres from the map edge; `y`: height of the band top. */
+/** `off`: distance of the label centres from the map edge; `y`: height to print them at (the table). */
 export function buildRimLabels(b: Board, off: number, y: number): { group: THREE.Group; setYaw(yaw: number): void; dispose(): void } {
   const group = new THREE.Group();
   group.name = 'rimLabels';
   const ts = b.tileSize;
-  const geo = new THREE.PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2);
+  const geo = new THREE.PlaneGeometry(0.72, 0.72).rotateX(-Math.PI / 2);
   const mats: THREE.Material[] = [];
   const add = (text: string, x: number, z: number) => {
     const mat = new THREE.MeshBasicMaterial({ map: rimLabelTexture(text), transparent: true, depthWrite: false, toneMapped: false });

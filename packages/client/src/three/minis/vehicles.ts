@@ -28,10 +28,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { FoodId } from '@fcm/engine';
 import { ROAD_TOP } from '../coords.js';
 import { AIR_Y, ROAD_Y } from '../anim/path.js';
-import { posterTexture, signTexture } from '../labels.js';
+import { badgeTexture, chainMarkTexture, chainOfColor } from '../labels.js';
 import { blob, mesh, owned, releaseTree, solid, type MiniCtx } from './ctx.js';
-import { P, Shape, ball, box, cone, cyl, hull, lathe, miniGeo, playerPalette, puck } from './kit.js';
-import { planeShape, propShape } from './marketing.js';
+import { Shape, ball, box, color, cone, cyl, hull, lathe, miniGeo, playerPalette, puck, shade, type Paint, type PartOpts } from './kit.js';
+import { MARKETING_PLASTIC, signFaceTexture } from './marketing.js';
 
 export type VehicleKind = 'van' | 'scooter' | 'cart' | 'truck' | 'zeppelin' | 'airplane' | 'mailman';
 
@@ -138,52 +138,73 @@ export function vehicleOf(o: THREE.Object3D): Actor | undefined {
 const GROUND_OFFSET = ROAD_TOP + 0.002 - ROAD_Y;
 
 // ---------------------------------------------------------------------------
-// Colours
+// Plastic tones (art bible §6, §6.14): every vehicle and figure is one plastic colour per chain,
+// like the Special Edition minis; value steps stand in for sculpted relief, as on the restaurants
 // ---------------------------------------------------------------------------
 
-const C = {
-  tyre: '#34323a',
-  hub: '#d9dde3',
-  chassis: '#4a4852',
-  skin: '#f1c9a5',
-  trousers: '#4f78b0', // denim: reads on asphalt and on cream road paint
-  shoe: '#2b2a33',
-  light: '#fff3c4',
-  tail: '#e25b4b',
-} as const;
+interface Tones {
+  main: THREE.Color;
+  /** Raised trims catching light (bumpers, hubs, lamps, roof caps). */
+  hi: THREE.Color;
+  /** Undersides and concave areas (chassis, tyres, seats). */
+  ao: THREE.Color;
+  /** Recesses: windows, grilles, wheel arches. */
+  deep: THREE.Color;
+}
+
+function tones(css: string): Tones {
+  const base = playerPalette(css).base;
+  return { main: color(base), hi: shade(base, 0.16), ao: shade(base, -0.14), deep: shade(base, -0.34) };
+}
+
+type Add = (geo: THREE.BufferGeometry, paint: Paint, opts?: PartOpts) => void;
+/** Adds plastic parts with the restaurants' low jitter. */
+const plastic =
+  (s: Shape): Add =>
+  (geo, paint, opts = {}) =>
+    void s.add(geo, paint, { mat: 'plastic', jitter: 0.012, ...opts });
 
 // ---------------------------------------------------------------------------
 // Shared parts
 // ---------------------------------------------------------------------------
 
-/** Wheel centred at the origin, axle along z; light hub bar shows the spin. */
-function wheelShape(r: number, w: number, seg = 8): Shape {
+/** Wheel centred at the origin, axle along z, in the chain plastic; a raised hub bar shows the spin. */
+function wheelShape(r: number, w: number, css: string, seg = 8): Shape {
+  const t = tones(css);
   const s = new Shape();
-  s.add(cyl(r, r, w, seg), C.tyre, { at: [0, 0, -w / 2], rot: [Math.PI / 2, 0, 0], jitter: 0 });
-  // One hub drum through both faces and one bar across it (shows the spin): ~70 tris per wheel.
-  s.add(cyl(r * 0.55, r * 0.55, w + 0.012, 6), C.hub, { at: [0, 0, -w / 2 - 0.006], rot: [Math.PI / 2, 0, 0], mat: 'metal', jitter: 0 });
-  s.add(box(r * 1.3, r * 0.22, w + 0.016, 0), '#8f949c', { at: [0, -r * 0.11, 0], jitter: 0 });
+  const add = plastic(s);
+  add(cyl(r, r, w, seg), t.ao, { at: [0, 0, -w / 2], rot: [Math.PI / 2, 0, 0], jitter: 0 });
+  // One hub drum through both faces and one bar across it: ~70 tris per wheel.
+  add(cyl(r * 0.55, r * 0.55, w + 0.012, 6), t.hi, { at: [0, 0, -w / 2 - 0.006], rot: [Math.PI / 2, 0, 0], jitter: 0 });
+  add(box(r * 1.3, r * 0.22, w + 0.016, 0), t.deep, { at: [0, -r * 0.11, 0], jitter: 0 });
   return s;
 }
 
-function wheelGeo(r: number, w: number): THREE.BufferGeometry {
-  return miniGeo(`v:wheel:${r}:${w}`, () => wheelShape(r, w));
+/** Wheels are cached per size and colour (one plastic per chain); shared across kinds. */
+function wheelGeo(r: number, w: number, css: string): THREE.BufferGeometry {
+  return miniGeo(`v:wheel:${r}:${w}:${css}`, () => wheelShape(r, w, css));
 }
 
-/** Leg pivoting at the hip (top at y = 0). */
-function legGeo(): THREE.BufferGeometry {
-  return miniGeo('v:leg', () => {
+/** Leg pivoting at the hip (top at y = 0), in the figure's plastic. */
+function legGeo(css: string): THREE.BufferGeometry {
+  return miniGeo(`v:leg:${css}`, () => {
+    const t = tones(css);
     const s = new Shape();
-    s.add(box(0.045, 0.1, 0.05, 0.012), C.trousers, { at: [0, -0.1, 0], jitter: 0 });
-    s.add(box(0.06, 0.025, 0.05, 0.01), C.shoe, { at: [0.008, -0.118, 0], jitter: 0 });
+    const add = plastic(s);
+    add(box(0.045, 0.1, 0.05, 0.012), t.ao, { at: [0, -0.1, 0] });
+    add(box(0.06, 0.025, 0.05, 0.01), t.deep, { at: [0.008, -0.118, 0], jitter: 0 });
     return s;
   });
 }
 
-/** Torso + head + cap of a standing figure; hips at y = 0, facing +x. */
-function figureTop(s: Shape, shirt: string, cap: string, at: [number, number, number] = [0, 0, 0], arms: 'down' | 'push' | 'bars' = 'down'): void {
+/**
+ * Torso + head + cap of a standing figure in one plastic (hips at y = 0, facing +x): tunic in the
+ * main tone, face and hands a step lighter, cap a step darker, as a single-colour sculpt reads.
+ */
+function figureTop(s: Shape, t: Tones, at: [number, number, number] = [0, 0, 0], arms: 'down' | 'push' | 'bars' = 'down'): void {
   const [x, y, z] = at;
-  s.add(
+  const add = plastic(s);
+  add(
     lathe(
       [
         [0, 0],
@@ -195,22 +216,21 @@ function figureTop(s: Shape, shirt: string, cap: string, at: [number, number, nu
       ],
       8,
     ),
-    shirt,
+    t.main,
     { at: [x, y - 0.01, z] },
   );
-  s.add(ball(0.056, 1), C.skin, { at: [x, y + 0.18, z] });
-  s.add(puck(0.058, 0.035, 8, 0.01), cap, { at: [x - 0.004, y + 0.205, z] });
-  s.add(box(0.06, 0.012, 0.08, 0), cap, { at: [x + 0.045, y + 0.21, z] });
-  // Arms.
+  add(ball(0.056, 1), t.hi, { at: [x, y + 0.18, z] });
+  add(puck(0.058, 0.035, 8, 0.01), t.ao, { at: [x - 0.004, y + 0.205, z] });
+  add(box(0.06, 0.012, 0.08, 0), t.ao, { at: [x + 0.045, y + 0.21, z] });
   for (const side of [1, -1]) {
     const zz = z + side * 0.07;
-    if (arms === 'down') s.add(box(0.034, 0.11, 0.034, 0), shirt, { at: [x, y + 0.02, zz], rot: [0, 0, 0.12] });
-    else s.add(box(0.12, 0.032, 0.032, 0), shirt, { at: [x + 0.06, y + (arms === 'bars' ? 0.1 : 0.07), zz], rot: [0, 0, arms === 'bars' ? 0.35 : 0.2] });
-    if (arms !== 'down') s.add(ball(0.02, 0), C.skin, { at: [x + 0.13, y + (arms === 'bars' ? 0.08 : 0.055), zz] });
+    if (arms === 'down') add(box(0.034, 0.11, 0.034, 0), t.main, { at: [x, y + 0.02, zz], rot: [0, 0, 0.12] });
+    else add(box(0.12, 0.032, 0.032, 0), t.main, { at: [x + 0.06, y + (arms === 'bars' ? 0.1 : 0.07), zz], rot: [0, 0, arms === 'bars' ? 0.35 : 0.2] });
+    if (arms !== 'down') add(ball(0.02, 0), t.hi, { at: [x + 0.13, y + (arms === 'bars' ? 0.08 : 0.055), zz] });
   }
 }
 
-/** Two-sided chain-mark plate (left and right flanks), UV-mapped for the sign texture. */
+/** Two-sided chain-mark roundel (left and right flanks), UV-mapped for the mark texture. */
 const decalGeos = new Map<string, THREE.BufferGeometry>();
 function decalGeo(key: string, w: number, h: number, halfDepth: number, at: [number, number]): THREE.BufferGeometry {
   let g = decalGeos.get(key);
@@ -225,13 +245,16 @@ function decalGeo(key: string, w: number, h: number, halfDepth: number, at: [num
   return g;
 }
 
+/** White decal of the chain mark (art bible §6.14): the chain's glyph when the colour names a chain, else its letters. */
 const decalMats = new Map<string, THREE.Material>();
-function decalMat(mark: string, color: string): THREE.Material {
-  const pal = playerPalette(color);
-  const k = `${mark}:${pal.base}`;
+function decalMat(mark: string, css: string): THREE.Material {
+  const pal = playerPalette(css);
+  const chain = chainOfColor(css);
+  const k = `${chain ?? mark}:${pal.base}`;
   let m = decalMats.get(k);
   if (!m) {
-    m = new THREE.MeshStandardMaterial({ map: signTexture(mark, '#fffaf0', pal.dark), roughness: 0.6, metalness: 0, alphaTest: 0.5, envMapIntensity: 0.5 });
+    const map = chain ? chainMarkTexture(chain, pal.dark) : badgeTexture(mark, { bg: '#fffaf0', fg: pal.dark, ring: pal.dark });
+    m = new THREE.MeshStandardMaterial({ map, roughness: 0.6, metalness: 0, alphaTest: 0.5, envMapIntensity: 0.5 });
     decalMats.set(k, m);
   }
   return m;
@@ -387,8 +410,8 @@ function addShadow(ctx: MiniCtx, a: ActorImpl, d: number, strength = 0.7): void 
   a.parts.shadow = g;
 }
 
-function addWheels(ctx: MiniCtx, a: ActorImpl, r: number, w: number, at: [number, number][]): void {
-  const geo = wheelGeo(r, w);
+function addWheels(ctx: MiniCtx, a: ActorImpl, css: string, r: number, w: number, at: [number, number][]): void {
+  const geo = wheelGeo(r, w, css);
   for (const [x, z] of at) {
     const o = solid(ctx, a.rig, geo);
     o.position.set(x, r, z);
@@ -397,16 +420,16 @@ function addWheels(ctx: MiniCtx, a: ActorImpl, r: number, w: number, at: [number
 }
 
 function addDecal(ctx: MiniCtx, a: ActorImpl, spec: ActorSpec, key: string, w: number, h: number, halfDepth: number, at: [number, number], parent: THREE.Object3D = a.rig): void {
-  if (!spec.mark || spec.lite || ctx.ghost) return;
-  const o = ctx.inst.proxy(decalGeo(key, w, h, halfDepth, at), { castShadow: false, material: decalMat(spec.mark, spec.color) });
+  if (spec.lite || ctx.ghost || (!spec.mark && !chainOfColor(spec.color))) return;
+  const o = ctx.inst.proxy(decalGeo(key, w, h, halfDepth, at), { castShadow: false, material: decalMat(spec.mark ?? '', spec.color) });
   o.name = 'decal';
   parent.add(o);
 }
 
 /** Legs (two instanced proxies swinging at the hip) under a walking group. */
-function addLegs(ctx: MiniCtx, a: ActorImpl, parent: THREE.Object3D, hipY: number): void {
+function addLegs(ctx: MiniCtx, a: ActorImpl, css: string, parent: THREE.Object3D, hipY: number): void {
   for (const side of [1, -1]) {
-    const o = solid(ctx, parent, legGeo());
+    const o = solid(ctx, parent, legGeo(css));
     o.position.set(0, hipY, side * 0.032);
     a.parts.legs.push(o);
   }
@@ -415,7 +438,7 @@ function addLegs(ctx: MiniCtx, a: ActorImpl, parent: THREE.Object3D, hipY: numbe
 const lo = (spec: ActorSpec) => (spec.lite ? ':lo' : '');
 
 // ---------------------------------------------------------------------------
-// Delivery van
+// Delivery van: a 1950s step van (rounded nose, tall box body, split windscreen), roof rack
 // ---------------------------------------------------------------------------
 
 const VAN_WHEEL = 0.065;
@@ -426,55 +449,55 @@ const VAN_WHEELS: [number, number][] = [
   [-0.17, -0.135],
 ];
 
-function vanShape(color: string, lite: boolean): Shape {
-  const pal = playerPalette(color);
+function vanShape(css: string, lite: boolean): Shape {
+  const t = tones(css);
   const s = new Shape();
-  // Chassis skirt.
-  s.add(box(0.58, 0.07, 0.28, 0.02), C.chassis, { at: [0, 0.04, 0], jitter: 0 });
-  // Cargo box (chain colour) with a dark stripe that wraps round.
-  s.add(box(0.4, 0.27, 0.32, 0.04), pal.base, { at: [-0.1, 0.08, 0] });
-  s.add(box(0.404, 0.045, 0.324, 0.01), pal.dark, { at: [-0.1, 0.13, 0], jitter: 0 });
-  // Cab with a raked windscreen (light tint of the chain colour).
-  s.add(
-    hull('vanCab', [
-      [0.1, 0, -0.15],
-      [0.1, 0, 0.15],
-      [0.31, 0, -0.15],
-      [0.31, 0, 0.15],
-      [0.31, 0.1, -0.15],
-      [0.31, 0.1, 0.15],
-      [0.22, 0.22, -0.145],
-      [0.22, 0.22, 0.145],
-      [0.1, 0.23, -0.145],
-      [0.1, 0.23, 0.145],
+  const add = plastic(s);
+  // Chassis skirt, box body, rounded nose.
+  add(box(0.6, 0.075, 0.27, 0.025), t.ao, { at: [0, 0.035, 0] });
+  add(box(0.44, 0.29, 0.32, 0.05), t.main, { at: [-0.07, 0.075, 0] });
+  add(
+    hull('stepVanNose', [
+      [0.12, 0, -0.155],
+      [0.12, 0, 0.155],
+      [0.3, 0, -0.14],
+      [0.3, 0, 0.14],
+      [0.325, 0.1, -0.125],
+      [0.325, 0.1, 0.125],
+      [0.3, 0.17, -0.14],
+      [0.3, 0.17, 0.14],
+      [0.265, 0.275, -0.13],
+      [0.265, 0.275, 0.13],
+      [0.12, 0.29, -0.155],
+      [0.12, 0.29, 0.155],
     ]),
-    pal.light,
-    { at: [0, 0.08, 0] },
+    t.main,
+    { at: [0, 0.075, 0] },
   );
-  // Windscreen + side window band.
-  s.add(box(0.02, 0.1, 0.25, 0), P.windowDark, { at: [0.268, 0.2, 0], rot: [0, 0, 0.88], mat: 'glass', jitter: 0 });
-  s.add(box(0.1, 0.075, 0.304, 0), P.windowDark, { at: [0.155, 0.215, 0], mat: 'glass', jitter: 0 });
-  // Bumpers, lights.
-  s.add(box(0.03, 0.05, 0.3, 0.012), P.steel, { at: [0.31, 0.05, 0], mat: 'metal', jitter: 0 });
-  s.add(box(0.03, 0.05, 0.3, 0.012), P.steel, { at: [-0.3, 0.05, 0], mat: 'metal', jitter: 0 });
-  for (const z of [0.1, -0.1]) {
-    s.add(box(0.012, 0.035, 0.05, 0), C.light, { at: [0.318, 0.12, z], mat: 'glow', jitter: 0 });
-    s.add(box(0.012, 0.04, 0.035, 0), C.tail, { at: [-0.304, 0.2, z * 1.3], mat: 'glow', jitter: 0 });
-  }
+  // Split windscreen (leans back with the nose), cab side windows, rear window.
+  add(box(0.014, 0.1, 0.25, 0), t.deep, { at: [0.293, 0.248, 0], rot: [0, 0, 0.32], jitter: 0 });
+  add(box(0.018, 0.104, 0.018, 0), t.main, { at: [0.296, 0.247, 0], rot: [0, 0, 0.32], jitter: 0 });
+  add(box(0.1, 0.08, 0.324, 0), t.deep, { at: [0.185, 0.245, 0], jitter: 0 });
+  // Roof cap, belt moulding, bumpers, headlamps.
+  add(box(0.47, 0.03, 0.33, 0.014), t.hi, { at: [-0.07, 0.355, 0] });
+  add(box(0.6, 0.018, 0.326, 0), t.hi, { at: [0.0, 0.165, 0], jitter: 0 });
+  add(box(0.035, 0.045, 0.3, 0.012), t.hi, { at: [0.33, 0.04, 0] });
+  add(box(0.03, 0.045, 0.3, 0.012), t.hi, { at: [-0.31, 0.04, 0] });
+  for (const z of [0.1, -0.1]) add(cyl(0.026, 0.026, 0.02, 6), t.hi, { at: [0.318, 0.14, z], rot: [0, 0, -Math.PI / 2], jitter: 0 });
   // Roof rack where sold goods ride.
-  for (const z of [0.12, -0.12]) s.add(box(0.34, 0.018, 0.018, 0), P.steelDark, { at: [-0.1, 0.375, z], mat: 'metal', jitter: 0 });
-  for (const x of [-0.24, 0.04]) s.add(box(0.018, 0.03, 0.26, 0), P.steelDark, { at: [x, 0.35, 0], mat: 'metal', jitter: 0 });
-  if (lite) for (const [x, z] of VAN_WHEELS) s.addShape(wheelShape(VAN_WHEEL, 0.05, 6), { at: [x, VAN_WHEEL, z] });
+  for (const z of [0.12, -0.12]) add(box(0.34, 0.016, 0.016, 0), t.ao, { at: [-0.1, 0.39, z], jitter: 0 });
+  for (const x of [-0.24, 0.04]) add(box(0.016, 0.022, 0.26, 0), t.ao, { at: [x, 0.38, 0], jitter: 0 });
+  if (lite) for (const [x, z] of VAN_WHEELS) s.addShape(wheelShape(VAN_WHEEL, 0.05, css, 6), { at: [x, VAN_WHEEL, z] });
   return s;
 }
 
 export function buildVan(ctx: MiniCtx, spec: ActorSpec): Actor {
   const a = new ActorImpl('van', GROUND_OFFSET);
   if (!spec.lite) addShadow(ctx, a, 0.6);
-  solid(ctx, a.rig, miniGeo(`v:van:${spec.color}${lo(spec)}`, () => vanShape(spec.color, !!spec.lite)));
-  if (!spec.lite) addWheels(ctx, a, VAN_WHEEL, 0.05, VAN_WHEELS);
-  addDecal(ctx, a, spec, 'van', 0.26, 0.1, 0.16, [-0.1, 0.25]);
-  a.cargo.position.set(-0.1, 0.39, 0);
+  solid(ctx, a.rig, miniGeo(`v:van2:${spec.color}${lo(spec)}`, () => vanShape(spec.color, !!spec.lite)));
+  if (!spec.lite) addWheels(ctx, a, spec.color, VAN_WHEEL, 0.05, VAN_WHEELS);
+  addDecal(ctx, a, spec, 'van2', 0.14, 0.14, 0.16, [-0.08, 0.25]);
+  a.cargo.position.set(-0.1, 0.4, 0);
   return a;
 }
 
@@ -484,12 +507,13 @@ export function buildVan(ctx: MiniCtx, spec: ActorSpec): Actor {
 
 const SC_WHEEL = 0.055;
 
-function scooterShape(color: string, lite: boolean): Shape {
-  const pal = playerPalette(color);
+function scooterShape(css: string, lite: boolean): Shape {
+  const t = tones(css);
   const s = new Shape();
-  // Deck and rear cowl.
-  s.add(box(0.24, 0.035, 0.1, 0.012), C.chassis, { at: [0, 0.055, 0], jitter: 0 });
-  s.add(
+  const add = plastic(s);
+  // Deck and the rounded rear cowl.
+  add(box(0.24, 0.035, 0.1, 0.012), t.ao, { at: [0, 0.055, 0] });
+  add(
     lathe(
       [
         [0, -0.1],
@@ -501,27 +525,27 @@ function scooterShape(color: string, lite: boolean): Shape {
       ],
       8,
     ),
-    pal.base,
+    t.main,
     { at: [-0.1, 0.14, 0], rot: [0, 0, Math.PI / 2], scale: [1, 1, 1.05] },
   );
-  s.add(box(0.15, 0.035, 0.09, 0.015), C.chassis, { at: [-0.08, 0.2, 0] });
+  add(box(0.15, 0.035, 0.09, 0.015), t.ao, { at: [-0.08, 0.2, 0] });
   // Leg shield + steering column + handlebar.
-  s.add(box(0.05, 0.2, 0.13, 0.02), pal.base, { at: [0.11, 0.07, 0], rot: [0, 0, 0.22] });
-  s.add(box(0.012, 0.16, 0.11, 0), pal.light, { at: [0.14, 0.09, 0], rot: [0, 0, 0.22], jitter: 0 });
-  s.add(cyl(0.012, 0.012, 0.18, 5), P.steelDark, { at: [0.17, 0.15, 0], rot: [0, 0, 0.3], mat: 'metal' });
-  s.add(box(0.03, 0.022, 0.2, 0), C.chassis, { at: [0.12, 0.32, 0] });
-  s.add(box(0.03, 0.035, 0.05, 0), C.light, { at: [0.15, 0.3, 0], mat: 'glow', jitter: 0 });
+  add(box(0.05, 0.2, 0.13, 0.02), t.main, { at: [0.11, 0.07, 0], rot: [0, 0, 0.22] });
+  add(box(0.012, 0.16, 0.11, 0), t.hi, { at: [0.14, 0.09, 0], rot: [0, 0, 0.22], jitter: 0 });
+  add(cyl(0.012, 0.012, 0.18, 5), t.ao, { at: [0.17, 0.15, 0], rot: [0, 0, 0.3] });
+  add(box(0.03, 0.022, 0.2, 0), t.ao, { at: [0.12, 0.32, 0] });
+  add(box(0.03, 0.035, 0.05, 0), t.hi, { at: [0.15, 0.3, 0], jitter: 0 });
   // Front fender.
-  s.add(box(0.1, 0.025, 0.06, 0.01), pal.base, { at: [0.16, 0.105, 0] });
-  // Rear rack (cargo crate sits here).
-  s.add(box(0.12, 0.014, 0.11, 0), P.steelDark, { at: [-0.18, 0.205, 0], mat: 'metal', jitter: 0 });
-  // Rider (errand boy): seated, hands on the bars, chain-dark cap.
-  figureTop(s, pal.light, pal.dark, [-0.04, 0.22, 0], 'bars');
+  add(box(0.1, 0.025, 0.06, 0.01), t.main, { at: [0.16, 0.105, 0] });
+  // Rear rack (cargo rides here).
+  add(box(0.12, 0.014, 0.11, 0), t.ao, { at: [-0.18, 0.205, 0], jitter: 0 });
+  // Rider (errand boy): seated, hands on the bars.
+  figureTop(s, t, [-0.04, 0.22, 0], 'bars');
   for (const side of [1, -1]) {
-    s.add(box(0.11, 0.04, 0.045, 0), C.trousers, { at: [0.0, 0.2, side * 0.035], rot: [0, 0, -0.1] });
-    s.add(box(0.04, 0.11, 0.04, 0), C.trousers, { at: [0.06, 0.09, side * 0.035] });
+    add(box(0.11, 0.04, 0.045, 0), t.ao, { at: [0.0, 0.2, side * 0.035], rot: [0, 0, -0.1] });
+    add(box(0.04, 0.11, 0.04, 0), t.ao, { at: [0.06, 0.09, side * 0.035] });
   }
-  if (lite) for (const x of [0.16, -0.15]) s.addShape(wheelShape(SC_WHEEL, 0.04, 6), { at: [x, SC_WHEEL, 0] });
+  if (lite) for (const x of [0.16, -0.15]) s.addShape(wheelShape(SC_WHEEL, 0.04, css, 6), { at: [x, SC_WHEEL, 0] });
   return s;
 }
 
@@ -530,12 +554,13 @@ export function buildScooter(ctx: MiniCtx, spec: ActorSpec): Actor {
   a.parts.bank = -0.05; // two-wheeler leans into turns
   a.parts.maxBank = 0.22;
   if (!spec.lite) addShadow(ctx, a, 0.38);
-  solid(ctx, a.rig, miniGeo(`v:scooter:${spec.color}${lo(spec)}`, () => scooterShape(spec.color, !!spec.lite)));
-  if (!spec.lite) addWheels(ctx, a, SC_WHEEL, 0.04, [
-    [0.16, 0],
-    [-0.15, 0],
-  ]);
-  addDecal(ctx, a, spec, 'scooter', 0.11, 0.045, 0.069, [-0.1, 0.14]);
+  solid(ctx, a.rig, miniGeo(`v:scooter2:${spec.color}${lo(spec)}`, () => scooterShape(spec.color, !!spec.lite)));
+  if (!spec.lite)
+    addWheels(ctx, a, spec.color, SC_WHEEL, 0.04, [
+      [0.16, 0],
+      [-0.15, 0],
+    ]);
+  addDecal(ctx, a, spec, 'scooter2', 0.075, 0.075, 0.069, [-0.1, 0.14]);
   a.cargo.position.set(-0.18, 0.212, 0);
   return a;
 }
@@ -547,39 +572,39 @@ export function buildScooter(ctx: MiniCtx, spec: ActorSpec): Actor {
 const CART_WHEEL = 0.1;
 const CART_X = 0.14;
 
-function cartShape(color: string, lite: boolean): Shape {
-  const pal = playerPalette(color);
+function cartShape(css: string, lite: boolean): Shape {
+  const t = tones(css);
   const s = new Shape();
+  const add = plastic(s);
   const x = CART_X;
-  // Bed: wooden floor, chain-colour side boards.
-  s.add(box(0.36, 0.035, 0.26, 0.01), P.wood, { at: [x, 0.13, 0] });
-  for (const z of [0.12, -0.12]) s.add(box(0.36, 0.08, 0.025, 0), pal.base, { at: [x, 0.16, z] });
-  s.add(box(0.025, 0.08, 0.24, 0), pal.base, { at: [x + 0.17, 0.16, 0] });
-  s.add(box(0.025, 0.06, 0.24, 0), pal.dark, { at: [x - 0.17, 0.16, 0] });
-  s.add(box(0.362, 0.018, 0.262, 0), pal.dark, { at: [x, 0.235, 0], jitter: 0, scale: [1, 1, 1] });
+  // Bed with side boards and a raised rim.
+  add(box(0.36, 0.035, 0.26, 0.01), t.ao, { at: [x, 0.13, 0] });
+  for (const z of [0.12, -0.12]) add(box(0.36, 0.08, 0.025, 0), t.main, { at: [x, 0.16, z] });
+  add(box(0.025, 0.08, 0.24, 0), t.main, { at: [x + 0.17, 0.16, 0] });
+  add(box(0.025, 0.06, 0.24, 0), t.ao, { at: [x - 0.17, 0.16, 0] });
+  add(box(0.362, 0.018, 0.262, 0), t.hi, { at: [x, 0.235, 0], jitter: 0 });
   // Axle + front stand.
-  s.add(cyl(0.012, 0.012, 0.32, 5), P.steelDark, { at: [x, CART_WHEEL, -0.16], rot: [Math.PI / 2, 0, 0], mat: 'metal' });
-  s.add(box(0.02, 0.12, 0.02, 0), P.woodDark, { at: [x + 0.15, 0.01, 0] });
+  add(cyl(0.012, 0.012, 0.32, 5), t.deep, { at: [x, CART_WHEEL, -0.16], rot: [Math.PI / 2, 0, 0] });
+  add(box(0.02, 0.12, 0.02, 0), t.ao, { at: [x + 0.15, 0.01, 0] });
   // Handles to the operator.
-  for (const z of [0.09, -0.09]) s.add(box(0.2, 0.02, 0.02, 0), P.woodDark, { at: [x - 0.27, 0.205, z], rot: [0, 0, -0.12] });
-  s.add(cyl(0.014, 0.014, 0.22, 5), P.woodDark, { at: [x - 0.36, 0.22, -0.11], rot: [Math.PI / 2, 0, 0] });
-  if (lite) for (const z of [0.15, -0.15]) s.addShape(wheelShape(CART_WHEEL, 0.03, 8), { at: [x, CART_WHEEL, z] });
+  for (const z of [0.09, -0.09]) add(box(0.2, 0.02, 0.02, 0), t.ao, { at: [x - 0.27, 0.205, z], rot: [0, 0, -0.12] });
+  add(cyl(0.014, 0.014, 0.22, 5), t.hi, { at: [x - 0.36, 0.22, -0.11], rot: [Math.PI / 2, 0, 0] });
+  if (lite) for (const z of [0.15, -0.15]) s.addShape(wheelShape(CART_WHEEL, 0.03, css, 8), { at: [x, CART_WHEEL, z] });
   return s;
 }
 
-function operatorTop(color: string): Shape {
-  const pal = playerPalette(color);
+function operatorTop(css: string): Shape {
   const s = new Shape();
-  figureTop(s, pal.base, pal.dark, [0, 0, 0], 'push');
+  figureTop(s, tones(css), [0, 0, 0], 'push');
   return s;
 }
 
 export function buildCart(ctx: MiniCtx, spec: ActorSpec): Actor {
   const a = new ActorImpl('cart', GROUND_OFFSET);
   if (!spec.lite) addShadow(ctx, a, 0.62);
-  solid(ctx, a.rig, miniGeo(`v:cart:${spec.color}${lo(spec)}`, () => cartShape(spec.color, !!spec.lite)));
+  solid(ctx, a.rig, miniGeo(`v:cart2:${spec.color}${lo(spec)}`, () => cartShape(spec.color, !!spec.lite)));
   if (!spec.lite)
-    addWheels(ctx, a, CART_WHEEL, 0.03, [
+    addWheels(ctx, a, spec.color, CART_WHEEL, 0.03, [
       [CART_X, 0.15],
       [CART_X, -0.15],
     ]);
@@ -590,17 +615,17 @@ export function buildCart(ctx: MiniCtx, spec: ActorSpec): Actor {
   a.rig.add(op);
   const walker = new THREE.Group();
   op.add(walker);
-  solid(ctx, walker, miniGeo(`v:operator:${spec.color}`, () => operatorTop(spec.color))).position.y = 0.125;
-  addLegs(ctx, a, walker, 0.125);
+  solid(ctx, walker, miniGeo(`v:operator2:${spec.color}`, () => operatorTop(spec.color))).position.y = 0.125;
+  addLegs(ctx, a, spec.color, walker, 0.125);
   a.parts.walker = walker;
   a.parts.stride = 0.12;
-  addDecal(ctx, a, spec, 'cart', 0.16, 0.06, 0.133, [CART_X, 0.16]);
+  addDecal(ctx, a, spec, 'cart2', 0.07, 0.07, 0.133, [CART_X, 0.165]);
   a.cargo.position.set(CART_X, 0.15, 0);
   return a;
 }
 
 // ---------------------------------------------------------------------------
-// Truck
+// Truck: a 1950s cab-over (flat face, split windscreen, the cover's truck) with a stake bed
 // ---------------------------------------------------------------------------
 
 const TRUCK_WHEEL = 0.065;
@@ -613,40 +638,43 @@ const TRUCK_WHEELS: [number, number][] = [
   [-0.25, -0.14],
 ];
 
-function truckShape(color: string, lite: boolean): Shape {
-  const pal = playerPalette(color);
+function truckShape(css: string, lite: boolean): Shape {
+  const t = tones(css);
   const s = new Shape();
-  s.add(box(0.66, 0.07, 0.24, 0.02), C.chassis, { at: [0, 0.05, 0], jitter: 0 });
-  // Cab (front, chain colour) with windscreen, side window, light door stripe.
-  s.add(box(0.21, 0.28, 0.31, 0.045), pal.base, { at: [0.22, 0.08, 0] });
-  s.add(box(0.1, 0.06, 0.33, 0.04), pal.base, { at: [0.3, 0.06, 0] });
-  s.add(box(0.012, 0.1, 0.25, 0), P.windowDark, { at: [0.33, 0.24, 0], mat: 'glass', jitter: 0 });
-  s.add(box(0.11, 0.085, 0.314, 0), P.windowDark, { at: [0.22, 0.25, 0], mat: 'glass', jitter: 0 });
-  s.add(box(0.214, 0.035, 0.314, 0), pal.light, { at: [0.22, 0.16, 0], jitter: 0 });
-  s.add(box(0.1, 0.03, 0.2, 0.01), pal.dark, { at: [0.22, 0.36, 0] });
+  const add = plastic(s);
+  add(box(0.66, 0.06, 0.22, 0.02), t.ao, { at: [0, 0.05, 0] });
+  // Cab-over: tall cab on the front axle, rounded roof cap.
+  add(box(0.2, 0.29, 0.31, 0.05), t.main, { at: [0.24, 0.075, 0] });
+  add(box(0.21, 0.035, 0.315, 0.017), t.hi, { at: [0.24, 0.352, 0] });
+  // Face: split windscreen, grille, bumper, headlamps; side windows.
+  add(box(0.012, 0.1, 0.27, 0), t.deep, { at: [0.342, 0.235, 0], jitter: 0 });
+  add(box(0.016, 0.1, 0.018, 0), t.main, { at: [0.344, 0.235, 0], jitter: 0 });
+  add(box(0.012, 0.075, 0.19, 0), t.deep, { at: [0.342, 0.11, 0], jitter: 0 });
+  add(box(0.016, 0.014, 0.19, 0), t.hi, { at: [0.345, 0.14, 0], jitter: 0 });
+  add(box(0.03, 0.04, 0.33, 0.012), t.hi, { at: [0.35, 0.045, 0] });
+  for (const z of [0.12, -0.12]) add(cyl(0.024, 0.024, 0.02, 6), t.hi, { at: [0.341, 0.14, z], rot: [0, 0, -Math.PI / 2], jitter: 0 });
+  add(box(0.1, 0.085, 0.314, 0), t.deep, { at: [0.255, 0.24, 0], jitter: 0 });
   // Exhaust stack behind the cab.
-  s.add(cyl(0.016, 0.016, 0.24, 6), P.steel, { at: [0.1, 0.16, 0.13], mat: 'metal' });
-  // Flatbed with low rails.
-  s.add(box(0.42, 0.05, 0.3, 0.015), P.wood, { at: [-0.13, 0.12, 0] });
-  for (const z of [0.14, -0.14]) s.add(box(0.42, 0.055, 0.022, 0), pal.dark, { at: [-0.13, 0.17, z] });
-  s.add(box(0.022, 0.055, 0.3, 0), pal.dark, { at: [-0.33, 0.17, 0] });
-  s.add(box(0.03, 0.12, 0.3, 0), pal.dark, { at: [0.08, 0.17, 0] });
-  // Mudguards and lights.
-  for (const z of [0.15, -0.15]) {
-    s.add(box(0.22, 0.02, 0.05, 0), C.chassis, { at: [-0.175, 0.145, z], jitter: 0 });
-    s.add(box(0.012, 0.035, 0.05, 0), C.light, { at: [0.354, 0.12, z * 0.75], mat: 'glow', jitter: 0 });
-    s.add(box(0.012, 0.03, 0.04, 0), C.tail, { at: [-0.345, 0.11, z * 0.85], mat: 'glow', jitter: 0 });
+  add(cyl(0.014, 0.014, 0.22, 6), t.hi, { at: [0.125, 0.16, 0.135] });
+  // Stake bed: floor, slatted side boards, headboard, tailgate.
+  add(box(0.44, 0.05, 0.3, 0.012), t.main, { at: [-0.13, 0.12, 0] });
+  for (const z of [0.14, -0.14]) {
+    add(box(0.44, 0.06, 0.02, 0), t.main, { at: [-0.13, 0.17, z] });
+    add(box(0.44, 0.008, 0.024, 0), t.deep, { at: [-0.13, 0.195, z], jitter: 0 });
+    add(box(0.24, 0.018, 0.05, 0), t.ao, { at: [-0.175, 0.145, z * 1.07], jitter: 0 });
   }
-  if (lite) for (const [x, z] of TRUCK_WHEELS) s.addShape(wheelShape(TRUCK_WHEEL, 0.05, 6), { at: [x, TRUCK_WHEEL, z] });
+  add(box(0.02, 0.06, 0.3, 0), t.main, { at: [-0.34, 0.17, 0] });
+  add(box(0.03, 0.14, 0.3, 0), t.ao, { at: [0.125, 0.17, 0] });
+  if (lite) for (const [x, z] of TRUCK_WHEELS) s.addShape(wheelShape(TRUCK_WHEEL, 0.05, css, 6), { at: [x, TRUCK_WHEEL, z] });
   return s;
 }
 
 export function buildTruck(ctx: MiniCtx, spec: ActorSpec): Actor {
   const a = new ActorImpl('truck', GROUND_OFFSET);
   if (!spec.lite) addShadow(ctx, a, 0.64);
-  solid(ctx, a.rig, miniGeo(`v:truck:${spec.color}${lo(spec)}`, () => truckShape(spec.color, !!spec.lite)));
-  if (!spec.lite) addWheels(ctx, a, TRUCK_WHEEL, 0.05, TRUCK_WHEELS);
-  addDecal(ctx, a, spec, 'truck', 0.13, 0.05, 0.158, [0.22, 0.12]);
+  solid(ctx, a.rig, miniGeo(`v:truck2:${spec.color}${lo(spec)}`, () => truckShape(spec.color, !!spec.lite)));
+  if (!spec.lite) addWheels(ctx, a, spec.color, TRUCK_WHEEL, 0.05, TRUCK_WHEELS);
+  addDecal(ctx, a, spec, 'truck2', 0.09, 0.09, 0.158, [0.23, 0.15]);
   a.cargo.position.set(-0.13, 0.17, 0);
   return a;
 }
@@ -671,17 +699,18 @@ function envelopeProfile(r: number, l: number, n = 8): [number, number][] {
   return out;
 }
 
-function zeppelinShape(color: string): Shape {
-  const pal = playerPalette(color);
+function zeppelinShape(css: string): Shape {
+  const t = tones(css);
   const s = new Shape();
-  // Envelope along +x (lathe +y → +x), chain colour, cream bands.
-  s.add(lathe(envelopeProfile(ZEP_R, ZEP_L), 12), pal.base, { rot: [0, 0, -Math.PI / 2] });
-  for (const x of [0.22, -0.24]) s.add(cyl(ZEP_R * (x > 0 ? 0.96 : 0.86), ZEP_R * (x > 0 ? 0.96 : 0.86), 0.035, 12), P.cream, { at: [x - 0.018, 0, 0], rot: [0, 0, -Math.PI / 2], jitter: 0 });
-  s.add(cone(0.04, 0.05, 8), pal.dark, { at: [ZEP_L - 0.025, 0, 0], rot: [0, 0, -Math.PI / 2] });
+  const add = plastic(s);
+  // Envelope along +x (lathe +y → +x) with two raised rib bands and a nose cap.
+  add(lathe(envelopeProfile(ZEP_R, ZEP_L), 12), t.main, { rot: [0, 0, -Math.PI / 2] });
+  for (const x of [0.22, -0.24]) add(cyl(ZEP_R * (x > 0 ? 0.97 : 0.87), ZEP_R * (x > 0 ? 0.97 : 0.87), 0.03, 12), t.hi, { at: [x - 0.015, 0, 0], rot: [0, 0, -Math.PI / 2], jitter: 0 });
+  add(cone(0.04, 0.05, 8), t.hi, { at: [ZEP_L - 0.025, 0, 0], rot: [0, 0, -Math.PI / 2] });
   // Cross tail fins.
   for (let i = 0; i < 4; i++) {
     const a = (i * Math.PI) / 2;
-    s.add(
+    add(
       hull('zepFin', [
         [0, 0, -0.008],
         [0, 0, 0.008],
@@ -692,22 +721,23 @@ function zeppelinShape(color: string): Shape {
         [-0.08, 0.15, -0.006],
         [-0.08, 0.15, 0.006],
       ]),
-      i % 2 ? pal.dark : P.cream,
+      i % 2 ? t.ao : t.main,
       { at: [-ZEP_L + 0.17, 0, 0], rot: [a, 0, 0] },
     );
   }
-  // Gondola with window band; struts.
-  s.add(box(0.24, 0.085, 0.12, 0.03), P.cream, { at: [0.02, -ZEP_R - 0.075, 0] });
-  s.add(box(0.18, 0.03, 0.124, 0), P.windowDark, { at: [0.03, -ZEP_R - 0.045, 0], mat: 'glass', jitter: 0 });
-  s.add(box(0.06, 0.02, 0.1, 0), pal.dark, { at: [-0.12, -ZEP_R - 0.06, 0] });
-  for (const x of [-0.06, 0.1]) s.add(box(0.012, 0.04, 0.012, 0), P.steelDark, { at: [x, -ZEP_R - 0.01, 0] });
+  // Gondola with a window band; engine pod; struts.
+  add(box(0.24, 0.085, 0.12, 0.03), t.ao, { at: [0.02, -ZEP_R - 0.075, 0] });
+  add(box(0.18, 0.03, 0.124, 0), t.deep, { at: [0.03, -ZEP_R - 0.045, 0], jitter: 0 });
+  add(box(0.06, 0.02, 0.1, 0), t.ao, { at: [-0.12, -ZEP_R - 0.06, 0] });
+  for (const x of [-0.06, 0.1]) add(box(0.012, 0.04, 0.012, 0), t.deep, { at: [x, -ZEP_R - 0.01, 0] });
   return s;
 }
 
-function zepPropShape(): Shape {
+function zepPropShape(css: string): Shape {
+  const d = tones(css).deep;
   const s = new Shape();
-  s.add(box(0.012, 0.14, 0.03, 0), '#3d3b44', { at: [0, -0.07, 0], jitter: 0 });
-  s.add(box(0.012, 0.03, 0.14, 0), '#3d3b44', { at: [0, -0.015, 0], jitter: 0 });
+  s.add(box(0.012, 0.14, 0.03, 0), d, { at: [0, -0.07, 0], mat: 'plastic', jitter: 0 });
+  s.add(box(0.012, 0.03, 0.14, 0), d, { at: [0, -0.015, 0], mat: 'plastic', jitter: 0 });
   return s;
 }
 
@@ -717,16 +747,16 @@ export function buildZeppelin(ctx: MiniCtx, spec: ActorSpec): Actor {
   a.parts.maxBank = 0.105;
   a.parts.float = 0.04;
   addShadow(ctx, a, 0.75, 0.75);
-  solid(ctx, a.rig, miniGeo(`v:zeppelin:${spec.color}`, () => zeppelinShape(spec.color)));
+  solid(ctx, a.rig, miniGeo(`v:zeppelin2:${spec.color}`, () => zeppelinShape(spec.color)));
   if (!ctx.ghost) {
     const hub = new THREE.Group();
     hub.position.set(-0.13, -ZEP_R - 0.06, 0);
     a.rig.add(hub);
-    const prop = solid(ctx, hub, miniGeo('v:zepProp', zepPropShape), { castShadow: false });
+    const prop = solid(ctx, hub, miniGeo(`v:zepProp:${spec.color}`, () => zepPropShape(spec.color)), { castShadow: false });
     prop.position.x = -0.03;
     a.parts.spinners.push({ o: prop, rate: 26 });
   }
-  addDecal(ctx, a, spec, 'zeppelin', 0.32, 0.12, ZEP_R * 0.99, [0.0, 0.02]);
+  addDecal(ctx, a, spec, 'zeppelin2', 0.17, 0.17, ZEP_R * 0.99, [0.0, 0.02]);
   a.cargo.position.set(0.02, -ZEP_R - 0.13, 0);
   a.drop.position.copy(a.cargo.position);
   return a;
@@ -749,26 +779,80 @@ function waveBanner(banner: THREE.Mesh, t: number): void {
   pos.needsUpdate = true;
 }
 
-/** Flying airplane (campaign sweep / fly-in / fly-off); same body as the campaign mini. */
+/**
+ * Low-wing monoplane in the marketing minis' light-blue plastic (as the campaign mini in
+ * marketing.ts, art bible §6.8), nose at +x, a little larger so it reads in flight.
+ */
+function flyingPlaneShape(): Shape {
+  const t = tones(MARKETING_PLASTIC);
+  const s = new Shape();
+  const add = plastic(s);
+  const k = 1.3;
+  add(
+    lathe(
+      [
+        [0, -0.47],
+        [0.06, -0.44],
+        [0.1, -0.15],
+        [0.13, 0.12],
+        [0.125, 0.3],
+        [0.1, 0.38],
+        [0, 0.4],
+      ].map(([r, y]) => [r! * k, y! * k] as [number, number]),
+      8,
+    ),
+    t.main,
+    { rot: [0, 0, -Math.PI / 2] },
+  );
+  add(cyl(0.11 * k, 0.11 * k, 0.05 * k, 8), t.deep, { at: [0.33 * k, 0, 0], rot: [0, 0, -Math.PI / 2] });
+  // Low wing with a slight dihedral, the pilot's head under a bump, tailplane and fin.
+  for (const sz of [-1, 1]) add(box(0.28 * k, 0.035 * k, 0.5 * k, 0), t.hi, { at: [0.08 * k, -0.09 * k, sz * 0.25 * k], rot: [sz * -0.08, 0, 0] });
+  add(ball(0.08 * k, 0), t.hi, { at: [0, 0.12 * k, 0], scale: [1.4, 1, 1] });
+  add(box(0.15 * k, 0.025 * k, 0.42 * k, 0), t.hi, { at: [-0.4 * k, -0.005 * k, 0] });
+  add(
+    hull('flyFin', [
+      [0, 0, -0.013],
+      [0, 0, 0.013],
+      [0.23, 0, -0.013],
+      [0.23, 0, 0.013],
+      [0.05, 0.26, -0.013],
+      [0.05, 0.26, 0.013],
+      [-0.03, 0.26, -0.013],
+      [-0.03, 0.26, 0.013],
+    ]),
+    t.main,
+    { at: [-0.61, 0.02, 0] },
+  );
+  return s;
+}
+
+function flyingPropShape(): Shape {
+  const s = new Shape();
+  s.add(box(0.026, 0.44, 0.06, 0.008), tones(MARKETING_PLASTIC).ao, { at: [0, -0.22, 0], mat: 'plastic', jitter: 0 });
+  return s;
+}
+
+/** Flying airplane (campaign sweep / fly-in / fly-off): the campaign mini's plane towing its banner. */
 export function buildPlane(ctx: MiniCtx, spec: ActorSpec & { bannerLength?: number }): Actor {
   const a = new ActorImpl('airplane', 0);
   a.parts.bank = -0.18;
   a.parts.maxBank = 0.35;
   a.parts.float = 0.05;
   addShadow(ctx, a, 1.0, 0.7);
-  solid(ctx, a.rig, miniGeo(`plane:${spec.color}`, () => planeShape(spec.color)));
-  const prop = mesh(ctx, a.rig, miniGeo('prop', propShape), false);
-  prop.position.set(0.61, 0, 0);
+  solid(ctx, a.rig, miniGeo('v:sePlane', flyingPlaneShape));
+  const prop = mesh(ctx, a.rig, miniGeo('v:seProp', flyingPropShape), false);
+  prop.position.set(0.56, 0, 0);
   a.parts.spinners.push({ o: prop, rate: 30 });
   a.drop.position.set(0, -0.22, 0);
   a.cargo.position.set(0, -0.22, 0);
   const len = spec.bannerLength ?? 1.4;
   if (len > 0 && !spec.lite) {
-    const pal = playerPalette(spec.color);
-    const rope = solid(ctx, a.rig, miniGeo('v:rope', () => new Shape().add(cyl(0.008, 0.008, 0.32, 3), '#4a4650', { rot: [0, 0, Math.PI / 2], jitter: 0 })), { castShadow: false });
+    const rope = solid(ctx, a.rig, miniGeo('v:rope2', () => new Shape().add(cyl(0.01, 0.01, 0.32, 3), tones(MARKETING_PLASTIC).ao, { rot: [0, 0, Math.PI / 2], mat: 'plastic', jitter: 0 })), { castShadow: false });
     rope.position.set(-0.62, 0, 0);
+    // The banner: light-blue plastic, with the cyan sign face of the campaign minis when it has goods.
     const geo = owned(new THREE.PlaneGeometry(len, 0.42, 12, 1));
-    const mat = ctx.ghost ?? owned(new THREE.MeshStandardMaterial({ map: spec.goods?.length ? posterTexture(spec.goods, pal.base, len / 0.42) : null, color: spec.goods?.length ? 0xffffff : new THREE.Color(pal.light), side: THREE.DoubleSide, roughness: 0.85 }));
+    const goods = spec.goods?.length ? spec.goods : null;
+    const mat = ctx.ghost ?? owned(new THREE.MeshStandardMaterial({ map: goods ? signFaceTexture(goods, len / 0.42) : null, color: goods ? 0xffffff : new THREE.Color(MARKETING_PLASTIC), side: THREE.DoubleSide, roughness: 0.6 }));
     const banner = new THREE.Mesh(geo, mat);
     banner.position.set(-0.94 - len / 2, 0, 0);
     banner.name = 'banner';
@@ -785,14 +869,15 @@ export function buildPlane(ctx: MiniCtx, spec: ActorSpec & { bannerLength?: numb
 // Mailman
 // ---------------------------------------------------------------------------
 
-function mailmanTop(color: string): Shape {
-  const pal = playerPalette(color);
+function mailmanTop(css: string): Shape {
+  const t = tones(css);
   const s = new Shape();
-  figureTop(s, pal.base, pal.dark, [0, 0, 0], 'down');
+  const add = plastic(s);
+  figureTop(s, t, [0, 0, 0], 'down');
   // Satchel on the hip with an envelope peeking out; strap across the chest.
-  s.add(box(0.08, 0.07, 0.035, 0.012), P.wood, { at: [-0.005, 0.02, 0.075] });
-  s.add(box(0.05, 0.03, 0.01, 0), P.white, { at: [0, 0.085, 0.075], jitter: 0 });
-  s.add(box(0.012, 0.15, 0.13, 0), P.woodDark, { at: [0.0, 0.03, 0.005], rot: [0.75, 0, 0], jitter: 0 });
+  add(box(0.08, 0.07, 0.035, 0.012), t.ao, { at: [-0.005, 0.02, 0.075] });
+  add(box(0.05, 0.03, 0.01, 0), t.hi, { at: [0, 0.085, 0.075], jitter: 0 });
+  add(box(0.012, 0.15, 0.13, 0), t.deep, { at: [0.0, 0.03, 0.005], rot: [0.75, 0, 0], jitter: 0 });
   return s;
 }
 
@@ -801,9 +886,9 @@ export function buildMailman(ctx: MiniCtx, spec: ActorSpec): Actor {
   if (!spec.lite) addShadow(ctx, a, 0.22);
   const walker = new THREE.Group();
   a.rig.add(walker);
-  const top = solid(ctx, walker, miniGeo(`v:mailman:${spec.color}`, () => mailmanTop(spec.color)));
+  const top = solid(ctx, walker, miniGeo(`v:mailman2:${spec.color}`, () => mailmanTop(spec.color)));
   top.position.y = 0.125;
-  addLegs(ctx, a, walker, 0.125);
+  addLegs(ctx, a, spec.color, walker, 0.125);
   a.parts.walker = walker;
   a.parts.stride = 0.1;
   a.cargo.position.set(0.12, 0.17, 0.06);

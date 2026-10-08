@@ -57,21 +57,33 @@ same name exists.
 | table / rim | `#6b4a2f` / `#ebe2c8` | wood table, cream coordinate band (chrome edge) |
 | legal / bad / edge | `#2b8a7e` / `#aa3839` / `#ffffff` | legal-area tint, blocked square, white edge of range and blocked marks |
 
-Older theme tokens still used by minis and UI:
+Board aliases still read by some 3D builders, mapped to the art-bible values (no pre-bible colours remain):
 
 | Token | Hex | Use |
 |---|---|---|
-| grass | `#a6d27c` | (no longer the board ground) |
-| lot | `#e9dfc4` | building plots, board rim |
-| road | `#5b5a63` | asphalt |
-| roadLine | `#f4ead5` | centre dashes (tile-edge crossings at midpoints) |
-| houseWall / houseRoof | `#f2e6cf` / `#c8693f` | houses |
-| apartment | `#b8b2c8` | Ketchup apartments |
-| garden / park | `#5f9e4a` / `#6fb35a` | hedges, trees, lawns |
-| tileEdge | `#cbbd9c` | groove floor and raised lip between map tiles (the seam line is a darker shade, below) |
+| grass | `#f5f2e8` | tile print ground (Ketchup ghost slabs, build animation slabs) |
+| lot | `#e3dfd3` | plates under restaurants and marketing pieces |
+| road / roadLine | `#7c787b` / `#f4f4f2` | asphalt, centre dashes (Ketchup ramps) |
+| houseWall / houseRoof | `#7a2f48` / `#5e2236` | house plastic |
+| apartment | `#b2658e` | apartment plates |
+| garden / park | `#a9bd62` / `#537938` | garden plastic, park print |
 | highlightOk / highlightBad | `#5ad17a` / `#e25b4b` | legal / illegal ghost placement |
-| highlightLegal | `#ffc531` | tint on every legal spot during a board pick (mustard: reads on grass and asphalt) |
+| highlightLegal | `#ffc531` | tint on every legal spot during a board pick |
 | shadow | `#1f1d26` | dimming of tiles outside the road range |
+
+Printed pieces (WP2; `theme.ts`, `ui/cards.tsx`, `ui/Milestones.tsx`, `ui/money.tsx`). Every band
+carries its title at 4.5:1 or better (`a11y.test.ts`):
+
+| Card colour | Band | Title |
+|---|---|---|
+| ceo / black (managers) / grey (recruit, train) | `#494944` / `#353633` / `#5d5f5b` | white |
+| purple / red / salmon (pricing, darkened) | `#8350a8` / `#aa3839` / `#b8503d` | white |
+| blue (marketing) / oliveGreen (kitchen) / lightGreen (drinks) / teal (coffee) | `#3d6fb0` / `#2f7a3f` / `#557a1f` / `#2f6f73` | white |
+
+Milestone bands: grey `#5d5f5b`, purple `#8350a8`, blue `#4a6fba`, red `#aa3839` (white titles);
+green `#70c83f`, light green `#a9d46f`, salmon `#e07a66` (ink titles). Tick token `#5cb85c`, X token
+`#d9534f`. Banknotes: $1 `#8fc9a0`, $5 `#b9c6e8`, $10 `#f2dc7e`, $20 `#9fd3cf`, $50 `#f3b4a4`,
+$100 `#b8c4b0`, engraving ink `#3c3a36`.
 
 Players (seat order = chain order; six for Ketchup). Base is the chain's plastic colour (minis, UI
 badges), print the flat tile colour, felt the chrome-tray felt (rail cards).
@@ -97,7 +109,7 @@ client maps both earlier palettes (older servers, saved games) to these seats (`
 
 Player colour appears on restaurant roofs and awnings, campaign frames, coffee shops, busy-marketeer chips and UI badges. Colour is never the only cue: each seat has one mark (`playerMark`: the name's initial, two letters when initials clash) shown on its UI badges and on its restaurant and coffee-shop signs and vans.
 
-Goods: burger `#8d5a2b`, pizza `#ef6f3c`, beer `#e0b23a`, lemonade `#f5ec7a`, soft drink `#6b2f2a`, coffee `#4a3226`, kimchi `#c8412f`, sushi `#e98b8b`, noodles `#f2d79b`. Each good also has its own token shape (below).
+Goods (key print colour, `FOOD_COLORS`): burger `#c98a4b`, pizza `#d4883a`, beer `#3e8e4d`, lemonade `#ffec46`, soft drink `#d8262a`, coffee `#4a3226`, kimchi `#d84a2a`, sushi `#e98b8b`, noodles `#f2d79b`. Each good also has its own token silhouette and print (`src/goodsGlyphs.ts`: SVG path data shared by the UI icons, the 2D board and, later, the 3D token decals).
 
 ## Scale and units
 

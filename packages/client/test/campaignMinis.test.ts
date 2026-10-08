@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import type { Board } from '@fcm/engine';
 import { Instancer } from '../src/three/instancer.js';
-import { MX, MZ, addCampaignMarker, mailboxShape, radioShape } from '../src/three/minis/marketing.js';
+import { MAST_TOP, MX, MZ, addCampaignMarker, mailboxShape, radioShape } from '../src/three/minis/marketing.js';
 import { BADGE_MIN_PX } from '../src/three/labels.js';
 import { BRIDGE_TOP, bridgeLift, roadLinks } from '../src/three/board/roads.js';
 import { ROAD_TOP } from '../src/three/coords.js';
@@ -15,19 +15,27 @@ if (typeof document === 'undefined') {
 
 describe('campaign minis', () => {
   it('mailbox stays inside its 1x1 footprint at its board yaw', () => {
-    const g = mailboxShape('#d94f3d').build();
+    const g = mailboxShape().build();
     g.applyMatrix4(new THREE.Matrix4().makeRotationY(-Math.PI / 2 + 0.3));
     g.computeBoundingBox();
     const b = g.boundingBox!;
     for (const v of [b.min.x, b.min.z, b.max.x, b.max.z]) expect(Math.abs(v)).toBeLessThan(0.45);
   });
 
-  it('radio mast legs lean in and meet under the beacon', () => {
-    const g = radioShape('#e8b730').build();
+  it('radio mast tapers to a narrow top under the beacon and stays on its plate', () => {
+    const g = radioShape().build();
     const pos = g.attributes.position!;
-    let far = 0;
-    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 1.55 && pos.getY(i) < 1.7) far = Math.max(far, Math.hypot(pos.getX(i) - MX, pos.getZ(i) - MZ));
-    expect(far).toBeLessThan(0.08);
+    let top = 0;
+    let foot = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const d = Math.hypot(pos.getX(i) - MX, pos.getZ(i) - MZ);
+      if (pos.getY(i) > MAST_TOP - 0.1 && pos.getY(i) < MAST_TOP) top = Math.max(top, d);
+      expect(Math.abs(pos.getX(i))).toBeLessThan(0.45);
+      expect(Math.abs(pos.getZ(i))).toBeLessThan(0.45);
+      if (pos.getY(i) < 0.1) foot = Math.max(foot, d);
+    }
+    expect(top).toBeLessThan(0.13);
+    expect(foot).toBeGreaterThan(0.3);
   });
 
   it('campaign marker keeps a minimum on-screen size and pushes plaques away', () => {

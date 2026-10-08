@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { COLORS, contrast, inkOn, PLAYER_COLORS, playerColorFor, seatColor } from '../src/theme.js';
+import { CARD_COLORS, COLORS, contrast, inkOn, MILESTONE_BANDS, MONEY_COLORS, PLAYER_COLORS, playerColorFor, seatColor } from '../src/theme.js';
 import { boardOwnsEscape, boardOwnsKey, type BoardKeyEnv, type KeyLike } from '../src/three/keyScope.js';
 import { summaryAnnouncement, turnAnnouncement } from '../src/state/announce.js';
 import { playerMark } from '../src/state/selectors.js';
@@ -62,6 +62,27 @@ describe('theme token contrast (WCAG AA text)', () => {
   it('contrast() matches known WCAG values', () => {
     expect(contrast('#000000', '#ffffff')).toBeCloseTo(21, 5);
     expect(contrast('#777777', '#ffffff')).toBeCloseTo(4.48, 2);
+  });
+});
+
+describe('printed pieces (cards, milestone tiles, money)', () => {
+  it.each(Object.entries(CARD_COLORS))('white card title on the %s band', (_k, band) => {
+    expect(contrast(WHITE, band)).toBeGreaterThanOrEqual(AA);
+  });
+  it.each(Object.entries(CARD_COLORS))('%s training-list text on the cream ability panel', (_k, band) => {
+    expect(contrast(band, '#fcfbef')).toBeGreaterThanOrEqual(AA);
+  });
+  it.each(Object.entries(MILESTONE_BANDS))('milestone %s band title', (_k, b) => {
+    expect(contrast(b.ink, b.band)).toBeGreaterThanOrEqual(AA);
+  });
+  it('1x badge, card text and milestone values', () => {
+    expect(contrast(WHITE, COLORS.tealInk)).toBeGreaterThanOrEqual(AA);
+    expect(contrast(COLORS.ink, '#fcfbef')).toBeGreaterThanOrEqual(AA);
+    expect(contrast(COLORS.inkMuted, '#ece8db')).toBeGreaterThanOrEqual(AA);
+    expect(contrast('#4b3f8f', '#ece8db')).toBeGreaterThanOrEqual(AA);
+  });
+  it('banknote engraving reads on every note', () => {
+    for (const v of [1, 5, 10, 20, 50, 100] as const) expect(contrast(MONEY_COLORS.ink, MONEY_COLORS[v])).toBeGreaterThanOrEqual(AA);
   });
 });
 

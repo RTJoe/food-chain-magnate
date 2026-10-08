@@ -18,7 +18,7 @@ import { effect, untracked, useSignal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import type { Board, CellKind, Direction, FoodId, GameView, Placement } from '@fcm/engine';
 import { BOARD } from '../boardPalette.js';
-import { COLORS, FOOD_COLORS } from '../theme.js';
+import { COLORS } from '../theme.js';
 import { describePlacement } from '../state/actions.js';
 import { emitPick, interactionMode, isPickMode, type InteractionMode } from '../state/boardBridge.js';
 import { rangeOverlay, reachOverlay } from '../state/boardOverlays.js';
@@ -884,7 +884,7 @@ export function Board2D() {
                     Rural area
                   </text>
                   {h?.demand.slice(0, 15).map((d, i) => (
-                    <circle key={i} cx={r.x + 0.7 + (i % 5) * 0.9} cy={r.y + 1.6 + Math.floor(i / 5) * 0.9} r={0.3} fill={FOOD_COLORS[d.good] ?? COLORS.ink} stroke={COLORS.ink} stroke-width={0.05} />
+                    <Good key={i} food={d.good} x={r.x + 0.7 + (i % 5) * 0.9} y={r.y + 1.6 + Math.floor(i / 5) * 0.9} s={0.74} />
                   ))}
                 </>
               );
@@ -901,7 +901,7 @@ export function Board2D() {
               <rect x={r.x} y={r.y} width={r.w} height={r.h} fill="transparent" />
               {h.kind === 'apartment' ? <ApartmentPrint r={r} label={h.label} /> : <HousePrint r={r} label={h.label} />}
               {h.demand.slice(0, 6).map((d, i) => (
-                <circle key={i} cx={r.x + 0.3 + (i % 3) * 0.5} cy={r.y + r.h - 0.3 - Math.floor(i / 3) * 0.4} r={0.18} fill={FOOD_COLORS[d.good] ?? COLORS.ink} stroke={COLORS.ink} stroke-width={0.04} />
+                <Good key={i} food={d.good} x={r.x + 0.3 + (i % 3) * 0.5} y={r.y + r.h - 0.3 - Math.floor(i / 3) * 0.42} s={0.46} />
               ))}
             </g>
           );
@@ -1096,3 +1096,4 @@ function onBump(read: () => unknown, fn: () => void): () => void {
 
 /** Used by the shell to decide whether the 2D board is needed. */
 export const hasBoard = (v: GameView | null): boolean => Boolean(v && v.board.w > 0 && v.board.cells.length > 0);
+

@@ -1,12 +1,16 @@
-/** Ketchup expansion pieces: park, lobbyist road works, roadworks marker, freeway; generic fallback. */
+/**
+ * Ketchup expansion pieces: park, lobbyist road works (hazard chevrons, barriers, cones), the
+ * hazard-striped roadworks token, the freeway with its green FREEWAY gantry; generic fallback.
+ */
 import * as THREE from 'three';
 import type { Cell, Direction } from '@fcm/engine';
 import { COLORS } from '../../theme.js';
 import { FREEWAY } from '../anim/path.js';
 import { dirAngle } from '../coords.js';
-import { makeBadge, signTexture } from '../labels.js';
+import { makeBadge } from '../labels.js';
 import { PLASTIC, plasticPen, plasticTree, type Pen as PlasticPen } from './buildings.js';
 import { blob, face, solid, type MiniCtx } from './ctx.js';
+import { decalTexture, roundRect } from './marketing.js';
 import { P, Shape, ball, box, cone, cyl, extrude, miniGeo, playerPalette, shade } from './kit.js';
 
 // ---------------------------------------------------------------------------
@@ -123,17 +127,26 @@ export function buildPark(ctx: MiniCtx, p: { w: number; h: number; cells?: reado
 }
 
 // ---------------------------------------------------------------------------
-// Traffic cones / barriers
+// Road works: cones, barriers, chevron edge strips (art bible §6.11)
 // ---------------------------------------------------------------------------
+
+/** Hazard orange and white of the Ketchup "under construction" print. */
+const HAZARD = '#f08a3c';
+const HAZARD_WHITE = '#fdfcfa';
+/** Freeway sign green (Ketchup p.25). */
+const FREEWAY_GREEN = '#2f7a46';
+/** Yellow road edge line (art bible §2 `roadLine`). */
+const EDGE_YELLOW = '#d9c35c';
 
 function coneShape(): Shape {
   const s = new Shape();
   s.add(box(0.2, 0.025, 0.2, 0.008), '#2f2d36', { jitter: 0 });
-  s.add(cone(0.075, 0.28, 8), '#f08a3c', { at: [0, 0.02, 0] });
-  s.add(cyl(0.048, 0.056, 0.05, 8), P.white, { at: [0, 0.12, 0], jitter: 0 });
+  s.add(cone(0.075, 0.28, 8), HAZARD, { at: [0, 0.02, 0] });
+  s.add(cyl(0.048, 0.056, 0.05, 8), HAZARD_WHITE, { at: [0, 0.12, 0], jitter: 0 });
   return s;
 }
 
+/** Striped A-barrier: two legs, an orange / white striped board, a lamp, an owner tab. */
 function barrierShape(color: string): Shape {
   const s = new Shape();
   for (const x of [-0.32, 0.32]) {
@@ -141,13 +154,35 @@ function barrierShape(color: string): Shape {
     s.add(box(0.16, 0.03, 0.12, 0.01), '#2f2d36', { at: [x, 0, 0] });
   }
   for (let i = 0; i < 5; i++)
-    s.add(box(0.14, 0.1, 0.03, 0.005), i % 2 ? P.white : '#e25b4b', { at: [-0.28 + i * 0.14, 0.18, 0], jitter: 0 });
+    s.add(box(0.14, 0.1, 0.03, 0.005), i % 2 ? HAZARD_WHITE : HAZARD, { at: [-0.28 + i * 0.14, 0.18, 0], jitter: 0 });
   s.add(ball(0.035, 0), '#f8d24a', { at: [-0.32, 0.34, 0], mat: 'glow' });
   s.add(box(0.12, 0.05, 0.035, 0.01), playerPalette(color).base, { at: [0.32, 0.3, 0] });
   return s;
 }
 
-function arrowShape(): THREE.Shape {
+/** One diagonal hazard stripe (a parallelogram), lying in the xy plane. */
+function stripeShape(): THREE.Shape {
+  const s = new THREE.Shape();
+  s.moveTo(-0.07, -0.5);
+  s.lineTo(0.03, -0.5);
+  s.lineTo(0.07, 0.5);
+  s.lineTo(-0.03, 0.5);
+  s.closePath();
+  return s;
+}
+
+/** Chevron strips along both edges of one road square (flat, on the road surface). */
+function chevronShape(): Shape {
+  const s = new Shape();
+  for (const z of [-0.42, 0.42]) {
+    s.add(box(0.98, 0.01, 0.1, 0), HAZARD_WHITE, { at: [0, 0, z], jitter: 0 });
+    for (let i = 0; i < 6; i++)
+      s.add(extrude('hzStripe', stripeShape, 0.012, 0), HAZARD, { at: [-0.41 + i * 0.165, 0.008, z], rot: [-Math.PI / 2, 0, 0], scale: [1, 0.1, 1], jitter: 0 });
+  }
+  return s;
+}
+
+const arrowShape = (): THREE.Shape => {
   const s = new THREE.Shape();
   s.moveTo(0, 0.5);
   s.lineTo(0.35, 0.05);
@@ -158,14 +193,17 @@ function arrowShape(): THREE.Shape {
   s.lineTo(-0.35, 0.05);
   s.closePath();
   return s;
-}
+};
 
 const arrowGeo = (color: string) =>
   miniGeo(`roadArrow:${color}`, () =>
     new Shape().add(extrude('roadArrowShape', arrowShape, 0.012, 0), color, { rot: [-Math.PI / 2, 0, 0], scale: 0.7, jitter: 0 }),
   );
 
-/** Lobbyist road overlay: arrows at the connection ends; cones and barriers while under construction. */
+/**
+ * Lobbyist road overlay: arrows at the connection ends; while under construction, orange / white
+ * chevron strips along both edges of every square, a striped barrier and a cone on each.
+ */
 export function buildLobbyistRoad(
   ctx: MiniCtx,
   p: { color: string; cells: Cell[]; underConstruction: boolean; arrows: { from: Cell; dir: Direction }[]; origin: [number, number] },
@@ -196,16 +234,15 @@ export function buildLobbyistRoad(
       const horiz = p.cells.some((d) => d.y === c.y && Math.abs(d.x - c.x) === 1);
       b.rotation.y = horiz ? 0 : Math.PI / 2;
       g.add(b);
+      solid(ctx, b, miniGeo('hzChevrons', chevronShape), { castShadow: false });
       const bar = new THREE.Group();
-      bar.position.z = i % 2 ? 0.34 : -0.34;
+      bar.position.z = i % 2 ? 0.3 : -0.3;
       b.add(bar);
       solid(ctx, bar, miniGeo(`barrier:${p.color}`, () => barrierShape(p.color)));
-      for (const dx of [-0.3, 0.3]) {
-        const cn = new THREE.Group();
-        cn.position.set(dx, 0, i % 2 ? -0.3 : 0.3);
-        b.add(cn);
-        solid(ctx, cn, miniGeo('cone', coneShape));
-      }
+      const cn = new THREE.Group();
+      cn.position.set(i % 2 ? -0.32 : 0.32, 0, i % 2 ? -0.28 : 0.28);
+      b.add(cn);
+      solid(ctx, cn, miniGeo('cone', coneShape));
     });
     const badge = makeBadge('Works', { bg: '#f8d24a', fg: COLORS.ink, ring: COLORS.ink, pill: true }, 0.3);
     badge.position.set(0, 0.9, 0);
@@ -215,28 +252,59 @@ export function buildLobbyistRoad(
   return g;
 }
 
-/** Roadworks marker: one big cone with a sign. */
+/** Clip the band c0 ≤ x + z ≤ c1 to the square |x|, |z| ≤ a (convex polygon, ccw). */
+function bandInSquare(a: number, c0: number, c1: number): [number, number][] {
+  let poly: [number, number][] = [
+    [-a, -a],
+    [a, -a],
+    [a, a],
+    [-a, a],
+  ];
+  const clip = (keep: (p: [number, number]) => number) => {
+    const out: [number, number][] = [];
+    poly.forEach((p, i) => {
+      const q = poly[(i + 1) % poly.length]!;
+      const dp = keep(p);
+      const dq = keep(q);
+      if (dp >= 0) out.push(p);
+      if (dp * dq < 0) {
+        const t = dp / (dp - dq);
+        out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+      }
+    });
+    poly = out;
+  };
+  clip(([x, z]) => x + z - c0);
+  clip(([x, z]) => c1 - (x + z));
+  return poly;
+}
+
+/** Roadworks token: an orange plate with white diagonal stripes, a cone and a warning sign. */
+function roadworksShape(): Shape {
+  const s = new Shape();
+  const A = 0.43;
+  s.add(box(A * 2, 0.04, A * 2, 0.012), HAZARD, { jitter: 0 });
+  for (let i = -3; i <= 3; i++) {
+    const poly = bandInSquare(A - 0.04, i * 0.26 - 0.06, i * 0.26 + 0.06);
+    if (poly.length < 3) continue;
+    s.add(
+      extrude(`rwStripe:${i}`, () => new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z))), 0.008, 0),
+      HAZARD_WHITE,
+      { at: [0, 0.042, 0], rot: [-Math.PI / 2, 0, 0], jitter: 0 },
+    );
+  }
+  s.addShape(coneShape(), { at: [-0.2, 0.04, 0.16], scale: 1.1 });
+  s.add(cyl(0.015, 0.015, 0.36, 4), P.steelDark, { at: [0.2, 0.04, -0.12] });
+  s.add(extrude('tri', triShape, 0.03, 0.01), '#f8d24a', { at: [0.2, 0.44, -0.11], scale: 0.14 });
+  s.add(extrude('tri', triShape, 0.032, 0), '#e25b4b', { at: [0.2, 0.44, -0.11], scale: 0.17 });
+  return s;
+}
+
+/** Roadworks marker: the hazard-striped token. */
 export function buildRoadworks(ctx: MiniCtx): THREE.Group {
   const g = new THREE.Group();
-  blob(ctx, g, 0.6, 0.6, false, 0.6);
-  const c = new THREE.Group();
-  c.scale.setScalar(1.5);
-  g.add(c);
-  solid(ctx, c, miniGeo('cone', coneShape));
-  const sgn = new THREE.Group();
-  sgn.position.set(0.25, 0.03, 0.12);
-  g.add(sgn);
-  solid(
-    ctx,
-    sgn,
-    miniGeo('roadworksSign', () => {
-      const s = new Shape();
-      s.add(cyl(0.015, 0.015, 0.36, 4), P.steelDark);
-      s.add(extrude('tri', triShape, 0.03, 0.01), '#f8d24a', { at: [0, 0.4, 0], scale: 0.14 });
-      s.add(extrude('tri', triShape, 0.032, 0), '#e25b4b', { at: [0, 0.4, 0], scale: 0.17 });
-      return s;
-    }),
-  );
+  blob(ctx, g, 0.95, 0.95, true, 0.5);
+  solid(ctx, g, miniGeo('roadworks:se', roadworksShape));
   return g;
 }
 
@@ -253,6 +321,9 @@ function triShape(): THREE.Shape {
 // Freeway (beside an outer tile edge; canonical side S, ramp runs outwards to +z)
 // ---------------------------------------------------------------------------
 
+/** Gantry sign size and height above the elevated end. */
+const GANTRY = { w: 0.92, h: 0.34, y: 0.78 };
+
 function freewayShape(color: string): Shape {
   const pal = playerPalette(color);
   const s = new Shape();
@@ -261,13 +332,15 @@ function freewayShape(color: string): Shape {
   const rise = FREEWAY.rise;
   const slope = Math.atan2(rise, L);
   const len = Math.hypot(L, rise);
-  // Deck (inclined slab) from the board edge outwards.
-  s.add(box(0.86, 0.09, len, 0.02), '#8f8b88', { at: [0, rise / 2 - 0.02, L / 2 + 0.05], rot: [-slope, 0, 0] });
-  s.add(box(0.7, 0.012, len, 0), COLORS.road, { at: [0, rise / 2 + 0.065, L / 2 + 0.05], rot: [-slope, 0, 0], jitter: 0 });
-  for (const x of [-0.42, 0.42])
-    s.add(box(0.05, 0.12, len, 0.01), P.kerb, { at: [x, rise / 2 + 0.03, L / 2 + 0.05], rot: [-slope, 0, 0] });
+  const deck = (geo: THREE.BufferGeometry, paint: string, x: number, y: number, jitter = 0.04) =>
+    s.add(geo, paint, { at: [x, rise / 2 + y, L / 2 + 0.05], rot: [-slope, 0, 0], jitter });
+  // Deck (inclined slab) from the board edge outwards, in road grey with yellow edge lines.
+  deck(box(0.86, 0.09, len, 0.02), '#8f8b88', 0, -0.02);
+  deck(box(0.7, 0.012, len, 0), COLORS.road, 0, 0.065, 0);
+  for (const x of [-0.3, 0.3]) deck(box(0.03, 0.012, len, 0), EDGE_YELLOW, x, 0.068, 0);
+  for (const x of [-0.42, 0.42]) deck(box(0.05, 0.12, len, 0.01), P.kerb, x, 0.03);
   for (let i = 0; i < 5; i++)
-    s.add(box(0.05, 0.012, 0.22, 0), COLORS.roadLine, { at: [0, 0.1 + ((i + 0.5) / 5) * rise + 0.06, ((i + 0.5) / 5) * L], rot: [-slope, 0, 0], jitter: 0 });
+    s.add(box(0.04, 0.012, 0.22, 0), COLORS.roadLine, { at: [0, 0.1 + ((i + 0.5) / 5) * rise + 0.062, ((i + 0.5) / 5) * L], rot: [-slope, 0, 0], jitter: 0 });
   // Pillars.
   for (const t of [0.4, 0.7, 0.95]) {
     const h = t * rise;
@@ -276,12 +349,46 @@ function freewayShape(color: string): Shape {
   // Elevated end platform.
   s.add(box(0.9, 0.1, 0.8, 0.02), '#8f8b88', { at: [0, rise - 0.04, L + 0.4] });
   s.add(box(0.74, 0.012, 0.8, 0), COLORS.road, { at: [0, rise + 0.06, L + 0.4], jitter: 0 });
+  for (const x of [-0.3, 0.3]) s.add(box(0.03, 0.012, 0.8, 0), EDGE_YELLOW, { at: [x, rise + 0.063, L + 0.4], jitter: 0 });
   s.add(box(0.24, rise, 0.24, 0.03), P.stone, { at: [0, 0, L + 0.5] });
-  // Sign gantry.
-  for (const x of [-0.5, 0.5]) s.add(cyl(0.025, 0.025, 1.0, 5), P.steelDark, { at: [x, rise, L - 0.2], mat: 'metal' });
-  s.add(box(1.04, 0.05, 0.05, 0.01), P.steelDark, { at: [0, rise + 0.95, L - 0.2], mat: 'metal' });
-  s.add(box(0.14, 0.04, 0.04, 0.01), pal.base, { at: [0.42, rise + 0.99, L - 0.2] });
+  // Sign gantry with the green FREEWAY board.
+  for (const x of [-0.5, 0.5]) s.add(cyl(0.025, 0.025, GANTRY.y + GANTRY.h + 0.06, 5), P.steelDark, { at: [x, rise, L - 0.2], mat: 'metal' });
+  s.add(box(1.04, 0.05, 0.05, 0.01), P.steelDark, { at: [0, rise + GANTRY.y + GANTRY.h + 0.04, L - 0.2], mat: 'metal' });
+  s.add(box(GANTRY.w + 0.04, GANTRY.h + 0.04, 0.04, 0.01), FREEWAY_GREEN, { at: [0, rise + GANTRY.y - 0.02, L - 0.2] });
+  s.add(box(0.14, 0.04, 0.04, 0.01), pal.base, { at: [0.42, rise + GANTRY.y + GANTRY.h + 0.08, L - 0.2] });
   return s;
+}
+
+/** Green highway sign: white condensed FREEWAY with an arrow either side. */
+function freewaySignTexture(): THREE.Texture {
+  const W = 384;
+  const H = 142;
+  return decalTexture('freewaySign', W, H, (c) => {
+    c.fillStyle = FREEWAY_GREEN;
+    c.fillRect(0, 0, W, H);
+    c.strokeStyle = HAZARD_WHITE;
+    c.lineWidth = 6;
+    roundRect(c, 9, 9, W - 18, H - 18, 14);
+    c.stroke();
+    c.fillStyle = HAZARD_WHITE;
+    c.font = `700 74px 'Barlow Condensed', 'Oswald', 'Arial Narrow', sans-serif`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('FREEWAY', W / 2, H / 2 + 4);
+    for (const sx of [-1, 1]) {
+      const x = W / 2 + sx * 158;
+      c.beginPath();
+      c.moveTo(x, 36);
+      c.lineTo(x + 18, 62);
+      c.lineTo(x + 7, 62);
+      c.lineTo(x + 7, 106);
+      c.lineTo(x - 7, 106);
+      c.lineTo(x - 7, 62);
+      c.lineTo(x - 18, 62);
+      c.closePath();
+      c.fill();
+    }
+  });
 }
 
 export function buildFreeway(ctx: MiniCtx, p: { color: string; side: Direction }): THREE.Group {
@@ -294,11 +401,13 @@ export function buildFreeway(ctx: MiniCtx, p: { color: string; side: Direction }
   body.add(shadow);
   blob(ctx, shadow, 1.2, 4.0, true, 0.5);
   solid(ctx, body, miniGeo(`freeway:${p.color}`, () => freewayShape(p.color)));
-  const sign = face(ctx, body, signTexture('RURAL', '#2f7a46', '#fffaf0'), 0.8, 0.3, false);
-  sign.position.set(0, 0.95 + 0.78, 3.2 - 0.17);
-  const back = face(ctx, body, signTexture('RURAL', '#2f7a46', '#fffaf0'), 0.8, 0.3, false);
-  back.position.set(0, 0.95 + 0.78, 3.2 - 0.23);
-  back.rotation.y = Math.PI;
+  const y = FREEWAY.rise + GANTRY.y + GANTRY.h / 2;
+  const z = FREEWAY.run - 0.2;
+  for (const side of [1, -1]) {
+    const f = face(ctx, body, freewaySignTexture(), GANTRY.w, GANTRY.h);
+    f.position.set(0, y, z + side * 0.022);
+    if (side < 0) f.rotation.y = Math.PI;
+  }
   return g;
 }
 

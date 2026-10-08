@@ -26,7 +26,7 @@ import {
   welcomeTexture,
   wordmarkTexture,
 } from './chains.js';
-import { P, Shape, ball, box, cyl, extrude, lathe, miniGeo, playerPalette, puck } from './kit.js';
+import { P, Shape, ball, box, cone, cyl, extrude, lathe, miniGeo, playerPalette, puck, shade, torus, type PartOpts } from './kit.js';
 
 export interface RestaurantParams {
   color: string;
@@ -180,35 +180,46 @@ function arrowShape(): THREE.Shape {
 // Coffee shop (1x1 kiosk, Ketchup)
 // ---------------------------------------------------------------------------
 
+/** Kiosk hatch: the wordmark decal sits on the counter front below it. */
+const KIOSK = { w: 0.6, h: 0.5, d: 0.56, z: -0.04, counterY: 0.27 };
+
+/**
+ * SE coffee kiosk in the chain's plastic (art bible §6.10): a 0.6² kiosk with a counter hatch and
+ * a propped-up flap, a conical roof and a giant cup and saucer on top. One colour; value steps
+ * stand in for relief and baked AO.
+ */
 function coffeeShape(color: string): Shape {
-  const pal = playerPalette(color);
   const s = new Shape();
-  s.add(box(0.88, 0.06, 0.88, 0.03), P.lot, { jitter: 0 });
-  s.add(box(0.62, 0.5, 0.56, 0.04), P.cream, { at: [0, 0.06, -0.06] });
-  s.add(box(0.5, 0.18, 0.05, 0.01), P.window, { at: [0, 0.3, 0.22], mat: 'glass' });
-  s.add(box(0.56, 0.04, 0.12, 0.01), pal.dark, { at: [0, 0.24, 0.27] });
-  for (let i = 0; i < 4; i++)
-    s.add(box(0.16, 0.03, 0.2, 0.008), i % 2 ? P.white : pal.base, { at: [-0.24 + i * 0.16, 0.5, 0.28], rot: [0.5, 0, 0], jitter: 0 });
-  s.add(box(0.7, 0.07, 0.64, 0.03), pal.dark, { at: [0, 0.56, -0.06] });
-  // Giant cup on the roof.
-  s.add(lathe([[0, 0], [0.13, 0], [0.17, 0.24], [0.15, 0.25], [0, 0.25]], 10), P.white, { at: [0, 0.63, -0.06] });
-  s.add(cyl(0.165, 0.165, 0.02, 10), '#4a3226', { at: [0, 0.86, -0.06] });
-  s.add(lathe([[0.155, 0.05], [0.18, 0.06], [0.19, 0.12], [0.185, 0.16], [0.16, 0.17]], 10), pal.base, { at: [0, 0.63, -0.06] });
-  s.add(puck(0.2, 0.03, 12, 0.01), P.white, { at: [0, 0.63, -0.06] });
-  // Steam.
-  s.add(ball(0.04, 0), '#ffffff', { at: [-0.03, 0.95, -0.06] });
-  s.add(ball(0.03, 0), '#ffffff', { at: [0.03, 1.02, -0.04] });
-  // Bistro table.
-  s.add(cyl(0.012, 0.012, 0.16, 4), P.steelDark, { at: [0.3, 0.06, 0.33] });
-  s.add(cyl(0.07, 0.07, 0.015, 8), P.white, { at: [0.3, 0.22, 0.33] });
+  const pen = (geo: THREE.BufferGeometry, tint: number, o: PartOpts = {}) => s.add(geo, tint ? shade(color, tint) : color, { mat: 'plastic', jitter: 0.012, ...o });
+  const { w, h, d, z, counterY } = KIOSK;
+  const front = z + d / 2;
+  pen(box(0.86, 0.06, 0.86, 0.02), -0.08, { jitter: 0 });
+  pen(box(w, h, d, 0.03), 0, { at: [0, 0.06, z] });
+  // Hatch: a deep opening above the counter, the flap propped up over it.
+  pen(box(w - 0.14, 0.18, 0.02, 0), -0.3, { at: [0, counterY + 0.04, front] });
+  pen(box(w - 0.06, 0.035, 0.12, 0.01), 0.08, { at: [0, counterY, front + 0.04] });
+  pen(box(w - 0.06, 0.025, 0.2, 0.006), 0.05, { at: [0, counterY + 0.24, front + 0.09], rot: [0.35, 0, 0] });
+  // Conical roof with a rim, the cup and saucer on top.
+  const top = 0.06 + h;
+  pen(cyl(0.45, 0.45, 0.04, 8), -0.06, { at: [0, top, z], rot: [0, Math.PI / 8, 0] });
+  pen(cone(0.44, 0.26, 8), 0.04, { at: [0, top + 0.04, z], rot: [0, Math.PI / 8, 0] });
+  const sy = top + 0.24;
+  pen(puck(0.2, 0.03, 10, 0.01), 0.1, { at: [0, sy, z] });
+  pen(lathe([[0, 0], [0.09, 0], [0.13, 0.15], [0.135, 0.17], [0, 0.17]], 10), 0.12, { at: [0, sy + 0.03, z] });
+  pen(cyl(0.115, 0.115, 0.012, 10), -0.3, { at: [0, sy + 0.192, z] });
+  pen(torus(0.05, 0.016, 8), 0.12, { at: [0.15, sy + 0.12, z], rot: [Math.PI / 2, 0, 0] });
   return s;
 }
 
 export function buildCoffeeShop(ctx: MiniCtx, p: { color: string; mark?: string }): THREE.Group {
   const g = new THREE.Group();
-  blob(ctx, g, 1.1, 1.1, true, 0.7);
-  solid(ctx, g, miniGeo(`coffee:${p.color}`, () => coffeeShape(p.color)));
-  if (p.mark) addOwnerBadge(g, p.mark, p.color, 0, 1.4, 0);
+  const plastic = p.color.toLowerCase();
+  blob(ctx, g, 1.0, 1.0, true, 0.6);
+  solid(ctx, g, miniGeo(`coffee:se:${plastic}`, () => coffeeShape(plastic)));
+  // Chain mark decal on the counter front.
+  const wm = face(ctx, g, wordmarkTexture(chainForColor(plastic), plastic), KIOSK.w - 0.14, (KIOSK.w - 0.14) / 2.86);
+  wm.position.set(0, 0.06 + (KIOSK.counterY - 0.06) / 2, KIOSK.z + KIOSK.d / 2 + 0.003);
+  if (p.mark) addOwnerBadge(g, p.mark, p.color, 0, 1.45, 0);
   return g;
 }
 

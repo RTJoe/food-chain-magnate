@@ -1,84 +1,79 @@
 /**
- * Goods tokens: one chunky shape per good (docs/visual-style.md "Demand tokens"), all on a common
- * base disc so they stack. Used for demand stacks above houses and for flying goods in animations.
+ * Goods tokens (docs/art-bible.md §6.12): the Special Edition's screen-printed wooden shapes. Each
+ * good is its silhouette from the shared glyph set (goodsGlyphs.ts, also the UI icons and the
+ * plaque glyphs) extruded to a flat token in the painted body colour, with the print laid on the
+ * top face as thin vertex-coloured inlays (one geometry, one draw call per good). Used for demand
+ * stacks above houses, carried goods and flying goods in animations.
  */
 import * as THREE from 'three';
 import type { DemandToken, FoodId } from '@fcm/engine';
+import { GOOD_GLYPHS } from '../../goodsGlyphs.js';
 import { COLORS, FOOD_COLORS } from '../../theme.js';
-import { BADGE_MIN_PX, LABEL_MIN_PX, compactPlaqueTexture, makeSprite, miniPlaqueTexture, plaqueTexture, setSpriteTexture } from '../labels.js';
+import { BADGE_MIN_PX, LABEL_MIN_PX, compactPlaqueTexture, glyphSubpaths, makeSprite, miniPlaqueTexture, plaqueTexture, setSpriteTexture, type GlyphPath } from '../labels.js';
 import { solid, type MiniCtx } from './ctx.js';
-import { P, Shape, ball, box, cyl, extrude, lathe, miniGeo, puck, shade } from './kit.js';
+import { Shape, ball, box, color, miniGeo, puck, shade } from './kit.js';
 
-export const TOKEN_H = 0.2;
+/** Token thickness (and stack step): 8 mm of wood on a ~20 mm token, 0.3 across. */
+export const TOKEN_H = 0.12;
 export const MAX_STACK = 5;
+/** Glyph grid (24 units, silhouettes ~21 across) to world units: tokens ~0.29 across. */
+const GU = 0.3 / 22;
+/** Print details smaller than this (grid units) stay 2D only: sesame seeds, grains, highlights. */
+const MIN_DETAIL = 1.8;
 
-function wedge(): THREE.Shape {
+/** A glyph sub-path as a THREE.Shape in the token's plane, centred (glyph y down = world north). */
+function glyphShape(d: GlyphPath): THREE.Shape {
   const s = new THREE.Shape();
-  s.moveTo(0, 0.2);
-  s.lineTo(-0.16, -0.14);
-  s.quadraticCurveTo(0, -0.2, 0.16, -0.14);
-  s.closePath();
+  const X = (x: number) => (x - 12) * GU;
+  const Y = (y: number) => -(y - 12) * GU;
+  d({
+    moveTo: (x, y) => s.moveTo(X(x), Y(y)),
+    lineTo: (x, y) => s.lineTo(X(x), Y(y)),
+    quadraticCurveTo: (a, b, x, y) => s.quadraticCurveTo(X(a), Y(b), X(x), Y(y)),
+    bezierCurveTo: (a, b, c, e, x, y) => s.bezierCurveTo(X(a), Y(b), X(c), Y(e), X(x), Y(y)),
+    closePath: () => s.closePath(),
+  });
   return s;
 }
 
-function tokenShape(food: FoodId): Shape {
+/** Largest bbox side of a sub-path (grid units). */
+function extent(d: GlyphPath): number {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  const pt = (x: number, y: number) => {
+    x0 = Math.min(x0, x);
+    x1 = Math.max(x1, x);
+    y0 = Math.min(y0, y);
+    y1 = Math.max(y1, y);
+  };
+  d({ moveTo: pt, lineTo: pt, quadraticCurveTo: (_a, _b, x, y) => pt(x, y), bezierCurveTo: (_a, _b, _c, _d, x, y) => pt(x, y), closePath: () => undefined });
+  return Math.max(x1 - x0, y1 - y0);
+}
+
+/** Shape in xy → lying flat (xz), extruded up from y = 0. */
+const FLAT: [number, number, number] = [-Math.PI / 2, 0, 0];
+
+/** A token of `food`, `h` thick (duration tokens on campaign plates are thinner). */
+export function tokenShape(food: FoodId, h = TOKEN_H): Shape {
   const s = new Shape();
-  const c = FOOD_COLORS[food];
-  // Shared base disc in the good's colour, white rim so stacks read as separate tokens.
-  s.add(puck(0.17, 0.035, 12, 0.012), P.white, { jitter: 0 });
-  s.add(puck(0.155, 0.04, 12, 0.012), c, { at: [0, 0.004, 0], jitter: 0 });
-  switch (food) {
-    case 'burger':
-      s.add(puck(0.13, 0.03, 10, 0.012), '#e09a45', { at: [0, 0.04, 0] });
-      s.add(puck(0.135, 0.03, 10, 0.01), FOOD_COLORS.burger, { at: [0, 0.07, 0] });
-      s.add(puck(0.14, 0.012, 10, 0.004), '#6fbf4a', { at: [0, 0.1, 0] });
-      s.add(lathe([[0.13, 0], [0.13, 0.02], [0.1, 0.06], [0.05, 0.075], [0, 0.08]], 10), '#e09a45', { at: [0, 0.11, 0] });
-      break;
-    case 'pizza':
-      s.add(extrude('wedge', wedge, 0.04, 0.01), '#f7c948', { at: [0, 0.06, 0], rot: [-Math.PI / 2, 0, 0] });
-      s.add(box(0.3, 0.05, 0.06, 0.02), '#d98a3a', { at: [0, 0.04, 0.15], rot: [0, 0, 0] });
-      for (const [x, z] of [
-        [-0.04, 0.05],
-        [0.04, -0.03],
-        [0, 0.1],
-      ] as const)
-        s.add(cyl(0.025, 0.025, 0.012, 8), '#d2412b', { at: [x, 0.09, z] });
-      break;
-    case 'beer':
-      s.add(cyl(0.08, 0.075, 0.14, 8), FOOD_COLORS.beer, { at: [0, 0.04, 0], mat: 'glass' });
-      s.add(lathe([[0.085, 0], [0.09, 0.02], [0.06, 0.05], [0, 0.055]], 8), P.white, { at: [0, 0.17, 0] });
-      s.add(box(0.05, 0.08, 0.02, 0.008), shade(FOOD_COLORS.beer, -0.2), { at: [0.1, 0.075, 0] });
-      break;
-    case 'lemonade':
-      s.add(cyl(0.08, 0.06, 0.15, 8), FOOD_COLORS.lemonade, { at: [0, 0.04, 0], mat: 'glass' });
-      s.add(cyl(0.012, 0.012, 0.16, 4), '#e25b8b', { at: [0.03, 0.12, 0], rot: [0, 0, -0.3] });
-      s.add(cyl(0.05, 0.05, 0.015, 8), '#f2d130', { at: [-0.08, 0.17, 0], rot: [Math.PI / 2, 0, 0.2] });
-      break;
-    case 'soft_drink':
-      s.add(cyl(0.065, 0.065, 0.16, 10), '#b8352c', { at: [0, 0.04, 0] });
-      s.add(cyl(0.067, 0.067, 0.035, 10), P.white, { at: [0, 0.1, 0] });
-      s.add(cyl(0.055, 0.065, 0.02, 10), P.steel, { at: [0, 0.2, 0], mat: 'metal' });
-      break;
-    case 'coffee':
-      s.add(lathe([[0, 0], [0.06, 0], [0.085, 0.11], [0.08, 0.115], [0, 0.115]], 10), P.white, { at: [0, 0.045, 0] });
-      s.add(cyl(0.078, 0.078, 0.01, 10), FOOD_COLORS.coffee, { at: [0, 0.15, 0] });
-      s.add(box(0.04, 0.06, 0.02, 0.008), P.white, { at: [0.09, 0.08, 0] });
-      break;
-    case 'kimchi':
-      s.add(lathe([[0, 0], [0.08, 0], [0.095, 0.04], [0.09, 0.12], [0.06, 0.135], [0, 0.135]], 10), FOOD_COLORS.kimchi, { at: [0, 0.04, 0], mat: 'glass' });
-      s.add(puck(0.07, 0.04, 10, 0.01), '#4a7c4f', { at: [0, 0.17, 0] });
-      break;
-    case 'sushi':
-      s.add(cyl(0.09, 0.09, 0.11, 10), '#26323a', { at: [0, 0.04, 0] });
-      s.add(cyl(0.07, 0.07, 0.115, 10), P.white, { at: [0, 0.04, 0] });
-      s.add(cyl(0.035, 0.035, 0.12, 8), FOOD_COLORS.sushi, { at: [0, 0.04, 0] });
-      break;
-    case 'noodles':
-      s.add(lathe([[0, 0], [0.06, 0], [0.12, 0.08], [0.125, 0.1], [0, 0.1]], 10), '#e0e7ef', { at: [0, 0.04, 0] });
-      s.add(cyl(0.11, 0.11, 0.01, 10), FOOD_COLORS.noodles, { at: [0, 0.13, 0] });
-      s.add(cyl(0.008, 0.008, 0.22, 4), P.wood, { at: [0.02, 0.12, 0.02], rot: [0.3, 0, -0.9] });
-      s.add(cyl(0.008, 0.008, 0.22, 4), P.wood, { at: [0.02, 0.12, -0.02], rot: [0.2, 0, -0.95] });
-      break;
+  const g = GOOD_GLYPHS[food];
+  // Body: each silhouette sub-path extruded (no bevel: the low-poly flat sides read as cut wood).
+  for (const d of glyphSubpaths(g.outline)) {
+    const geo = new THREE.ExtrudeGeometry(glyphShape(d), { depth: h, bevelEnabled: false, curveSegments: 3 });
+    s.add(geo, g.body, { rot: FLAT, mat: 'plastic', jitter: 0 });
+  }
+  // Print: flat inlays just above the top face, stepped so they never z-fight. Translucent
+  // highlights are skipped (the plastic sheen does that job).
+  let k = 0;
+  for (const l of g.layers) {
+    if (l.opacity !== undefined && l.opacity < 1) continue;
+    for (const d of glyphSubpaths(l.d)) {
+      if (extent(d) < MIN_DETAIL) continue;
+      const geo = new THREE.ShapeGeometry(glyphShape(d), 2);
+      s.add(geo, color(l.fill), { at: [0, h + 0.0015 * ++k, 0], rot: FLAT, mat: 'plastic', jitter: 0 });
+    }
   }
   return s;
 }
@@ -151,7 +146,8 @@ export function buildDemandStack(ctx: MiniCtx, demand: DemandToken[], p: DemandP
     t.scale.setScalar(STACK_SCALE);
     t.position.set(0, STACK_DY + (0.03 + i * TOKEN_H) * STACK_SCALE, -STACK_BEHIND);
     t.userData.screenBehind = STACK_BEHIND;
-    t.rotation.y = (i * 0.9) % (Math.PI * 2);
+    // Hand-stacked: a little twist per token, prints still facing the viewer.
+    t.rotation.y = (((i * 0.37) % 0.6) - 0.3) * (i % 2 ? 1 : -1);
     g.add(t);
   }
   g.userData.count = n;
@@ -193,12 +189,19 @@ export function demandKey(demand: DemandToken[]): string {
   return demand.map((d) => d.good).join(',');
 }
 
-/** Little cash coin used by sale / salary animations. */
+/**
+ * Money chip for sale / salary animations (the name stays for the pool): FCM has no coins, so it
+ * is a folded $10 banknote (art bible §2 money colours), flat, with a darker frame and an engraved
+ * centre oval. Stacks at 0.042 like the old coin.
+ */
 export function coinGeo(): THREE.BufferGeometry {
-  return miniGeo('coin', () => {
+  return miniGeo('coin:note', () => {
     const s = new Shape();
-    s.add(puck(0.13, 0.04, 12, 0.012), '#e8b730', { mat: 'metal', jitter: 0 });
-    s.add(puck(0.08, 0.045, 12, 0.008), '#f8d24a', { mat: 'metal', jitter: 0 });
+    s.add(box(0.26, 0.034, 0.15, 0.008), '#f2dc7e', { mat: 'plastic', jitter: 0 });
+    s.add(box(0.22, 0.004, 0.11, 0), '#c9b25a', { at: [0, 0.034, 0], jitter: 0 });
+    s.add(box(0.205, 0.004, 0.095, 0), '#f6e59a', { at: [0, 0.036, 0], jitter: 0 });
+    s.add(puck(0.034, 0.004, 10, 0.001), '#3c3a36', { at: [0, 0.038, 0], scale: [1.35, 1, 1], jitter: 0 });
+    s.add(puck(0.026, 0.004, 10, 0.001), '#f6e59a', { at: [0, 0.039, 0], scale: [1.35, 1, 1], jitter: 0 });
     return s;
   });
 }

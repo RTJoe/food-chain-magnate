@@ -1,14 +1,15 @@
 /**
- * Static board (docs/art-bible.md §5): a dark wood table, a cream coordinate band with a chrome
- * edge carrying the tile names, and one printed card slab per 5x5 map tile (off-white speckled
- * print, faint square grid, small bevel, cardboard sides) butted together with a hairline gap.
+ * Static board (docs/art-bible.md §5): a dark wood table with the tile names printed small beside
+ * the map, and one printed card slab per 5x5 map tile (off-white speckled print, faint square
+ * grid, small bevel, cardboard sides) lying straight on the wood with a hairline gap, as the
+ * Special Edition tiles do.
  * The seam line itself is a shader (seams.ts) so it keeps a minimum width on screen. The printed
  * plates under the minis are in decals.ts (rebuilt with occupancy, through `buildTufts`).
  */
 import * as THREE from 'three';
 import type { Board } from '@fcm/engine';
 import { BOARD } from '../../boardPalette.js';
-import { RIM, hash2 } from '../coords.js';
+import { hash2 } from '../coords.js';
 import { Shape, box, mats, shade } from '../minis/kit.js';
 import { buildPlateDecals } from './decals.js';
 import { buildRimLabels, buildSeams, type SeamLayer } from './seams.js';
@@ -18,9 +19,8 @@ import { groundTileTexture, woodTexture } from './textures.js';
 export const TILE_GAP = 0.02;
 /** Card thickness. */
 const SLAB_H = 0.12;
-/** Cream coordinate band: inner and outer distance from the map edge. */
-const BAND_IN = 0.6;
-const BAND_OUT = 2.0;
+/** Distance of the tile names (and border ticks) from the map edge, on the table. */
+const LABEL_OFF = 0.62;
 
 export interface GroundLayer {
   group: THREE.Group;
@@ -60,36 +60,16 @@ export function buildGround(b: Board): GroundLayer {
   group.add(table);
   disposables.push(tableGeo, tableMat);
 
-  // Coordinate band: cream frame with a chrome edge on both sides, ticks per square, pegs per tile.
+  // No frame: the SE tiles sit straight on the table (se-full-board-3x3.jpg). The tile names are
+  // printed small on the wood beside the map, with a short tick at every tile border so the
+  // borders stay countable from the edge.
   const s = new Shape();
-  const bandW = BAND_OUT - BAND_IN;
-  const bandMid = (BAND_IN + BAND_OUT) / 2;
-  const bandY = -SLAB_H;
-  const bandH = SLAB_H + 0.02;
-  const rim = BOARD.rim;
-  const chrome = BOARD.chrome;
-  const chromeD = BOARD.chromeShade;
-  // North / south pieces span the corners; west / east fit between them.
-  for (const z of [-bandMid, H + bandMid]) s.add(box(W + BAND_OUT * 2, bandH, bandW, 0.02), rim, { at: [W / 2, bandY, z], jitter: 0 });
-  for (const x of [-bandMid, W + bandMid]) s.add(box(bandW, bandH, H + BAND_IN * 2, 0.02), rim, { at: [x, bandY, H / 2], jitter: 0 });
-  const edge = (len: number, at: [number, number, number], alongX: boolean, c: THREE.Color | string) =>
-    s.add(alongX ? box(len, bandH + 0.025, 0.07, 0.015) : box(0.07, bandH + 0.025, len, 0.015), c, { at, jitter: 0 });
-  for (const d of [BAND_IN, BAND_OUT]) {
-    const c = d === BAND_IN ? chromeD : chrome;
-    edge(W + d * 2, [W / 2, bandY, -d], true, c);
-    edge(W + d * 2, [W / 2, bandY, H + d], true, c);
-    edge(H + d * 2 - 0.07, [-d, bandY, H / 2], false, c);
-    edge(H + d * 2 - 0.07, [W + d, bandY, H / 2], false, c);
-  }
-  const top = bandY + bandH;
-  const tick = shade(BOARD.rimInk, 0.25);
-  const peg = shade(BOARD.rimInk, 0);
-  for (let x = 0; x < W; x++) for (const z of [-BAND_IN - 0.2, H + BAND_IN + 0.2]) s.add(box(0.05, 0.006, 0.2, 0), tick, { at: [x + 0.5, top, z], jitter: 0 });
-  for (let y = 0; y < H; y++) for (const x of [-BAND_IN - 0.2, W + BAND_IN + 0.2]) s.add(box(0.2, 0.006, 0.05, 0), tick, { at: [x, top, y + 0.5], jitter: 0 });
-  for (let x = 0; x <= W; x += b.tileSize) for (const z of [-BAND_IN - 0.25, H + BAND_IN + 0.25]) s.add(box(0.07, 0.008, 0.36, 0), peg, { at: [x, top, z], jitter: 0 });
-  for (let y = 0; y <= H; y += b.tileSize) for (const x of [-BAND_IN - 0.25, W + BAND_IN + 0.25]) s.add(box(0.36, 0.008, 0.07, 0), peg, { at: [x, top, y], jitter: 0 });
-  // Dark base under the tiles: what shows through the hairline gaps.
-  s.add(box(W + 0.04, 0.02, H + 0.04, 0), shade(BOARD.core, -0.45), { at: [W / 2, -SLAB_H - 0.001, H / 2], jitter: 0 });
+  const ink = shade(BOARD.rim, -0.04);
+  const top = -SLAB_H + 0.001;
+  for (let x = 0; x <= W + 1e-6; x += b.tileSize)
+    for (const z of [-LABEL_OFF, H + LABEL_OFF]) s.add(box(0.04, 0.004, 0.34, 0), ink, { at: [x, top, z], jitter: 0 });
+  for (let y = 0; y <= H + 1e-6; y += b.tileSize)
+    for (const x of [-LABEL_OFF, W + LABEL_OFF]) s.add(box(0.34, 0.004, 0.04, 0), ink, { at: [x, top, y], jitter: 0 });
   const frameGeo = s.build();
   disposables.push(frameGeo);
   const frame = new THREE.Mesh(frameGeo, mats().body);
@@ -108,8 +88,8 @@ export function buildGround(b: Board): GroundLayer {
   slabs.name = 'tiles';
   group.add(slabs);
 
-  // Tile coordinates on the band (columns A, B, ... north and south; rows 1, 2, ... west and east).
-  const labels = buildRimLabels(b, bandMid, top + 0.004);
+  // Tile coordinates on the table (columns A, B, ... north and south; rows 1, 2, ... west and east).
+  const labels = buildRimLabels(b, LABEL_OFF, top + 0.006);
   group.add(labels.group);
   disposables.push(labels);
 

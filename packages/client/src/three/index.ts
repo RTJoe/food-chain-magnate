@@ -21,6 +21,8 @@ import { pushToast } from '../state/store.js';
 import { boardFrameKey, contentRect, frameRect, ownerMark, playerColor } from './layout.js';
 import { watchTableInset } from '../state/tableInset.js';
 import { setActorMarks } from './minis/vehiclesActors.js';
+import { totemSnapshots } from './minis/chains.js';
+import { registerTotemRenderer } from '../state/totems.js';
 
 /** The parts of the client store the scene reads. The store module satisfies this. */
 export interface SceneStore {
@@ -339,6 +341,8 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
   if (opts.register !== false) {
     let unregister: (() => void) | null = registerBoardBridge(handle, '3d');
     disposers.push(() => unregister?.());
+    // Turn-order totem pictures for the 2D track (state/totems.ts).
+    disposers.push(registerTotemRenderer(totemSnapshots));
     // WebGL context loss: when the browser does not give the context back within a few seconds,
     // hand the table to the 2D board (it implements the same bridge) and take it back on restore.
     const w = window as unknown as { __fcmBoard?: SceneHandle };

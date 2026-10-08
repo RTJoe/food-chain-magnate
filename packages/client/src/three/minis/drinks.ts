@@ -1,6 +1,6 @@
 /**
  * Drink sources (1x1, printed on map tiles) as Special Edition green plastic minis (docs/art-bible.md
- * §6.5): a beer keg on trestles with a ladder, a lemonade crate stack with a sign post, a soda
+ * §6.5): an upright beer barrel on a crate with a ladder, a lemonade crate stack with a sign post, a soda
  * vending machine with bottle crates. Each reads by silhouette alone.
  */
 import * as THREE from 'three';
@@ -16,47 +16,52 @@ function plate(pen: Pen): void {
   pen(box(0.86, PLATE, 0.86, 0.02), -0.02, { jitter: 0 });
 }
 
-/** Horizontal keg (r 0.28, 0.5 long) on two trestles, tap, leaning ladder, hop-leaf badge. */
+/**
+ * Upright barrel on a slatted crate, as the SE beer supplier: bulged staves with two hoops and a
+ * ringed lid, a tap, a small crate on the plate in front and a short ladder against the crate.
+ */
 function beerShape(): Shape {
   const s = new Shape();
   const pen = plasticPen(s, PLASTIC.drink);
   plate(pen);
-  const cy = PLATE + 0.14 + 0.27;
-  const z = -0.04;
-  // Keg: bulged staves with two hoops, lying along x.
+  // Crate the barrel stands on, slat grooves on the front.
+  const ch = 0.22;
+  const cz = -0.06;
+  pen(box(0.58, ch, 0.56, 0.012), 0, { at: [0, PLATE, cz] });
+  for (const x of [-0.12, 0.12]) pen(box(0.025, ch - 0.06, 0.01, 0), RECESS, { at: [x, PLATE + 0.03, cz + 0.281] });
+  // Barrel: bulged staves, two hoops, a lid with a raised ring.
+  const by = PLATE + ch;
+  const bz = cz - 0.02;
   pen(
     lathe(
       [
         [0, 0],
-        [0.23, 0],
-        [0.27, 0.08],
-        [0.285, 0.25],
-        [0.27, 0.42],
-        [0.23, 0.5],
-        [0, 0.5],
+        [0.19, 0],
+        [0.225, 0.09],
+        [0.24, 0.23],
+        [0.225, 0.37],
+        [0.19, 0.46],
+        [0, 0.46],
       ],
-      10,
+      8,
     ),
-    0,
-    { at: [-0.25, cy, z], rot: [0, 0, -Math.PI / 2] },
+    0.02,
+    { at: [0, by, bz], rot: [0, Math.PI / 8, 0] },
   );
-  for (const x of [-0.12, 0.12]) pen(cyl(0.285, 0.285, 0.035, 10), -0.04, { at: [x - 0.0175, cy, z], rot: [0, 0, -Math.PI / 2] });
-  // Trestles: A-frames under each end.
-  for (const x of [-0.17, 0.17]) {
-    for (const sz of [-1, 1]) pen(box(0.05, 0.24, 0.05, 0), RECESS, { at: [x, PLATE, z + sz * 0.16], rot: [-sz * 0.45, 0, 0] });
-    pen(box(0.06, 0.04, 0.42, 0), 0, { at: [x, PLATE + 0.12, z] });
-  }
-  // Tap at the front end.
-  pen(cyl(0.03, 0.03, 0.08, 5), 0.03, { at: [0.25, cy - 0.12, z], rot: [0, 0, -Math.PI / 2] });
-  pen(box(0.03, 0.08, 0.03, 0), 0.03, { at: [0.31, cy - 0.17, z] });
-  // Hop-leaf badge on the keg's front face.
-  pen(cyl(0.08, 0.08, 0.02, 6), 0.08, { at: [0, cy + 0.02, z + 0.27], rot: [Math.PI / 2, 0, 0] });
-  // Ladder leaning against the keg's left end.
+  for (const y of [0.07, 0.355]) pen(cyl(0.236, 0.236, 0.035, 8), -0.06, { at: [0, by + y, bz], rot: [0, Math.PI / 8, 0] });
+  pen(cyl(0.13, 0.13, 0.014, 8), 0.06, { at: [0, by + 0.46, bz] });
+  // Tap on the barrel front.
+  pen(box(0.04, 0.04, 0.07, 0), 0.04, { at: [0.0, by + 0.1, bz + 0.25] });
+  pen(box(0.03, 0.06, 0.03, 0), 0.04, { at: [0.0, by + 0.05, bz + 0.27] });
+  // Small crate on the plate in front, right.
+  pen(box(0.26, 0.13, 0.17, 0), -0.02, { at: [0.22, PLATE, 0.32] });
+  pen(box(0.27, 0.02, 0.18, 0), RECESS, { at: [0.22, PLATE + 0.06, 0.32] });
+  // Short ladder leaning on the crate front, left.
   const ladder = new Shape();
   const lp = plasticPen(ladder, PLASTIC.drink);
-  for (const z of [-0.09, 0.09]) lp(box(0.035, 0.7, 0.035, 0), 0, { at: [0, 0, z] });
-  for (let i = 0; i < 4; i++) lp(box(0.025, 0.025, 0.2, 0), 0.04, { at: [0, 0.12 + i * 0.15, 0] });
-  s.addShape(ladder, { at: [-0.4, PLATE, z + 0.04], rot: [0, 0, -0.32] });
+  for (const x of [-0.07, 0.07]) lp(box(0.03, 0.34, 0.03, 0), 0, { at: [x, 0, 0] });
+  for (let i = 0; i < 2; i++) lp(box(0.15, 0.022, 0.022, 0), 0.04, { at: [0, 0.1 + i * 0.12, 0] });
+  s.addShape(ladder, { at: [-0.2, PLATE, 0.34], rot: [-0.35, 0, 0] });
   return s;
 }
 

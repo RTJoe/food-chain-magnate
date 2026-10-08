@@ -73,12 +73,12 @@ describe('vehicle actors', () => {
     });
   }
 
-  it('shares geometry across colours for wheels and legs, hull per colour', () => {
+  it('one plastic per chain: wheels and hull per colour, shared by every vehicle of that colour', () => {
     const inst = new Instancer();
-    for (const color of [RED, '#3f8fd2', '#4caf6a']) ACTOR_FACTORIES.van({ inst }, { color });
+    for (const color of [RED, '#3f8fd2', '#4caf6a', RED]) ACTOR_FACTORIES.van({ inst }, { color });
     const names = (inst.root.children as THREE.InstancedMesh[]).map((m) => m.name);
-    expect(names.filter((n) => n.includes('v:wheel')).length).toBe(1);
-    expect(names.filter((n) => n.includes('v:van:')).length).toBe(3);
+    expect(names.filter((n) => n.includes('v:wheel')).length).toBe(3);
+    expect(names.filter((n) => n.includes('v:van2:')).length).toBe(3);
   });
 
   it('lite build is a single instance per ground vehicle', () => {

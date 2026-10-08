@@ -13,7 +13,9 @@
 import * as THREE from 'three';
 import type { Corner, FoodId, ModuleEntity, PlayerId } from '@fcm/engine';
 import { campaignReachIds } from '../../../state/guidance.js';
+import { BOARD } from '../../../boardPalette.js';
 import { COLORS } from '../../../theme.js';
+import { groundTileTexture, woodTexture } from '../../board/textures.js';
 import { cornerAngle, dirAngle } from '../../coords.js';
 import { hasRural, ruralCenter, ruralSide } from '../../layout.js';
 import type { Placed } from '../../reconcile.js';
@@ -579,12 +581,31 @@ registerChoreo('entityRemoved', (beat, at, tl, ctx) => {
 // Map tiles (Ketchup lobbyists' extra tile / new districts) and the setup board build
 // ---------------------------------------------------------------------------
 
-const SLAB_GEO = () => new THREE.BoxGeometry(4.88, 0.14, 4.88);
+/**
+ * The falling tile looks like the map tiles (board/ground.ts): the speckled cream print on top,
+ * cardboard sides; the empty slot it fills is bare table wood. Shared across drops (never disposed).
+ */
+interface SlabParts {
+  geo: THREE.BoxGeometry;
+  mats: THREE.Material[];
+  cover: THREE.Material;
+}
+let slabCache: SlabParts | null = null;
+function slabParts(): SlabParts {
+  if (slabCache) return slabCache;
+  const top = new THREE.MeshStandardMaterial({ map: groundTileTexture(512), roughness: 0.86, metalness: 0, envMapIntensity: 0.45 });
+  const side = new THREE.MeshStandardMaterial({ color: BOARD.core, roughness: 0.95, metalness: 0, envMapIntensity: 0.3 });
+  const wood = woodTexture();
+  const cover = new THREE.MeshStandardMaterial({ map: wood, roughness: 0.62, metalness: 0, envMapIntensity: 0.5 });
+  // Box faces: +x, -x, +y (print), -y, +z, -z.
+  slabCache = { geo: new THREE.BoxGeometry(4.98, 0.12, 4.98), mats: [side, side, top, side, side, side], cover };
+  return slabCache;
+}
 /** Above roads, bridges and tufts so the empty slot hides them. */
 const COVER_Y = 0.26;
 
 /**
- * Mask one 5x5 tile with an empty-slot cover, drop a grass slab onto it from `from` (offset and
+ * Mask one 5x5 tile with an empty slot (bare table), drop a blank map tile onto it from `from` (offset and
  * height), and at the landing take both away (the real tile shows) with a dust line along the
  * seams. Pieces on the tile stay hidden until then and pop in after. Returns the landing time.
  */
@@ -599,13 +620,16 @@ export function tileDrop(tl: Timeline, ctx: ChoreoCtx, col: number, row: number,
     for (const p of pieces) revealAt(tl, p.obj, at);
     return at;
   }
-  const cover = new THREE.Mesh(new THREE.PlaneGeometry(5.02, 5.02).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#7f7461', roughness: 1 }));
+  const parts = slabParts();
+  const cover = new THREE.Mesh(new THREE.PlaneGeometry(5.02, 5.02).rotateX(-Math.PI / 2), parts.cover);
   cover.position.set(cx, COVER_Y, cz);
   cover.renderOrder = 1;
   cover.receiveShadow = true;
   ctx.mount(tl, cover);
   const slab = new THREE.Group();
-  const top = new THREE.Mesh(SLAB_GEO(), new THREE.MeshStandardMaterial({ color: COLORS.grass, roughness: 0.9, flatShading: true }));
+  const top = new THREE.Mesh(parts.geo, parts.mats);
+  // A quarter turn per tile, as the board turns the shared print.
+  top.rotation.y = ((col * 3 + row * 5) % 4) * (Math.PI / 2);
   top.castShadow = true;
   slab.add(top);
   slab.visible = false;

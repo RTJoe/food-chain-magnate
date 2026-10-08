@@ -8,6 +8,7 @@ import type { ComponentChildren, FunctionComponent } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { EmployeeId, MilestoneId } from '@fcm/engine';
 import { employeeName, managerSlots, milestoneName } from '../../state/catalog.js';
+import { CardFace } from '../cards.js';
 import { catalog } from '../../state/store.js';
 import { Icon } from '../icons.js';
 import { getTerm, GROUP_LABELS, type GlossaryEntry } from './index.js';
@@ -279,7 +280,10 @@ function CardFacts({ id }: { id: EmployeeId }) {
   const from = (Object.values(c.employees) as NonNullable<(typeof c.employees)[EmployeeId]>[]).filter((x) => x.trainsInto.includes(id)).map((x) => employeeName(c, x.id));
   const slots = managerSlots(d);
   return (
-    <div class="wt-facts">
+    <div class="wt-facts wt-card-facts">
+      <span class="wt-card">
+        <CardFace id={id} plain />
+      </span>
       <div class="wt-fact-row">
         {d.entry && <Fact>{Icon.sparkle({ size: 12 })} Entry level</Fact>}
         <Fact>{d.salary ? '$5 salary' : 'No salary'}</Fact>

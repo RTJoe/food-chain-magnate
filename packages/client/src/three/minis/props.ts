@@ -10,10 +10,10 @@
  */
 import * as THREE from 'three';
 import type { FoodId } from '@fcm/engine';
-import { COLORS, FOOD_COLORS } from '../../theme.js';
+import { COLORS } from '../../theme.js';
 import { owned, solid, type MiniCtx } from './ctx.js';
-import { P, Shape, ball, box, cyl, lathe, miniGeo, playerPalette, puck, shade, torus } from './kit.js';
-import { coinGeo, tokenGeo } from './tokens.js';
+import { P, Shape, ball, box, miniGeo, playerPalette, shade, torus } from './kit.js';
+import { TOKEN_H, coinGeo, tokenGeo, tokenShape } from './tokens.js';
 
 export type PropKind = 'crate' | 'envelope' | 'leaflet' | 'steam' | 'dust' | 'confetti' | 'coin' | 'coins' | 'cash' | 'carry' | 'ghostToken' | 'radioRings';
 
@@ -50,64 +50,21 @@ function partsOf(o: THREE.Object3D): THREE.Object3D {
 // Crates
 // ---------------------------------------------------------------------------
 
-function barrelShape(): Shape {
-  const s = new Shape();
-  s.add(
-    lathe(
-      [
-        [0, 0],
-        [0.07, 0],
-        [0.085, 0.045],
-        [0.09, 0.09],
-        [0.085, 0.135],
-        [0.07, 0.18],
-        [0, 0.18],
-      ],
-      10,
-    ),
-    '#a8743f',
-  );
-  for (const y of [0.035, 0.125]) s.add(cyl(0.089, 0.089, 0.02, 10), P.steelDark, { at: [0, y, 0], mat: 'metal', jitter: 0 });
-  s.add(cyl(0.05, 0.05, 0.006, 10), FOOD_COLORS.beer, { at: [0, 0.18, 0], jitter: 0 });
-  return s;
-}
-
-/** Slatted crate holding four bottles / cans of the good. */
-function crateShape(good: FoodId): Shape {
-  const s = new Shape();
-  const w = CRATE_W;
-  const soft = good === 'soft_drink';
-  const frame = soft ? '#c0392b' : P.wood;
-  s.add(box(w, 0.1, w, 0.014), frame);
-  s.add(box(w + 0.004, 0.025, w + 0.004, 0), soft ? '#8e2a20' : P.woodDark, { at: [0, 0.035, 0], jitter: 0 });
-  s.add(box(w - 0.03, 0.01, w - 0.03, 0), shade(frame, -0.35), { at: [0, 0.095, 0], jitter: 0 });
-  for (const [x, z] of [
-    [-0.038, -0.038],
-    [0.038, -0.038],
-    [-0.038, 0.038],
-    [0.038, 0.038],
-  ] as const) {
-    if (good === 'lemonade') {
-      s.add(cyl(0.024, 0.026, 0.07, 6), FOOD_COLORS.lemonade, { at: [x, 0.07, z], mat: 'glass' });
-      s.add(cyl(0.01, 0.016, 0.03, 6), FOOD_COLORS.lemonade, { at: [x, 0.14, z], mat: 'glass' });
-      s.add(cyl(0.011, 0.011, 0.01, 6), '#e25b8b', { at: [x, 0.17, z], jitter: 0 });
-    } else if (soft) {
-      s.add(cyl(0.028, 0.028, 0.08, 8), '#b8352c', { at: [x, 0.07, z] });
-      s.add(cyl(0.029, 0.029, 0.02, 8), P.white, { at: [x, 0.1, z], jitter: 0 });
-      s.add(cyl(0.024, 0.028, 0.01, 8), P.steel, { at: [x, 0.15, z], mat: 'metal', jitter: 0 });
-    } else {
-      // Any other good: a parcel in its colour.
-      s.add(box(0.06, 0.06, 0.06, 0.01), FOOD_COLORS[good] ?? P.cream, { at: [x, 0.07, z] });
-    }
-  }
-  return s;
-}
-
+/**
+ * A "crate" of a drink (or any good) is what the vehicles carry: two of its wooden tokens stacked
+ * at `CARRY_SCALE` (art bible §6.14: no multi-colour cargo, carried goods are the tokens). Fits
+ * `CRATE_W` (two side by side on a cart bed or flatbed).
+ */
 export function crateGeo(good: FoodId): THREE.BufferGeometry {
-  return good === 'beer' ? miniGeo('p:barrel', barrelShape) : miniGeo(`p:crate:${good}`, () => crateShape(good));
+  return miniGeo(`p:tokens2:${good}`, () => {
+    const s = new Shape();
+    s.addShape(tokenShape(good), { scale: CARRY_SCALE });
+    s.addShape(tokenShape(good), { at: [0, TOKEN_H * CARRY_SCALE, 0], rot: [0, 0.35, 0], scale: CARRY_SCALE });
+    return s;
+  });
 }
 
-/** Drink crate (beer: barrel). Origin bottom centre. */
+/** Drink crate (a short stack of the good's tokens). Origin bottom centre. */
 export function buildCrate(ctx: MiniCtx, good: FoodId): THREE.Group {
   const { root, g } = propRoot(`crate:${good}`);
   solid(ctx, g, crateGeo(good));
@@ -267,11 +224,16 @@ export function buildCoinStack(ctx: MiniCtx, count = 3): THREE.Group {
 }
 
 export function cashGeo(): THREE.BufferGeometry {
-  return miniGeo('p:cash', () => {
+  return miniGeo('p:cash:notes', () => {
     const s = new Shape();
-    for (let i = 0; i < 3; i++) s.add(box(0.22, 0.016, 0.12, 0), i % 2 ? '#7fbf73' : '#6aac60', { at: [((i * 7) % 3) * 0.006 - 0.006, i * 0.016, 0], rot: [0, (i - 1) * 0.06, 0] });
-    s.add(box(0.05, 0.052, 0.124, 0), '#f4ead5', { at: [0, -0.001, 0], jitter: 0 });
-    s.add(puck(0.025, 0.004, 8, 0.001), '#3f7a3a', { at: [0.07, 0.048, 0], jitter: 0 });
+    // $5 lilac, $20 teal, $10 yellow (art bible §2 money), fanned a little, paper band round them.
+    const notes = ['#b9c6e8', '#9fd3cf', '#f2dc7e'];
+    notes.forEach((c, i) => {
+      s.add(box(0.24, 0.016, 0.13, 0.004), c, { at: [((i * 7) % 3) * 0.006 - 0.006, i * 0.016, 0], rot: [0, (i - 1) * 0.07, 0], mat: 'plastic', jitter: 0 });
+      s.add(box(0.2, 0.002, 0.09, 0), shade(c, -0.22), { at: [((i * 7) % 3) * 0.006 - 0.006, i * 0.016 + 0.016, 0], rot: [0, (i - 1) * 0.07, 0], jitter: 0 });
+    });
+    s.add(box(0.05, 0.054, 0.134, 0), '#f7efdc', { at: [0, -0.001, 0], jitter: 0 });
+    s.add(box(0.012, 0.002, 0.134, 0), '#3c3a36', { at: [0, 0.053, 0], jitter: 0 });
     return s;
   });
 }

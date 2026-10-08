@@ -1,6 +1,7 @@
 /** Inline SVG icons (original line art, 24x24 grid, currentColor). */
 import type { FoodId } from '@fcm/engine';
 import type { JSX } from 'preact';
+import { GLYPH_EDGE, GOOD_GLYPHS } from '../goodsGlyphs.js';
 
 type P = { size?: number; class?: string; title?: string };
 
@@ -83,93 +84,61 @@ export const Icon = {
 
 export type IconName = keyof typeof Icon;
 
-/** Good tokens: each good has its own silhouette (docs/visual-style.md: never colour alone). */
-export function FoodIcon({ food, size = 22 }: { food: FoodId; size?: number }) {
-  // The soda can is the red of the 3D token and plaque glyph (labels.ts drawFood); the theme writes
-  // `--food-soft_drink` (underscore), so the kebab-case var would be unset and the can black.
-  const c = food === 'soft_drink' ? '#b8352c' : `var(--food-${food.replace(/_/g, '-')}, var(--food-${food}))`;
-  const stroke = 'rgba(43,42,51,.55)';
-  const body = (() => {
-    switch (food) {
-      case 'burger':
-        return (
-          <>
-            <path d="M4 11a8 6 0 0 1 16 0z" fill={c} stroke={stroke} />
-            <rect x="3.5" y="12" width="17" height="2.6" rx="1.3" fill="#5a8f3a" stroke={stroke} />
-            <path d="M4.5 15.5h15a0 0 0 0 1 0 0 3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3z" fill={c} stroke={stroke} />
-          </>
-        );
-      case 'pizza':
-        return (
-          <>
-            <path d="M12 21L3.5 6.5a14 9 0 0 1 17 0z" fill={c} stroke={stroke} />
-            <circle cx="10" cy="10" r="1.4" fill="#b8321f" />
-            <circle cx="14" cy="9.5" r="1.2" fill="#b8321f" />
-            <circle cx="12" cy="14" r="1.2" fill="#b8321f" />
-          </>
-        );
-      case 'beer':
-        return (
-          <>
-            <rect x="5" y="7" width="10" height="13" rx="2" fill={c} stroke={stroke} />
-            <path d="M15 10h2.5a2 2 0 0 1 2 2v2.5a2 2 0 0 1-2 2H15" fill="none" stroke={stroke} stroke-width="1.8" />
-            <path d="M4.5 7.5a2.6 2.6 0 0 1 3-3 3 3 0 0 1 5 0 2.6 2.6 0 0 1 3 3z" fill="#fffaf0" stroke={stroke} />
-          </>
-        );
-      case 'lemonade':
-        return (
-          <>
-            <path d="M6 7h12l-1.6 13H7.6z" fill={c} stroke={stroke} />
-            <path d="M13 7l3-5" stroke={stroke} stroke-width="1.6" />
-            <circle cx="17.5" cy="7.5" r="2.6" fill="#f2df4a" stroke={stroke} />
-          </>
-        );
-      case 'soft_drink':
-        return (
-          <>
-            <rect x="7" y="4" width="10" height="16.5" rx="2.4" fill={c} stroke={stroke} />
-            <rect x="8.5" y="2.5" width="7" height="2.4" rx="1" fill="#c9c4cf" stroke={stroke} />
-            <path d="M7.5 11h9" stroke="#fffaf0" stroke-width="2" />
-          </>
-        );
-      case 'coffee':
-        return (
-          <>
-            <path d="M5 9h11v6a4.5 4.5 0 0 1-4.5 4.5h-2A4.5 4.5 0 0 1 5 15z" fill={c} stroke={stroke} />
-            <path d="M16 11h1.5a2 2 0 0 1 0 4H16" fill="none" stroke={stroke} stroke-width="1.8" />
-            <path d="M8.5 6.5c0-1 1-1.2 1-2.2M12 6.5c0-1 1-1.2 1-2.2" stroke={stroke} stroke-width="1.5" fill="none" />
-          </>
-        );
-      case 'kimchi':
-        return (
-          <>
-            <rect x="6" y="5" width="12" height="3" rx="1" fill="#e6dccb" stroke={stroke} />
-            <path d="M6.5 8h11v10a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 18z" fill={c} stroke={stroke} />
-            <path d="M9 12l2 2 2-3 2 2" stroke="#fffaf0" stroke-width="1.4" fill="none" />
-          </>
-        );
-      case 'sushi':
-        return (
-          <>
-            <ellipse cx="12" cy="16" rx="8" ry="4" fill="#2f3b2f" stroke={stroke} />
-            <ellipse cx="12" cy="11" rx="8" ry="4" fill="#fffaf0" stroke={stroke} />
-            <rect x="4" y="11" width="16" height="5" fill="#2f3b2f" />
-            <ellipse cx="12" cy="11" rx="4" ry="2" fill={c} />
-          </>
-        );
-      case 'noodles':
-        return (
-          <>
-            <path d="M8 3l1.5 8M12.5 3L12 11" stroke={stroke} stroke-width="1.6" />
-            <path d="M3 11h18a9 7 0 0 1-18 0z" fill={c} stroke={stroke} />
-            <path d="M7 14c2 1.5 3-1 5 0s3 1.5 5 0" stroke="#d7a94f" stroke-width="1.4" fill="none" />
-          </>
-        );
-    }
-  })();
+/**
+ * Good tokens: the wooden token glyphs of goodsGlyphs.ts (each good has its own silhouette, so
+ * colour is never the only cue). The same shapes print on the 2D board and the 3D token decals.
+ */
+export function FoodIcon({ food, size = 22, title }: { food: FoodId; size?: number; title?: string }) {
+  const g = GOOD_GLYPHS[food];
+  if (!g) return null;
   return (
-    <svg class="food-icon" width={size} height={size} viewBox="0 0 24 24" stroke-width="1.2" aria-hidden="true">
-      {body}
+    <svg class="food-icon" width={size} height={size} viewBox="0 0 24 24" aria-hidden={title ? undefined : 'true'} role={title ? 'img' : undefined} data-good={food}>
+      {title && <title>{title}</title>}
+      <GlyphPaths food={food} />
+    </svg>
+  );
+}
+
+/** The glyph's paths, for embedding in another SVG (2D board plaques): wrap in a 24×24 viewBox. */
+export function GlyphPaths({ food, edge = true }: { food: FoodId; edge?: boolean }) {
+  const g = GOOD_GLYPHS[food];
+  if (!g) return null;
+  return (
+    <>
+      <path d={g.outline} fill={g.body} />
+      {g.layers.map((l, i) => (
+        <path key={i} d={l.d} fill={l.fill} fill-opacity={l.opacity} />
+      ))}
+      {edge && <path d={g.outline} fill="none" stroke={GLYPH_EDGE} stroke-width="1" stroke-linejoin="round" />}
+    </>
+  );
+}
+
+/** Rulebook entry-level mark: a white 4-point sparkle with a small companion star. */
+export function Sparkle({ size = 14, class: cls }: { size?: number; class?: string }) {
+  return (
+    <svg class={`sparkle ${cls ?? ''}`} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10 2c.6 4.6 2.4 6.4 7 7-4.6.6-6.4 2.4-7 7-.6-4.6-2.4-6.4-7-7 4.6-.6 6.4-2.4 7-7Z" fill="currentColor" />
+      <path d="M18.5 13.5c.3 2.2 1.1 3 3.3 3.3-2.2.3-3 1.1-3.3 3.3-.3-2.2-1.1-3-3.3-3.3 2.2-.3 3-1.1 3.3-3.3Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Hand-painted green tick and red X tokens with a white halo (rulebook legal / illegal marks). */
+export function MarkToken({ kind, size = 22 }: { kind: 'tick' | 'x'; size?: number }) {
+  return (
+    <svg class={`mark-token is-${kind}`} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      {kind === 'tick' ? (
+        <>
+          <path d="M3.6 12.6c1.6-.6 3 .4 4.6 3.1 3-5.6 7-9.4 12.4-11.6-4.4 3.6-8 8.6-10.6 15.4-1.4.4-2.6.4-3.4-.2-.8-2.4-1.8-4.6-3-6.7Z" fill="none" stroke="#fff" stroke-width="3.2" stroke-linejoin="round" />
+          <path d="M3.6 12.6c1.6-.6 3 .4 4.6 3.1 3-5.6 7-9.4 12.4-11.6-4.4 3.6-8 8.6-10.6 15.4-1.4.4-2.6.4-3.4-.2-.8-2.4-1.8-4.6-3-6.7Z" fill="#3e8e4d" />
+        </>
+      ) : (
+        <>
+          <path d="M5 4.2c2.6 1.8 4.8 3.8 7 6 2.2-2.4 4.2-4.4 6.6-6.2l1.6 1.6c-2 2.2-4 4.4-6.2 6.6 2.2 2.2 4.2 4.4 6 6.8l-1.8 1.6c-2.2-2-4.4-4-6.6-6.2-2.2 2.2-4.4 4.2-6.8 6.2L3.4 19c2-2.4 4-4.6 6.2-6.8-2.2-2.2-4.2-4.4-6.2-6.6Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round" />
+          <path d="M5 4.2c2.6 1.8 4.8 3.8 7 6 2.2-2.4 4.2-4.4 6.6-6.2l1.6 1.6c-2 2.2-4 4.4-6.2 6.6 2.2 2.2 4.2 4.4 6 6.8l-1.8 1.6c-2.2-2-4.4-4-6.6-6.2-2.2 2.2-4.4 4.2-6.8 6.2L3.4 19c2-2.4 4-4.6 6.2-6.8-2.2-2.2-4.2-4.4-6.2-6.6Z" fill="#aa3839" />
+        </>
+      )}
     </svg>
   );
 }

@@ -22,7 +22,7 @@ import { campaignReachIds } from '../../../state/guidance.js';
 import { DELTA } from '../../coords.js';
 import { campaignAnchor } from '../../layout.js';
 import type { Placed } from '../../reconcile.js';
-import { PIP_STEP, pipGeo } from '../../minis/marketing.js';
+import { PIP_STEP, durationTokenGeo } from '../../minis/marketing.js';
 import { animateRadioRings, flutterLeaflet, ringFront } from '../../minis/props.js';
 import { pipCount } from '../../overlays/feedback.js';
 import { releaseTree } from '../../minis/ctx.js';
@@ -430,7 +430,7 @@ function pipTick(tl: Timeline, ctx: ChoreoCtx, campaignId: string, remaining: nu
   else return;
   const y0 = pos.y + Math.min(remaining, 6) * PIP_STEP;
   const pip = new THREE.Group();
-  pip.add(ctx.stage.inst.proxy(pipGeo(color), { castShadow: false }));
+  pip.add(ctx.stage.inst.proxy(durationTokenGeo((camp.goods[0] ?? 'burger') as FoodId), { castShadow: false }));
   pip.visible = false;
   ctx.mount(tl, pip);
   tl.own(() => releaseTree(pip));
