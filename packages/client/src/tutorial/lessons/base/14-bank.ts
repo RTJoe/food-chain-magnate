@@ -24,7 +24,7 @@ export const lesson14 = defineLesson({
   title: 'The bank, reserve cards and the end',
   minutes: 8,
   goal: 'The bank breaks at $0 in Dinnertime; reserve cards refill it and set CEO slots; the second break ends the game.',
-  concepts: ['bank', 'bank_break', 'reserve_card', 'ceo_slot_vote', 'game_end', 'cfo'],
+  concepts: ['bank', 'bank_break', 'reserve_card', 'ceo_slots', 'game_end', 'cfo'],
   scenario: {
     build: () => {
       const b = town({ round: 7 })
@@ -96,12 +96,13 @@ export const lesson14 = defineLesson({
         const b = reserveOf(ctx.view, 'p2');
         const sa = a?.kind === 'standard' ? a.ceoSlots : 3;
         const sb = b?.kind === 'standard' ? b.ceoSlots : 2;
-        return `Each card also votes for CEO slots: ${sa} and ${sb}. No majority, so the highest wins: every CEO has ${ctx.view.ceoSlots} slots from now on.`;
+        const why = sa === sb ? 'Both votes match' : 'Each number got one vote, a tie, so the higher one wins';
+        return `Each card also votes for CEO slots: ${sa} and ${sb}. The most common vote wins. ${why}: every CEO has ${ctx.view.ceoSlots} slots from now on.`;
       },
       show: [{ ui: 'rail-p1' }, { ui: 'rail-p2' }],
       until: { next: true },
       then: 'Had both of you picked +$100, every CEO would have dropped to 2 slots.',
-      glossary: 'ceo_slot_vote',
+      glossary: 'reserve_card',
     },
     {
       id: 'continued',

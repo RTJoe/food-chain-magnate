@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Cell, GameState, Uid } from '../../../src/index.js';
-import { legalPlacements } from '../../../src/index.js';
+import { createGame, legalActions, legalPlacements } from '../../../src/index.js';
 import type { RouteStart } from '../../../src/types/actions.js';
 import { setPhase } from '../../../src/core/phase.js';
 import { contentFor } from '../../../src/modules/registry.js';
@@ -15,6 +15,8 @@ import { distanceField, fieldAt, restaurantStarts, roadAt } from '../../../src/m
 import { stagesFor } from '../../../src/rules/working/stages.js';
 import { stateProblems } from '../../../src/testing/validate.js';
 import { houseMultiplier } from '../../../src/modules/ketchup/shared.js';
+import { growBoard } from '../../../src/map/grid.js';
+import type { TileDef } from '../../../src/types/content.js';
 import { mapTileProblem, parkPiece, roadArrows, roadPiece, roadProblem } from '../../../src/modules/ketchup/lobbyists.js';
 import { act, actE, rejected, workingTurn } from '../../helpers/game.js';
 import { dine, kb, kctx, kgame } from './helpers.js';
@@ -61,6 +63,24 @@ const distFromP1 = (s: GameState, cell: Cell) => fieldAt(distanceField(s.board, 
 
 describe('Lobbyists (ketchup.md §2)', () => {
   describe('§2 card and sub-step', () => {
+    it('KX p15: with 5+ players all 6 new tiles join the pool, so New Districts is switched on', () => {
+      const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i + 1}`, name: `P${i + 1}`, chain: 'gluttony_inc' as const, color: '#123456' }));
+      const g5 = createGame({ players: players(5), modules: ['ketchup:lobbyists'], options: {}, intro: false, introMilestones: false, map: { kind: 'random' } }, 1);
+      expect(g5.config.modules).toContain('ketchup:newDistricts');
+      const onMap = new Set([...g5.board.tiles.map((t) => t.templateId), ...g5.tilePool]);
+      for (const t of ['U', 'V', 'W', 'X', 'Y', 'Z']) expect(onMap.has(t as never)).toBe(true);
+      const g4 = createGame({ players: players(4), modules: ['ketchup:lobbyists'], options: {}, intro: false, introMilestones: false, map: { kind: 'random' } }, 1);
+      expect(g4.config.modules).not.toContain('ketchup:newDistricts');
+    });
+
+    it('KX p15: with no road or park tiles left the lobbyist says so', () => {
+      const g = kgame(2, [...M]);
+      g.moduleState['ketchup:lobbyists'] = { roads: { '2': 0, '4': 0, L3: 0 }, parks: { I: 0, T: 0, L: 0 } };
+      const { s, work } = workingTurn(g, 'p1', { work: ['ketchup:lobbyist'] });
+      const skip = legalActions(s, 'p1').find((l) => l.kind === 'ready' && l.action.type === 'work.skip' && l.action.cardUid === work[0]);
+      expect(skip?.disabledReason).toBe('No road or park tiles left');
+    });
+
     it('§2: Lobbyist is an entry-level purple card with a salary and road range 2 (x6)', () => {
       expect(contentFor([...M]).employees['ketchup:lobbyist']).toMatchObject({
         entry: true,
@@ -307,7 +327,7 @@ describe('Lobbyists (ketchup.md §2)', () => {
         g.tilePool = ['B', 'C'];
       });
       const t = act(s, park(T_AT_3_5));
-      expect(t.pending).toEqual([expect.objectContaining({ kind: 'extraMapTile', player: 'p1' })]);
+      expect(t.pending).toEqual([expect.objectContaining({ kind: 'extraMapTile', player: 'p1', optional: true })]);
     });
 
     function withChoice() {
@@ -385,6 +405,19 @@ describe('Lobbyists (ketchup.md §2)', () => {
       expect(mapTileProblem(s, -1, 0, 0, 'B')).toMatch(/airplane/);
       expect(mapTileProblem(s, -1, 1, 0, 'B')).toBeNull();
       expect(mapTileProblem(s, 0, -1, 0, 'B')).toBeNull();
+    });
+
+    it('KX p17: on a board that is no longer a rectangle, a freeway beside an inner tile edge still blocks', () => {
+      const s = kb(2, [...M]).mutate((g) => {
+        g.tilePool = ['C'];
+        const ids = { nextId: g.nextId };
+        growBoard(g.board, contentFor(g.config.modules).tiles.B as TileDef, -1, 0, 0, ids); // tile at (0,0); (0,1), (0,2) empty
+        g.nextId = ids.nextId;
+        // A freeway on the north side at column 7: beside tile (1,1), whose north edge faces the gap (0,1).
+        g.board.entities['entity-fw'] = { kind: 'freeway', id: 'entity-fw', owner: 'p1', side: 'N', offset: 7, tile: g.board.tiles.find((t) => t.row === 1 && t.col === 1)?.id ?? '' };
+      }).build();
+      expect(mapTileProblem(s, 0, 1, 0, 'C')).toMatch(/freeway/);
+      expect(mapTileProblem(s, 0, 2, 0, 'C')).toBeNull();
     });
   });
 });

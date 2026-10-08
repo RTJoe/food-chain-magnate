@@ -11,6 +11,7 @@ import { createBot } from '../registry.js';
 import { botInput, decisionSeed } from '../run.js';
 import { fallbackAction } from '../heuristics.js';
 import { viewState } from '../viewState.js';
+import { internalFallbackCount } from '../shared/fallback.js';
 
 export const ALL_KETCHUP: ModuleId[] = [
   'ketchup:newDistricts',
@@ -30,13 +31,14 @@ export const ALL_KETCHUP: ModuleId[] = [
   'ketchup:movieStars',
 ];
 
-/** `--modules`: none | all | comma list (ids with or without the `ketchup:` prefix). */
+/**
+ * `--modules`: none | all | comma list (ids with or without the `ketchup:` prefix). Six players
+ * always get 6 Players plus New Districts, which it requires (KX p30).
+ */
 export function parseModules(arg: string | undefined, players: number): ModuleId[] {
   const v = (arg ?? 'none').trim();
-  if (v === '' || v === 'none') return players === 6 ? ['ketchup:sixPlayers'] : [];
-  if (v === 'all') return players === 6 ? [...ALL_KETCHUP, 'ketchup:sixPlayers'] : [...ALL_KETCHUP];
-  const ids = v.split(',').map((m) => (m.includes(':') ? m : `ketchup:${m}`) as ModuleId);
-  if (players === 6 && !ids.includes('ketchup:sixPlayers')) ids.push('ketchup:sixPlayers');
+  const ids: ModuleId[] = v === '' || v === 'none' ? [] : v === 'all' ? [...ALL_KETCHUP] : v.split(',').map((m) => (m.includes(':') ? m : `ketchup:${m}`) as ModuleId);
+  if (players === 6) for (const m of ['ketchup:newDistricts', 'ketchup:sixPlayers'] as ModuleId[]) if (!ids.includes(m)) ids.push(m);
   return ids;
 }
 
@@ -78,7 +80,9 @@ export interface SeatStats {
   threw: number;
   /** Bot answered an action the engine rejects on its view (fallback sent instead). */
   invalid: number;
-  /** Fallback actions sent (threw + invalid). */
+  /** Bot played the safe fallback itself: none of its own candidates was valid (shared/fallback.ts). */
+  internal: number;
+  /** Fallback actions sent (threw + invalid + internal). */
   fallbacks: number;
   /** Actions the real state rejected (harness failure: game aborted, seat loses). */
   rejected: number;
@@ -186,7 +190,7 @@ export function playGame(spec: GameSpec, opts: PlayGameOptions = {}): GameResult
   const stats: Record<PlayerId, SeatStats> = {};
   const latency: Record<PlayerId, Record<string, number[]>> = {};
   for (const s of spec.seats) {
-    stats[s.playerId] = { decisions: 0, threw: 0, invalid: 0, fallbacks: 0, rejected: 0 };
+    stats[s.playerId] = { decisions: 0, threw: 0, invalid: 0, internal: 0, fallbacks: 0, rejected: 0 };
     latency[s.playerId] = {};
   }
   const problems: string[] = [];
@@ -213,6 +217,7 @@ export function playGame(spec: GameSpec, opts: PlayGameOptions = {}): GameResult
     let explanation: BotExplanation | undefined;
     let error: string | undefined;
     const tBot = now();
+    const notes = internalFallbackCount();
     try {
       if (trace && bot.explain) {
         explanation = bot.explain(input);
@@ -241,6 +246,11 @@ export function playGame(spec: GameSpec, opts: PlayGameOptions = {}): GameResult
         error = `invalid: ${v.code} ${v.message}`;
         problem(`${where}: invalid ${action.type} (${v.code}: ${v.message})`);
       }
+    }
+    if (!error && internalFallbackCount() > notes) {
+      st.internal++;
+      st.fallbacks++;
+      problem(`${where}: no valid move of its own; played the safe fallback`);
     }
     const botAction = action;
     if (error || !action) {

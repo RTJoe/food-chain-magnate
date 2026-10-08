@@ -59,8 +59,11 @@ export function scoreTerms(o: { unitPrice: number; distance: number; score: numb
   return `$${o.unitPrice}${sp}+${sp}${o.distance}${modText}`;
 }
 
-/** Live caption for a sale: "Ada sells to house 3: $10 + 0 − 2 = $8 · beat Bo $9". */
+/**
+ * Live caption for a sale: "Ada sells to house 3: $10 + 0 − 2 = 8 · beat Bo (9)". The score
+ * (price + distance) is not money, so only the unit price carries a "$".
+ */
 export function saleCaptionText(c: Extract<PhaseCaption, { kind: 'sale' }>, name: (p: PlayerId) => string, house: string): string {
-  const others = c.others.map((o) => `${name(o.player)} $${o.score}${o.canSupply ? '' : ' (no stock)'}`).join(', ');
-  return `${name(c.player)} sells to house ${house}: ${scoreMath(c)}${others ? ` · beat ${others}` : ''}`;
+  const others = c.others.map((o) => `${name(o.player)} (${o.score}${o.canSupply ? '' : ', no stock'})`).join(', ');
+  return `${name(c.player)} sells to house ${house}: ${scoreMath(c, { dollarScore: false })}${others ? ` · beat ${others}` : ''}`;
 }

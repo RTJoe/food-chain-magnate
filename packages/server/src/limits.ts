@@ -14,6 +14,9 @@ export interface Limits {
   /** Per connection: `game.resync` burst; refills one per `resyncRefillMs`. */
   resyncBurst: number;
   resyncRefillMs: number;
+  /** Per connection: `room.join` misses (unknown code) as a burst; refills one per `joinMissRefillMs`. Stops code enumeration. */
+  joinMissBurst: number;
+  joinMissRefillMs: number;
   /** Whole server: sessions held in memory. */
   maxSessions: number;
   /** Whole server: rooms (in memory or on disk). */
@@ -33,6 +36,8 @@ export const DEFAULT_LIMITS: Limits = {
   createRefillMs: 30_000,
   resyncBurst: 5,
   resyncRefillMs: 2_000,
+  joinMissBurst: 10,
+  joinMissRefillMs: 3_000,
   maxSessions: 20_000,
   maxRooms: 5_000,
   maxActionBytes: 8 * 1024,
@@ -48,6 +53,8 @@ const ENV: Record<keyof Limits, [name: string, scale: number]> = {
   createRefillMs: ['FCM_CREATE_REFILL_MS', 1],
   resyncBurst: ['FCM_RESYNC_BURST', 1],
   resyncRefillMs: ['FCM_RESYNC_REFILL_MS', 1],
+  joinMissBurst: ['FCM_JOIN_MISS_BURST', 1],
+  joinMissRefillMs: ['FCM_JOIN_MISS_REFILL_MS', 1],
   maxSessions: ['FCM_MAX_SESSIONS', 1],
   maxRooms: ['FCM_MAX_ROOMS', 1],
   maxActionBytes: ['FCM_MAX_ACTION_BYTES', 1],
@@ -81,11 +88,16 @@ export class TokenBucket {
     this.last = now();
   }
 
-  take(): boolean {
+  /** True if a token is available (without spending it). */
+  has(): boolean {
     const t = this.now();
     this.tokens = Math.min(this.size, this.tokens + (t - this.last) * this.perMs);
     this.last = t;
-    if (this.tokens < 1) return false;
+    return this.tokens >= 1;
+  }
+
+  take(): boolean {
+    if (!this.has()) return false;
     this.tokens -= 1;
     return true;
   }

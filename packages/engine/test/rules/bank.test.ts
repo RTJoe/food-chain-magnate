@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { stateBuilder, type StateBuilder } from '../../src/testing/index.js';
-import { ceoSlotsFromReserves, endGameIfBankBroken, isFinalBreak, payFromBank, payToBank, rankPlayers } from '../../src/rules/bank.js';
+import { burnFromBank, ceoSlotsFromReserves, endGameIfBankBroken, isFinalBreak, payFromBank, payToBank, rankPlayers } from '../../src/rules/bank.js';
 import type { ReserveCard } from '../../src/types/index.js';
 import { MAP, makeCtx, type TestCtx } from './c2ctx.js';
 
@@ -15,6 +15,21 @@ function base(players = 2, intro = false): StateBuilder {
 }
 
 const ctxOf = (b: StateBuilder): TestCtx => makeCtx(b.build());
+
+describe('burning money (Ketchup First discount manager used, KX p19)', () => {
+  it('KX p19 + DLX p28 step 4: a $100 burn from a $60 bank breaks it and takes the other $40 from the refill', () => {
+    const ctx = ctxOf(base().bank({ cash: 60 }).reserve('p1', R(300)).reserve('p2', R(300)));
+    expect(burnFromBank(ctx, 'p1', 100)).toBe(100);
+    expect(ctx.state.bank).toMatchObject({ cash: 560, breaks: 1, burned: 100 });
+    expect(ctx.of('bankBurned')).toEqual([{ type: 'bankBurned', player: 'p1', amount: 100 }]);
+  });
+
+  it('the final break stops a burn', () => {
+    const ctx = ctxOf(base(2, true).bank({ cash: 60 }));
+    expect(burnFromBank(ctx, 'p1', 100)).toBe(60);
+    expect(ctx.state.bank).toMatchObject({ cash: 0, breaks: 1, burned: 60 });
+  });
+});
 
 describe('paying out (base.md §12)', () => {
   it('a payment that leaves money in the bank is a plain transfer', () => {
@@ -62,7 +77,7 @@ describe('paying out (base.md §12)', () => {
     expect(endGameIfBankBroken(ctx)).toBe(true);
     // Most cash incl. IOUs wins.
     expect(ctx.state.phase).toEqual({ kind: 'gameOver', ranking: ['p1', 'p2'], reason: 'bankBroke' });
-    expect(ctx.of('gameEnded')[0]).toMatchObject({ cash: { p1: 50, p2: 50 } });
+    expect(ctx.of('gameEnded')[0]).toMatchObject({ cash: { p1: 50, p2: 50 }, winner: 'p1' });
   });
 
   it('both breaks inside one payment: refill, empty again, rest as IOU', () => {

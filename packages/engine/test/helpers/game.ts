@@ -51,6 +51,13 @@ export function newGame(players = 2, seed = 1, layout: string[][] = MAP3, extra:
   return createGame(cfg(players, layout, extra), seed);
 }
 
+/** A new game past the secret reserve step (DLX p4 step 5), waiting on first restaurants. */
+export function newPlacing(players = 2, seed = 1, layout: string[][] = MAP3, extra: Partial<GameConfig> = {}): GameState {
+  let s = newGame(players, seed, layout, extra);
+  for (const id of s.turnOrder) if (s.phase.kind === 'setup.reserve') s = act(s, { type: 'setup.chooseReserve', playerId: id, card: reserve(100) });
+  return s;
+}
+
 export function act(s: GameState, a: Action): GameState {
   const r = applyAction(s, a);
   if (!r.ok) throw new Error(`${a.type} rejected: ${r.code} ${r.message}`);
@@ -88,15 +95,19 @@ export const reserve = (n: 100 | 200 | 300): ReserveCard => ({ ...(RESERVE[n] as
 export function throughSetup(s0: GameState, amounts: Partial<Record<PlayerId, 100 | 200 | 300>> = {}): GameState {
   let s = s0;
   let i = 0;
+  const reserves = () => {
+    for (const id of s.turnOrder) {
+      if (s.phase.kind !== 'setup.reserve') break;
+      if (!s.secrets[id]?.reserve) s = act(s, { type: 'setup.chooseReserve', playerId: id, card: reserve(amounts[id] ?? 100) });
+    }
+  };
+  reserves(); // DLX p4 step 5
   while (s.phase.kind === 'setup.restaurants') {
     const who = s.awaiting.players[0] as PlayerId;
     const [x, y, entrance] = SPOTS[i++] as [number, number, Corner];
     s = act(s, { type: 'setup.placeRestaurant', playerId: who, x, y, entrance });
   }
-  for (const id of s.turnOrder) {
-    if (s.phase.kind !== 'setup.reserve') break;
-    s = act(s, { type: 'setup.chooseReserve', playerId: id, card: reserve(amounts[id] ?? 100) });
-  }
+  reserves();
   return s;
 }
 

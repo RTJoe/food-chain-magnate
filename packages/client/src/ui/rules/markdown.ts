@@ -163,6 +163,12 @@ export function parseInline(src: string): Inline[] {
   let i = 0;
   while (i < src.length) {
     const ch = src[i]!;
+    // Backslash escapes (\*, \_, \|, \`): the next character is plain text.
+    if (ch === '\\' && i + 1 < src.length && /[\\`*_|[\]#-]/.test(src[i + 1]!)) {
+      buf += src[i + 1];
+      i += 2;
+      continue;
+    }
     if (ch === '`') {
       const end = src.indexOf('`', i + 1);
       if (end > i) {

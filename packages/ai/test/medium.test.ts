@@ -100,7 +100,8 @@ describe('Medium vs Easy (smoke; the 200-game tournament lives in npm run ai:ben
   it('wins most 2-player games, seat-rotated', () => {
     let wins = 0;
     let games = 0;
-    for (const seed of [1, 2, 3]) {
+    // Ten games: a 6-game sample swung on single seeds (map luck) whenever setup's rng use shifted.
+    for (const seed of [1, 2, 3, 4, 5]) {
       for (const mediumSeat of [0, 1]) {
         const g = playBots(gameConfig(2), seed, seats(2, (i) => (i === mediumSeat ? 'medium' : 'easy')), 40);
         clean(g);
@@ -108,6 +109,6 @@ describe('Medium vs Easy (smoke; the 200-game tournament lives in npm run ai:ben
         if (g.state.phase.kind === 'gameOver' && g.state.phase.ranking[0] === `p${mediumSeat + 1}`) wins++;
       }
     }
-    expect(wins).toBeGreaterThanOrEqual(games - 1);
+    expect(wins).toBeGreaterThanOrEqual(Math.ceil(games * 0.8));
   });
 });

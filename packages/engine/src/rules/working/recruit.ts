@@ -6,7 +6,8 @@
  * - 1x cards: at most one per player, beach and busy included (DLX p7, p17).
  * - Empty pile: the card may still be hired if it is trained to a higher level in this turn's
  *   training step (DLX p16). It is tracked in `turn.mustTrain`; the turn cannot leave the train
- *   step until it is trained, and only when enough training actions remain to do so.
+ *   step until it is trained. It is accepted only if every empty-pile hire of the turn can get its
+ *   own training action and its own available final card (`emptyPileHiresFeasible`).
  * - `turn.hired` counts every hire this turn, CEO's included ("First to hire 3", milestones.md).
  */
 import type { EmployeeId } from '../../types/content.js';
@@ -16,8 +17,7 @@ import type { EngineCtx } from '../../core/context.js';
 import { OK, reject, type Check } from '../../core/errors.js';
 import { defOf, ownsUnique } from '../../core/cards.js';
 import { contentFor } from '../../modules/registry.js';
-import { advanceTo, cardCheck, spend } from './stages.js';
-import { reachableTargets } from './train.js';
+import { advanceTo, cardCheck, emptyPileHiresFeasible, spend } from './stages.js';
 
 /** Training uses still available this turn (trainer, coach, guru at work). */
 function trainingUsesLeft(s: GameState, p: PlayerState): number {
@@ -37,13 +37,11 @@ export function hireProblem(s: GameState, p: PlayerState, employeeId: EmployeeId
   if (!def.entry) return `${def.name} is not an entry-level card`;
   if (ownsUnique(content, p, employeeId)) return `You already own a ${def.name} (1x card)`;
   if ((s.supply[employeeId] ?? 0) > 0) return null;
-  // Empty pile (DLX p16): only if it can still be trained up this turn.
+  // Empty pile (DLX p16): only if it can still be trained up this turn, into an available card,
+  // alongside every other empty-pile hire of this turn (multi-step Coach/Guru training included).
   const turn = s.turn;
-  const pendingTrain = turn?.mustTrain.length ?? 0;
-  if (trainingUsesLeft(s, p) <= pendingTrain) return `The ${def.name} pile is empty`;
-  if (reachableTargets(s, p, employeeId, 1).every((t) => (s.supply[t.to] ?? 0) <= 0 || ownsUnique(content, p, t.to))) {
-    return `The ${def.name} pile is empty and nothing it trains into is available`;
-  }
+  if (!turn || trainingUsesLeft(s, p) <= 0) return `The ${def.name} pile is empty`;
+  if (!emptyPileHiresFeasible(s, turn, [employeeId])) return `The ${def.name} pile is empty and it cannot be trained into an available card this turn`;
   return null;
 }
 

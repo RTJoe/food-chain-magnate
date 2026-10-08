@@ -5,6 +5,7 @@
 import type { CampaignKind, Direction, FoodId, Rotation, TileTemplateId } from './content.js';
 import type { Action, ActionType, BuyerRoute, RouteStart } from './actions.js';
 import type {
+  FoodCounts,
   CampaignId,
   CampaignPlacement,
   Cell,
@@ -199,6 +200,8 @@ export interface HouseSeller {
   waitresses: number;
   /** Has the whole order in stock now (inventory + freezer). */
   canSupply: boolean;
+  /** What this offer would sell: tells Ketchup variants of one chain apart (kimchi, sushi, noodles). */
+  items?: FoodCounts;
 }
 
 export interface HouseOutlook {

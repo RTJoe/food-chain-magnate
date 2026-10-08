@@ -38,6 +38,12 @@ interface E<T extends string> {
  * borders (plus roadworks) equal the sale's `distance`. Ketchup rural area: `path` ends on the
  * freeway's road square and `exit` names the board edge the van leaves by.
  */
+/**
+ * Why a card left: chosen at Payday, could not pay salaries (DLX p29), First to Have $100's CFO
+ * (DLX p34), the chain went bankrupt, or an empty-pile hire that could not be trained (DLX p16).
+ */
+export type FireReason = 'voluntary' | 'cannotPay' | 'milestone' | 'bankrupt' | 'untrained';
+
 export interface SaleRoute {
   from: RouteStart;
   path: Cell[];
@@ -69,6 +75,8 @@ export interface SaleCandidate {
   tier: number;
   /** Could deliver the whole order. */
   canSupply: boolean;
+  /** What this offer would sell (Ketchup variants: kimchi on top, sushi or noodles instead). */
+  items?: FoodCounts;
 }
 
 export type GameEvent =
@@ -98,8 +106,8 @@ export type GameEvent =
   | (E<'employeeHired'> & { player: PlayerId; uid: Uid; employeeId: EmployeeId; by: Uid })
   /** Milestone rewards and other free cards. */
   | (E<'employeeGained'> & { player: PlayerId; uid: Uid; employeeId: EmployeeId; reason: string })
-  | (E<'employeeTrained'> & { player: PlayerId; uid: Uid; from: EmployeeId; to: EmployeeId; by: Uid[]; steps: number })
-  | (E<'employeeFired'> & { player: PlayerId; uid: Uid; employeeId: EmployeeId; forced: boolean })
+  | (E<'employeeTrained'> & { player: PlayerId; uid: Uid; from: EmployeeId; to: EmployeeId; by: Uid[]; steps: number; /** Cards passed through, ending with `to`. */ path?: EmployeeId[] })
+  | (E<'employeeFired'> & { player: PlayerId; uid: Uid; employeeId: EmployeeId; forced: boolean; reason?: FireReason })
   | (E<'cardSkipped'> & { player: PlayerId; uid: Uid })
   | (E<'cardsReturned'> & { player: PlayerId })
   | (E<'marketeerReturned'> & { player: PlayerId; uid: Uid })
@@ -171,7 +179,7 @@ export type GameEvent =
   // --- Money --------------------------------------------------------------
   | (E<'cashChanged'> & { player: PlayerId; delta: number; reason: string; bank: number })
   // --- End ----------------------------------------------------------------
-  | (E<'gameEnded'> & { ranking: PlayerId[]; cash: Record<PlayerId, number> });
+  | (E<'gameEnded'> & { ranking: PlayerId[]; cash: Record<PlayerId, number>; /** Null when every chain went bankrupt (base.md §12). */ winner?: PlayerId | null });
 
 export type GameEventType = GameEvent['type'];
 export type EventOf<T extends GameEventType> = Extract<GameEvent, { type: T }>;

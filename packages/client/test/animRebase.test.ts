@@ -56,3 +56,21 @@ describe('boardFrameKey', () => {
     expect(a.key).not.toBe(b.key);
   });
 });
+
+describe('replayed routes after a re-base', () => {
+  it('shifts a route recorded before the board grew west onto the current squares', async () => {
+    const { FIXTURES } = await import('@fcm/engine/testing');
+    const { dinnerRoute } = await import('../src/three/overlays/feedback.js');
+    const { fitRoute } = await import('../src/three/anim/routes.js');
+    const b = FIXTURES.dinnertime().board;
+    let route = null;
+    for (const r of Object.values(b.restaurants)) for (const h of Object.values(b.houses)) route ??= dinnerRoute(b, r.id, h.id);
+    expect(route).not.toBeNull();
+    // As recorded one tile further west (before a tile was added on the west edge).
+    const t = b.tileSize;
+    const old = { ...route!, path: route!.path.map((c) => ({ x: c.x - t, y: c.y })) };
+    expect(fitRoute(b, old).path).toEqual(route!.path);
+    // A route that fits stays as it is.
+    expect(fitRoute(b, route!)).toBe(route);
+  });
+});

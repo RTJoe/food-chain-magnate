@@ -29,8 +29,9 @@
  * - First soda sold: freezer for 10 items.
  * - First recruiting girl used: an Executive VP (never paid) from the tray, else from the box.
  * - First trainer used: never forced to fire for unpaid salaries (pay what you can).
- * - First discount manager used: from the next round, $100 leaves the game at the end of each
- *   Restructuring in which you discount by $3 or more (questions.md Q-K5).
+ * - First discount manager used: $100 leaves the game at the end of each Restructuring in which
+ *   you discount by $3 or more (Night Shift doubling included); for the claiming turn, whose
+ *   Restructuring is already over, it leaves when the milestone is claimed (questions.md Q-K5).
  * - First new restaurant: a free eternal mailbox in the new restaurant's block (`freeMailbox`).
  * - First waitress used: salaries $3 per salaried employee.
  * - First cart operator used: cart operators / zeppelins collect 4 per source, trucks 6 (the
@@ -54,7 +55,8 @@ import { burnFromBank, payFromBank } from '../../rules/bank.js';
 import { campaignPlacementProblem, rangeField } from '../../rules/working/campaigns.js';
 import { baseUses } from '../../rules/working/stages.js';
 import { buyerStats } from '../../rules/working/buyDrinks.js';
-import { salariedCards } from '../../rules/payday.js';
+import { salariedCards, salaryBreakdown } from '../../rules/payday.js';
+import { nightShiftActive } from './nightShift.js';
 import { headChoice, isRejected, moduleState, peekState, pushChoice, registerChoiceKind, resolveHead, workDefs } from './shared.js';
 
 const ID = 'ketchup:newMilestones' as const;
@@ -290,6 +292,8 @@ function onCartHaul(ctx: HookContext, player: PlayerId, uid: string, collected: 
   const p = s.players[player];
   const emp = p?.employees[uid]?.employeeId;
   if (!p || emp !== 'cart_operator') return;
+  // KX p17: a card is "used" only if one of its effects resolves: a haul that collects nothing is not.
+  if (!collected.some((c) => c.count > 0)) return;
   if (!awardMilestone(ctx, player, 'ketchup:first_cart_operator_used')) return;
   // The triggering haul already uses the new per-source amount (DLX p19).
   const def = contentFor(s.config.modules).employees[emp];
@@ -301,9 +305,16 @@ function onCartHaul(ctx: HookContext, player: PlayerId, uid: string, collected: 
   ctx.emit({ type: 'drinksBought', player, uid, path: [], collected: extra, reason: 'ketchup:first_cart_operator_used' });
 }
 
-/** Total discount from price cards at work (positive number of dollars). */
+/**
+ * Total discount from price cards at work (positive number of dollars), as Dinnertime applies it:
+ * under a Night Shift Manager a salary-free price card counts twice (KX p22, Q-K9).
+ */
 function discountAtWork(s: GameState, p: PlayerState): number {
-  return -workDefs(s, p).reduce((a, x) => a + (x.def.ability.kind === 'price' && x.def.ability.delta < 0 ? x.def.ability.delta : 0), 0);
+  const night = nightShiftActive(s, p.id);
+  return -workDefs(s, p).reduce((a, x) => {
+    if (x.def.ability.kind !== 'price' || x.def.ability.delta >= 0) return a;
+    return a + x.def.ability.delta * (night && !x.def.salary ? 2 : 1);
+  }, 0);
 }
 
 function stockOf(p: PlayerState): FoodCounts {
@@ -481,7 +492,7 @@ export const NEW_MILESTONES_MODULE: GameModule = {
           return;
         case 'restaurantPlaced':
           if (s.phase.kind === 'working' && awardMilestone(ctx, event.player, 'ketchup:first_new_restaurant')) {
-            pushChoice(ctx, { kind: 'freeMailbox', player: event.player, restaurantId: event.restaurantId, optional: false });
+            pushChoice(ctx, { kind: 'freeMailbox', player: event.player, restaurantId: event.restaurantId, optional: true }); // KX p19 "allows you to" (Q-K36)
           }
           return;
         case 'sale':
@@ -520,7 +531,10 @@ export const NEW_MILESTONES_MODULE: GameModule = {
       if (phase.kind === 'dinnertime') {
         for (const id of s.turnOrder) {
           const p = s.players[id];
-          if (p && !p.bankrupt && workDefs(s, p).some((x) => x.def.id === 'discount_manager')) awardMilestone(ctx, id, 'ketchup:first_discount_manager_used');
+          if (!p || p.bankrupt || !workDefs(s, p).some((x) => x.def.id === 'discount_manager')) continue;
+          // KX p19: "each turn (including this one)" — this turn's Restructuring is over, so the
+          // claiming turn's $100 leaves the bank now (Q-K5).
+          if (awardMilestone(ctx, id, 'ketchup:first_discount_manager_used') && discountAtWork(s, p) >= 3) burnFromBank(ctx, id, 100);
         }
       }
       if (phase.kind === 'payday') state(s).tokens = {};
@@ -537,10 +551,13 @@ export const NEW_MILESTONES_MODULE: GameModule = {
     // Recorded before the reducer applies `payday.confirm`: the last confirmation settles salaries
     // during dispatch, so the goods must already count by then.
     beforeAction(ctx, action) {
-      if (action.type !== 'payday.confirm' || !action.tokens || tokenCount(action.tokens) === 0) return;
-      const clean: FoodCounts = {};
-      for (const [g, n] of Object.entries(action.tokens) as [FoodId, number][]) if (n > 0) clean[g] = n;
-      state(ctx.state).tokens[action.playerId] = clean;
+      if (action.type !== 'payday.confirm') return;
+      if (action.tokens && tokenCount(action.tokens) > 0) {
+        const clean: FoodCounts = {};
+        for (const [g, n] of Object.entries(action.tokens) as [FoodId, number][]) if (n > 0) clean[g] = n;
+        state(ctx.state).tokens[action.playerId] = clean;
+      }
+      obligatoryTokens(ctx.state, action.playerId);
     },
     campaignGoods(n, ctx, { player, def, kind }) {
       return def.id === 'brand_manager' && kind === 'airplane' && milestoneAvailable(ctx.state, player, 'ketchup:first_brand_manager_used') ? Math.max(n, 2) : n;
@@ -612,6 +629,35 @@ function payableStock(s: GameState, player: PlayerId): number {
   const p = s.players[player];
   if (!p) return 0;
   return (Object.entries(stockOf(p)) as [FoodId, number][]).reduce((a, [g, n]) => a + (FOODS.find((f) => f.id === g)?.payableAsSalary ? n : 0), 0);
+}
+
+/**
+ * KX p19 (First beer sold + First trainer used): a player who does not have to fire and lacks the
+ * cash is "obliged to pay your employees using the item counters" "if able". Goods the player did
+ * not declare are added to the declared ones until the salaries are covered (burger, pizza, then
+ * drinks; never coffee). Cash cannot change between the confirmation and the salary step.
+ */
+function obligatoryTokens(s: GameState, player: PlayerId): void {
+  const p = s.players[player];
+  if (!p || !has(s, player, 'ketchup:first_beer_sold') || !has(s, player, 'ketchup:first_trainer_used')) return;
+  const content = contentFor(s.config.modules);
+  const bd = salaryBreakdown(s, content, player);
+  const shortfall = bd.total - Math.max(0, p.cash);
+  if (shortfall <= 0 || bd.rate <= 0) return;
+  const st = state(s);
+  const declared: FoodCounts = { ...(st.tokens[player] ?? {}) };
+  let need = Math.min(Math.ceil(shortfall / bd.rate), bd.salaried - tokenCount(declared));
+  const stock = stockOf(p);
+  for (const f of FOODS) {
+    if (need <= 0) break;
+    if (!f.payableAsSalary) continue;
+    const free = (stock[f.id] ?? 0) - (declared[f.id] ?? 0);
+    const n = Math.min(free, need);
+    if (n <= 0) continue;
+    declared[f.id] = (declared[f.id] ?? 0) + n;
+    need -= n;
+  }
+  if (tokenCount(declared) > 0) st.tokens[player] = declared;
 }
 
 function tokenProblem(s: GameState, a: PaydayConfirm): string | null {

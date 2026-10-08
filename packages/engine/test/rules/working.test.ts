@@ -112,6 +112,33 @@ describe('3a hire (base.md §6.2)', () => {
   });
 });
 
+describe('3a empty-pile hires need a target card each (DLX p16)', () => {
+  const hire = (cardUid: Uid): Action => ({ type: 'work.recruit', playerId: 'p1', cardUid, employeeId: 'errand_boy' });
+
+  it('DLX p16: a second Errand Boy from an empty pile is refused when only one Cart Operator is left', () => {
+    const { s: s0, work, ceo } = workingTurn(base(), 'p1', { work: ['recruiting_manager', 'trainer', 'trainer', 'trainer'] });
+    const s = { ...s0, supply: { ...s0.supply, errand_boy: 0, cart_operator: 1 } };
+    const t = act(s, hire(ceo));
+    expect(t.turn?.mustTrain).toHaveLength(1);
+    const r = rejected(t, hire(work[0] as Uid));
+    expect(r.code).toBe('SUPPLY_EMPTY');
+    expect(r.message).toMatch(/cannot be trained/);
+    // Two Cart Operators left: both hires are fine.
+    const t2 = act(act({ ...s0, supply: { ...s0.supply, errand_boy: 0, cart_operator: 2 } }, hire(ceo)), hire(work[0] as Uid));
+    expect(t2.turn?.mustTrain).toHaveLength(2);
+  });
+
+  it('DLX p16 (Multiple Skip Example): a Coach may train an empty-pile hire 2 steps past an empty pile', () => {
+    const { s: s0, work, ceo } = workingTurn(base(), 'p1', { work: ['coach'] });
+    const s = { ...s0, supply: { ...s0.supply, errand_boy: 0, cart_operator: 0 } };
+    const t = act(s, hire(ceo));
+    const uid = t.turn?.mustTrain[0] as Uid;
+    const u = act(t, { type: 'work.train', playerId: 'p1', trainerUid: work[0] as Uid, targetUid: uid, toEmployeeId: 'truck_driver' });
+    expect(u.players.p1?.employees[uid]?.employeeId).toBe('truck_driver');
+    expect(u.turn?.mustTrain).toEqual([]);
+  });
+});
+
 describe('3b train (base.md §6.3)', () => {
   it('§6.3: one step per action; only beach cards; old card back to the supply; "First to train"', () => {
     const { s, work, beach } = workingTurn(base(), 'p1', { work: ['trainer', 'waitress'], beach: ['management_trainee', 'waitress'] });
@@ -198,6 +225,18 @@ describe('3d campaigns (base.md §6.4)', () => {
     // DLX p20: First Billboard → the triggering billboard is eternal.
     expect(t.players.p1?.milestones.first_billboard).toBeDefined();
     expect(Object.values(t.board.campaigns)[0]).toMatchObject({ eternal: true, remaining: 1 });
+    // The campaignPlaced event already reports it as eternal (not a 2-round campaign).
+    const ev = actE(s, billboard(mt, 3, 0)).events.find((e) => e.type === 'campaignPlaced');
+    expect(ev && ev.type === 'campaignPlaced' ? ev.campaign : null).toMatchObject({ eternal: true, remaining: 1 });
+  });
+
+  it('a route start is compared by meaning: other key order or extra fields are accepted', () => {
+    const { s, work } = workingTurn(base(), 'p1', { work: ['marketing_trainee'] });
+    const r = p1Restaurant(s);
+    const from = JSON.parse(JSON.stringify({ corner: r.entrance, restaurantId: r.id, kind: 'restaurant', note: 'x' })) as never;
+    expect(act(s, billboard(work[0] as Uid, 3, 0, { from })).board.campaigns).not.toEqual({});
+    const wrong = JSON.parse(JSON.stringify({ corner: r.entrance === 'NW' ? 'SE' : 'NW', restaurantId: r.id, kind: 'restaurant' })) as never;
+    expect(rejected(s, billboard(work[0] as Uid, 3, 0, { from: wrong })).message).toMatch(/must start/);
   });
 
   it('§6.4: range counts tile borders to the road next to the campaign (trainee range 2)', () => {
@@ -305,6 +344,10 @@ describe('3e food and drinks (base.md §6.5)', () => {
       if (r.kind !== 'buyerRoute') throw new Error('kind');
       expect(applyAction(s, { type: 'work.buyDrinks', playerId: 'p1', cardUid: work[0] as Uid, route: r.route }).ok).toBe(true);
     }
+    // One haul per source set, never an empty one (DLX p21: optional; Skip covers it).
+    const keys = routes.map((r) => (r.kind === 'buyerRoute' ? r.collects.map((c) => c.sourceId).join(',') : ''));
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).not.toContain('');
   });
 });
 
@@ -345,6 +388,22 @@ describe('3g restaurants (base.md §6.7)', () => {
     expect(r).toMatchObject({ owner: 'p1', status: 'comingSoon' });
     expect(r?.driveIn).toBeUndefined();
     expect(t.players.p1?.restaurantsRemaining).toBe(1);
+  });
+
+  it('Q-W8 / DLX p19 ex. C: when only the road-to-entrance border puts a spot out of range, the message says so', () => {
+    const { s, work } = workingTurn(base(), 'p1', { work: ['local_manager'] });
+    const lm = work[0] as Uid;
+    const msgs: string[] = [];
+    for (let y = 0; y < 14; y++) {
+      for (let x = 0; x < 14; x++) {
+        for (const entrance of ['NW', 'NE', 'SW', 'SE'] as const) {
+          const r = applyAction(s, { type: 'work.placeRestaurant', playerId: 'p1', cardUid: lm, x, y, entrance });
+          if (!r.ok && /next tile/.test(r.message)) msgs.push(r.message);
+        }
+      }
+    }
+    expect(msgs.length).toBeGreaterThan(0);
+    expect(msgs[0]).toMatch(/the road is 3 borders away and the entrance sits on the next tile \(\+1 = 4; range 3\)/);
   });
 
   it('§6.7: regional manager places an open restaurant anywhere with a drive-in, or moves one (not both)', () => {
@@ -394,6 +453,10 @@ describe('legal actions in Working', () => {
     expect(labels).toContain('End turn');
     expect(labels.some((l) => l.includes('hire Waitress'))).toBe(true);
     expect(labels.some((l) => l.includes('make 1 pizza'))).toBe(true);
+    const { s: s2 } = workingTurn(base(), 'p1', { work: ['burger_cook', 'errand_boy'] });
+    const labels2 = legalActions(s2, 'p1').map((l) => l.label);
+    // Display names with counts (DLX calls it soda): "make 3 burgers", "get 1 soda".
+    expect(labels2).toEqual(expect.arrayContaining(['Burger Cook: make 3 burgers', 'Errand Boy: get 1 soda', 'Errand Boy: get 1 beer']));
     expect(legal.some((l) => l.kind === 'placement' && l.spec.kind === 'campaign')).toBe(true);
     for (const l of legal) if (l.kind === 'ready') expect(validateAction(s, l.action).ok).toBe(true);
     expect(legalActions(s, 'p2')).toEqual([]);

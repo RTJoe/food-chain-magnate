@@ -2,7 +2,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Action, GameState } from '@fcm/engine';
 import { applyAction, createGame, engine, legalActions, redactFor } from '@fcm/engine';
-import { createBot, createHardBot, createMediumBot, decisionSeed, hasBot, registerBot, runBot, runBotDetailed, sampleState, viewState, type Bot } from '../src/index.js';
+import { botInput, createBot, createHardBot, createMediumBot, decisionSeed, hasBot, registerBot, runBot, runBotDetailed, sampleState, viewState, type Bot } from '../src/index.js';
+import { easyChoose } from '../src/easy.js';
+import { internalFallbackCount } from '../src/shared/fallback.js';
 import { ALL_KETCHUP, gameConfig } from './helpers.js';
 
 /** Walk a bot game and call `visit` before each action. */
@@ -49,6 +51,24 @@ describe('registry', () => {
     expect(r.fellBack).toBe(true);
     expect(applyAction(s, r.action).ok).toBe(true);
     registerBot('medium', createMediumBot);
+  });
+
+  it('a bot that plays the safe fallback itself is reported (internalFallback), and normal moves are not', () => {
+    const s = createGame(gameConfig(2), 4);
+    const who = s.awaiting.players[0] as string;
+    const req = { view: redactFor(s, who), playerId: who, seed: 1, budgetMs: 50 };
+    for (const level of ['easy', 'medium', 'hard'] as const) expect(runBotDetailed({ level, ...req }).internalFallback).toBe(false);
+    // An engine that refuses everything leaves the bots nothing valid of their own.
+    const refusing = { ...engine, validateAction: () => ({ ok: false as const, code: 'ILLEGAL' as never, message: 'no' }) };
+    for (const level of ['easy', 'medium', 'hard'] as const) {
+      const before = internalFallbackCount();
+      createBot(level).choose(botInput({ level, ...req }, refusing));
+      expect(internalFallbackCount(), level).toBe(before + 1);
+    }
+    // Nested use (Medium asking Easy, Hard's rollouts) does not count.
+    const before = internalFallbackCount();
+    easyChoose(botInput({ level: 'easy', ...req }, refusing));
+    expect(internalFallbackCount()).toBe(before);
   });
 });
 

@@ -7,6 +7,7 @@
 import { useMemo } from 'preact/hooks';
 import type { FoodId, GameView, Placement } from '@fcm/engine';
 import { haulDrinks } from '../../state/actions.js';
+import { tileOf } from '../../state/boardLabels.js';
 import { foodName } from '../../state/catalog.js';
 import { boardModeFor, isBoardRoute, type RoutePlacementT } from '../../state/guidance.js';
 import { activeCandidate, cycleCandidate, setActiveCandidate } from '../../state/interaction.js';
@@ -18,16 +19,16 @@ import type { FlowProps } from './types.js';
 
 const total = (p: RoutePlacementT) => p.collects.reduce((n, c) => n + c.count, 0);
 
-/** "NW corner of 8,3" / "coffee shop at 4,7". */
+/** "NW corner of your restaurant on B1" / "coffee shop on A2". */
 export function routeStartLabel(p: RoutePlacementT, v: GameView | null): string {
   if (p.route.mode === 'errand') return '';
   const from = p.route.from;
   if (from.kind === 'restaurant') {
     const r = v?.board.restaurants[from.restaurantId];
-    return r ? `${from.corner} corner of ${r.x},${r.y}` : from.corner;
+    return r ? `${from.corner} corner of your restaurant on ${tileOf(r.x, r.y)}` : from.corner;
   }
   const e = v?.board.entities[from.entityId];
-  return e && 'x' in e ? `coffee shop at ${e.x},${e.y}` : 'coffee shop';
+  return e && 'x' in e ? `coffee shop on ${tileOf(e.x, e.y)}` : 'coffee shop';
 }
 
 export function RouteFlow({ legal, placements, onDone, onCancel }: FlowProps) {

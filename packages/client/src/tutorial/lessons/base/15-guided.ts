@@ -68,7 +68,7 @@ export function coachSay(ctx: StepCtx): string {
     const bank = v.bank.cash <= 40 && v.round >= 2 ? ` The bank is down to $${v.bank.cash}: count what you both earn next dinner.` : '';
     return `Dinner: you earned $${mine}, Bo $${bo}.${bank || ' Open the Summary to watch it again, then Continue.'}`;
   }
-  if (v.bank.cash <= 40 && v.round >= 2) return `The bank is down to $${v.bank.cash} ${v.bank.breaks ? ' after the refill' : ` of $${START_BANK}`}. Count what you and Bo will earn next dinner.`;
+  if (v.bank.cash <= 40 && v.round >= 2) return `The bank is down to $${v.bank.cash}${v.bank.breaks ? ' after the refill' : ` of $${START_BANK}`}. Count what you and Bo will earn next dinner.`;
   switch (v.phase.kind) {
     case 'setup.reserve':
       return 'Pick a reserve card. It refills the bank at the first break and votes for the CEO slots everyone gets.';
@@ -90,7 +90,7 @@ export function coachSay(ctx: StepCtx): string {
       return 'Finish your cards, then end your turn.';
     }
     case 'payday':
-      return 'Payday: $5 for every salaried card you own. Fire anyone who costs more than they earn.';
+      return 'Payday: $5 for every salaried card you own, minus any discounts. Fire anyone who costs more than they earn.';
     default:
       return 'The automatic phases are running.';
   }
@@ -139,7 +139,7 @@ export const lesson15 = defineLesson({
       solution: coachMove,
       repeatSolution: true,
       checkpoint: true,
-      glossary: 'hire',
+      glossary: 'hiring',
     },
     {
       id: 'round-2',
@@ -150,7 +150,7 @@ export const lesson15 = defineLesson({
       solution: coachMove,
       repeatSolution: true,
       checkpoint: true,
-      glossary: 'slots',
+      glossary: 'ceo_slots',
     },
     {
       id: 'play',

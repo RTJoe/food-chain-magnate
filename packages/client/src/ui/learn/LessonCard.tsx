@@ -1,9 +1,10 @@
 /** One course-map card (docs/tutorial-plan.md §4.5): status, minutes, concepts, Start / Resume, locks. */
 import type { CourseEntry } from '../../tutorial/catalog.js';
-import { entryById, lockedBy } from '../../tutorial/catalog.js';
+import { lockedBy } from '../../tutorial/catalog.js';
 import { learnProgress, markSkipped, restartLesson, type LessonProgress } from '../../tutorial/progress.js';
 import { navigate } from '../../state/router.js';
 import { hasTerm } from '../glossary/index.js';
+import { conceptLabel, needsText } from './lessonLabels.js';
 import { whatsThis } from '../glossary/api.js';
 import { Button, Pill } from '../common.js';
 import { Icon } from '../icons.js';
@@ -49,11 +50,11 @@ export function LessonCard({ entry: e, index }: { entry: CourseEntry; index: num
               {lesson.concepts.map((c) =>
                 hasTerm(c) ? (
                   <button key={c} type="button" class="chip chip-sm" onClick={(ev) => whatsThis(c, ev.currentTarget)}>
-                    {c.replace(/_/g, ' ')}
+                    {conceptLabel(c)}
                   </button>
                 ) : (
                   <span key={c} class="chip chip-sm">
-                    {c.replace(/_/g, ' ')}
+                    {conceptLabel(c)}
                   </span>
                 ),
               )}
@@ -69,8 +70,8 @@ export function LessonCard({ entry: e, index }: { entry: CourseEntry; index: num
             <span class="lesson-card-actions">
               {locked ? (
                 <>
-                  <span class="muted small">Needs {missing.map((id) => entryById(id)?.title ?? id).slice(0, 2).join(', ')}{missing.length > 2 ? '…' : ''}</span>
-                  <Button size="sm" variant="ghost" onClick={() => markSkipped(missing)}>
+                  <span class="muted small">{needsText(missing)}</span>
+                  <Button size="sm" variant="ghost" onClick={() => (missing.length < 2 || confirm(`Mark ${missing.length} lessons as skipped? You can still play them later.`)) && markSkipped(missing)}>
                     Skip prerequisites
                   </Button>
                 </>

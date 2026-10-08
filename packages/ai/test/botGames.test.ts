@@ -9,6 +9,8 @@ import { BOT_LEVELS, type BotLevel } from '../src/index.js';
 import { ALL_KETCHUP, gameConfig, playBots } from './helpers.js';
 
 const ROUNDS = 25;
+/** `FCM_SLOW_TESTS=1` plays the long variants in full (nightly / before a release). */
+const SLOW = process.env.FCM_SLOW_TESTS === '1';
 const seats = (n: number, level: BotLevel | ((i: number) => BotLevel)): Record<PlayerId, BotLevel> =>
   Object.fromEntries(Array.from({ length: n }, (_, i) => [`p${i + 1}`, typeof level === 'function' ? level(i) : level]));
 
@@ -43,11 +45,13 @@ describe('hard bots (short budget)', () => {
 describe('player counts and variants', () => {
   it.each([2, 4, 5])('base game with %i players', (n) => {
     expectClean(playBots(gameConfig(n), 100 + n, seats(n, 'easy'), ROUNDS));
-  });
-
-  it('6 players with every Ketchup module (mixed levels)', () => {
-    expectClean(playBots(gameConfig(6, { modules: [...ALL_KETCHUP, 'ketchup:sixPlayers'] }), 66, seats(6, (i) => BOT_LEVELS[i % 3] as BotLevel), 12, 6000, 200), 12);
   }, 60_000);
+
+  // CPU-heavy (Hard searches for two seats): 6 rounds by default, 12 with FCM_SLOW_TESTS=1.
+  it('6 players with every Ketchup module (mixed levels)', () => {
+    const rounds = SLOW ? 12 : 6;
+    expectClean(playBots(gameConfig(6, { modules: [...ALL_KETCHUP, 'ketchup:sixPlayers'] }), 66, seats(6, (i) => BOT_LEVELS[i % 3] as BotLevel), rounds, 6000, 200), rounds);
+  }, 120_000);
 
   it('Hard Choices (conflicts with New Milestones)', () => {
     const modules: ModuleId[] = [...ALL_KETCHUP.filter((m) => m !== 'ketchup:newMilestones'), 'ketchup:hardChoices'];

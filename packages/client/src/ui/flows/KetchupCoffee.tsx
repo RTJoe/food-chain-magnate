@@ -9,14 +9,24 @@ import { useMemo } from 'preact/hooks';
 import type { Placement } from '@fcm/engine';
 import type { InteractionMode } from '../../state/boardBridge.js';
 import { boardModeFor } from '../../state/guidance.js';
+import { tileOf } from '../../state/boardLabels.js';
 import { view } from '../../state/store.js';
 import { BoardHint, commitPlacement, listAllPlacements, FlowHead, NoSpots, PlacementRows, playerColor, splitPlacements, useBoardMode } from './shared.js';
 import type { FlowProps } from './types.js';
 
 type Shop = Extract<Placement, { kind: 'coffeeShop' }>;
 
+/** Placement rule for the shop: a trained barista is held to range; First coffee sold is not (KX p11). */
+export function coffeeRule(source: 'training' | 'milestone' | undefined): string {
+  return source === 'milestone'
+    ? 'Anywhere on the map: an empty square next to a road, one coffee shop per map tile. Routes past it sell coffee.'
+    : 'One coffee shop per map tile, within range of your restaurants or coffee shops. Routes past it sell coffee.';
+}
+
 export function KetchupCoffeeFlow({ legal, placements, onDone, onCancel }: FlowProps) {
   const v = view.value;
+  const head = v?.pending[0];
+  const source = head?.kind === 'coffeeShop' ? head.source : undefined;
   const shopsP = placements.filter((p): p is Shop => p.kind === 'coffeeShop');
   const movable = useMemo(() => [...new Set(shopsP.flatMap((p) => (p.moveFrom ? [p.moveFrom] : [])))], [placements]);
   const moving = movable.length > 0;
@@ -42,13 +52,13 @@ export function KetchupCoffeeFlow({ legal, placements, onDone, onCancel }: FlowP
   });
   const where = (id: string) => {
     const e = v?.board.entities[id];
-    return e && 'x' in e ? `${e.x},${e.y}` : id;
+    return e && 'x' in e ? tileOf(e.x, e.y) : id;
   };
 
   return (
     <div class="flow kf-flow">
       <FlowHead title={legal.label} onCancel={onCancel} />
-      <p class="muted small">One coffee shop per map tile, within range of your restaurants or coffee shops. Routes past it sell coffee.</p>
+      <p class="muted small">{coffeeRule(source)}</p>
       {shopsP.length === 0 ? (
         <NoSpots />
       ) : (
@@ -59,11 +69,11 @@ export function KetchupCoffeeFlow({ legal, placements, onDone, onCancel }: FlowP
               <div class="kf-pieces" role="radiogroup" aria-label="Coffee shop to move">
                 {movable.map((id) => (
                   <button key={id} type="button" role="radio" aria-checked={from.value === id} class={`kf-piece ${from.value === id ? 'is-on' : ''}`} onClick={() => choose(id)}>
-                    <span class="kf-piece-label">Shop at {where(id)}</span>
+                    <span class="kf-piece-label">Shop on {where(id)}</span>
                   </button>
                 ))}
               </div>
-              {!from.value && <p class="flow-hint">Tap the coffee shop to move on the board (ringed).</p>}
+              {!from.value && <p class="flow-hint">Pick the shop to move: use its chip, or tap it on the board (ringed).</p>}
             </div>
           )}
           {(!moving || from.value) && <BoardHint count={onBoard.length}>{moving ? '2 · Pick its new square.' : undefined}</BoardHint>}

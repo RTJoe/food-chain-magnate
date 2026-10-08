@@ -21,7 +21,8 @@ const cleanCode = (s: string) =>
     .join('')
     .slice(0, 5);
 
-const STATUS_LABEL: Record<RecentGame['status'], string> = { lobby: 'In the lobby', playing: 'Game in progress', finished: 'Finished' };
+// Cached from the last visit: worded as "when you left", since the room may have moved on since.
+const STATUS_LABEL: Record<RecentGame['status'], string> = { lobby: 'In the lobby when you left', playing: 'In progress when you left', finished: 'Finished' };
 
 function ago(ts: number): string {
   const min = Math.round((Date.now() - ts) / 60_000);
@@ -69,11 +70,11 @@ function YourGames() {
             <span style={{ flex: '1 1 160px', minWidth: 0 }}>
               <span>{g.players.join(', ') || 'No players seated'}</span>
               <span class="muted" style={{ display: 'block', fontSize: '0.85rem' }}>
-                {STATUS_LABEL[g.status]} · {ago(g.lastSeen)}
+                {STATUS_LABEL[g.status]} · seen {ago(g.lastSeen)}
               </span>
             </span>
             <Button size="sm" variant={g.status === 'playing' ? 'primary' : 'secondary'} icon="arrowRight" onClick={() => resume(g.id)}>
-              {g.status === 'finished' ? 'View' : 'Resume'}
+              {g.status === 'finished' ? 'View' : 'Open'}
             </Button>
             <IconButton icon="x" label={`Forget room ${g.id}`} onClick={() => forgetRoom(g.id)} />
           </li>
@@ -125,7 +126,10 @@ export function Home() {
   };
   const onJoin = (e: Event) => {
     e.preventDefault();
-    if (code.value.length === 5) navigate({ name: 'room', id: code.value });
+    if (code.value.length !== 5 || !nameOk) return;
+    // Home already has the name: join straight away instead of asking again on the room page.
+    startOnline({ id: code.value });
+    navigate({ name: 'room', id: code.value });
   };
 
   return (
@@ -162,7 +166,7 @@ export function Home() {
         <article class="home-card glass">
           <span class="home-card-icon tone-accent">{Icon.plus({ size: 24 })}</span>
           <h2>Create a room</h2>
-          <p class="muted">Host a game on this network. Friends join with a code or by scanning a QR code.</p>
+          <p class="muted">Host an online game. Friends join with the link, the code or the QR code.</p>
           <Button variant="primary" size="lg" icon="arrowRight" disabled={!nameOk} busy={creating.value && connection.value !== 'open'} onClick={onCreate}>
             Create room
           </Button>
@@ -185,6 +189,7 @@ export function Home() {
           <Button variant="secondary" size="lg" icon="arrowRight" type="submit" disabled={code.value.length !== 5 || !nameOk}>
             Join
           </Button>
+          {!nameOk && <p class="hint">Enter your name first.</p>}
         </form>
 
         <article class="home-card glass">
@@ -200,8 +205,12 @@ export function Home() {
       <footer class="home-foot">
         <a href="#/learn">Learn to play</a>
         <span aria-hidden="true">·</span>
-        <a href="#/dev">Fixture gallery</a>
-        <span aria-hidden="true">·</span>
+        {import.meta.env.DEV && (
+          <>
+            <a href="#/dev">Fixture gallery</a>
+            <span aria-hidden="true">·</span>
+          </>
+        )}
         <span class="muted">An unofficial fan implementation. All art is original.</span>
       </footer>
     </main>

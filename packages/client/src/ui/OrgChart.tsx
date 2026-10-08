@@ -21,7 +21,8 @@ import {
   employeeIdOf,
   restructureCandidates,
 } from "../state/selectors.js";
-import { catalog, draft, me, view } from "../state/store.js";
+import { catalog, draft, me, mode, room, view } from "../state/store.js";
+import { draftKey, loadDraft, saveDraft } from "../state/draftStore.js";
 import { act } from "../net/session.js";
 import {
   Button,
@@ -65,7 +66,7 @@ export function Company() {
           value: id,
           label: (
             <span class="seg-player">
-              <PlayerBadge view={v} id={id} size={20} />
+              <PlayerBadge view={v} id={id} size={20} hidden />
               {id === mine ? "You" : v.players[id]?.name}
             </span>
           ),
@@ -96,10 +97,16 @@ export function OrgChartEditor({
   const candidates = restructureCandidates(p);
   const keep = (u: Uid) => candidates.includes(u);
 
+  // Lessons and dev fixtures replay from scratch: never restore a draft there.
+  const saveKey =
+    mode.value === "online" || mode.value === "hotseat"
+      ? draftKey(room.value?.id ?? mode.value, v.round, p.id)
+      : null;
   useEffect(() => {
     if (draft.value) return;
     const src =
       v.mine?.structureDraft ??
+      (saveKey ? loadDraft(saveKey) : null) ??
       (p.structure.ceoSubs.length ? p.structure : null);
     draft.value = src ? draftFromStructure(src, keep) : emptyDraft();
   }, [v.round, v.phase.kind]);
@@ -116,6 +123,7 @@ export function OrgChartEditor({
 
   const set = (next: OrgDraft) => {
     draft.value = next;
+    if (saveKey) saveDraft(saveKey, next);
     selected.value = null;
   };
   const dropTo = (uid: Uid, target: SlotTarget) => {
@@ -200,7 +208,7 @@ export function OrgChartEditor({
             {m.used}/{m.capacity}
           </Pill>
         ))}
-        <Pill tone="info">{openSlots(check)} open slots</Pill>
+        <Pill tone="info">{openSlots(check)} open slot{openSlots(check) === 1 ? '' : 's'}</Pill>
       </div>
 
       <div class="org-tree">
@@ -214,7 +222,7 @@ export function OrgChartEditor({
               class={`org-node ${rules.isManager(uid) ? "is-manager" : ""}`}
             >
               {card(uid, "slot")}
-              {rules.isManager(uid) && (
+              {rules.isManager(uid) && (rules.slotsOf(uid) > 0 || (d.managerSubs[uid] ?? []).length > 0) && (
                 <ol class="org-subs" aria-label="Manager slots">
                   {(d.managerSubs[uid] ?? []).map((s) => (
                     <li key={s}>{card(s, "slot")}</li>
@@ -418,8 +426,10 @@ export function OrgChartView({
   player: PlayerState;
 }) {
   const s = p.structure;
-  const hidden = v.phase.kind === "restructuring";
+  // During Restructuring another player's view is redacted: say so instead of drawing an empty company.
+  const hidden = v.phase.kind === "restructuring" && p.id !== me.value;
   const beach = p.beach;
+  const cards = Object.keys(p.employees).length;
   const busy = busyUids(p);
   const uses = v.turn?.player === p.id ? v.turn.uses : null;
   const usesBadge = (uid: Uid) =>
@@ -436,11 +446,14 @@ export function OrgChartView({
             <CardBack />
           </span>
           <p class="muted small">
-            {Icon.eyeOff({ size: 14 })} Structures are secret until everyone has
-            submitted.
+            {Icon.eyeOff({ size: 14 })} Hidden until the reveal: structures
+            are secret until everyone has submitted. {p.name} has {cards}{" "}
+            card{cards === 1 ? "" : "s"}.
           </p>
         </div>
       )}
+      {!hidden && (
+      <>
       <div class="org-tree">
         <div class="org-ceo">
           <EmployeeCard id="ceo" badge={usesBadge(s.ceo)} />
@@ -497,6 +510,8 @@ export function OrgChartView({
           <p class="muted small">Nobody is on the beach.</p>
         )}
       </div>
+      </>
+      )}
       {busy.length > 0 && (
         <div class="org-busy">
           <h4>{Icon.marketing({ size: 16 })} On a campaign</h4>

@@ -9,7 +9,7 @@ import { useSignal } from '@preact/signals';
 import { useMemo } from 'preact/hooks';
 import type { Placement } from '@fcm/engine';
 import { boardModeFor } from '../../state/guidance.js';
-import { ghostOrientation, rotatePlacement } from '../../state/interaction.js';
+import { rotatePlacement } from '../../state/interaction.js';
 import { Button } from '../common.js';
 import { BoardHint, commitPlacement, FlowHead, NoSpots, PlacementRows, playerColor, splitPlacements, useBoardMode } from './shared.js';
 import type { FlowProps } from './types.js';
@@ -111,7 +111,6 @@ export function KetchupPieceFlow({ legal, placements, onDone, onCancel }: FlowPr
     if (commitPlacement(legal, p)) onDone();
   };
   useBoardMode(mode, { onPlacement: pick, onCancel });
-  const orient = ghostOrientation.value;
 
   return (
     <div class="flow kf-flow">
@@ -139,7 +138,7 @@ export function KetchupPieceFlow({ legal, placements, onDone, onCancel }: FlowPr
               ))}
             </div>
           </div>
-          <BoardHint count={onBoard.length}>2 · Place it on the board; R or Rotate turns it{orient && orient !== 'square' ? ` (now ${orient === 'landscape' ? 'east–west' : 'north–south'})` : ''}.</BoardHint>
+          <BoardHint count={onBoard.length}>2 · Place it on the board; R or Rotate turns it where both directions fit.</BoardHint>
           {onBoard.length > 0 && (
             <div class="row">
               <Button size="sm" variant="ghost" icon="rotateRight" onClick={rotatePlacement}>

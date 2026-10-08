@@ -47,13 +47,10 @@ import type { GameView, LegalAction, Placement, PlacementSpec, Viewer } from './
 /** Typed options per module. Modules without options use `Record<string, never>`. */
 export interface ModuleOptionsMap {
   base: Record<string, never>;
-  /** ketchup.md §1: which of tiles U–Y join the pool (default all). */
-  'ketchup:newDistricts': { tiles?: TileTemplateId[] };
-  /**
-   * ketchup.md §2. `includeTileZ`: add the two-park tile to the pool. `parallelRoadsConnect`:
-   * `lobbyistOnly` (recommended) or `everywhere` (also base-map edge roads; Low-Medium confidence).
-   */
-  'ketchup:lobbyists': { includeTileZ?: boolean; parallelRoadsConnect?: 'lobbyistOnly' | 'everywhere' };
+  /** No options yet: choosing which of U–Y join the pool is not implemented (questions.md Q-K26). */
+  'ketchup:newDistricts': Record<string, never>;
+  /** No options: tile Z always joins the pool; every pair of adjacent road squares connects (DLX p8 E, p21). */
+  'ketchup:lobbyists': Record<string, never>;
   'ketchup:newMilestones': Record<string, never>;
   'ketchup:coffee': Record<string, never>;
   'ketchup:kimchi': Record<string, never>;

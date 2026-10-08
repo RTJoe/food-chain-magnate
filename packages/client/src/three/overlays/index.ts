@@ -30,7 +30,7 @@ export class OverlayLayer {
   private frame = (dt: number, t: number) => {
     let moving = false;
     for (const f of this.ticks.values()) moving = f(dt, t) || moving;
-    if (moving) this.stage.invalidate();
+    if (moving) this.stage.invalidateDecor();
   };
 
   constructor(

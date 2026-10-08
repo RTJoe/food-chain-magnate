@@ -35,8 +35,8 @@ export const LANE = 0.2;
 export const CORNER = 0.32;
 /** Root height of a vehicle on the road (ROAD_TOP + 0.02). */
 export const ROAD_Y = 0.05;
-/** Air lanes. */
-export const AIR_Y = { zeppelin: 2.2, airplane: 2.5 } as const;
+/** Air lanes: cruise heights above the tallest mini (New Districts apartment roof ~2.8), so aircraft never clip it. */
+export const AIR_Y = { zeppelin: 3.0, airplane: 3.3 } as const;
 /** Freeway deck (minis/ketchup.ts): ramp run and rise from the board edge, then a flat platform. */
 export const FREEWAY = { run: 3.2, rise: 0.95, platform: 0.8 } as const;
 /** Root height of a vehicle on the rural area tile. */

@@ -132,6 +132,16 @@ export class GameSession {
     return this.state.awaiting.players.find((p) => this.isBot(p)) ?? null;
   }
 
+  /** True when `playerId` has exactly one move (e.g. only `work.endTurn`): no decision to show. */
+  forcedMove(playerId: PlayerId): boolean {
+    try {
+      const legal = this.engine.legalActions(this.state, playerId);
+      return legal.length === 1 && legal[0]?.kind === 'ready';
+    } catch {
+      return false;
+    }
+  }
+
   /** What a bot host needs to decide for `playerId` now: its redacted view, level and a seed. */
   botRequest(playerId: PlayerId, budgetMs: number): BotRequest {
     return { level: this.bots[playerId] ?? 'easy', view: this.view(playerId), playerId, seed: decisionSeed(this.seed, this.seq, playerId), budgetMs };

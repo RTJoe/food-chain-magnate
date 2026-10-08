@@ -7,6 +7,10 @@
  * Only the current socket's events count: a replaced socket's late `close` must not clear the new
  * one or schedule another connect. Close code 4000 means another tab took this session over; we
  * stop (status `closed`, `replaced`) instead of taking it back, until `reconnectNow()`.
+ *
+ * Half-open sockets (Wi-Fi to cellular, laptop sleep) never fire `close`: every ping must be
+ * answered by some server message within `pongTimeout`, or the socket is treated as dead and
+ * replaced. Coming back to the tab, `pageshow` and the browser's `online` event probe at once.
  */
 import { parseServerMessage, type ClientMessage, type ServerMessage } from '@fcm/protocol';
 import type { ConnectionStatus, Transport, Unsubscribe } from './transport.js';
@@ -17,6 +21,8 @@ export interface SocketTransportOptions {
   baseDelay?: number;
   maxDelay?: number;
   pingEvery?: number;
+  /** A ping with no server message for this long means the socket is dead (ms). */
+  pongTimeout?: number;
   /** Injected for tests. */
   WebSocketImpl?: typeof WebSocket;
 }
@@ -40,6 +46,10 @@ export class SocketTransport implements Transport {
   private statusListeners = new Set<(s: ConnectionStatus) => void>();
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private probeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** When the current socket last delivered a message. */
+  private lastHeard = 0;
+  private unwatch: (() => void) | null = null;
   private closedForGood = false;
   private replacedElsewhere = false;
   private readonly opts: Required<Omit<SocketTransportOptions, 'WebSocketImpl' | 'url'>> & { url: string; WS: typeof WebSocket };
@@ -50,8 +60,42 @@ export class SocketTransport implements Transport {
       baseDelay: opts.baseDelay ?? 500,
       maxDelay: opts.maxDelay ?? 10_000,
       pingEvery: opts.pingEvery ?? 20_000,
+      pongTimeout: opts.pongTimeout ?? 5_000,
       WS: opts.WebSocketImpl ?? WebSocket,
     };
+    this.unwatch = this.watchPage();
+  }
+
+  /** Probe right away when the page wakes or the network returns (no-op outside a browser). */
+  private watchPage(): (() => void) | null {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return null;
+    const wake = () => {
+      if (document.visibilityState !== 'hidden') this.probe(3_000);
+    };
+    const online = () => {
+      if (this.closedForGood || this.replacedElsewhere) return;
+      if (this.status === 'open') this.probe(3_000);
+      else this.reconnectNow(); // skip the rest of the backoff
+    };
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('pageshow', wake);
+    window.addEventListener('online', online);
+    return () => {
+      document.removeEventListener('visibilitychange', wake);
+      window.removeEventListener('pageshow', wake);
+      window.removeEventListener('online', online);
+    };
+  }
+
+  /** Ping now; if nothing at all comes back within `deadline`, drop the socket and reconnect. */
+  probe(deadline = this.opts.pongTimeout): void {
+    if (!this.ws || this.status !== 'open' || this.probeTimer) return;
+    const sentAt = Date.now();
+    this.send({ t: 'ping', ts: sentAt });
+    this.probeTimer = setTimeout(() => {
+      this.probeTimer = null;
+      if (this.ws && this.status === 'open' && this.lastHeard < sentAt) this.reconnectNow();
+    }, deadline);
   }
 
   connect(): void {
@@ -69,6 +113,7 @@ export class SocketTransport implements Transport {
       if (this.ws !== ws) return;
       this.attempt = 0;
       this.replacedElsewhere = false;
+      this.lastHeard = Date.now();
       this.setStatus('open');
       const queued = this.buffer;
       this.buffer = [];
@@ -77,6 +122,7 @@ export class SocketTransport implements Transport {
     };
     ws.onmessage = (e) => {
       if (this.ws !== ws) return;
+      this.lastHeard = Date.now();
       const msg = parseServerMessage(String(e.data));
       if (!msg) return;
       for (const l of [...this.msgListeners]) l(msg);
@@ -121,6 +167,8 @@ export class SocketTransport implements Transport {
 
   close(): void {
     this.closedForGood = true;
+    this.unwatch?.();
+    this.unwatch = null;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.stopPing();
     this.buffer = [];
@@ -172,11 +220,13 @@ export class SocketTransport implements Transport {
 
   private startPing(): void {
     this.stopPing();
-    this.pingTimer = setInterval(() => this.send({ t: 'ping', ts: Date.now() }), this.opts.pingEvery);
+    this.pingTimer = setInterval(() => this.probe(), this.opts.pingEvery);
   }
 
   private stopPing(): void {
     if (this.pingTimer) clearInterval(this.pingTimer);
     this.pingTimer = null;
+    if (this.probeTimer) clearTimeout(this.probeTimer);
+    this.probeTimer = null;
   }
 }

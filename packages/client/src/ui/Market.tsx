@@ -1,9 +1,11 @@
 /** Employee market (architecture §5.4 EmployeeMarket): piles left and career paths of the cards in this game. */
 import { useSignal } from "@preact/signals";
+import { useEffect, useRef } from "preact/hooks";
 import type { EmployeeId } from "@fcm/engine";
 import { employeeName } from "../state/catalog.js";
 import { careerForest, type CareerNode } from "../state/selectors.js";
-import { catalog, view } from "../state/store.js";
+import { paydayFigures } from "../state/payday.js";
+import { catalog, me, view } from "../state/store.js";
 import { EmployeeCard, Empty, Toggle } from "./common.js";
 import { employeeTermId } from "./glossary/index.js";
 import { WhatsThis } from "./glossary/WhatsThis.js";
@@ -12,6 +14,11 @@ export function Market() {
   const v = view.value;
   const onlyEntry = useSignal(false);
   const picked = useSignal<EmployeeId | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+  // The detail opens under the picked card's career block: keep it in view in long lists.
+  useEffect(() => {
+    detailRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [picked.value]);
   if (!v) return null;
   const c = catalog.value;
   const inGame = Object.keys(v.supply) as EmployeeId[];
@@ -44,6 +51,31 @@ export function Market() {
     );
   };
 
+  // The first career block that shows the picked card hosts its detail (a card can sit in two trees).
+  const home = detail ? forest.find((n) => flat(n, new Set()).includes(detail.id))?.id : undefined;
+  const mine = me.value;
+  const rate = mine && v.players[mine] ? attempt(() => paydayFigures(v, mine).rate) ?? 5 : 5;
+  const detailBox = detail && (
+        <div class="market-detail glass-inner" role="status" ref={detailRef}>
+          <b>
+            {employeeName(c, detail.id)}
+            <WhatsThis
+              id={employeeTermId(detail.id)}
+              label={employeeName(c, detail.id)}
+            />
+          </b>
+          <p class="small">{detail.text}</p>
+          <p class="muted small">
+            {v.supply[detail.id] ?? 0} left
+            {detail.salary ? ` · salary $${rate}` : " · no salary"}
+            {detail.unique ? " · 1x" : ""}
+            {detail.trainsInto.length
+              ? ` · trains into ${detail.trainsInto.map((t) => employeeName(c, t)).join(", ")}`
+              : ""}
+          </p>
+        </div>
+  );
+
   return (
     <div class="market">
       <Toggle
@@ -61,40 +93,35 @@ export function Market() {
           </>
         }
       />
-      {detail && (
-        <div class="market-detail glass-inner" role="status">
-          <b>
-            {employeeName(c, detail.id)}
-            <WhatsThis
-              id={employeeTermId(detail.id)}
-              label={employeeName(c, detail.id)}
-            />
-          </b>
-          <p class="small">{detail.text}</p>
-          <p class="muted small">
-            {v.supply[detail.id] ?? 0} left
-            {detail.salary ? " · salary $5" : " · no salary"}
-            {detail.unique ? " · 1x" : ""}
-            {detail.trainsInto.length
-              ? ` · trains into ${detail.trainsInto.map((t) => employeeName(c, t)).join(", ")}`
-              : ""}
-          </p>
-        </div>
-      )}
       {onlyEntry.value ? (
-        <div class="card-grid career-forest">
-          {forest.map((n) => card(n.id))}
-        </div>
+        <>
+          <div class="card-grid career-forest">
+            {forest.map((n) => card(n.id))}
+          </div>
+          {detailBox}
+        </>
       ) : (
         <ul class="career-forest">
-          {forest.map((n) => (
-            <li key={n.id} class="career-tree">
-              {n.children.length > 0 && <h4>{employeeName(c, n.id)} career</h4>}
-              <div class="card-grid">{flat(n, new Set()).map(card)}</div>
-            </li>
-          ))}
+          {forest.map((n) => {
+            const ids = flat(n, new Set());
+            return (
+              <li key={n.id} class="career-tree">
+                {n.children.length > 0 && <h4>{employeeName(c, n.id)} career</h4>}
+                <div class="card-grid">{ids.map(card)}</div>
+                {detail && n.id === home && detailBox}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
   );
+}
+
+function attempt<T>(fn: () => T): T | undefined {
+  try {
+    return fn();
+  } catch {
+    return undefined;
+  }
 }

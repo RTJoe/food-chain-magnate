@@ -1,7 +1,8 @@
 /**
  * Easy bot: sensible but beatable. One light heuristic per decision, no lookahead, one fixed plan
  * (easyPlan.ts: a build list for its main food matched against the cards it owns):
- * - setup: first restaurant where houses cluster, away from rivals; random reserve card.
+ * - setup: first restaurant where houses cluster, away from rivals; random reserve card (never a
+ *   $5 base price).
  * - restructuring: seats only cards with something to do (marketeers with tiles left, cooks,
  *   buyers, a trainer when a card waits for training...), leaves the cards it trains on the beach.
  * - order of business: earliest free position.
@@ -12,7 +13,8 @@
  * - payday: fire salaried cards the plan has no use for, and whatever cash cannot carry.
  * - clean up: freeze the most plentiful goods.
  * - Ketchup choices: place what must be placed, near its restaurants when it matters; accept
- *   optional bonuses (second campaign, freeway); decline anything else.
+ *   optional bonuses (second campaign; a freeway only where it brings it closer to the rural
+ *   area); parks next to houses it wins, never next to a rival's; decline anything else.
  * A little noise (the decision's rng) keeps games from repeating.
  */
 import type { Action, EmployeeDef, FoodId, GameState, LegalAction, Placement, PlayerId, StructureSubmission, Uid } from '@fcm/engine';
@@ -38,6 +40,7 @@ import {
   voluntarilyFireable,
 } from '@fcm/engine';
 import type { Bot, BotInput } from './types.js';
+import { noteInternalFallback } from './shared/fallback.js';
 import { makeCtx, type Ctx } from './shared/ctx.js';
 import { houseViews, sellerOf, type HouseView } from './shared/market.js';
 import { actionFromPlacement, cardDef, contentOf, demandNear, distToMine, fallbackAction, firingPlan, forcedFirePlan, placementCells, restaurantSpotScore, simpleStructure } from './heuristics.js';
@@ -53,10 +56,23 @@ const CAMPAIGN_SAMPLE = 240;
 const CAMPAIGN_NOISE = 2;
 
 export function createEasyBot(): Bot {
-  return { level: 'easy', choose: easyChoose };
+  return {
+    level: 'easy',
+    choose: (input) => {
+      const d = easyDecide(input);
+      if (d.fellBack) noteInternalFallback();
+      return d.action;
+    },
+  };
 }
 
+/** Easy's move (also used by Medium for decisions it has no scorer for). */
 export function easyChoose(input: BotInput): Action {
+  return easyDecide(input).action;
+}
+
+/** Easy's move, and whether none of its own candidates was valid (the safe fallback was played). */
+export function easyDecide(input: BotInput): { action: Action; fellBack: boolean } {
   const ctx = makeCtx(input);
   const s = ctx.s;
   let candidates: Action[] = [];
@@ -65,8 +81,8 @@ export function easyChoose(input: BotInput): Action {
   } catch {
     candidates = [];
   }
-  for (const a of candidates) if (input.engine.validateAction(s, a).ok) return a;
-  return fallbackAction(s, input.playerId, input.engine, input.legal, input.rng);
+  for (const a of candidates) if (input.engine.validateAction(s, a).ok) return { action: a, fellBack: false };
+  return { action: fallbackAction(s, input.playerId, input.engine, input.legal, input.rng), fellBack: true };
 }
 
 const readyOf = (legal: LegalAction[], type?: Action['type']): Action[] => legal.flatMap((l) => (l.kind === 'ready' && (!type || l.action.type === type) ? [l.action] : []));
@@ -80,8 +96,10 @@ function decide(c: Ctx): Action[] {
     case 'setup.restaurants':
       return [...bestPlacements(c, placementsOf(c.legal), (pl) => (pl.kind === 'restaurant' ? restaurantSpotScore(s, me, pl.x, pl.y, pl.entrance) : 0)), ...readyOf(c.legal, 'setup.pass')];
     case 'setup.reserve': {
-      const opts = readyOf(c.legal, 'setup.chooseReserve');
-      return opts.length ? [opts[randomInt(c.rng, opts.length)] as Action] : [];
+      // Reserve Prices: never vote for a $5 base price (a price war that makes the bank last for ever).
+      const all = readyOf(c.legal, 'setup.chooseReserve');
+      const opts = all.filter((a) => !(a.type === 'setup.chooseReserve' && a.card.kind === 'price' && a.card.basePrice === 5));
+      return opts.length ? [opts[randomInt(c.rng, opts.length)] as Action] : all;
     }
     case 'restructuring':
       return [
@@ -117,9 +135,13 @@ function decideChoice(c: Ctx): Action[] {
   const good = easyGood(c, me, easyPlan(c));
   const out: Action[] = [];
   for (const la of placementsOf(c.legal)) {
+    // An optional freeway that does not bring me closer to the rural area than before is declined.
+    if (la.spec.kind === 'freeway') {
+      out.push(...bestPlacements(c, [la], (pl) => freewayGain(c, la, pl), { good }, 0.01));
+      continue;
+    }
     const score = (pl: Placement): number => {
       if (pl.kind === 'campaign') return campaignScore(c, pl, good);
-      if (pl.kind === 'mapTile' || pl.kind === 'freeway') return nextFloat(c.rng);
       const cells = placementCells(pl);
       return cells.length ? -distToMine(s, me, cells) : 0;
     };
@@ -238,8 +260,10 @@ function cardActions(c: Ctx, entries: LegalAction[]): Action[] {
       return bestPlacements(c, opens, (pl) => (pl.kind === 'restaurant' ? restaurantSpotScore(s, me, pl.x, pl.y, pl.entrance) : -99), {}, 1).slice(0, 3);
     }
     default:
-      // Ketchup lobbyists (roads / parks) and other module placements: any legal spot near us.
+      // Ketchup lobbyists: parks by the houses they price up; roads and other module placements:
+      // any legal spot near us.
       return bestPlacements(c, places, (pl) => {
+        if (pl.kind === 'park') return parkScore(c, pl);
         const cells = placementCells(pl);
         return (cells.length ? -distToMine(s, me, cells) / 4 : 0) + nextFloat(c.rng) * 2;
       });
@@ -407,6 +431,52 @@ function campaignScore(c: Ctx, pl: Extract<Placement, { kind: 'campaign' }>, goo
     else v -= h.adds * (uncapped ? (eternal ? 3 : 1) : 0.2);
   }
   return v;
+}
+
+/** My standing for the rural area (KX p26: distance from any freeway): 3 if I win it, less as a later seller. */
+function ruralStanding(c: Ctx, s: GameState): number {
+  const rural = Object.values(s.board.houses).find((h) => h.kind === 'rural');
+  if (!rural) return 0;
+  let o;
+  try {
+    o = c.engine.houseOutlook(s, rural.id);
+  } catch {
+    return 0;
+  }
+  const i = o?.sellers.findIndex((x) => x.player === c.me) ?? -1;
+  if (!o || i < 0) return 0;
+  return (i === 0 ? 3 : 1 / (i + 1)) - (o.sellers[i]?.distance ?? 0) / 50;
+}
+
+/** What a freeway spot does for me: my rural standing after placing it minus now. */
+function freewayGain(c: Ctx, la: PlacementLegal, pl: Placement): number {
+  const a = actionFromPlacement(c.s, c.me, la, pl);
+  if (!a) return -99;
+  const r = c.engine.applyAction(c.s, a);
+  if (!r.ok) return -99;
+  const before = c.memo.get('easyRural') as number | undefined;
+  const base = before ?? ruralStanding(c, c.s);
+  if (before === undefined) c.memo.set('easyRural', base);
+  return ruralStanding(c, r.state) - base;
+}
+
+/**
+ * A park doubles (x3 with a garden) the price adjacent houses pay (KX-DLX p17): worth it next to
+ * houses I win, harmful next to houses a rival wins.
+ */
+function parkScore(c: Ctx, pl: Extract<Placement, { kind: 'park' }>): number {
+  const cells = pl.cells ?? Array.from({ length: pl.w * pl.h }, (_, i) => ({ x: pl.x + (i % pl.w), y: pl.y + Math.floor(i / pl.w) }));
+  const near = new Set(cells.flatMap((p) => [`${p.x + 1},${p.y}`, `${p.x - 1},${p.y}`, `${p.x},${p.y + 1}`, `${p.x},${p.y - 1}`]));
+  let v = 0;
+  for (const hv of houseMap(c).values()) {
+    if (!hv.house.cells.some((p) => near.has(`${p.x},${p.y}`))) continue;
+    const weight = (1 + hv.nDemand) * (hv.garden ? 1.5 : 1);
+    const best = hv.sellers[0]?.player;
+    if (best === c.me) v += weight;
+    else if (best) v -= weight;
+    else if (sellerOf(hv, c.me)) v += 0.3;
+  }
+  return v - distToMine(c.s, c.me, cells) / 20;
 }
 
 /**

@@ -77,7 +77,7 @@ export function KetchupGuideFlow({ legal, placements, onDone, onCancel }: FlowPr
             {maxDuration > 1 && (
               <label class="field-inline">
                 <span class="field-label">Duration</span>
-                <Stepper label="turns" value={duration.value} min={1} max={maxDuration} onChange={(n) => (duration.value = n)} />
+                <Stepper label="rounds" value={duration.value} min={1} max={maxDuration} onChange={(n) => (duration.value = n)} />
               </label>
             )}
           </div>

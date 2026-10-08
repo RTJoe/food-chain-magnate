@@ -4,7 +4,7 @@
  * rebuild on their own signatures. Minis use the instancer, so 40 houses cost a few draw calls.
  */
 import * as THREE from 'three';
-import type { Board, DemandToken, GameView, House } from '@fcm/engine';
+import type { Board, DemandToken, Direction, GameView, House } from '@fcm/engine';
 import { cellsRect, hashStr } from './coords.js';
 import { buildGround, buildTufts, groundSignature, type GroundLayer } from './board/ground.js';
 import { buildRoads, roadSignature, type RoadLayer } from './board/roads.js';
@@ -156,6 +156,8 @@ export class Reconciler {
       if (it.kind === 'demand' && it.id && this.pendingPlaque.has(it.id)) this.applyPlaqueHold(it.id);
       if (animate && !boardChanged && !before.has(it.key)) added.push(it.key);
     }
+    // A new or closed game: free the instanced pools the old board left empty.
+    if (!b || boardChanged) this.stage.inst.trim();
     this.stage.invalidate();
     return { added, removed, boardChanged, prevDemand };
   }
@@ -269,7 +271,7 @@ export class Reconciler {
     this.ground?.seams.setTop(top);
     this.ground?.seams.setHighContrast(highContrast);
     this.ground?.setLabelYaw(yaw);
-    this.stage.invalidate();
+    this.stage.invalidate(false);
   }
 
   setGrid(on: boolean): void {
@@ -405,7 +407,7 @@ function collect(view: GameView, b: Board, info: Record<string, HouseBoardInfo>)
       if (!h.cells.length) continue;
       rect = cellsToRect(h.cells);
       [x, z] = rectCenter(rect);
-      const facing = houseFacing(b, h.cells);
+      const facing = houseFacing(b, h.cells, h.garden?.cells);
       if (h.kind === 'apartment') {
         items.push({ key: `house:${h.id}`, id: h.id, kind: 'house', sig: `apt:${h.label}:${facing}`, rect, height: 2.4, x, z, build: (c) => buildApartment(c, { label: h.label, facing }) });
       } else {
@@ -427,7 +429,9 @@ function collect(view: GameView, b: Board, info: Record<string, HouseBoardInfo>)
         const gr = cellsToRect(h.garden.cells);
         const [gx, gz] = rectCenter(gr);
         const vertical = gr.z1 - gr.z0 > gr.x1 - gr.x0;
-        items.push({ key: `garden:${h.id}`, id: h.id, kind: 'garden', sig: `garden:${vertical}`, rect: gr, height: 0.5, x: gx, z: gz, build: (c) => buildGarden(c, { vertical }) });
+        // Side of the garden its house is on (the gate faces it).
+        const house: Direction = rect.z1 <= gr.z0 ? 'N' : rect.z0 >= gr.z1 ? 'S' : rect.x1 <= gr.x0 ? 'W' : 'E';
+        items.push({ key: `garden:${h.id}`, id: h.id, kind: 'garden', sig: `garden:${vertical}:${house}`, rect: gr, height: 0.5, x: gx, z: gz, build: (c) => buildGarden(c, { vertical, house }) });
       }
     }
     // Price badge for houses next to a park (×2, ×3 with a garden): left of the number badge.
@@ -504,7 +508,19 @@ function collect(view: GameView, b: Board, info: Record<string, HouseBoardInfo>)
       case 'coffeeShop': {
         const color = playerColor(view, e.owner);
         const mark = ownerMark(view, e.owner);
-        items.push({ key: `entity:${e.id}`, id: e.id, kind: 'entity', sig: `cs:${color}:${mark}`, rect: rectOf(e.x, e.y, 1, 1), height: 1, x: e.x + 0.5, z: e.y + 0.5, build: (c) => buildCoffeeShop(c, { color, mark }) });
+        // The kiosk hatch faces a road it touches, as house doors do.
+        const facing = houseFacing(b, [{ x: e.x, y: e.y }]);
+        items.push({
+          key: `entity:${e.id}`,
+          id: e.id,
+          kind: 'entity',
+          sig: `cs:${color}:${mark}:${facing}`,
+          rect: rectOf(e.x, e.y, 1, 1),
+          height: 1,
+          x: e.x + 0.5,
+          z: e.y + 0.5,
+          build: (c) => buildCoffeeShop(c, { color, mark, facing }),
+        });
         break;
       }
       case 'park': {

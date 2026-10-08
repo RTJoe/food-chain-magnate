@@ -92,7 +92,7 @@ export const gourmetCriticsLesson = defineLesson({
     },
     {
       id: 'combine',
-      say: 'Guides run after the numbered campaigns. With Sushi in play, those garden houses may eat sushi instead.',
+      say: 'Guides run in number order, #17 to #20, so after every base campaign. With Sushi in play, those garden houses may eat sushi instead.',
       until: { next: true },
       glossary: 'sushi',
     },

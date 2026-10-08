@@ -9,11 +9,14 @@ import type { BotInput, BotRequest } from './types.js';
 import { createBot } from './registry.js';
 import { fallbackAction } from './heuristics.js';
 import { viewState } from './viewState.js';
+import { internalFallbackCount } from './shared/fallback.js';
 
 export interface BotResult {
   action: Action;
   /** True when the bot's own answer was unusable and the fallback was sent instead. */
   fellBack: boolean;
+  /** True when the bot found no valid move of its own and played the safe fallback itself (shared/fallback.ts). */
+  internalFallback: boolean;
   /** Error text when the bot threw. */
   error?: string;
   ms: number;
@@ -30,14 +33,15 @@ export function runBotDetailed(req: BotRequest, engine: EngineApi = realEngine, 
   const input = botInput(req, engine);
   const state = viewState(req.view);
   let error: string | undefined;
+  const notes = internalFallbackCount();
   try {
     const action = { ...createBot(req.level).choose(input), playerId: req.playerId } as Action;
-    if (engine.validateAction(state, action).ok) return { action, fellBack: false, ms: now() - t0 };
+    if (engine.validateAction(state, action).ok) return { action, fellBack: false, internalFallback: internalFallbackCount() > notes, ms: now() - t0 };
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
   const action = fallbackAction(state, req.playerId, engine, input.legal, input.rng);
-  return { action, fellBack: true, ...(error ? { error } : {}), ms: now() - t0 };
+  return { action, fellBack: true, internalFallback: internalFallbackCount() > notes, ...(error ? { error } : {}), ms: now() - t0 };
 }
 
 /** One action for the request's seat. Never throws for a seat the engine is awaiting. */

@@ -182,6 +182,25 @@ describe('rate limits and caps', () => {
     expect(host.inbox.filter((m) => m.t === 'game.snapshot').length).toBeLessThanOrEqual(1 + 2);
   });
 
+  it('throttles room.join misses so room codes cannot be enumerated', async () => {
+    const s = await start({ limits: { joinMissBurst: 3, joinMissRefillMs: 60_000 } });
+    const host = await connect(s, { name: 'Ann' });
+    host.send({ t: 'room.create', name: 'Ann' });
+    const { room } = await host.next('room.update');
+    const c = await connect(s, { name: 'Eve' });
+    for (let i = 0; i < 3; i++) {
+      c.send({ t: 'room.join', roomId: `ZZZZ${i + 2}`, name: 'Eve' });
+      expect(await c.next('error')).toMatchObject({ code: 'ROOM_NOT_FOUND' });
+    }
+    // Out of misses: even a real code is refused until the bucket refills.
+    c.send({ t: 'room.join', roomId: room.id, name: 'Eve' });
+    expect(await c.next('error')).toMatchObject({ code: 'RATE_LIMITED', ref: 'room.join' });
+    // Other connections are unaffected.
+    const d = await connect(s, { name: 'Dan' });
+    d.send({ t: 'room.join', roomId: room.id, name: 'Dan' });
+    expect(await d.next('room.update')).toMatchObject({ room: { id: room.id } });
+  });
+
   it('reads limits from env; bad values keep the defaults', () => {
     const l = limitsFromEnv({ FCM_MSG_RATE: '5', FCM_MAX_ROOMS: 'x', FCM_MAX_BUFFERED_KB: '64', FCM_MAX_SESSIONS: '-1' });
     expect(l).toMatchObject({ msgRate: 5, maxRooms: DEFAULT_LIMITS.maxRooms, maxBufferedBytes: 64 * 1024, maxSessions: DEFAULT_LIMITS.maxSessions });
@@ -245,6 +264,28 @@ describe('send backpressure and crash guards', () => {
     expect(() => ws.terminate()).not.toThrow();
     expect(logs.join()).toMatch(/error in close/);
     expect(() => h.tick()).not.toThrow();
+  });
+
+  it('an action that throws inside the hub is rejected by id (the client stops waiting)', () => {
+    const logs: string[] = [];
+    const h = hub(logs);
+    const ws = new FakeSocket();
+    h.attach(ws as unknown as WebSocket);
+    ws.emit('message', JSON.stringify({ t: 'hello', clientVersion: 't', protocol: 1, name: 'Ann' }));
+    ws.emit('message', JSON.stringify({ t: 'room.create', name: 'Ann' }));
+    const entry = [...h.store.all()][0];
+    if (!entry) throw new Error('no room');
+    entry.room.seatOf = () => ({ playerId: 'p1' }) as never;
+    entry.game = {
+      seq: 0,
+      submitAction: () => {
+        throw new Error('boom');
+      },
+    } as never;
+    ws.sent.length = 0;
+    ws.emit('message', JSON.stringify({ t: 'game.action', id: 'c-1', expectedSeq: 0, action: { type: 'work.endTurn', playerId: 'p1' } }));
+    expect(ws.sent.map((m) => JSON.parse(m))).toEqual([expect.objectContaining({ t: 'game.rejected', id: 'c-1', code: 'INTERNAL' })]);
+    expect(logs.join()).toMatch(/boom/);
   });
 
   it('installCrashGuards logs escaped exceptions and rejections', () => {

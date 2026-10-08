@@ -166,6 +166,19 @@ function scheduleToast(id: number, ms: number): void {
 }
 
 /** Show a toast and read it to screen readers. Errors stay 10 s, and hover or focus holds any toast (WCAG 2.2.1). */
+/**
+ * Toast for a server or local rejection: plain words for codes that carry developer text
+ * ("Expected seq 4, got 3"), and a neutral tone for harmless no-ops ("Nothing to undo").
+ */
+export function rejectionToast(code: string, message: string, id?: string): { text: string; tone: Toast['tone'] } {
+  if (code === 'STALE') {
+    return { text: id === 'undo' ? 'The game moved on while you were reconnecting, so your undo was not applied.' : 'The game moved on while you were reconnecting. Check the board and try again.', tone: 'info' };
+  }
+  if (code === 'PROTOCOL_MISMATCH') return { text: 'A new version of the game is out. Reload the page to keep playing; your seat is kept.', tone: 'error' };
+  if (code === 'UNDO_UNAVAILABLE' || /^nothing (of yours )?to undo$/i.test(message)) return { text: 'Nothing to undo', tone: 'info' };
+  return { text: message || code, tone: 'error' };
+}
+
 export function pushToast(text: string, tone: Toast['tone'] = 'info', ms = tone === 'error' ? 10_000 : 4200): void {
   const t: Toast = { id: nextToastId++, tone, text };
   toasts.value = [...toasts.value.slice(-3), t];
@@ -193,8 +206,8 @@ export const chatOpen = signal(false);
 function appendLog(v: GameView, s: number, events: readonly GameEvent[]): void {
   const c = buildCatalog(manifest.value, v.config.modules);
   const lines: LogLine[] = [];
-  for (const e of events) {
-    const d = describeEvent(e, v, c);
+  for (const [i, e] of events.entries()) {
+    const d = describeEvent(e, v, c, events[i - 1]);
     if (d) lines.push({ ...d, id: nextLogId++, seq: s, round: v.round });
   }
   if (lines.length) log.value = [...log.value, ...lines].slice(-400);
@@ -282,7 +295,10 @@ export function handleServerMessage(raw: ServerMessage): HandleResult {
       return {};
     case 'error':
       if (msg.code === 'ROOM_NOT_FOUND') roomError.value = msg.message || 'Room not found';
-      pushToast(msg.message || msg.code, 'error');
+      {
+        const t = rejectionToast(msg.code, msg.message);
+        pushToast(t.text, t.tone);
+      }
       return {};
     case 'pong':
       return {};
@@ -290,18 +306,26 @@ export function handleServerMessage(raw: ServerMessage): HandleResult {
       room.value = msg.room;
       roomError.value = null;
       return {};
-    case 'game.snapshot':
+    case 'game.snapshot': {
+      // Online, a snapshot behind what we already applied means the server lost moves (crash, no
+      // flush): say so, and drop log lines for moves that no longer happened.
+      const rewound = mode.value === 'online' && view.value !== null && msg.seq < seq.value;
       batch(() => {
+        if (rewound) {
+          log.value = log.value.filter((l) => l.seq <= msg.seq);
+          pushToast('The server restarted and lost the latest move. Check the board and make it again if it was yours.', 'info', 8000);
+        }
         manifest.value = msg.manifest;
         // Hot-seat hands the device to another player: their restructuring draft starts fresh.
         if (me.value !== msg.me) draft.value = null;
         me.value = msg.me;
         setView(msg.view, msg.seq);
         startPhaseBuffer(msg.view);
-        if (log.value.length === 0) addLocalLog(`Joined at round ${msg.view.round}`);
+        if (log.value.length === 0) addLocalLog(msg.view.round ? `Joined at round ${msg.view.round}` : 'Game started');
       });
       boardBridge.setView(msg.view, msg.me, []);
       return {};
+    }
     case 'game.applied': {
       if (msg.seq <= seq.value && view.value) return {};
       const gap = view.value !== null && msg.seq > seq.value + 1;
@@ -322,7 +346,10 @@ export function handleServerMessage(raw: ServerMessage): HandleResult {
       const { [msg.id]: _gone, ...rest } = pending.value;
       pending.value = rest;
       // Lessons show the engine's reason in the coach strip instead (tutorial/runner.ts).
-      if (mode.value !== 'tutorial') pushToast(msg.message || msg.code, 'error');
+      if (mode.value !== 'tutorial') {
+        const t = rejectionToast(msg.code, msg.message, msg.id);
+        pushToast(t.text, t.tone);
+      }
       return {};
     }
     case 'game.undone':

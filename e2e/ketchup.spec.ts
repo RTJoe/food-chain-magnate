@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { expectBoardSpots, phaseLabel, playUntil, prepare, round, trackErrors } from './helpers.js';
+import { expectBoardSpots, phaseLabel, playUntil, prepare, reservesThenRestaurant, round, trackErrors } from './helpers.js';
 
 test('hot-seat with Ketchup modules: the game starts, reaches Working 9–5 and plays on', async ({ page }) => {
+  // Three seats, every module, five rounds through the UI on software GL: ~2 min unloaded.
+  test.setTimeout(240_000);
   const errors = trackErrors(page);
   await prepare(page, 'Kim');
   await page.goto('/#/hotseat');
@@ -22,7 +24,8 @@ test('hot-seat with Ketchup modules: the game starts, reaches Working 9–5 and 
   await page.getByRole('button', { name: 'Start game' }).click();
 
   await page.locator('.handoff button').click();
-  await expect(page.locator('.prompt-placeFirstRestaurant')).toBeVisible();
+  // Reserve cards first (DLX p4), then the restaurant spots light up on the 3D board.
+  await reservesThenRestaurant(page, errors);
   expect(await expectBoardSpots(page)).toBeGreaterThan(0);
 
   await playUntil(page, async () => (await phaseLabel(page)).startsWith('Working'), { workActions: 2, errors });

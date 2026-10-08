@@ -158,7 +158,7 @@ export const KETCHUP_TILES: readonly TileDef[] = [
 
 /**
  * Campaign tiles (base.md §9 table; map.md §7). Footprints for #8 (mailbox) and #16 (billboard)
- * are unverified (questions.md Q-M2): #8 = 2x2, #16 = 1x1. `minPlayers`: removed below that count
+ * are confirmed by BGG image 3532607 (questions.md Q-M2): #8 = 2x2, #16 = 1x1. `minPlayers`: removed below that count
  * (base.md §2.1: #12/#15/#16 out at 2p, #15/#16 at 3p, #16 at 4p).
  */
 export const BASE_MARKETING_TILES: readonly MarketingTileDef[] = [
@@ -180,5 +180,5 @@ export const BASE_MARKETING_TILES: readonly MarketingTileDef[] = [
   { number: 16, kind: 'billboard', module: 'base', w: 1, h: 1, minPlayers: 5 },
 ];
 
-/** map.md §5: house+garden combo tokens. 3, 6, 17 inferred (questions.md Q-M3). */
+/** map.md §5: house+garden combo tokens (all 8 confirmed by BGG image 3532607, questions.md Q-M3). */
 export const BASE_PLACEABLE_HOUSES: readonly PlaceableHouseDef[] = [1, 3, 6, 9, 11, 14, 17, 19].map((n) => ({ order: n, label: String(n) }));

@@ -44,8 +44,8 @@ import { BOARD } from '../boardPalette.js';
 import { COLORS } from '../theme.js';
 import { BoardKeyScope } from './keyScope.js';
 import type { CameraController, PointerInfo } from './camera.js';
-import { DELTA, DIRS } from './coords.js';
-import { campaignAnchor, cellsToRect, freewayAnchor, gardenRect, parkMultiplier, placementCells, placementHitRect, rectCenter, rectOf, type Rect } from './layout.js';
+import { DELTA, DIRS, OPPOSITE } from './coords.js';
+import { campaignAnchor, cellsToRect, freewayAnchor, gardenRect, houseFacing, parkMultiplier, placementCells, placementHitRect, rectCenter, rectOf, type Rect } from './layout.js';
 import { blockedTexture, makeChip } from './overlays/badges.js';
 import { APARTMENT_BADGE_Y, HOUSE_BADGE_Y, buildGarden, buildHouse } from './minis/buildings.js';
 import { owned, releaseTree, type MiniCtx } from './minis/ctx.js';
@@ -163,7 +163,7 @@ export class Interaction {
       if (!isSpotMode(this.mode) || !this.cellsMesh) return;
       this.pulseT += dt;
       this.hlMat.opacity = 0.32 + Math.sin(this.pulseT * 3.2) * 0.08;
-      this.stage.invalidate();
+      this.stage.invalidateDecor();
     };
     stage.onFrame.add(pulse);
     this.disposers.push(() => stage.onFrame.delete(pulse));
@@ -181,7 +181,7 @@ export class Interaction {
     this.variantIdx.clear();
     this.pinnedVariant.clear();
     this.hoverSpot = null;
-    ghostOrientation.value = mode.kind === 'campaign' || (mode.kind === 'place' && mode.placementKind === 'campaign') ? this.orient : null;
+    ghostOrientation.value = this.campaignOrientation(mode);
     this.clearGhost();
     this.buildSpots();
     this.highlighted = mode.kind === 'inspect' ? mode.ids : [];
@@ -574,9 +574,26 @@ export class Interaction {
     e.preventDefault();
   }
 
+  /**
+   * Orientation to publish for a campaign mode: 'square' when no footprint on offer can turn
+   * (square tiles, airplanes), so the controls show no orientation and no Rotate; else the
+   * sticky preference. Null outside campaign placement.
+   */
+  private campaignOrientation(mode: InteractionMode): CampaignOrientation | null {
+    if (!(mode.kind === 'campaign' || (mode.kind === 'place' && mode.placementKind === 'campaign'))) return null;
+    const ps = mode.placements.filter((p) => p.kind === 'campaign' && (mode.kind !== 'campaign' || mode.tileNumber == null || p.tileNumber === mode.tileNumber));
+    if (ps.length && ps.every((p) => {
+      const o = orientationOf(p);
+      return o === null || o === 'square';
+    }))
+      return 'square';
+    return this.orient;
+  }
+
   /** R / rotate: next variant of the staged or hovered spot (campaigns: flip orientation, sticky). */
   private rotate(): void {
     if (!isSpotMode(this.mode)) return;
+    if (ghostOrientation.peek() === 'square') return;
     const s = this.staged?.spot ?? this.hoverSpot;
     const campaignMode = this.mode.kind === 'campaign' || ORIENTED.has(this.mode.placementKind);
     if (!s || s.variants.length < 2) {
@@ -1008,9 +1025,11 @@ export function buildGhost(ctx: MiniCtx, b: Board, p: Placement, color: string):
       return at(buildRestaurant(ctx, { color, status: 'open', entrance: p.entrance, driveIn: false, mark: '' }), p.x + 1, p.y + 1);
     case 'house': {
       const g = new THREE.Group();
-      g.add(at(buildHouse(ctx, { label: String(p.houseOrder), facing: 'S', placed: true, variant: 0 }), p.x + 1, p.y + 1));
       const [gx, gy, gw, gh] = gardenRect(p.x, p.y, p.gardenSide);
-      g.add(at(buildGarden(ctx, { vertical: gh > gw }), gx + gw / 2, gy + gh / 2));
+      const cells = (x: number, y: number, w: number, h: number) => Array.from({ length: w * h }, (_, i) => ({ x: x + (i % w), y: y + Math.floor(i / w) }));
+      const facing = houseFacing(b, cells(p.x, p.y, 2, 2), cells(gx, gy, gw, gh));
+      g.add(at(buildHouse(ctx, { label: String(p.houseOrder), facing, placed: true, variant: 0 }), p.x + 1, p.y + 1));
+      g.add(at(buildGarden(ctx, { vertical: gh > gw, house: OPPOSITE[p.gardenSide] }), gx + gw / 2, gy + gh / 2));
       return g;
     }
     case 'garden': {
@@ -1033,7 +1052,7 @@ export function buildGhost(ctx: MiniCtx, b: Board, p: Placement, color: string):
       return at(g, a.x, a.z, a.y + 0.02);
     }
     case 'coffeeShop':
-      return at(buildCoffeeShop(ctx, { color }), p.x + 0.5, p.y + 0.5);
+      return at(buildCoffeeShop(ctx, { color, facing: houseFacing(b, [{ x: p.x, y: p.y }]) }), p.x + 0.5, p.y + 0.5);
     case 'pizzaRadio':
       return at(buildRadio(ctx, { color, goods: ['pizza'], number: 0, remaining: 0, eternal: false, w: 1, h: 1 }), p.x + 0.5, p.y + 0.5);
     case 'freeMailbox':

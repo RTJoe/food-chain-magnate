@@ -36,13 +36,13 @@ Source of truth: `packages/protocol/src/messages.ts` and `room.ts` (TypeScript t
 
 | `t` | Fields | Notes |
 |---|---|---|
-| `welcome` | `clientId`, `sessionToken`, `serverVersion`, `protocol`, `room: RoomInfo \| null` | Reply to `hello`. Store `sessionToken` in `localStorage['fcm.session']`. |
-| `error` | `code: ErrorCode`, `message`, `ref?` | Non-game errors. Codes: `BAD_MESSAGE`, `PROTOCOL_MISMATCH`, `NOT_IN_ROOM`, `ROOM_NOT_FOUND`, `ROOM_FULL`, `SEAT_TAKEN`, `NOT_HOST`, `NOT_SEATED`, `GAME_NOT_STARTED`, `CANNOT_START`, `RATE_LIMITED`, `NOT_IMPLEMENTED`, `INTERNAL`. |
+| `welcome` | `clientId`, `sessionToken`, `serverVersion` (`0.1.0`, or `0.1.0+<git sha>` when the build id is known), `protocol`, `room: RoomInfo \| null` | Reply to `hello`. Store `sessionToken` in `localStorage['fcm.session']`. |
+| `error` | `code: ErrorCode`, `message`, `ref?` | Non-game errors. Codes: `BAD_MESSAGE`, `PROTOCOL_MISMATCH`, `NOT_IN_ROOM`, `ROOM_NOT_FOUND`, `ROOM_FULL`, `SEAT_TAKEN`, `NOT_HOST`, `NOT_SEATED`, `GAME_NOT_STARTED`, `CANNOT_START`, `RATE_LIMITED` (also after too many `room.join` misses on one connection), `NOT_IMPLEMENTED`, `INTERNAL`. |
 | `pong` | `ts` (echo), `serverTs` | |
 | `room.update` | `room: RoomInfo` | Any lobby/seat/connection change. |
 | `game.snapshot` | `seq`, `view: GameView`, `manifest: ModuleManifest[]`, `me: PlayerId \| null` | On start, join, reconnect, resync. Full redacted view. |
 | `game.applied` | `seq`, `actionId: string \| null`, `action`, `events: GameEvent[]`, `view` | After every applied action, per viewer (events and view redacted for that viewer). `actionId` is set only for the sender. |
-| `game.rejected` | `id` (the action id), `code` (engine `RejectCode`), `message` | Only to the sender. |
+| `game.rejected` | `id` (the action id), `code` (engine `RejectCode`, `INVALID_PAYLOAD` or `INTERNAL`), `message` | Only to the sender. |
 | `game.undone` | `seq`, `view`, `by: PlayerId` | Game rolled back to `seq`. |
 | `chat` | `from: { clientId, name, seat \| null }`, `text`, `ts` | |
 
@@ -54,6 +54,6 @@ Source of truth: `packages/protocol/src/messages.ts` and `room.ts` (TypeScript t
 - `Spectator { clientId, name, connected }`
 - `Action`, `GameEvent`, `GameView`, `ModuleManifest`, `RejectCode`: `@fcm/engine` types (`packages/engine/src/types/`).
 
-## Status in C0
+## Error codes in practice
 
-The C0 server answers `hello` with `welcome` and `ping` with `pong`. Every other message gets `error NOT_IMPLEMENTED`. Rooms and games arrive in C3.
+The server handles every message above. `NOT_IMPLEMENTED` is only sent by the hot-seat `LocalTransport` (packages/client), for room messages that make no sense in a local game. A `game.action` that fails inside the server gets `game.rejected` with code `INTERNAL` (carrying the action id), so the client stops waiting for it; other failures get `error INTERNAL` with `ref` set to the message type.

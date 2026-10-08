@@ -5,7 +5,8 @@
  * share a tile (the one-per-tile rule is for setup only, JD 1452841). At most 3 restaurants.
  * - Local manager: new restaurant COMING SOON (opens in Clean up). Its entrance must connect to
  *   the road the manager's route used: road range 3 from an entrance of an OPEN restaurant, in
- *   tile borders, the corner/road border counting like any piece (DLX p25).
+ *   tile borders (DLX p25), the corner/road border counting like any piece (DLX p19 example C;
+ *   questions.md Q-W8).
  * - Regional manager: EITHER a new OPEN restaurant anywhere (unlimited range) with a drive-in
  *   sign, OR move one open restaurant anywhere / rotate it in place (keeps its drive-in). Not both.
  * Drive-ins (3c) are opened by stages.ts.
@@ -14,8 +15,8 @@ import type { RouteStart, WorkMoveRestaurant, WorkPlaceRestaurant } from '../../
 import type { Corner, GameState, PlayerId, PlayerState } from '../../types/state.js';
 import type { EngineCtx } from '../../core/context.js';
 import { OK, reject, type Check } from '../../core/errors.js';
-import { clearCells, cornerCell, paint, restaurantCells } from '../../map/grid.js';
-import { distanceToFootprint, type DistanceField } from '../../map/pathfinding.js';
+import { clearCells, cornerCell, entranceOutside, paint, restaurantCells } from '../../map/grid.js';
+import { distanceToFootprint, fieldAt, roadAt, type DistanceField } from '../../map/pathfinding.js';
 import { contentFor } from '../../modules/registry.js';
 import { restaurantSpotProblem } from '../setup.js';
 import { rangeField } from './campaigns.js';
@@ -39,9 +40,15 @@ export function newRestaurantProblem(
   if (mode === 'regional' || range === 'unlimited') return null;
   const f = field ?? rangeField(s, player, from);
   if (typeof f === 'string') return f;
-  const d = distanceToFootprint(s.board, f, [cornerCell(x, y, entrance)]);
+  const corner = cornerCell(x, y, entrance);
+  const d = distanceToFootprint(s.board, f, [corner]);
   if (!Number.isFinite(d)) return 'The entrance is not connected by road to your open restaurants';
-  if (d > range) return `Out of range (${d} borders; range ${range})`;
+  if (d > range) {
+    // Q-W8 / DLX p19 example C: a road square on the next tile adds the border it crosses.
+    const road = Math.min(...entranceOutside(x, y, entrance).filter((c) => roadAt(s.board, c)).map((c) => fieldAt(f, c)));
+    if (road <= range) return `Out of range: the road is ${road} borders away and the entrance sits on the next tile (+1 = ${d}; range ${range})`;
+    return `Out of range (${d} borders; range ${range})`;
+  }
   return null;
 }
 

@@ -172,9 +172,9 @@
     "round": 6,
     "phase": "payday",
     "cash": {
-      "p1": 18,
+      "p1": 16,
       "p2": 30
     },
-    "bank": 100
+    "bank": 102
   }
 }

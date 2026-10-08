@@ -41,7 +41,7 @@ DLX card names are given; the id column is the code id.
 - "Launch a campaign" triggers at placement (3d).
 - "Hire 3" counts hires this turn; check after each hire.
 - "Produce" triggers when the production action is taken (3e).
-- "$20"/"$100": check in phase 4 whenever cash changes, and at the end of phase 4. Base cash only rises in phase 4 (Ketchup: also phase 6). Either reading gives the same winners in the base game, since cash only increases during Dinnertime.
+- "$20"/"$100": check in phase 4 whenever cash changes, and at the end of phase 4 (DLX p28 "at any point during Dinnertime"; p34 says "at the end"). The readings can differ: negative unit prices and negative CFO bonuses (Q-B8) can take cash back below the threshold, and a claim made mid-Dinnertime is kept. See questions.md Q-B1.
 - "Throw away": check in Cleanup step A.
 - Same-round sharing applies to all. Implement: award to every qualifying player; mark the type "claimed this round"; in Cleanup step D set it unavailable for everyone else.
 

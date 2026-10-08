@@ -3,21 +3,20 @@
  *
  * 1. Firing: all players decide **simultaneously** (`payday.fire` any number of times, then
  *    `payday.confirm`). Cards at work or on the beach may be fired; busy marketeers and the CEO
- *    may not. A firing decision cannot affect another player's salaries, so each submission is
- *    applied at once; salaries are settled only when everyone has confirmed.
+ *    may not. Each submission is applied at once (not yet hidden from players still deciding);
+ *    salaries are settled only when everyone has confirmed.
  * 2. Salaries: $5 per owned salaried card — structure, beach and busy marketeers.
  * 3. Mandatory discounts: $5 per unused recruiting-manager / HR-director recruit action, $15 with
  *    "First to Train", no marketeer salaries with "First Billboard". Minimum $0.
  * 4. Can't pay: fire salaried cards until the rest is payable (`forcedFire` choice). A busy
  *    marketeer may be fired only when no other salaried card is left; its campaign stays.
  * 5. "First to Pay $20 or More": awarded on the amount actually paid.
- * Intro game: no Payday.
+ * Intro game: no Payday (DLX p5); the phase goes straight from Dinnertime to Marketing.
  */
 import type { EmployeeDef } from '../types/content.js';
 import type { ContentIndex, HookContext, SalaryBreakdown } from '../types/module.js';
-import type { GameState, Ok, PaydayConfirm, PaydayFire, PlayerId, PlayerState, Rejected, Uid } from '../types/index.js';
+import type { FireReason, GameState, Ok, PaydayConfirm, PaydayFire, PlayerId, PlayerState, Rejected, Uid } from '../types/index.js';
 import { payToBank } from './bank.js';
-import { onMilestoneEvent } from './milestones.js';
 import { cardsAtWork, hasMilestone, runPipeline, staticContent } from './pricing.js';
 import { pipe } from '../modules/registry.js';
 import { readCtx } from '../core/context.js';
@@ -96,24 +95,32 @@ export function enterPayday(ctx: HookContext): void {
   const queue = s.turnOrder.filter((id) => s.players[id] && !s.players[id]?.bankrupt);
   for (const id of queue) (s.players[id] as PlayerState).salaryPaidThisRound = 0;
   s.phase = { kind: 'payday', queue, idx: 0, decided: [] };
+  fireFirst100Cfos(ctx);
   if (s.config.intro) {
-    // base.md §13: no salaries in the intro game.
+    // base.md §13: no salaries in the intro game (the phase loop skips Payday; this is a safety net).
     s.phase = { kind: 'payday', queue, idx: queue.length, decided: [...queue] };
     s.awaiting = { kind: 'none', players: [] };
     return;
-  }
-  // Q-B6: "First to Have $100" — an owned CFO must be fired, at this Payday's firing step.
-  for (const id of queue) {
-    if (!hasMilestone(s, id, 'first_100')) continue;
-    const p = s.players[id] as PlayerState;
-    for (const [uid, card] of Object.entries(p.employees)) {
-      if (ctx.content.employees[card.employeeId]?.ability.kind === 'cfo' && !p.busy[uid]) fireCard(ctx, id, uid, true);
-    }
   }
   // Players with nothing they could fire have nothing to decide (unless a module gives them a choice).
   const decided = queue.filter((id) => voluntarilyFireable(s.players[id] as PlayerState).length === 0 && !runPipeline(ctx, 'paydayDecision', false, { player: id }));
   s.phase = { kind: 'payday', queue, idx: 0, decided };
   advance(ctx);
+}
+
+/**
+ * Q-B6: "First to Have $100" (DLX p34): an owned CFO must be fired, at this Payday's firing step.
+ * The intro game with milestones has no Payday, so the phase loop calls this in its place.
+ */
+export function fireFirst100Cfos(ctx: HookContext): void {
+  const s = ctx.state;
+  for (const id of s.turnOrder) {
+    const p = s.players[id];
+    if (!p || p.bankrupt || !hasMilestone(s, id, 'first_100')) continue;
+    for (const [uid, card] of Object.entries(p.employees)) {
+      if (ctx.content.employees[card.employeeId]?.ability.kind === 'cfo' && !p.busy[uid]) fireCard(ctx, id, uid, true, 'milestone');
+    }
+  }
 }
 
 /** Cards a player may fire voluntarily: at work or on the beach, never the CEO or a busy marketeer. */
@@ -245,15 +252,14 @@ function advance(ctx: HookContext): void {
     payToBank(ctx, player, paid, 'salaries');
     p.salaryPaidThisRound = paid;
     const ev = { type: 'salaryPaid' as const, player, gross, discounts: Math.max(0, gross - bd.total), paid };
-    ctx.emit(ev);
-    onMilestoneEvent(ctx, ev);
+    ctx.emit(ev); // the emit runs the milestone tracker (First to Pay $20)
     ph.idx += 1;
   }
   s.awaiting = { kind: 'none', players: [] };
 }
 
 /** Return a card to the supply. A fired busy marketeer's campaign stays and runs out normally. */
-export function fireCard(ctx: HookContext, player: PlayerId, uid: Uid, forced: boolean): void {
+export function fireCard(ctx: HookContext, player: PlayerId, uid: Uid, forced: boolean, reason: FireReason = forced ? 'cannotPay' : 'voluntary'): void {
   const s = ctx.state;
   const p = s.players[player];
   const card = p?.employees[uid];
@@ -273,7 +279,7 @@ export function fireCard(ctx: HookContext, player: PlayerId, uid: Uid, forced: b
   delete p.busy[uid];
   delete p.employees[uid];
   if (s.supply[card.employeeId] !== undefined) s.supply[card.employeeId] = (s.supply[card.employeeId] ?? 0) + 1;
-  ctx.emit({ type: 'employeeFired', player, uid, employeeId: card.employeeId, forced });
+  ctx.emit({ type: 'employeeFired', player, uid, employeeId: card.employeeId, forced, reason });
 }
 
 function rej(code: Rejected['code'], message: string): Rejected {

@@ -502,9 +502,36 @@ export function candidateAt(mode: InteractionMode, cell: Cell, orientation: Camp
       return { kind: 'pizzaRadio', x, y };
     case 'freeMailbox':
       return { kind: 'freeMailbox', x, y };
+    case 'lobbyistRoad': {
+      // A legal road of the hovered orientation, slid so its first square is under the pointer.
+      const roads = ps.filter((p): p is Extract<Placement, { kind: 'lobbyistRoad' }> => p.kind === 'lobbyistRoad');
+      const like = roads.find((p) => boxOrientation(p.cells) === orientation) ?? roads[0];
+      const c0 = like?.cells[0];
+      if (!like || !c0) return null;
+      const dx = x - c0.x;
+      const dy = y - c0.y;
+      const at = (c: Cell): Cell => ({ x: c.x + dx, y: c.y + dy });
+      return { ...like, cells: like.cells.map(at), arrows: like.arrows.map((a) => ({ ...a, from: at(a.from) })) };
+    }
+    case 'park': {
+      const parks = ps.filter((p): p is Extract<Placement, { kind: 'park' }> => p.kind === 'park');
+      const like = parks.find((p) => (p.w === p.h ? 'square' : p.w > p.h ? 'landscape' : 'portrait') === orientation) ?? parks[0];
+      if (!like) return null;
+      const dx = x - like.x;
+      const dy = y - like.y;
+      return { ...like, x, y, ...(like.cells ? { cells: like.cells.map((c) => ({ x: c.x + dx, y: c.y + dy })) } : {}) };
+    }
     default:
       return null;
   }
+}
+
+function boxOrientation(cells: readonly Cell[]): CampaignOrientation {
+  const xs = cells.map((c) => c.x);
+  const ys = cells.map((c) => c.y);
+  const w = Math.max(...xs) - Math.min(...xs) + 1;
+  const h = Math.max(...ys) - Math.min(...ys) + 1;
+  return w === h ? 'square' : w > h ? 'landscape' : 'portrait';
 }
 
 /** Engine outlook for a house (null when unknown or the engine cannot run on this view). */

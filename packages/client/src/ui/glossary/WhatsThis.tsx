@@ -36,14 +36,21 @@ const stop = (e: Event) => {
   e.preventDefault();
 };
 
-/** Small "?" that opens the glossary entry. Safe inside buttons (it is a span); the glyph is CSS, so it adds no text to its parent. */
-export function WhatsThis({ id, label, class: cls }: { id: string; label?: string; class?: string }) {
+/**
+ * Small "?" that opens the glossary entry; the glyph is CSS, so it adds no text to its parent.
+ * `nested`: it sits inside another control (a card button). It then stays a pointer target only,
+ * hidden from assistive tech and the Tab order (no control inside a control); the parent offers
+ * the same entry with the "?" key and a long-press (useWhatsThisPress).
+ */
+export function WhatsThis({ id, label, class: cls, nested }: { id: string; label?: string; class?: string; nested?: boolean }) {
   const t = getTerm(id);
   if (!t) return null;
   const open = (e: Event) => {
     stop(e);
     whatsThis(id, e.currentTarget as Element);
   };
+  if (nested)
+    return <span class={`wt-btn ${cls ?? ''}`} aria-hidden="true" title={`What’s this? ${label ?? t.term}`} data-wt={id} onClick={open} onPointerDown={(e) => e.stopPropagation()} />;
   return (
     <span
       role="button"

@@ -32,14 +32,15 @@ export function Log() {
   const v = view.value;
   const list = useRef<HTMLOListElement>(null);
   useEffect(() => {
-    list.current?.scrollTo({ top: list.current.scrollHeight });
+    // The <ol> is not the scroller (the dock body is): bring the newest line into view.
+    list.current?.lastElementChild?.scrollIntoView({ block: 'nearest' });
   }, [lines.length]);
   if (!lines.length) return <Empty icon="log">Nothing has happened yet.</Empty>;
   return (
     <ol class="log" ref={list} aria-live="polite">
       {lines.map((l) => (
         <li key={l.id} class={`log-line ${l.header ? 'is-header' : ''} log-${l.icon}`}>
-          {v && l.player && v.players[l.player] ? <PlayerBadge view={v} id={l.player} size={18} /> : <span class="log-icon">{Icon[ICONS[l.icon]]({ size: 14 })}</span>}
+          {v && l.player && v.players[l.player] ? <PlayerBadge view={v} id={l.player} size={18} hidden /> : <span class="log-icon">{Icon[ICONS[l.icon]]({ size: 14 })}</span>}
           <span>{v ? linkify(l.text, v) : l.text}</span>
           {v && <TargetsButton ids={l.targets} />}
         </li>

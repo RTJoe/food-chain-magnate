@@ -43,6 +43,8 @@ interface Conn {
   /** New sessions and new rooms. */
   creates: TokenBucket;
   resyncs: TokenBucket;
+  /** `room.join` with an unknown code (enumeration guard). */
+  joinMisses: TokenBucket;
   /** Messages dropped in a row by `msgs`. */
   strikes: number;
 }
@@ -67,6 +69,8 @@ export interface HubOptions {
   botDelay?: BotDelay;
   /** Abuse limits (default `DEFAULT_LIMITS`). */
   limits?: Partial<Limits>;
+  /** Build id (git SHA): appended to `serverVersion` in welcome and saved in room records. */
+  buildId?: string;
 }
 
 export class Hub {
@@ -83,6 +87,9 @@ export class Hub {
   private readonly botRunner: BotRunner;
   private readonly botDelay: BotDelay | undefined;
   readonly limits: Limits;
+  /** `SERVER_VERSION`, plus `+<build id>` when known. */
+  readonly serverVersion: string;
+  private readonly buildId: string | undefined;
   private readonly conns = new Set<Conn>();
   private readonly byClient = new Map<string, Conn>();
   /** Every persisted room (in memory or only on disk), by id. */
@@ -103,6 +110,8 @@ export class Hub {
     this.botRunner = opts.botRunner ?? inlineBotRunner;
     this.botDelay = opts.botDelay;
     this.limits = { ...DEFAULT_LIMITS, ...opts.limits };
+    this.buildId = opts.buildId;
+    this.serverVersion = opts.buildId ? `${SERVER_VERSION}+${opts.buildId}` : SERVER_VERSION;
     this.lastSweep = this.now();
   }
 
@@ -118,6 +127,7 @@ export class Hub {
       msgs: new TokenBucket(L.msgBurst, L.msgRate / 1000, this.now),
       creates: new TokenBucket(L.createBurst, 1 / L.createRefillMs, this.now),
       resyncs: new TokenBucket(L.resyncBurst, 1 / L.resyncRefillMs, this.now),
+      joinMisses: new TokenBucket(L.joinMissBurst, 1 / L.joinMissRefillMs, this.now),
       strikes: 0,
     };
     this.conns.add(conn);
@@ -132,7 +142,9 @@ export class Hub {
         this.handle(conn, msg);
       } catch (e) {
         this.log(`hub: error handling ${msg.t}: ${(e as Error).stack ?? e}`);
-        this.sendTo(conn, { t: 'error', code: 'INTERNAL', message: 'Internal server error', ref: msg.t });
+        // An action gets a rejection carrying its id, so the client stops waiting for it.
+        if (msg.t === 'game.action') this.sendTo(conn, { t: 'game.rejected', id: msg.id, code: 'INTERNAL', message: 'Internal server error' });
+        else this.sendTo(conn, { t: 'error', code: 'INTERNAL', message: 'Internal server error', ref: msg.t });
       }
     });
     // Socket and timer callbacks must never throw: nothing above them would catch it.
@@ -510,7 +522,7 @@ export class Hub {
     if (!entry) session.roomId = null;
     if (entry) entry.room.setConnected(session.clientId, true);
 
-    this.sendTo(conn, { t: 'welcome', clientId: session.clientId, sessionToken: token, serverVersion: SERVER_VERSION, protocol: PROTOCOL_VERSION, room: entry ? entry.room.info() : null });
+    this.sendTo(conn, { t: 'welcome', clientId: session.clientId, sessionToken: token, serverVersion: this.serverVersion, protocol: PROTOCOL_VERSION, room: entry ? entry.room.info() : null });
     if (entry) {
       this.roomChanged(entry, false);
       if (entry.game) this.send(session.clientId, entry.game.snapshot(entry.room.viewerOf(session.clientId)));
@@ -535,8 +547,13 @@ export class Hub {
   }
 
   private joinRoom(conn: Conn, session: ClientSession, msg: ClientMessageOf<'room.join'>): void {
+    // Room codes are short; too many misses in a row look like enumeration and are refused unanswered.
+    if (!conn.joinMisses.has()) return this.sendTo(conn, { t: 'error', code: 'RATE_LIMITED', message: 'Too many unknown room codes; slow down', ref: msg.t });
     const entry = this.room(msg.roomId);
-    if (!entry) return this.sendTo(conn, { t: 'error', code: 'ROOM_NOT_FOUND', message: `No room ${msg.roomId}`, ref: msg.t });
+    if (!entry) {
+      conn.joinMisses.take();
+      return this.sendTo(conn, { t: 'error', code: 'ROOM_NOT_FOUND', message: `No room ${msg.roomId}`, ref: msg.t });
+    }
     if (session.roomId !== entry.room.id) this.leaveCurrent(session);
     session.name = msg.name;
     entry.room.join(session.clientId, msg.name, msg.spectate ?? false);
@@ -619,6 +636,7 @@ export class Hub {
     const rec: PersistedRoom = {
       version: 1,
       engineVersion: ENGINE_VERSION,
+      ...(this.buildId ? { build: this.buildId } : {}),
       id: snap.id,
       createdAt: snap.createdAt,
       updatedAt: entry.updatedAt,

@@ -30,7 +30,7 @@ import { OK, reject } from '../../core/errors.js';
 import { contentFor } from '../registry.js';
 import { KETCHUP_TILES } from '../../map/tiles.js';
 import { allEmpty, cellAt, cellKey, dirBetween, growBoard, onMap, opposite, paint, rect, relinkRoads, sameCell, step } from '../../map/grid.js';
-import { distanceField, distanceToFootprint, fieldAt, playerRouteStarts, roadAt, routeStartOrigin, routeStartRoads, type DistanceField } from '../../map/pathfinding.js';
+import { distanceField, distanceToFootprint, fieldAt, playerRouteStarts, roadAt, routeStartOrigin, routeStartRoads, type DistanceField, sameRouteStart } from '../../map/pathfinding.js';
 import { awardMilestone } from '../../rules/milestones.js';
 import { advanceTo, canAct, cardCheck, spend, stageCheck, stageIndex, stagesFor } from '../../rules/working/stages.js';
 import type { EngineCtx } from '../../core/context.js';
@@ -80,7 +80,6 @@ const stock = (s: GameState): LobbyistState => {
 };
 const liveStock = (s: GameState): LobbyistState => withAllPieces(moduleState<LobbyistState>(s, ID, freshStock));
 
-const sameStart = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 // ---------------------------------------------------------------------------
 // Roads and parks
@@ -116,7 +115,7 @@ export function roadArrows(cells: Cell[]): { from: Cell; dir: Direction }[] | nu
 }
 
 function startField(s: GameState, player: PlayerId, from: RouteStart): DistanceField | string {
-  if (!from || !playerRouteStarts(s.board, player).some((st) => sameStart(st, from))) return 'Range must start at an entrance of one of your open restaurants or a coffee shop';
+  if (!from || !playerRouteStarts(s.board, player).some((st) => sameRouteStart(st, from))) return 'Range must start at an entrance of one of your open restaurants or a coffee shop';
   return distanceField(s.board, routeStartRoads(s.board, from));
 }
 
@@ -294,7 +293,7 @@ function lobbyistCheck(s: GameState, player: PlayerId, uid: string) {
 
 function afterUse(ctx: HookContext, player: PlayerId): void {
   if (awardMilestone(ctx, player, 'ketchup:first_lobbyist_used') && ctx.state.tilePool.length) {
-    pushChoice(ctx, { kind: 'extraMapTile', player, optional: false });
+    pushChoice(ctx, { kind: 'extraMapTile', player, optional: true }); // KX p17 "allows you to" (Q-K36)
   }
 }
 
@@ -312,19 +311,37 @@ export function mapTileProblem(s: GameState, row: number, col: number, rotation:
   const taken = new Set(b.tiles.map((x) => `${x.row},${x.col}`));
   if (taken.has(`${row},${col}`)) return 'There is already a tile there';
   if (![[row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1]].some(([r, c]) => taken.has(`${r},${c}`))) return 'The tile must be orthogonally adjacent to the map';
-  // Not where an airplane or freeway sits beside the map (DLX p17).
-  const beside: { side: Direction; from: number; to: number }[] = [];
-  if (row === -1) beside.push({ side: 'N', from: col * 5, to: col * 5 + 4 });
-  if (row === b.rows) beside.push({ side: 'S', from: col * 5, to: col * 5 + 4 });
-  if (col === -1) beside.push({ side: 'W', from: row * 5, to: row * 5 + 4 });
-  if (col === b.cols) beside.push({ side: 'E', from: row * 5, to: row * 5 + 4 });
-  for (const zone of beside) {
+  // KX p17: not against the edge of a map tile that has an airplane or freeway aligned with any
+  // part of it. Checked per neighbouring tile, so it also holds once the board is no rectangle.
+  const S = b.tileSize;
+  const DELTA: Record<Direction, [number, number]> = { N: [-1, 0], S: [1, 0], W: [0, -1], E: [0, 1] };
+  // The first map square in from board side `side` along line `i` (column for N/S, row for E/W).
+  const firstOnMap = (side: Direction, i: number): Cell | null => {
+    const len = side === 'N' || side === 'S' ? b.h : b.w;
+    for (let k = 0; k < len; k++) {
+      const c = side === 'N' ? { x: i, y: k } : side === 'S' ? { x: i, y: b.h - 1 - k } : side === 'W' ? { x: k, y: i } : { x: b.w - 1 - k, y: i };
+      if (onMap(b, c)) return c;
+    }
+    return null;
+  };
+  const inTile = (c: Cell | null, tr: number, tc: number) => Boolean(c && Math.floor(c.y / S) === tr && Math.floor(c.x / S) === tc);
+  for (const d of ['N', 'S', 'W', 'E'] as Direction[]) {
+    const [dr, dc] = DELTA[d];
+    const tr = row + dr;
+    const tc = col + dc;
+    if (!taken.has(`${tr},${tc}`)) continue;
+    const side = opposite(d); // the neighbour's edge that faces the new tile
+    const from = side === 'N' || side === 'S' ? tc * S : tr * S;
+    const to = from + S - 1;
+    // Lines of that edge on which the neighbour is the outermost tile (nothing between it and the side).
+    const exposed = (i: number) => i >= from && i <= to && inTile(firstOnMap(side, i), tr, tc);
     for (const c of Object.values(b.campaigns)) {
       const p = c.placement;
-      if (p.kind === 'airplane' && p.side === zone.side && p.offset <= zone.to && p.offset + p.width - 1 >= zone.from) return 'An airplane is in the way';
+      if (p.kind !== 'airplane' || p.side !== side) continue;
+      for (let i = p.offset; i < p.offset + p.width; i++) if (exposed(i)) return 'An airplane is in the way';
     }
     for (const e of Object.values(b.entities)) {
-      if (e.kind === 'freeway' && e.side === zone.side && e.offset >= zone.from && e.offset <= zone.to) return 'A freeway is in the way';
+      if (e.kind === 'freeway' && e.side === side && exposed(e.offset)) return 'A freeway is in the way';
     }
   }
   return null;

@@ -95,6 +95,19 @@ describe('rules book', () => {
     expect(cleanText('**[DLX differs]** the earlier spec said X. Salaries go to the bank.')).toBe('Salaries go to the bank.');
   });
 
+  it('keeps rules that carry a citation, and drops spec-writing notes', () => {
+    const text = (id: string) => book.byId.get(id)?.section.text ?? '';
+    const all = [...book.byId.values()].map(({ section }) => `${section.title}\n${section.text}`).join('\n');
+    for (const bad of [/§/, /\.md\b/, /\bImplement/, /Recommended:/, /\bFor code\b/, /not stated/]) expect(all, String(bad)).not.toMatch(bad);
+    expect(all).toMatch(/Pizza radios and the free mailbox \(not linked to a marketeer\) do not count/);
+    expect(text('ketchup-lobbyists')).toMatch(/Roadworks cost \+1 for every road route/);
+    expect(all).toMatch(/claimed even if nothing is sold/);
+    expect(all).toMatch(/Black = managers/);
+    expect(cleanText('From RB p5 card colours: black = managers.')).toBe('Black = managers.');
+    expect(cleanText('Drive-ins: §6.3a. Numbers set run order (§9).')).toBe('Numbers set run order.');
+    expect(parseInline(String.raw`a \* b`)).toEqual([{ t: 'text', v: 'a * b' }]);
+  });
+
   it('drops confidence columns from tables', () => {
     const marketing = book.byId.get('base-phase-6-marketing')!.section;
     const table = marketing.blocks.find((b) => b.t === 'table');

@@ -68,7 +68,7 @@ export const newMilestonesLesson = defineLesson({
     },
     {
       id: 'rewards',
-      say: 'Two at once: First Marketeer Used pays $5 per token your campaigns place, First Marketing Trainee Used gives a free Kitchen Trainee and Errand Boy.',
+      say: 'Two at once: First Marketeer Used pays $5 per token your marketeers’ campaigns place, First Marketing Trainee Used gives a free Kitchen Trainee and Errand Boy.',
       show: [{ ui: 'milestone-ketchup:first_marketeer_used' }, { ui: 'milestone-ketchup:first_marketing_trainee_used' }],
       onEnter: [{ openTab: 'milestones' }],
       until: { next: true },

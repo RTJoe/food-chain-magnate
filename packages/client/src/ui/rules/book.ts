@@ -200,7 +200,7 @@ const CHAPTERS: ChapterSpec[] = [
   },
   {
     id: 'marketing',
-    title: 'Phase 6 — Marketing Campaigns',
+    title: 'Phase 6 — Marketing',
     group: 'The seven phases',
     phase: 'marketing',
     blurb: 'Every campaign runs in number order and puts demand on the houses it reaches.',

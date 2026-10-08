@@ -64,6 +64,23 @@ registerChoreo('turn', (beat, at, tl, ctx) => {
   return at;
 });
 
+/**
+ * Structures revealed (animation-plan §2, `structuresRevealed`): the org charts flip in the panels;
+ * on the board each chain's restaurants pulse once, in turn order.
+ */
+registerChoreo('reveal', (beat, at, tl, ctx) => {
+  const order = ctx.view?.turnOrder ?? [];
+  const step = Math.min(0.25, Math.max(0.06, (beat.dur - 0.4) / Math.max(1, order.length)));
+  order.forEach((player, i) => {
+    const color = ctx.color(player);
+    for (const p of restaurantsOf(ctx, player, true)) {
+      const c = centre(p);
+      ringPulse(tl, ctx, color, c.x, c.z, 1.45, at + i * step, 0.5);
+    }
+  });
+  return at;
+});
+
 /** Hemisphere light tint per stage: warm during Dinnertime, base otherwise. */
 const lightBase = new WeakMap<Stage, { sky: THREE.Color; ground: THREE.Color; warm: boolean }>();
 const WARM_SKY = new THREE.Color('#ffc98a');

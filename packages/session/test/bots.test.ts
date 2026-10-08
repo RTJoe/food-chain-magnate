@@ -173,6 +173,39 @@ describe('BotDriver', () => {
     driver.dispose();
   });
 
+  it('only a turn\'s first move gets the full delay; follow-ups are short and forced moves instant', async () => {
+    // Reach a later Working turn of the Easy bot (several moves) with no delay, then replay it with a 650 ms delay.
+    const fast = setup({ seed: 3 });
+    while (!(fast.game.rawState.phase.kind === 'working' && fast.game.rawState.round >= 3 && fast.game.awaitedBot() === 'p2')) {
+      if (!(await fast.human())) throw new Error('game ended before a bot worked');
+    }
+    fast.driver.dispose();
+    const pending: { fn: () => void; ms: number }[] = [];
+    const timers: Timers = { set: (fn, ms) => pending.push({ fn, ms }), clear: () => {} };
+    const { game, driver } = setup({ seed: 3, actions: fast.game.actions, delay: 650, timers });
+    const bot = game.awaitedBot() as PlayerId;
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+    driver.poke();
+    expect(pending.map((p) => p.ms)).toEqual([650]);
+    let followUps = 0;
+    for (let i = 0; i < 40 && game.awaitedBot() === bot && game.rawState.phase.kind === 'working'; i++) {
+      const seq = game.seq;
+      pending.shift()?.fn();
+      await tick();
+      if (game.seq === seq) await tick();
+      if (game.awaitedBot() !== bot || game.rawState.phase.kind !== 'working') break;
+      if (game.forcedMove(bot)) {
+        expect(pending).toEqual([]); // no wait: it lands as soon as the answer does
+        await tick();
+      } else {
+        expect(pending.map((p) => p.ms)).toEqual([150]);
+        followUps++;
+      }
+    }
+    expect(followUps).toBeGreaterThan(0);
+    driver.dispose();
+  });
+
   it('thinks during the delay: the move lands after whichever of the two takes longer', async () => {
     const pending: { fn: () => void; ms: number }[] = [];
     const timers: Timers = { set: (fn, ms) => pending.push({ fn, ms }), clear: () => {} };

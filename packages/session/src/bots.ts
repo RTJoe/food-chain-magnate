@@ -29,6 +29,12 @@ export const inlineBotRunner: BotRunner = (req) =>
 export type BotDelay = number | { min: number; max: number };
 export const DEFAULT_BOT_DELAY: BotDelay = { min: 400, max: 900 };
 /**
+ * Pacing: the full delay reads as a decision, so only a bot's first move of a turn gets it. Its
+ * later moves in the same turn (more cooks, buys, placements) wait this long at most, and a forced
+ * move (the only legal one, such as ending the turn) does not wait at all.
+ */
+export const FOLLOW_UP_BOT_DELAY_MS = 150;
+/**
  * A bot move that throws (engine or redaction bug) is logged and the bot pauses; each later `poke`
  * retries, up to this many failures at the same seq. Then the room waits for a human change.
  */
@@ -51,6 +57,8 @@ export interface BotDriverOptions {
   /** Who receives the fan-out (connected members and their viewers). */
   audience: () => AudienceMember[];
   delay?: BotDelay;
+  /** Cap on the delay of a bot's later moves in the same turn (default `FOLLOW_UP_BOT_DELAY_MS`). */
+  followUpDelayMs?: number;
   /** Thinking budget for every bot (default: per level, `botBudgetMs`). */
   budgetMs?: number;
   /** Bots pause while this is false (e.g. nobody connected); call `poke()` when it changes. */
@@ -70,6 +78,8 @@ export class BotDriver {
   /** Seq of the last failed bot move and how many times it failed. */
   private failedAt: number | null = null;
   private failures = 0;
+  /** The last move a bot made, and the seq right after it (a follow-up if nobody moved since). */
+  private lastMove: { player: PlayerId; seq: number } | null = null;
   private readonly timers: Timers;
 
   constructor(
@@ -94,7 +104,7 @@ export class BotDriver {
     this.setThinking(player);
     // Thinking starts now and overlaps the human-feeling delay: the move lands after whichever
     // takes longer (a 2 s Hard search is not followed by another 0.4-0.9 s wait).
-    const delay = this.delayMs();
+    const delay = this.delayFor(player, seq);
     let waited = delay <= 0;
     let result: { action: Action | null } | null = null;
     const land = () => {
@@ -153,8 +163,10 @@ export class BotDriver {
     const r = this.game.submitBotAction(player, action, this.opts.audience());
     if (r.fellBack) this.opts.log?.(`bots: ${player} (${this.game.bots[player]}) fell back: ${r.message ?? ''}`);
     this.setThinking(null);
-    if (r.applied) this.opts.deliver(r.out);
-    else this.opts.log?.(`bots: ${player} could not move: ${r.message ?? ''}`);
+    if (r.applied) {
+      this.lastMove = { player, seq: this.game.seq };
+      this.opts.deliver(r.out);
+    } else this.opts.log?.(`bots: ${player} could not move: ${r.message ?? ''}`);
     if (r.applied) this.poke();
     else this.settle();
   }
@@ -190,6 +202,15 @@ export class BotDriver {
   private settle(): void {
     if (!this.isIdle()) return;
     for (const w of this.idleWaiters.splice(0)) w();
+  }
+
+  /** Full delay for a turn's first move; capped for a follow-up; none for a forced move. */
+  private delayFor(player: PlayerId, seq: number): number {
+    const full = this.delayMs();
+    if (full <= 0) return 0;
+    if (this.game.forcedMove(player)) return 0;
+    const followUp = this.lastMove?.player === player && this.lastMove.seq === seq;
+    return followUp ? Math.min(full, this.opts.followUpDelayMs ?? FOLLOW_UP_BOT_DELAY_MS) : full;
   }
 
   private delayMs(): number {

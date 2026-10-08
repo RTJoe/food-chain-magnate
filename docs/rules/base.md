@@ -82,6 +82,7 @@ Restaurant chains: Fried Geese & Donkey, Golden Duck Diner, Santa Maria Pizza, X
 Line up the turn order markers in a random starting order. (DLX p4) High.
 
 ### 2.6 Placing the first restaurants (DLX p4–5)
+Done **after** every player has secretly chosen a reserve card (§2.7): DLX p4 numbers the reserve step 5 and the restaurants step 6. (The intro game has no reserve step.)
 1. Go in **reverse** turn order (last player first, first player last). Each player either places one restaurant or passes.
 2. If anyone passed, run a second round **in normal turn order**. Each player who has not placed must now place. Players who already placed do not take part.
 3. Placement constraints (initial placement only) (DLX p5):
@@ -91,7 +92,7 @@ Line up the turn order markers in a random starting order. (DLX p4) High.
 4. The road the entrance touches may be on a different tile from the entrance square. That is legal, but every route out then starts by crossing a tile border (+1 range/distance). The entrance is still "on" the tile it physically sits on (JD 1460536). High.
 
 ### 2.7 Setting goals (reserve cards) (DLX p4, p6)
-Each player secretly chooses one of their reserve cards and places it face down by the bank. The other two are discarded unseen. (Not done in the intro game.)
+Done **before** the first restaurants (§2.6; DLX p4 step 5). Each player secretly chooses one of their reserve cards and places it face down by the bank. The other two are discarded unseen. (Not done in the intro game.)
 
 Reserve card values (RB p3 image, CMP):
 
@@ -128,7 +129,7 @@ The game can only end in phase 4 (DLX p28, p33).
    - CEO at the top, with **3 slots** (until the bank breaks — see §12; Ketchup "First burger sold" overrides).
    - A CEO slot may hold any card, including a manager (black card).
    - Managers (Management Trainee 2, Junior VP 3, VP 4, Senior VP 5, Executive VP 10 slots) may hold only **non-manager** cards. Managers can only report directly to the CEO. So the pyramid is at most 3 levels: CEO → manager → employee. (DLX p12–13; BGG 1629423)
-5. **Overfill penalty:** if a player put down more cards than fit, all cards except the CEO go to the beach and the player plays this turn with only the CEO. (DLX p13) High.
+5. **Overfill penalty:** if a player put down more cards than fit, all cards except the CEO go to the beach and the player plays this turn with only the CEO. (DLX p13) High. "Fit" means *some* legal assignment exists: cards are played as a stack and assigned after the reveal, and position does not matter (DLX p13–14), so an over-full layout of cards that fit another layout is re-seated instead.
 6. Busy marketeers (§6.4) are never placed in the structure and do not occupy slots. (DLX p20; JD 1456786)
 7. Cards on the beach can still be trained this turn and still cost salary.
 8. Information: employees owned are public except while in hand and in the face-down stacks during Restructuring. Cash and stock are public (DLX p6, p13, p27). High.
@@ -222,7 +223,7 @@ For each marketeer at work, optionally place one campaign.
 
 **Duration:** choose 1..max. Put that many wooden tokens of the advertised good on the campaign tile. Campaigns can never end early.
 
-**Product:** burger, pizza, or one specific drink type (beer, lemonade, soft drink). Marketing a good nobody can supply is allowed (BGG 1465364).
+**Product:** burger, pizza, or one specific drink type (beer, lemonade, soda). Marketing a good nobody can supply is allowed (BGG 1465364).
 
 **Busy marketeer:** remove the card from the structure, place it face up beside the beach pile with the matching numbered busy token. It is neither "played" nor "on the beach". It cannot be played, used, trained or voluntarily fired; it still costs salary (DLX p19–20, p29).
 
@@ -294,7 +295,7 @@ For each house:
 5. Several → lowest **(unit price + distance)** wins.
    - **Unit price** = $10 base, −$1 per pricing manager at work, −$3 per discount manager at work, +$10 if a luxuries manager is at work (1x, so at most one), −$1 permanently with "First to lower prices" (DLX p27). Bonuses (CFO, marketed milestones, gardens) never change unit price. Example: 2 pricing + 1 discount = $5.
    - **No minimum price.** Unit price may be $0 or negative; the chain then pays the bank per item sold (doubled by gardens). A chain that cannot pay goes bankrupt (JD 1473813, 1535734). High.
-   - **Distance** = fewest tile borders crossed along roads from the restaurant entrance (nearest corner if drive-in) to the house. Same tile + connected = 0. Each distance counts as $1. Number of demand tokens is irrelevant (DLX p26).
+   - **Distance** = fewest tile borders crossed along roads from the restaurant entrance (nearest corner if drive-in) to the house. Same tile + connected = 0. If the house's only adjacent road square is on another tile, that last step onto the house's tile counts +1 (questions.md Q-C1, Medium). Each distance counts as $1. Number of demand tokens is irrelevant (DLX p26).
 6. Tie on price+distance → most **waitresses played this turn** wins (beach ignored).
 7. Still tied → earlier in current turn order wins.
 
@@ -345,15 +346,15 @@ Run every campaign on the board in ascending campaign number.
 | 5 | Airplane | 2 deep x 3 wide | High |
 | 6 | Airplane | 2 deep x 5 wide | High |
 | 7 | Mailbox | 2x2 (photo; p31 and p32 maps) | High |
-| 8 | Mailbox | not shown; probably 2x2 (stacked under #7 in photo) | Low |
-| 9 | Mailbox | 1x1 (photo) | Medium-High |
-| 10 | Mailbox | 1x1 (p32 map) | Medium-High |
+| 8 | Mailbox | 2x2, same as #7 (BGG image 3532607 (all Splotter tiles laid out)) | High |
+| 9 | Mailbox | 1x1 (photo; BGG image 3532607 (all Splotter tiles laid out)) | High |
+| 10 | Mailbox | 1x1 (p32 map; BGG image 3532607 (all Splotter tiles laid out)) | High |
 | 11 | Billboard | 3x2 (p30, p32 maps) | High |
 | 12 | Billboard | 2x2 (p20) | High |
 | 13 | Billboard | 3x1 (p19, p32) | High |
-| 14 | Billboard | 2x1 (photo) | Medium-High |
+| 14 | Billboard | 2x1 (photo; BGG image 3532607 (all Splotter tiles laid out)) | High |
 | 15 | Billboard | 1x1 (p32) | High |
-| 16 | Billboard | not shown | Low |
+| 16 | Billboard | 1x1, same as #15 (BGG image 3532607 (all Splotter tiles laid out)) | High |
 
 Footprints may be rotated freely (no rule restricts orientation). Mailbox reach does not depend on size (DLX p20). Removed by player count: #12, #15, #16 (2p); #15, #16 (3p); #16 (4p) plus their busy tokens (DLX p2).
 
@@ -415,8 +416,8 @@ High.
 ## 14. Geometry definitions (normative for code)
 - **Square:** one cell of a 5x5 tile.
 - **Tile:** a 5x5 map tile.
-- **Road graph:** every pair of orthogonally adjacent road squares is connected, within a tile or across a tile border, "regardless of how the art might look" (DLX p8 item E, p21). So two parallel roads along a shared tile edge **are** connected along their whole length. Exceptions: a bridge square (tiles G and P) links N–S and W–E separately — a route goes straight through, never turns there (DLX p8); Ketchup π stubs and the tile-W house road end are capped ends; under-construction Lobbyist roads are not road. **[DLX differs]** JD 1514116 ("only in the middle") is superseded. Medium-High: DLX text is explicit, but no DLX picture shows two printed parallel edge roads. See `questions.md` Q-M1.
-- **Range / distance:** number of tile borders crossed along a legal road route. Within one tile = 0.
+- **Road graph:** every pair of orthogonally adjacent road squares is connected, within a tile or across a tile border, "regardless of how the art might look" (DLX p8 item E, p21). So two parallel roads along a shared tile edge **are** connected along their whole length. Exceptions: a bridge square (tiles G and P) links N–S and W–E separately — a route goes straight through, never turns there (DLX p8); Ketchup π stubs and the tile-W house road end are capped ends; under-construction Lobbyist roads are not road. **[DLX differs]** JD 1514116 ("only in the middle") is superseded. High: DLX text is explicit and the DLX p23 Collection Example shows it: its route crosses the same tile border twice, at two different squares (borders '1' and '2'), so at least one crossing is away from the midpoint. See `questions.md` Q-M1.
+- **Range / distance:** number of tile borders crossed along a legal road route. Within one tile = 0. Reaching a piece (campaign, house, new restaurant entrance) from a road square on another tile adds that border (DLX p19 example C; questions.md Q-W8, Q-C1).
 - **Restaurant entrance:** the corner square marked by the doors (or every corner with drive-in). It must touch a road via one of its 2 outside orthogonal neighbours. Routes start from that road square. If the road square is on another tile, the route starts at +1. Two roads touching the same entrance do not connect through it (DLX p23).
 - **Air distance:** fewest orthogonal tile-to-tile steps, ignoring roads (DLX p10).
 - **House connection:** any road square orthogonally adjacent to any house or garden square.

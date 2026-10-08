@@ -9,6 +9,7 @@ import type { GameState } from '../../src/types/state.js';
 import { allocId } from '../../src/core/ids.js';
 import { randomInt, shuffle } from '../../src/core/rng.js';
 import { staticContent } from '../../src/rules/pricing.js';
+import { onMilestoneEvent } from '../../src/rules/milestones.js';
 
 export type Pipe = (name: string, value: unknown, args: unknown) => unknown;
 
@@ -26,6 +27,7 @@ export function makeCtx(state: GameState, pipe?: Pipe): TestCtx {
     events,
     emit: (e) => {
       events.push(e);
+      onMilestoneEvent(ctx, e); // as the reducer's context does (core/context.ts)
     },
     rng: {
       int: (n) => randomInt(state.rng, n),

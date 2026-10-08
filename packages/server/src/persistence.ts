@@ -19,8 +19,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const ROOM_RETENTION_MS = 30 * DAY_MS;
 /** Lobbies whose game never started are deleted sooner. */
 export const LOBBY_RETENTION_MS = 2 * DAY_MS;
-/** Room ids are 5-char codes; anything else never touches the filesystem. */
-const SAFE_ID = /^[A-Za-z0-9]{1,16}$/;
+/** Room ids are 5-char codes; anything else never touches the filesystem (read, write or delete). */
+export const SAFE_ID = /^[A-Za-z0-9]{1,16}$/;
 
 export interface PersistedSeat extends Seat {
   /** SHA-256 of the seat holder's session token. */
@@ -31,6 +31,8 @@ export interface PersistedRoom {
   version: 1;
   /** `ENGINE_VERSION` that wrote the file (diagnostics; absent in older files). */
   engineVersion?: string;
+  /** Server build id (git SHA) that wrote the file, when known (diagnostics). */
+  build?: string;
   id: string;
   createdAt: number;
   updatedAt: number;
@@ -145,10 +147,19 @@ export class FilePersistence implements Persistence {
     }
   }
 
+  /** Throws if the rooms directory cannot be created or written (e.g. a volume owned by another user). */
+  assertWritable(): void {
+    mkdirSync(this.dir, { recursive: true });
+    const probe = join(this.dir, `.probe-${process.pid}`);
+    writeFileSync(probe, '');
+    rmSync(probe, { force: true });
+  }
+
   private read(f: string): PersistedRoom | null {
     try {
       const rec = JSON.parse(readFileSync(join(this.dir, f), 'utf8')) as PersistedRoom;
-      if (rec.version === 1 && typeof rec.id === 'string') return rec;
+      if (rec.version === 1 && typeof rec.id === 'string' && SAFE_ID.test(rec.id)) return rec;
+      if (rec.version === 1) this.log(`persistence: skipping ${f}: unsafe room id`);
     } catch (e) {
       this.log(`persistence: skipping ${f}: ${(e as Error).message}`);
     }
@@ -160,6 +171,10 @@ export class FilePersistence implements Persistence {
     if (!p) return;
     clearTimeout(p.timer);
     this.pending.delete(id);
+    if (!SAFE_ID.test(id)) {
+      this.log(`persistence: refusing to write room with unsafe id ${JSON.stringify(id)}`);
+      return;
+    }
     try {
       mkdirSync(this.dir, { recursive: true });
       const file = join(this.dir, `${id}.json`);

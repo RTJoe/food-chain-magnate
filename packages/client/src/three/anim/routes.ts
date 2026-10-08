@@ -3,7 +3,7 @@
  * (`sale.route`, `drinksBought.route`) turned into world polylines and followers. Old events
  * without a route fall back to the client's shortest path (`dinnerRoute`).
  */
-import type { Board, Cell, GameEvent, RouteStart } from '@fcm/engine';
+import type { Board, Cell, Direction, GameEvent, RouteStart } from '@fcm/engine';
 import { bridgeLift } from '../board/roads.js';
 import { DELTA } from '../coords.js';
 import { dinnerRoute } from '../overlays/feedback.js';
@@ -13,6 +13,34 @@ import type { BuyTrip, RouteLookup, SaleTrip } from './choreo.js';
 import { AIR_Y, airPath, freewayGround, roadPath, withHeight, type Follow, type P2, type Pose } from './path.js';
 
 const centre = (c: Cell): P2 => [c.x + 0.5, c.y + 0.5];
+
+/**
+ * A stored route on the board as it is now. "Watch again" replays events recorded before an extra
+ * map tile re-based the grid (north / west growth shifts every square by whole tiles): when the
+ * path no longer starts at the start's road or runs off the roads, try it shifted by whole tiles.
+ * Unchanged when no shift fits (live routes always fit as they are).
+ */
+export function fitRoute<R extends { from: RouteStart; path: Cell[]; exit?: { cell: Cell; side: Direction } }>(b: Board, r: R): R {
+  const fits = (dx: number, dy: number) => {
+    const first = r.path[0];
+    if (!first || !r.path.every((c) => !!b.cells[c.y + dy]?.[c.x + dx]?.road)) return false;
+    return startRoads(b, r.from).some((c) => c.x === first.x + dx && c.y === first.y + dy);
+  };
+  if (fits(0, 0)) return r;
+  const t = b.tileSize;
+  for (const [dx, dy] of [
+    [t, 0],
+    [0, t],
+    [t, t],
+    [2 * t, 0],
+    [0, 2 * t],
+  ] as const) {
+    if (!fits(dx, dy)) continue;
+    const mv = (c: Cell): Cell => ({ x: c.x + dx, y: c.y + dy });
+    return { ...r, path: r.path.map(mv), ...(r.exit ? { exit: { ...r.exit, cell: mv(r.exit.cell) } } : {}) };
+  }
+  return r;
+}
 
 /** Spawn point of a route start: the entrance corner square / coffee shop square centre. */
 export function spawnPoint(b: Board, from: RouteStart): P2 | null {
@@ -61,7 +89,7 @@ export function createRouteLookup(board: () => Board | null): RouteLookup {
       const b = board();
       if (!b) return null;
       const h = b.houses[e.houseId];
-      const route = e.route ?? dinnerRoute(b, e.restaurantId, e.houseId);
+      const route = e.route ? fitRoute(b, e.route) : dinnerRoute(b, e.restaurantId, e.houseId);
       if (!route || !route.path.length) return null;
       const pts = roadPts(b, route.from, route.path);
       const last = route.path[route.path.length - 1]!;
@@ -104,8 +132,10 @@ export function createRouteLookup(board: () => Board | null): RouteLookup {
 
     buy(e: Extract<GameEvent, { type: 'drinksBought' }>): BuyTrip | null {
       const b = board();
-      const r = e.route;
-      if (!b || !r) return null;
+      const r0 = e.route;
+      if (!b || !r0) return null;
+      // Road hauls recorded before a re-base: shifted onto the current squares.
+      const r = r0.mode === 'road' ? fitRoute(b, r0) : r0;
       const sources = e.collected.flatMap((c) => {
         const src = c.sourceId ? b.drinkSources[c.sourceId] : undefined;
         return src ? [{ sourceId: src.id, drink: c.drink as string, count: c.count, at: centre(src) }] : [];

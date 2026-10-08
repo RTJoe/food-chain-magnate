@@ -138,7 +138,7 @@ Step table columns: **Say** (narration, ≤ 2 sentences), **Show** (highlight ta
 
 **Goal.** Place the first restaurant legally; understand the entrance and the one-entrance-per-tile setup rule. **Concepts.** `restaurant`, `entrance`, `setup-placement`.
 
-**Scenario.** `town` without restaurants; `phase: setup.restaurants` with order `['p2','p1']` (reverse turn order, Bo first), Bo scripted to place at (11,8) NW before the lesson starts (step 0 replays it).
+**Scenario.** `town` without restaurants; `phase: setup.reserve` (reserve cards come before first restaurants, DLX p4 steps 5–6), so row 6 below runs first; the engine then opens `setup.restaurants` with order `['p2','p1']` (reverse turn order, Bo first), Bo scripted to place at (11,8) NW.
 
 | # | Say | Show | Allow | Until | Then |
 |---|---|---|---|---|---|
@@ -395,7 +395,7 @@ Order: rule tweaks that reuse base mechanics first, then new foods, then map and
 | # | Module (id) | What changes vs base | Scenario and script | Interactions |
 |---|---|---|---|---|
 | K1 | Hard Choices (`ketchup:hardChoices`) | Four marketed/train milestones vanish after round 2, Hire-3 after round 3, if unclaimed. | Town at round 2 Clean up with "First Burger Marketed" unclaimed; the Milestones tab shows "Until round 2" pills; Continue → rows go "Gone". Then round 3 with Hire-3. | Base milestone set only; incompatible with New Milestones (the hub greys the pairing). |
-| K2 | Reserve Prices (`ketchup:reservePrices`) | Reserve cards are +$200 with a base price $5/$10/$20; first break adds $200 per player; CEO slots unchanged; new base unit price = most frequent card (tie $20 > $10 > $5). | L14 scenario A with reserves Ada $20, Bo $5 → tie → $20; show the Inspect card's prices jump from $10 to $20 before and after the break. | Modifiers stack on the new base; Luxuries +$10 on top. |
+| K2 | Reserve Prices (`ketchup:reservePrices`) | Reserve cards are +$200 with a base price $5/$10/$20; first break adds $200 per player; CEO slots unchanged; new base unit price = most frequent card (tie $20 > $5 > $10; Ketchup rulebook "Reserve Prices"). | L14 scenario A with reserves Ada $20, Bo $5 → tie → $20; show the Inspect card's prices jump from $10 to $20 before and after the break. | Modifiers stack on the new base; Luxuries +$10 on top. |
 | K3 | Movie Stars (`ketchup:movieStars`) | Waitress trains into B/C/D Movie Star; a star at work chooses turn order first and wins waitress ties; no $3. | Order of business with Ada's B-star at work vs Bo's 3 open slots: Ada chooses first. Then L6 round C with Bo's waitress vs Ada's star: Ada wins the tie. | One star per player; stars count as one 1x type. |
 | K4 | Fry Chefs (`ketchup:fryChefs`) | Any cook trains into a Fry Chef; each at work adds +$10 per house sold to. | Dinnertime with two fry chefs at work, house buys 3 burgers: "$30 + $20". Explains "per house, not per item; not doubled by gardens; CFO applies". | Any-Cook trainees replace base trainees. |
 | K5 | Night Shift Managers (`ketchup:nightShift`) | A 0-slot manager (CEO slot only) makes every unsalaried card act twice. | Restructuring: Night Shift in CEO slot, Marketing Trainee + Waitress + Kitchen Trainee under the CEO; Working shows `uses: 2` badges; waitress pays $6 and counts as 2 for ties. | Cannot be trained; salary; hired directly. |

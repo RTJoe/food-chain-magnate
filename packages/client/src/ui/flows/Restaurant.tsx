@@ -6,6 +6,7 @@
 import { useSignal } from '@preact/signals';
 import { useEffect, useMemo } from 'preact/hooks';
 import type { Placement, RestaurantId } from '@fcm/engine';
+import { tileOf } from '../../state/boardLabels.js';
 import { boardModeFor } from '../../state/guidance.js';
 import { type InteractionMode } from '../../state/boardBridge.js';
 import { inspectIds, select } from '../../state/interaction.js';
@@ -59,7 +60,7 @@ function MoveRestaurantFlow({ legal, placements, onDone, onCancel }: FlowProps) 
   const { onBoard, list } = splitPlacements(targets);
   const at = (id: RestaurantId) => {
     const r = v?.board.restaurants[id];
-    return r ? `${r.x},${r.y}` : id;
+    return r ? tileOf(r.x, r.y) : id;
   };
   const mode = useMemo<InteractionMode | null>(() => {
     if (chosen.value === null) return movable.length ? { kind: 'inspect', ids: movable } : null;

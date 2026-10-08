@@ -2,8 +2,15 @@
 **/dist
 **/dist-types
 **/*.tsbuildinfo
+.git
+.github
+.env
 data
 test-results
 playwright-report
 screenshots
-.git
+e2e
+docs/rules/source
+docs/art
+packages/*/test
+packages/ai/runs

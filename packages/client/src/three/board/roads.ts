@@ -106,8 +106,8 @@ export function buildRoads(b: Board): RoadLayer {
     const ny = y + DELTA[d][1];
     return onBoard(nx, ny) && isRoad(nx, ny) && tileOf(x, y) !== tileOf(nx, ny);
   };
-  const bridges = new Shape();
-  let bridgeCount = 0;
+  // One merged mesh per map tile (`bridges:col,row`) so a tile drop can hide its own bridge.
+  const bridges = new Map<string, Shape>();
 
   const road = color(BOARD.road);
   const gravel = color(BOARD.gravel);
@@ -121,8 +121,10 @@ export function buildRoads(b: Board): RoadLayer {
       const cz = y + 0.5;
       if (r.bridge) {
         // E-W deck on top (seen side-on from the default camera), N-S road underneath.
-        bridgeDeck(bridges, cx, cz, rampLen(b, x, y, -1), rampLen(b, x, y, 1));
-        bridgeCount++;
+        const tk = tileOf(x, y);
+        let bs = bridges.get(tk);
+        if (!bs) bridges.set(tk, (bs = new Shape()));
+        bridgeDeck(bs, cx, cz, rampLen(b, x, y, -1), rampLen(b, x, y, 1));
         links = links.filter((d) => d === 'N' || d === 'S');
       }
       // Roads run off the map edge open (no kerb line across them).
@@ -192,12 +194,12 @@ export function buildRoads(b: Board): RoadLayer {
     disposables.push(roadSeams);
   }
 
-  if (bridgeCount) {
-    const geo = bridges.build();
+  for (const [tk, bs] of bridges) {
+    const geo = bs.build();
     const mesh = new THREE.Mesh(geo, (geo.userData.mats as string[]).map((k) => mats()[k as 'body']));
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    mesh.name = 'bridges';
+    mesh.name = `bridges:${tk}`;
     group.add(mesh);
     disposables.push(geo);
   }
@@ -226,6 +228,17 @@ function mergePlanes(rects: readonly (readonly [number, number, number, number])
   out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   out.setIndex(idx);
   return out;
+}
+
+/** One overpass (E–W deck, half-square ramps) centred on the origin, for previews (map-tile ghost). */
+export function bridgeMesh(): THREE.Mesh {
+  const s = new Shape();
+  bridgeDeck(s, 0, 0, 0.5, 0.5);
+  const geo = s.build();
+  geo.userData.owned = true;
+  const mesh = new THREE.Mesh(geo, (geo.userData.mats as string[]).map((k) => mats()[k as 'body']));
+  mesh.name = 'bridge';
+  return mesh;
 }
 
 /** Deck height of an overpass (world units above the ground). */

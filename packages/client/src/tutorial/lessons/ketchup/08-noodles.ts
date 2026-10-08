@@ -104,7 +104,7 @@ export const noodlesLesson = defineLesson({
     pass: 2,
     questions: [
       { kind: 'choice', q: 'Garden house: one chain has enough sushi, another has the exact order. Who sells?', options: ['The sushi chain', 'The exact-order chain', 'The cheaper one'], answer: 0, why: 'Sushi comes before the exact order at garden houses.' },
-      { kind: 'choice', q: 'One chain can fill the exact order, another has plenty of noodles. Who sells?', options: ['The exact order', 'The noodles'], answer: 0, why: 'Noodles only count when nobody can fill the order.' },
+      { kind: 'choice', q: 'One chain can fill the exact order. Another has plenty of noodles but no kimchi. Who sells?', options: ['The exact order', 'The noodles'], answer: 0, why: 'Without kimchi, noodles only count when nobody can fill the order.' },
       { kind: 'number', q: 'Nobody can serve a house with 4 demand tokens. How many noodles must a chain have to feed it?', answer: 4, why: 'At least as many noodles as demand tokens.' },
     ],
   },

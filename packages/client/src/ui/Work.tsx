@@ -1,8 +1,10 @@
 import { useSignal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
-import type { Action, EmployeeId, FoodId, GameView, LegalAction, PlayerState, Uid } from '@fcm/engine';
+import type { Action, EmployeeId, FoodId, GameView, LegalAction, PlayerId, PlayerState, Uid } from '@fcm/engine';
 import { employeeName, foodName } from '../state/catalog.js';
 import { cardStage, cardsAtWork, employeeIdOf, employeeSort, hireOptions, STAGE_LABELS, trainableUids, trainOptions, workStages, type TrainOption } from '../state/selectors.js';
+import { readyLabel } from '../state/actions.js';
+import { paydayFigures } from '../state/payday.js';
 import { catalog, legal, me, mode, pending } from '../state/store.js';
 import { act, undo } from '../net/session.js';
 import { Button, EmployeeCard, Empty } from './common.js';
@@ -175,13 +177,23 @@ function actionFood(a: Action): FoodId | null {
   return null;
 }
 
+function salaryRate(v: GameView, mine: PlayerId): number {
+  try {
+    return paydayFigures(v, mine).rate;
+  } catch {
+    return 5;
+  }
+}
+
+
 export function LegalButton({ legal: l, busy, variant, tutorial }: { legal: LegalAction; busy?: boolean; variant?: 'primary' | 'secondary' | 'ghost'; tutorial?: string }) {
   if (l.kind === 'ready') {
     const food = actionFood(l.action);
+    const label = readyLabel(l.label, food, (f) => foodName(catalog.value, f));
     return (
       <Button variant={variant ?? 'secondary'} disabled={busy} onClick={() => act(l.action)}>
         {food && <FoodIcon food={food} size={20} />}
-        {cardOf(l) ? shortLabel(l.label) : l.label}
+        {cardOf(l) ? shortLabel(label) : label}
       </Button>
     );
   }
@@ -232,6 +244,8 @@ function HireGrid({ view: v, actions, busy }: { view: GameView; actions: ReadyLe
   const byId = new Map<EmployeeId, ReadyLegal>();
   for (const l of actions) if (l.action.type === 'work.recruit') byId.set(l.action.employeeId, l);
   const opts = mine ? hireOptions(v, c, mine) : [];
+  // Salary per card for this player (First waitress used: $3), from the engine.
+  const rate = mine ? salaryRate(v, mine) : 5;
   const ids = [...new Set([...byId.keys(), ...opts.map((o) => o.id)])].sort((a, b) => Number(byId.has(b)) - Number(byId.has(a)) || employeeSort(c, a, b));
   return (
     <div class="inline-picker">
@@ -258,8 +272,11 @@ function HireGrid({ view: v, actions, busy }: { view: GameView; actions: ReadyLe
               footer={
                 !l ? (
                   <span class="emp-status st-idle">{o?.reason ?? 'Cannot hire now'}</span>
+                ) : supply <= 0 ? (
+                  // DLX p16: hire-and-train skips the empty pile, but it must be trained this turn.
+                  <span class="emp-status">Empty pile: train it this turn</span>
                 ) : salary ? (
-                  <span class="emp-status">$5 salary</span>
+                  <span class="emp-status">${rate} salary</span>
                 ) : undefined
               }
             />

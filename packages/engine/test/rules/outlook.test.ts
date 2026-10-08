@@ -180,6 +180,8 @@ describe('houseOutlook forecasts the whole Dinnertime (DLX p26–28)', () => {
     const b = sb().restaurant('p1', 3, 3, 'NW').restaurant('p2', 5, 3, 'NW').card('p1', 'pricing_manager', 'work').inventory('p1', { burger: 1 }).inventory('p2', { burger: 1 }).demand(2, ['burger']);
     const s = b.build();
     expect(houseOutlook(s, b.houseId(2))?.sellers.find((x) => x.player === 'p1')?.unitPrice).toBe(8);
+    // Each seller row says what it would sell (Ketchup variants differ by items).
+    expect(houseOutlook(s, b.houseId(2))?.sellers.find((x) => x.player === 'p1')?.items).toEqual({ burger: 1 });
   });
 });
 

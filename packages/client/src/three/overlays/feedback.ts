@@ -212,7 +212,7 @@ export class FeedbackLayer {
   private reachTick: ((t: number) => boolean) | null = null;
   private disposers: (() => void)[] = [];
   private frame = (_dt: number, t: number) => {
-    if (this.reachTick?.(t)) this.stage.invalidate();
+    if (this.reachTick?.(t)) this.stage.invalidateDecor();
   };
 
   constructor(

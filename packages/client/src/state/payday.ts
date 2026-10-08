@@ -65,6 +65,13 @@ export function paydayLabel(o: { n: number; canConfirm: boolean; after: number; 
 /** Whether a player who cannot pay must fire staff (First trainer used waives it). */
 export const mustFireIfShort = (view: GameView, me: PlayerId): boolean => !view.players[me]?.milestones[TRAINER];
 
+/**
+ * Whether the Payday panel should warn up front that staff must go (DLX p29): salaries after the
+ * current selection exceed cash, firing is forced, and a salaried card is still there to fire.
+ * The engine prompt always sends `mustFire: false`, so the client works it out.
+ */
+export const mustFireNow = (o: { after: number; cash: number; forcedFiring: boolean; salariedAfter: number }): boolean => o.forcedFiring && o.after > o.cash && o.salariedAfter > 0;
+
 // ---------------------------------------------------------------------------
 // Clean up: freezer
 // ---------------------------------------------------------------------------

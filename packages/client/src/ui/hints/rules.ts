@@ -8,7 +8,7 @@ import { employeeName, foodName, isManager, managerSlots, milestoneName, type Ca
 import { handUids, openSlots, placedUids, validateDraft, type OrgDraft, type OrgRules } from '../../state/orgChart.js';
 import { collapseOffers, scoreMath } from '../../state/offers.js';
 import { restructureCandidates, workStages } from '../../state/selectors.js';
-import { paydayFigures } from '../../state/payday.js';
+import { mustFireIfShort, paydayFigures, salaryGoods } from '../../state/payday.js';
 import { milestoneOpen } from '../../state/campaignRules.js';
 import type { CoachLevel } from './coach.js';
 
@@ -56,6 +56,9 @@ function orgRules(c: Catalog, p: PlayerState, ceoSlots: number): OrgRules {
   return { ceoSlots, isManager: (u) => isManager(def(u)), slotsOf: (u) => managerSlots(def(u)) };
 }
 
+/** Campaign kinds whose tiles can run out, in hint words (Rural Marketeers and Gourmet Critics too, KX p26-27). */
+const CAMPAIGN_WORDS: Partial<Record<string, string>> = { billboard: 'billboard', mailbox: 'mailbox', airplane: 'airplane', radio: 'radio', giantBillboard: 'giant billboard', gourmetGuide: 'gourmet guide' };
+
 const abilityOf = (c: Catalog, p: PlayerState, u: Uid): EmployeeAbility | undefined => c.employees[p.employees[u]?.employeeId ?? 'waitress']?.ability;
 
 function atWork(p: PlayerState): Uid[] {
@@ -90,11 +93,11 @@ function restructuring(i: HintInput, p: PlayerState, out: Hint[]): void {
   const tiles = new Set(v.marketingTiles.map((n) => c.marketingTiles[n]?.kind).filter(Boolean));
   for (const u of placed) {
     const a = abilityOf(c, p, u);
-    if (a?.kind !== 'marketing' || a.alwaysEternal) continue;
-    const boardKinds = a.campaigns.filter((k) => k === 'billboard' || k === 'mailbox' || k === 'airplane' || k === 'radio');
+    if (a?.kind !== 'marketing') continue;
+    const boardKinds = a.campaigns.filter((k) => k in CAMPAIGN_WORDS);
     if (boardKinds.length && !boardKinds.some((k) => tiles.has(k))) {
       const name = employeeName(c, p.employees[u]!.employeeId);
-      out.push({ id: 'campaign_tiles_gone', level: 'light', key: u, text: `No ${boardKinds.join(' or ')} tiles are left in the supply, so your ${name} will have nothing to place.`, term: 'campaign' });
+      out.push({ id: 'campaign_tiles_gone', level: 'light', key: u, text: `No ${boardKinds.map((k) => CAMPAIGN_WORDS[k]).join(' or ')} tiles are left in the supply, so your ${name} will have nothing to place.`, term: 'campaign' });
       break;
     }
   }
@@ -102,12 +105,34 @@ function restructuring(i: HintInput, p: PlayerState, out: Hint[]): void {
 
 // --- Order of Business ------------------------------------------------------
 
+const STAR_RANK: Record<string, number> = { B: 3, C: 2, D: 1 };
+
 function orderOfBusiness(i: HintInput, p: PlayerState, out: Hint[]): void {
   const v = i.view;
   if (v.phase.kind !== 'orderOfBusiness') return;
   const queue = v.phase.queue;
   const pos = queue.indexOf(p.id);
   if (pos < 0 || v.phase.picks[p.id] !== undefined) return;
+  // Movie Stars choose before everyone else, best rank first (KX p27); open slots order the rest.
+  const star = (id: PlayerId): number => {
+    const q = v.players[id];
+    if (!q) return 0;
+    let best = 0;
+    for (const u of atWork(q)) {
+      const a = abilityOf(i.catalog, q, u);
+      if (a?.kind === 'movieStar') best = Math.max(best, STAR_RANK[a.rank] ?? 0);
+    }
+    return best;
+  };
+  const mine = star(p.id);
+  if (mine > 0 || queue.slice(0, pos).some((id) => star(id) > 0)) {
+    const ahead = queue.slice(0, pos).filter((id) => star(id) > 0).map((id) => v.players[id]?.name ?? id);
+    const text = mine > 0
+      ? `Your Movie Star lets you choose ${ahead.length ? `right after ${ahead.join(' and ')}` : 'first'}: you choose your turn-order position ${ordinal(pos + 1)} of ${queue.length}.`
+      : `${ahead.join(' and ')} ${ahead.length === 1 ? 'has a Movie Star and chooses' : 'have Movie Stars and choose'} first; you choose ${ordinal(pos + 1)} of ${queue.length}.`;
+    out.push({ id: 'order_position', level: 'light', key: `${v.round}`, text, term: 'open_slots' });
+    return;
+  }
   const s = p.structure;
   const open = openSlots(validateDraft({ ceoSubs: s.ceoSubs, managerSubs: s.managerSubs }, orgRules(i.catalog, p, i.ceoSlots ?? v.ceoSlots))) + (p.milestones.first_airplane ? 2 : 0);
   out.push({
@@ -134,7 +159,7 @@ function working(i: HintInput, p: PlayerState, out: Hint[]): void {
         id: 'salary_short',
         level: 'light',
         key: `${v.round}:${owed}`,
-        text: `Payday will cost about ${money(owed)} in salaries and you have ${money(p.cash)}. Earn the rest at Dinnertime, or you will have to fire someone.`,
+        text: `Payday will cost about ${money(owed)} in salaries and you have ${money(p.cash)}. ${mustFireIfShort(v, p.id) ? 'Earn the rest at Dinnertime, or you will have to fire someone.' : 'Earn the rest at Dinnertime; First trainer used means nobody has to be fired.'}${salaryGoods(v, p.id).length ? ' First beer sold: goods in stock can pay salaries too.' : ''}`,
         term: 'salary',
       });
     }
@@ -158,7 +183,7 @@ function working(i: HintInput, p: PlayerState, out: Hint[]): void {
   }
 
   if (myTurn && i.ghostReach === 0) {
-    out.push({ id: 'campaign_reaches_nobody', level: 'light', key: 'ghost', text: 'This spot reaches no house. That is allowed, but the campaign will create no demand.', term: 'campaign' });
+    out.push({ id: 'campaign_reaches_nobody', level: 'light', key: 'ghost', text: 'This spot reaches no house yet. That is allowed; it only creates demand if a house is built within reach later.', term: 'campaign' });
   }
 
   if (myTurn && v.turn) {
@@ -166,9 +191,12 @@ function working(i: HintInput, p: PlayerState, out: Hint[]): void {
     const at = stages.indexOf(v.turn.stage);
     const before = (s: (typeof stages)[number]) => at <= stages.indexOf(s);
     const cards = atWork(p);
+    // The engine's uses this turn (Night Shift doubles them), else the printed actions.
+    const uses = v.turn.uses;
     const recruits = cards.reduce((n, u) => {
       const a = abilityOf(c, p, u);
-      return n + (a?.kind === 'ceo' ? 1 : a?.kind === 'recruit' ? a.actions : 0);
+      const printed = a?.kind === 'ceo' ? 1 : a?.kind === 'recruit' ? a.actions : 0;
+      return n + (printed ? (uses[u] ?? printed) : 0);
     }, 0);
     if (before('recruit') && v.turn.hired.length === 0 && recruits >= 3 && milestoneOpen(v, p.id, 'first_hire_3')) {
       out.push({ id: 'milestone_in_reach', level: 'full', key: `${v.round}:hire3`, text: `You can hire ${recruits} this turn. Hiring 3 claims ${milestoneName(c, 'first_hire_3')}: 2 free Management Trainees.`, term: 'first_hire_3' });
@@ -212,7 +240,7 @@ function bank(i: HintInput, out: Hint[]): void {
     key: `${b.breaks}`,
     text: ends
       ? `The bank is down to ${money(b.cash)}. If it hits $0 at Dinnertime the game ends after that Dinnertime: count what the next one will pay.`
-      : `The bank is down to ${money(b.cash)} of ${money(start)}. When it hits $0 at Dinnertime, reserve cards refill it and CEO slots change.`,
+      : `The bank is down to ${money(b.cash)} of ${money(start)}. When it hits $0 at Dinnertime, reserve cards refill it and CEO slots may change.`,
     term: 'bank_break',
   });
 }

@@ -41,7 +41,10 @@ function load(name: FixtureName): void {
   scene.setView(view, null, []);
   const b = view.board;
   say(`${name}: ${b.w}x${b.h}, ${Object.keys(b.houses).length} houses, ${Object.keys(b.restaurants).length} restaurants, ${Object.keys(b.campaigns).length} campaigns`);
-  history.replaceState(null, '', `?fixture=${name}`);
+  // Keep the other query parameters (?tier= must survive: forcedTier() reads the URL).
+  const q = new URLSearchParams(location.search);
+  q.set('fixture', name);
+  history.replaceState(null, '', `?${q}`);
 }
 
 // --- Controls ------------------------------------------------------------------------
@@ -294,6 +297,16 @@ $('panels').onclick = () => {
 };
 
 load(sel.value as FixtureName);
+// Playwright hook: read the view, or edit a clone and apply it (with optional events).
+(window as unknown as { pg: unknown }).pg = {
+  view: () => clone(view),
+  edit: (fn: (v: GameView) => void, events: GameEvent[] = []) => {
+    const next = clone(view);
+    fn(next);
+    view = next;
+    scene.setView(view, null, events);
+  },
+};
 mountVehicleGallery(scene, () => view, $('vehicles'), say);
 // WP-C: engine dinner / marketing, buyer hauls, campaign kinds, speed, Watch again.
 mountAnimDemos({ scene, view: () => view, setView: (v, ev) => ((view = v), scene.setView(v, null, ev)), fixture: () => sel.value as FixtureName, toView, say }, $('bar'));

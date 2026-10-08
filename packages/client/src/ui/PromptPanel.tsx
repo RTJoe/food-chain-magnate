@@ -6,7 +6,7 @@ import { useSignal } from '@preact/signals';
 import type { Action, FoodCounts, GameView, LegalAction, PendingChoice, PlayerId, PlayerState, Prompt, ReserveCard, Uid } from '@fcm/engine';
 import { foodName } from '../state/catalog.js';
 import { employeeIdOf, fireable, phaseLabel, standings } from '../state/selectors.js';
-import { freezerRows, mustFireIfShort, paydayFigures, paydayLabel, salaryGoods } from '../state/payday.js';
+import { freezerRows, mustFireIfShort, mustFireNow, paydayFigures, paydayLabel, salaryGoods } from '../state/payday.js';
 import { botSeats, catalog, isMyTurn, legal, manifest, me, mode, myPlayer, pending, prompt, room, view } from '../state/store.js';
 import { actionProblem, choiceReason, reserveRule } from '../state/guidance.js';
 import { act, actChain, undo } from '../net/session.js';
@@ -83,7 +83,7 @@ function PromptBody({ view: v, prompt: pr, player: p }: { view: GameView; prompt
 // ---------------------------------------------------------------------------
 
 const AUTO_HINT: Partial<Record<GameView['phase']['kind'], string>> = {
-  dinnertime: 'Houses buy from the cheapest, closest restaurant. This resolves on its own.',
+  dinnertime: 'Each house buys from the chain with the lowest price + distance. This resolves on its own.',
   marketing: 'Campaigns place demand on houses in number order. This resolves on its own.',
   cleanup: 'Unsold goods are thrown away (unless frozen) and staff go back to hand.',
   orderOfBusiness: 'Players with the most open slots in their structure choose first.',
@@ -108,7 +108,7 @@ function WaitingPanel({ view: v, waitingFor, spectating }: { view: GameView; wai
             const offline = online && seat && !seat.connected;
             return (
               <li key={id}>
-                <PlayerBadge view={v} id={id} size={28} ring />
+                <PlayerBadge view={v} id={id} size={28} ring hidden />
                 <span>
                   <b>{v.players[id]?.name ?? id}</b>
                   {botSeats.value[id] && <BotBadge level={botSeats.value[id]} thinking />}
@@ -236,9 +236,9 @@ function OrderPanel({ view: v, free }: { view: GameView; free: number[] }) {
   for (const [pid, pos] of Object.entries(picks)) if (pos !== undefined) byPos.set(pos, pid);
   return (
     <div class="order">
-      <p class="muted small">Pick a free spot on the turn order track. Earlier spots act first in every phase this round.</p>
+      <p class="muted small">Pick a free spot on the turn order track. Earlier spots take their Working 9–5 turn first and win Dinnertime ties.</p>
       <ol class="order-track">
-        {v.turnOrder.map((_, i) => {
+        {(phase?.queue ?? v.turnOrder).map((_, i) => {
           const who = byPos.get(i);
           const open = free.includes(i);
           return (
@@ -319,7 +319,9 @@ function PaydayPanel({ player: p, owed, mustFire }: { player: PlayerState; owed:
   const fireAction = (uids: Uid[]): Action => ({ type: 'payday.fire', playerId: p.id, uids });
   const problem = v && n ? actionProblem(v, me.value, fireAction(selected.value), manifest.value) : null;
   const canPick = (u: Uid) => !v || !actionProblem(v, me.value, fireAction([...selected.value, u]), manifest.value);
-  const payLabel = paydayLabel({ n, canConfirm, after, cash: p.cash, goodsUsed: fig?.goodsUsed ?? 0, forcedFiring: v && mine ? mustFireIfShort(v, mine) : true });
+  const forcedFiring = v && mine ? mustFireIfShort(v, mine) : true;
+  const payLabel = paydayLabel({ n, canConfirm, after, cash: p.cash, goodsUsed: fig?.goodsUsed ?? 0, forcedFiring });
+  const warnFire = mustFire || (canFire && fig !== null && mustFireNow({ after, cash: p.cash, forcedFiring, salariedAfter: fig.salariedAfter }));
   const changed = n > 0 || goodsN > 0;
   return (
     <div class="payday">
@@ -334,7 +336,7 @@ function PaydayPanel({ player: p, owed, mustFire }: { player: PlayerState; owed:
         </span>
         {changed && before !== after && <Pill tone="info">saves ${before - after}</Pill>}
       </div>
-      {mustFire && <p class="org-warn">{Icon.info({ size: 16 })} You cannot pay everyone: fire salaried staff until you can.</p>}
+      {warnFire && <p class="org-warn">{Icon.info({ size: 16 })} You cannot pay everyone: fire salaried staff until you can.</p>}
       {payable.length > 0 && (
         <div class="pay-goods">
           <h4>
@@ -454,7 +456,7 @@ function ChoicePanel({ player: p, choice }: { player: PlayerState; choice: Pendi
         <div class="row gap end">
           <span class="muted small">Salaries after: ${after}</span>
           <Button variant="danger" icon="x" disabled={busyNow() || !selected.value.length || Boolean(problem)} onClick={() => act(fire(selected.value))}>
-            Fire {selected.value.length}
+            {selected.value.length ? `Fire ${selected.value.length}` : 'Select staff to fire'}
           </Button>
         </div>
       </div>
@@ -523,11 +525,11 @@ export function Standings({ view: v, ranking }: { view: GameView; ranking: Playe
           return (
             <li key={id} class={`standing ${i === 0 ? 'is-winner' : ''} ${id === me.value ? 'is-me' : ''}`}>
               <span class="standing-rank">{i === 0 ? Icon.trophy({ size: 22 }) : i + 1}</span>
-              <PlayerBadge view={v} id={id} size={32} />
+              <PlayerBadge view={v} id={id} size={32} hidden />
               <span class="standing-name">
                 <b>{p.name}</b>
                 <span class="muted small">
-                  {ms} milestone{ms === 1 ? '' : 's'} · {Object.values(v.board.restaurants).filter((r) => r.owner === id).length} restaurants
+                  {ms} milestone{ms === 1 ? '' : 's'} · {((n) => `${n} restaurant${n === 1 ? '' : 's'}`)(Object.values(v.board.restaurants).filter((r) => r.owner === id).length)}
                   {p.bankrupt ? ' · bankrupt' : ''}
                 </span>
               </span>

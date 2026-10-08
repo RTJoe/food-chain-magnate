@@ -94,7 +94,7 @@ export const nightShiftLesson = defineLesson({
       allow: { actions: [only('work.buyDrinks', (a) => a.cardUid === 'k5-eb', 2)] },
       until: { test: (ctx) => count(ctx, 'drinksBought') >= 2 },
       solution: [beer(), beer()],
-      hint: { say: 'Tap the Errand Boy, fetch a beer, then tap him again for the second.' },
+      hint: { say: 'Tap the Errand Boy and fetch beer, then tap him again and fetch beer once more.' },
     },
     {
       id: 'end-turn',

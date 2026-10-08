@@ -182,6 +182,17 @@ describe('Payday / cash milestones', () => {
     expect(claimed(ctx.state, 'p1')).toEqual(['first_100', 'first_20']);
   });
 
+  it('Q-B1 (DLX p28 "at any point during Dinnertime"): $20 reached mid-Dinnertime is kept even if cash later drops (negative prices)', () => {
+    const ctx = ctxOf(base().cash('p1', 25));
+    ctx.state.phase = { kind: 'dinnertime', houses: [], idx: 0 };
+    onMilestoneEvent(ctx, { type: 'cashChanged', player: 'p1', delta: 6, reason: 'sale', bank: 0 });
+    expect(claimed(ctx.state, 'p1')).toEqual(['first_20']);
+    (ctx.state.players.p1 as { cash: number }).cash = 11;
+    onMilestoneEvent(ctx, { type: 'cashChanged', player: 'p1', delta: -14, reason: 'sale', bank: 0 });
+    checkCashMilestones(ctx, 'p1');
+    expect(claimed(ctx.state, 'p1')).toEqual(['first_20']);
+  });
+
   it('First to Throw Away: any discarded item', () => {
     const ctx = ctxOf(base());
     onMilestoneEvent(ctx, { type: 'foodDiscarded', player: 'p1', goods: {} });

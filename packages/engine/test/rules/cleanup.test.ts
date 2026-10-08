@@ -35,6 +35,18 @@ describe('A. throw away (base.md §10A)', () => {
     expect(milestoneAvailable(s, 'p3', 'first_throw_away')).toBe(false);
   });
 
+  it('base.md §12: a bankrupt chain throwing its stock away claims nothing and leaves the milestone open', () => {
+    const b = base(3).inventory('p2', { burger: 2 });
+    const st = b.build();
+    (st.players.p2 as { bankrupt: boolean }).bankrupt = true;
+    const ctx = makeCtx({ ...st, phase: { kind: 'cleanup' } });
+    runCleanup(ctx);
+    expect(ctx.state.players.p2?.inventory).toEqual({});
+    expect(ctx.of('milestoneClaimed')).toHaveLength(0);
+    expect(ctx.state.milestones.first_throw_away).toMatchObject({ claimedBy: [], removed: false });
+    expect(milestoneAvailable(ctx.state, 'p1', 'first_throw_away')).toBe(true);
+  });
+
   it('the freezer earned this round is not usable until the next Clean up', () => {
     const s = base().milestone('p1', 'first_throw_away', 3).build();
     expect(freezerCapacity(s, 'p1')).toBe(0);
@@ -162,5 +174,7 @@ describe('bankruptcy at end of turn (base.md §12, JD 1473813)', () => {
       }),
     );
     expect(ctx.state.phase).toMatchObject({ kind: 'gameOver', reason: 'allBankrupt' });
+    // base.md §12 (JD 1473813, 1660800): if everyone goes bankrupt, everyone loses.
+    expect(ctx.of('gameEnded')[0]).toMatchObject({ winner: null });
   });
 });

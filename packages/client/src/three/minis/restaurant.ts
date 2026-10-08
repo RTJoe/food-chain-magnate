@@ -5,8 +5,8 @@
  * coming-soon signs. Built with the entrance at the SE corner and rotated to the real one.
  */
 import * as THREE from 'three';
-import type { ChainId, Corner, RestaurantStatus } from '@fcm/engine';
-import { cornerAngle } from '../coords.js';
+import type { ChainId, Corner, Direction, RestaurantStatus } from '@fcm/engine';
+import { cornerAngle, dirAngle } from '../coords.js';
 import { BADGE_MIN_PX, makeBadge } from '../labels.js';
 import { blob, face, solid, type MiniCtx } from './ctx.js';
 import {
@@ -50,6 +50,9 @@ export function restaurantHeight(chain: ChainId): number {
   return CHAINS[chain].height;
 }
 
+/** Cardboard of the coming-soon sign (art bible §6.1). */
+const SOON_CARD = '#d9c7a3';
+
 /** `#rrggbb` at a fraction of its value (coming soon: 85 %). */
 function dim(css: string, v: number): string {
   const n = Number.parseInt(css.slice(1), 16);
@@ -86,6 +89,14 @@ export function buildRestaurant(ctx: MiniCtx, p: RestaurantParams): THREE.Group 
   if (soon) {
     solid(ctx, body, fenceGeo(), { castShadow: false });
     slotSign(ctx, body, spec.slot, 'soon');
+    // The roof-slot sign is edge-on from some yaws and flat in top view: a camera-facing
+    // cardboard "SOON" badge over the roof labels the state from anywhere.
+    const sb = makeBadge('SOON', { bg: SOON_CARD, fg: '#3a3128', ring: playerPalette(p.color).dark, pill: true }, 0.3);
+    sb.position.set(0, spec.height + 0.32, 0);
+    sb.name = 'soonBadge';
+    sb.userData.minPx = BADGE_MIN_PX * 0.8;
+    sb.userData.obstacle = true;
+    g.add(sb);
   } else if (p.driveIn && p.status === 'open') {
     slotSign(ctx, body, spec.slot, 'driveIn');
     addDriveIn(ctx, g);
@@ -144,7 +155,7 @@ function lightColor(hex: string): boolean {
   return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b > 0.3;
 }
 
-/** Drive-in markers: an outward arrow on every corner of the footprint (white, coral outline). */
+/** Drive-in markers: an arrow pointing in at every corner of the footprint (cars may come in from any side; white, coral outline). */
 function addDriveIn(ctx: MiniCtx, g: THREE.Group): void {
   const geo = miniGeo('driveArrow:sign', () => {
     const s = new Shape();
@@ -214,13 +225,18 @@ function coffeeShape(color: string): Shape {
   return s;
 }
 
-export function buildCoffeeShop(ctx: MiniCtx, p: { color: string; mark?: string }): THREE.Group {
+export function buildCoffeeShop(ctx: MiniCtx, p: { color: string; mark?: string; facing?: Direction }): THREE.Group {
   const g = new THREE.Group();
   const plastic = p.color.toLowerCase();
-  blob(ctx, g, 1.0, 1.0, true, 0.6);
-  solid(ctx, g, miniGeo(`coffee:se:${plastic}`, () => coffeeShape(plastic)));
+  // The kiosk is built with its hatch to the south; turn it to face its road.
+  const body = new THREE.Group();
+  body.name = 'body';
+  body.rotation.y = dirAngle(p.facing ?? 'S');
+  g.add(body);
+  blob(ctx, body, 1.0, 1.0, true, 0.6);
+  solid(ctx, body, miniGeo(`coffee:se:${plastic}`, () => coffeeShape(plastic)));
   // Chain mark decal on the counter front.
-  const wm = face(ctx, g, wordmarkTexture(chainForColor(plastic), plastic), KIOSK.w - 0.14, (KIOSK.w - 0.14) / 2.86);
+  const wm = face(ctx, body, wordmarkTexture(chainForColor(plastic), plastic), KIOSK.w - 0.14, (KIOSK.w - 0.14) / 2.86);
   wm.position.set(0, 0.06 + (KIOSK.counterY - 0.06) / 2, KIOSK.z + KIOSK.d / 2 + 0.003);
   if (p.mark) addOwnerBadge(g, p.mark, p.color, 0, 1.45, 0);
   return g;

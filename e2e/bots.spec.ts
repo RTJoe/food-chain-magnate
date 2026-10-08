@@ -22,7 +22,8 @@ test('online: host adds two Easy bots, starts, and plays rounds while the bots a
     await page.getByRole('menuitem', { name: /Easy/ }).click();
   }
   await expect(page.locator('.seat.is-bot')).toHaveCount(2);
-  await expect(page.locator('.seat.is-bot .bot-badge').first()).toContainText('Easy');
+  // The host sees the level as its select (no duplicate badge).
+  await expect(page.locator('.seat.is-bot .bot-level').first()).toHaveValue('easy');
   await expect(page.locator('.seat-list .seat .seat-ready')).toHaveCount(3);
 
   // Remove one and add it back (host controls).

@@ -41,6 +41,11 @@ export interface CampaignStep {
   /** Duration left after the run (null = eternal / not ticked). */
   remaining: number | null;
   expired: boolean;
+  /**
+   * Reached houses that took nothing from this run (engine `campaignRan.full`, all passes), as they
+   * were during that Marketing; undefined when the events do not carry it.
+   */
+  full?: HouseId[];
 }
 
 /** What the board draws for the step the results strip is on. */
@@ -174,12 +179,19 @@ export function campaignSteps(events: readonly GameEvent[]): CampaignStep[] {
     return s;
   };
   for (const e of events) {
-    if (e.type === 'campaignRan') cur = step(e.campaignId);
-    else if (e.type === 'demandPlaced') {
+    if (e.type === 'campaignRan') {
+      cur = step(e.campaignId);
+      if (e.full) cur.full = [...new Set([...(cur.full ?? []), ...e.full])];
+    } else if (e.type === 'demandPlaced') {
       const s = e.campaignId ? step(e.campaignId) : cur;
       if (s) s.drops.push({ houseId: e.houseId, goods: e.tokens.map((t) => t.good) });
     } else if (e.type === 'campaignTicked') step(e.campaignId).remaining = e.remaining;
     else if (e.type === 'campaignExpired') step(e.campaignId).expired = true;
+  }
+  for (const s of out) {
+    if (!s.full) continue;
+    const got = new Set(s.drops.map((d) => d.houseId));
+    s.full = s.full.filter((h) => !got.has(h));
   }
   return out;
 }

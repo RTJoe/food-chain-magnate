@@ -23,7 +23,7 @@ export function KetchupFreewayFlow({ legal, placements, onDone, onCancel }: Flow
       <FlowHead title={legal.label} onCancel={onCancel} />
       <p class="muted small">
         The freeway joins the rural area to the road at this edge: deliveries to the rural area count their distance from here.
-        {rural ? ` The rural area wants ${rural.demand.length} item${rural.demand.length === 1 ? '' : 's'} now.` : ''}
+        {rural && rural.demand.length > 0 ? ` The rural area wants ${rural.demand.length} item${rural.demand.length === 1 ? '' : 's'} now.` : ''}
       </p>
       {placements.length === 0 ? (
         <NoSpots />

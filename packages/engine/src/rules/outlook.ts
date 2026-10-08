@@ -25,7 +25,7 @@ import { defOf } from '../core/cards.js';
 import { validateAction } from '../core/reducer.js';
 import { contentFor } from '../modules/registry.js';
 import { campaignArea, campaignReach as baseCampaignReach } from '../map/reach.js';
-import { distanceField, playerRouteStarts, roadAt, routeStartRoads } from '../map/pathfinding.js';
+import { distanceField, playerRouteStarts, roadAt, routeStartRoads, sameRouteStart } from '../map/pathfinding.js';
 import { baseDemandCapacity, campaignRunOrder } from './marketing.js';
 import { hasMilestone, runPipeline } from './pricing.js';
 import { rankedCandidates, runDinnertime } from './dinnertime.js';
@@ -124,6 +124,7 @@ function dinnerForecast(state: GameState): Map<HouseId, ForecastHouse> | null {
           tier: o.tier,
           waitresses: waitresses.get(o.player) ?? 0,
           canSupply: o.canSupply,
+          ...(o.items ? { items: { ...o.items } } : {}),
         }));
         out.set(e.houseId, { sellers, winner: null });
       } else if (e.type === 'sale') {
@@ -160,6 +161,7 @@ export function houseOutlook(state: GameState, houseId: HouseId): HouseOutlook |
       tier: c.tier,
       waitresses: c.waitresses,
       canSupply,
+      items: { ...c.items },
     }));
   const winner = house.demand.length ? (forecast ? forecast.winner : (sellers.find((x) => x.canSupply)?.player ?? null)) : null;
   const campaigns = campaignRunOrder(state).filter((cid) => {
@@ -169,7 +171,6 @@ export function houseOutlook(state: GameState, houseId: HouseId): HouseOutlook |
   return { houseId, capacity: capacityOf(ctx, house), demand: house.demand.length, sellers, winner, campaigns };
 }
 
-const sameStart = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** The road range a card (or the player's pending coffee shop choice) measures from, or null = unlimited. */
 function rangeFor(state: GameState, player: PlayerId, cardUid?: Uid): { range: number | null; road: boolean } {
@@ -205,7 +206,7 @@ function rangeFor(state: GameState, player: PlayerId, cardUid?: Uid): { range: n
 export function rangeOverlay(state: GameState, player: PlayerId, cardUid?: Uid, from?: RouteStart): RangeOverlay {
   const { range, road } = rangeFor(state, player, cardUid);
   const all = playerRouteStarts(state.board, player);
-  const starts = from ? all.filter((st) => sameStart(st, from)) : all;
+  const starts = from ? all.filter((st) => sameRouteStart(st, from)) : all;
   if (!road || !starts.length) return { roads: [], starts, range };
   const field = distanceField(state.board, starts.flatMap((st) => routeStartRoads(state.board, st)));
   const roads: RangeOverlay['roads'] = [];

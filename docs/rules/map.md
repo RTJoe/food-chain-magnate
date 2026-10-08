@@ -12,7 +12,7 @@ Primary source: **DLX** Deluxe base rulebook (printed pages p2, p8–10, p21–2
 - **[DLX differs] Square-adjacency rule (DLX p8 item E, p21):** roads are a grid of road squares. Any two orthogonally adjacent road squares are connected, within a tile **or across a tile border**, regardless of the printed art (the yellow edge line does not block). Consequences:
   - Midpoint exits connect as before.
   - Two road squares facing each other across a shared tile edge at any position connect. E.g. tile C's outer ring next to another tile's edge road connects along every adjacent pair.
-  - This supersedes JD 1514116 ("only in the middle"). Medium-High: DLX text is explicit; no DLX picture shows two printed parallel edge roads. See `questions.md` Q-M1.
+  - This supersedes JD 1514116 ("only in the middle"). High: DLX text is explicit and the DLX p23 Collection Example shows it: its route crosses the same tile border twice, at two different squares (borders '1' and '2'), so at least one crossing is away from the midpoint. See `questions.md` Q-M1.
 - Exceptions (not connected even though adjacent):
   - **Bridges (overpass):** tiles G and P. The N–S road and the W–E road share (2,2) without connecting. A route goes straight through (2,2) and cannot turn there (DLX p8 item F; JD 1455378).
   - **Capped road ends** (KX-DLX p3–4): tile X π stubs end at the apartment; tile W's road ends at house 25. They connect to the building, not to each other.
@@ -258,7 +258,7 @@ Lemonade (1,1). Exits N S W E. Intersection.
 - The player takes any available combo token, so chooses its number (DLX p24).
 - **Numbers: 1, 3, 6, 9, 11, 14, 17, 19.**
   - Seen as combo (house+garden) tokens in DLX images: **14** (p1 photo; p24 tip; p30 map), **9** and **11** (p32 radio map), **1** (KX-DLX p6, p9 examples: "House 1"), **19** (KX-DLX p8 "House 19 has a garden"). High for these 5.
-  - **3, 6, 17**: inferred — the 11 printed numbers leave exactly these gaps in 1–19, and π is ordered "between houses 3 and 4" (KX-DLX p4). Medium-High.
+  - **3, 6, 17**: confirmed — BGG image 3532607 shows all 8 combo tokens (1, 3, 6, 9, 11, 14, 17, 19); the DLX p3 setup photo also shows combo 17. High.
 - Placement: empty squares only; part of an edge orthogonally adjacent to a road. Unlimited range. May span tile borders (DLX p24).
 
 ## 6. Gardens (8 tiles)
@@ -276,15 +276,15 @@ Numbers → type are now High (DLX p1 photo shows radio 2, airplanes 4/5/6, mail
 | 5 | Airplane | 2 deep x 3 wide | High |
 | 6 | Airplane | 2 deep x 5 wide | High |
 | 7 | Mailbox | 2x2 | High |
-| 8 | Mailbox | not pictured; probably 2x2 | Low |
-| 9 | Mailbox | 1x1 | Medium-High |
-| 10 | Mailbox | 1x1 | Medium-High |
+| 8 | Mailbox | 2x2 (BGG 3532607) | High |
+| 9 | Mailbox | 1x1 | High |
+| 10 | Mailbox | 1x1 | High |
 | 11 | Billboard | 3x2 | High |
 | 12 | Billboard | 2x2 | High |
 | 13 | Billboard | 3x1 | High |
-| 14 | Billboard | 2x1 | Medium-High |
+| 14 | Billboard | 2x1 | High |
 | 15 | Billboard | 1x1 | High |
-| 16 | Billboard | not pictured | Low |
+| 16 | Billboard | 1x1 (BGG 3532607) | High |
 
 Sources per tile: `base.md` §9. Removed at low player counts: #12, #15, #16 (2p), #15, #16 (3p), #16 (4p).
 

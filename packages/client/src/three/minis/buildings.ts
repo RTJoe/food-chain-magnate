@@ -622,13 +622,27 @@ export function buildApartment(ctx: MiniCtx, p: { label: string; facing: Directi
 // Garden (2x1 strip; origin at its centre, long axis along x): lime hedge ring, fountain, bushes
 // ---------------------------------------------------------------------------
 
-function gardenShape(): Shape {
+/**
+ * `open`: the long side the owner's house is on (+1 = +z, -1 = -z, 0 = unknown, both open). The
+ * hedge has a white gate there and is closed on the far side, so a garden points at its house
+ * (the printed garden tile's gate).
+ */
+function gardenShape(open: -1 | 0 | 1 = 0): Shape {
   const s = new Shape();
   const add = (geo: THREE.BufferGeometry, paint: Paint, o: PartOpts = {}) => s.add(geo, paint, { jitter: 0.03, ...o });
   const top = PLATE;
   add(box(1.88, PLATE, 0.88, 0), PAINT.lawn, { jitter: 0 });
-  // Clipped hedge ring, open in the middle of both long sides (the house can be on either).
-  for (const z of [-0.36, 0.36]) for (const x of [-0.5, 0.5]) add(box(0.76, 0.14, 0.1, 0), HEDGE, { at: [x, top, z] });
+  // Clipped hedge ring: a gate gap on the house side, closed on the far side.
+  for (const sz of [-1, 1]) {
+    const z = sz * 0.36;
+    if (open && sz !== open) add(box(1.76, 0.14, 0.1, 0), HEDGE, { at: [0, top, z] });
+    else for (const x of [-0.5, 0.5]) add(box(0.76, 0.14, 0.1, 0), HEDGE, { at: [x, top, z] });
+  }
+  if (open) {
+    // White gate posts with a little arch over the gap.
+    for (const x of [-0.11, 0.11]) add(box(0.04, 0.22, 0.04, 0), PAINT.trimWhite, { at: [x, top, open * 0.36] });
+    add(box(0.26, 0.035, 0.04, 0), PAINT.trimWhite, { at: [0, top + 0.22, open * 0.36] });
+  }
   for (const x of [-0.89, 0.89]) add(box(0.1, 0.14, 0.62, 0), HEDGE, { at: [x, top, 0] });
   // Gravel cross path and the stone fountain at its centre.
   add(box(0.18, 0.012, 0.62, 0), PAINT.pavement, { at: [0, top, 0] });
@@ -647,13 +661,16 @@ function gardenShape(): Shape {
   return s;
 }
 
-export function buildGarden(ctx: MiniCtx, p: { vertical: boolean }): THREE.Group {
+/** `house`: world side of the garden its house is on (gate side); omitted = both sides open. */
+export function buildGarden(ctx: MiniCtx, p: { vertical: boolean; house?: Direction }): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Group();
   if (p.vertical) body.rotation.y = Math.PI / 2;
   g.add(body);
   blob(ctx, body, 2.1, 1.1, true, BLOB);
-  solid(ctx, body, miniGeo('garden:se', gardenShape));
+  // Local +z is south for a horizontal strip and east for a vertical one (turned 90°).
+  const open: -1 | 0 | 1 = !p.house ? 0 : p.house === (p.vertical ? 'E' : 'S') ? 1 : p.house === (p.vertical ? 'W' : 'N') ? -1 : 0;
+  solid(ctx, body, miniGeo(`garden:se:${open}`, () => gardenShape(open)));
   return g;
 }
 

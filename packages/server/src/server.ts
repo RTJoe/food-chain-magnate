@@ -45,6 +45,14 @@ export interface ServerOptions {
   botDelay?: BotDelay;
   /** Abuse limits (default `DEFAULT_LIMITS`; the CLI reads them from env, see limits.ts). */
   limits?: Partial<Limits>;
+  /**
+   * WebSocket Origin allowlist: 'self' (the Origin's host must equal the request's Host), a list of
+   * origins (`https://fcm.example.org`), or undefined to accept any. Requests without an Origin
+   * header (non-browser clients) are always accepted. CLI: `FCM_ALLOWED_ORIGINS`.
+   */
+  allowedOrigins?: 'self' | string[];
+  /** Reported by `GET /healthz` and in logs (CLI: `FCM_BUILD_ID`). */
+  buildId?: string;
   now?: () => number;
   log?: (msg: string) => void;
 }
@@ -77,11 +85,22 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     ...(opts.retentionMs !== undefined ? { retentionMs: opts.retentionMs } : {}),
     ...(opts.lobbyRetentionMs !== undefined ? { lobbyRetentionMs: opts.lobbyRetentionMs } : {}),
     ...(opts.limits ? { limits: opts.limits } : {}),
+    ...(opts.buildId ? { buildId: opts.buildId } : {}),
   });
   const restored = hub.restore(persistence.loadAll());
   if (restored) log(`restored ${restored} room(s)`);
 
-  const http = createServer(staticHandler(opts.clientDist, { gzip: opts.gzip ?? true }));
+  const files = staticHandler(opts.clientDist, { gzip: opts.gzip ?? true });
+  const started = now();
+  const http = createServer((req, res) => {
+    // Liveness for the container healthcheck: answers only if the event loop and hub are alive.
+    if (req.url === '/healthz' && (req.method === 'GET' || req.method === 'HEAD')) {
+      const body = JSON.stringify({ ok: true, build: opts.buildId ?? null, uptimeS: Math.round((now() - started) / 1000), connections: hub.connectionCount });
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }).end(req.method === 'HEAD' ? undefined : body);
+      return;
+    }
+    files(req, res);
+  });
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
   http.on('upgrade', (req, socket, head) => {
     // Untrusted input: a malformed target (e.g. `GET //`) makes `new URL` throw. Drop that socket only.
@@ -91,7 +110,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     } catch {
       path = '';
     }
-    if (path !== '/ws') {
+    if (path !== '/ws' || !originAllowed(opts.allowedOrigins, req.headers.origin, req.headers.host)) {
       socket.destroy();
       return;
     }
@@ -136,6 +155,27 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     }));
 
   return { port, host, hub, close };
+}
+
+/** WebSocket Origin check (see `ServerOptions.allowedOrigins`). */
+export function originAllowed(allowed: ServerOptions['allowedOrigins'], origin: string | undefined, host: string | undefined): boolean {
+  if (!allowed || !origin) return true;
+  if (allowed === 'self') {
+    try {
+      return new URL(origin).host === host;
+    } catch {
+      return false;
+    }
+  }
+  return allowed.includes(origin.replace(/\/$/, ''));
+}
+
+/** `FCM_ALLOWED_ORIGINS`: unset/empty = any, `self`, or a comma-separated list of origins. */
+export function allowedOriginsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOptions['allowedOrigins'] {
+  const raw = env.FCM_ALLOWED_ORIGINS?.trim();
+  if (!raw) return undefined;
+  if (raw === 'self') return 'self';
+  return raw.split(',').map((o) => o.trim().replace(/\/$/, '')).filter(Boolean);
 }
 
 /** The bits of `process` that `installCrashGuards` uses (injectable for tests). */

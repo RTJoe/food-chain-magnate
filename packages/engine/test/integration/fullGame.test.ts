@@ -40,7 +40,7 @@ describe('full game via the reducer (base.md §3)', () => {
   });
 
   it('a 2-player game runs until the bank breaks twice and the game ends after Dinnertime (base.md §12)', () => {
-    const r = play(createGame(config(2), 5), 55, () => false, 50_000);
+    const r = play(createGame(config(2), 7), 7, () => false, 50_000);
     expect(r.state.phase.kind).toBe('gameOver');
     expect(r.state.bank.breaks).toBe(2);
     const ended = r.events.flat().filter((e) => e.type === 'gameEnded');

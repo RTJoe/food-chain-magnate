@@ -257,9 +257,12 @@ export function CardFace({
   badge,
   tone,
   dimmed,
+  nested,
 }: {
   id: EmployeeId;
   plain?: boolean;
+  /** Inside a clickable card button: the "?" is a pointer target only (see WhatsThis). */
+  nested?: boolean;
   badge?: ComponentChildren;
   tone?: "beach" | "busy";
   dimmed?: boolean;
@@ -286,7 +289,7 @@ export function CardFace({
       <span class="emp-art">
         <Portrait id={id} color={color} dark={d?.colour === "ceo"} />
         {!plain && (
-          <WhatsThis id={employeeTermId(id)} label={name} class="emp-wt" />
+          <WhatsThis id={employeeTermId(id)} label={name} class="emp-wt" nested={nested} />
         )}
       </span>
       <span class="emp-panel">
@@ -368,6 +371,7 @@ export function EmployeeCard({
         badge={badge}
         tone={tone}
         dimmed={dimmed}
+        nested={Boolean(onClick)}
       />
       {footer && <span class="emp-caption">{footer}</span>}
     </>
@@ -390,6 +394,7 @@ export function EmployeeCard({
         disabled={disabled}
         aria-pressed={selected}
         aria-label={`${employeeName(catalog.value, id)}${d?.text ? `: ${d.text}` : ""}`}
+        aria-keyshortcuts={plain ? undefined : "?"}
         onClick={onClick}
         draggable={Boolean(draggableUid)}
         onDragStart={

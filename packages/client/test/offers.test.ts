@@ -64,7 +64,8 @@ describe('variants collapse to one offer per chain', () => {
     const s = FIXTURES.dinnertime();
     const view = engine.redactFor(s, 'p1');
     const text = describeEvent(sale, view, buildCatalog(engine.listModules(), s.config.modules))?.text ?? '';
-    expect(text).toMatch(/beating .* at \$/);
+    // The rival's score is price + distance, not money: no "$" (M195).
+    expect(text).toMatch(/beating .* at \d/);
   });
 });
 
@@ -109,15 +110,15 @@ describe('score modifiers are shown', () => {
     const c = saleCaption(beatOf([considered, sale]), sale);
     expect(c.score).toBe(8);
     const text = saleCaptionText({ ...c, key: 1 }, (p) => (p === 'p1' ? 'Ada' : 'Bo'), '1');
-    expect(text).toContain('$10 + 0 − 2 = $8');
-    expect(text).toContain('Bo $9');
+    expect(text).toContain('$10 + 0 − 2 = 8');
+    expect(text).toContain('Bo (9)');
   });
 
   it('log line shows the modifier and the score', () => {
     const s = FIXTURES.dinnertime();
     const view = engine.redactFor(s, 'p1');
     const text = describeEvent(sale, view, buildCatalog(engine.listModules(), s.config.modules))?.text ?? '';
-    expect(text).toContain('$10 + 0 − 2 = $8');
+    expect(text).toContain('$10 + 0 − 2 = 8');
   });
 });
 

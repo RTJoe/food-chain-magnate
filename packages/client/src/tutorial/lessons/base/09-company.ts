@@ -41,7 +41,7 @@ export const lesson09 = defineLesson({
   title: 'Building a company',
   minutes: 10,
   goal: 'Managers and slots, training on the beach, the overfill penalty and the simultaneous reveal.',
-  concepts: ['manager', 'slots', 'management_trainee', 'trainer', 'career_path', 'train', 'overfill', 'simultaneous_reveal', 'one_x'],
+  concepts: ['manager', 'ceo_slots', 'management_trainee', 'trainer', 'career_path', 'training', 'overfill', 'restructuring', 'one_x'],
   scenario: {
     build: () => {
       const b = town({ round: 4 })
@@ -86,7 +86,7 @@ export const lesson09 = defineLesson({
       until: { test: (ctx) => has(draftOf(ctx)?.managerSubs[MT], WA, KT) },
       solution: [{ tap: { ui: 'hand-card-waitress' } }, { tap: { ui: `org-mslot-${MT}-1` } }, { tap: { ui: 'hand-card-kitchen_trainee' } }, { tap: { ui: `org-mslot-${MT}-1` } }],
       hint: { say: 'Tap the Waitress, then a slot under the trainee. Same for the Kitchen Trainee.', show: [{ ui: `org-mslot-${MT}-1` }] },
-      glossary: 'slots',
+      glossary: 'ceo_slots',
     },
     {
       id: 'trainer-slot',
@@ -119,7 +119,7 @@ export const lesson09 = defineLesson({
       then: 'Both charts are revealed at the same moment.',
       hint: { say: 'Press "Submit structure" under your chart.', show: [{ ui: 'submit-structure' }] },
       checkpoint: true,
-      glossary: 'simultaneous_reveal',
+      glossary: 'restructuring',
     },
     {
       id: 'overfill',
@@ -164,7 +164,7 @@ export const lesson09 = defineLesson({
       solution: [{ type: 'work.recruit', playerId: 'p1', cardUid: ADA_CEO, employeeId: 'marketing_trainee' }],
       then: 'She goes to the beach: she works from next round, but beach cards can be trained right away.',
       hint: { say: 'Tap your CEO card in the Turn panel, then the Marketing Trainee.', show: [{ ui: `work-card-${ADA_CEO}` }] },
-      glossary: 'hire',
+      glossary: 'hiring',
     },
     {
       id: 'train',
@@ -176,7 +176,7 @@ export const lesson09 = defineLesson({
       then: (ctx) => `The Errand Boy went back to the pile and a Cart Operator came out (${ctx.view.supply.cart_operator ?? 0} left).${claimed(ctx.events, 'p1', 'first_train') ? ' Training first also claimed First to Train: $15 off every Payday.' : ''}`,
       hint: { say: 'Tap the Trainer card, the Errand Boy, then "Cart Operator".', show: [{ ui: `work-card-${TR}` }] },
       checkpoint: true,
-      glossary: 'train',
+      glossary: 'training',
     },
     {
       id: 'only-beach',
@@ -192,7 +192,7 @@ export const lesson09 = defineLesson({
       allow: { ui: ['tab-market'] },
       until: { signal: 'dockTab', equals: 'market' },
       solution: [{ tap: { ui: 'tab-market' } }],
-      then: 'Chefs, the CFO and the top managers are 1x. The pile counts show how many are left.',
+      then: 'Ten kinds are 1x, among them both Chefs, the CFO, the Executive VP and the Guru. Check the mark, not the rank. The pile counts show how many are left.',
       hint: { say: 'The Staff tab is in the dock, next to Company.', show: [{ ui: 'tab-market' }] },
       glossary: 'one_x',
     },

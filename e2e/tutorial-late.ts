@@ -53,7 +53,7 @@ export async function selectWorkCard(page: Page, uid: string): Promise<void> {
 }
 
 /** Click a placement row by its text; on a phone the board pick collapses the sheet, so reopen it first. */
-export async function clickPlacement(page: Page, text: string): Promise<void> {
+export async function clickPlacement(page: Page, text: string | RegExp): Promise<void> {
   const row = page.locator('.placement-btn').filter({ hasText: text }).first();
   if (!isPhone(page)) {
     await row.click(CLICK);
@@ -153,7 +153,8 @@ export async function performLate(page: Page, a: A): Promise<boolean> {
       await selectWorkCard(page, String(a.cardUid));
       const route = a.route as { mode: string; drink?: string };
       if (route.mode === 'errand') {
-        await cardButton(page, new RegExp(`get ${route.drink}`, 'i'));
+        // "Get beer", or "Get 2 beers" when First Errand Boy adds one per trip.
+        await cardButton(page, new RegExp(`get (\\d+ )?${route.drink === 'soft_drink' ? 'soda' : route.drink}`, 'i'));
         return true;
       }
       const drinks = await page.evaluate((act) => (window as unknown as { __fcmTutorial: { haul(a: unknown): { drink: string; count: number }[] | null } }).__fcmTutorial.haul(act), a);
@@ -164,7 +165,7 @@ export async function performLate(page: Page, a: A): Promise<boolean> {
         await openTurnSheet(page);
       }
       let rows = page.locator('.haul-row');
-      for (const d of drinks ?? []) rows = rows.filter({ hasText: new RegExp(`${d.count}× ${d.drink.replace('_', ' ')}`, 'i') });
+      for (const d of drinks ?? []) rows = rows.filter({ hasText: new RegExp(`${d.count}× ${d.drink === 'soft_drink' ? 'soda' : d.drink}`, 'i') });
       const row = rows.first();
       await row.waitFor({ state: 'visible', timeout: 10_000 });
       // A tap makes the haul active (ribbon on the board); tapping the active haul buys it.
@@ -215,7 +216,7 @@ export async function performLate(page: Page, a: A): Promise<boolean> {
       await cardButton(page, /house/i);
       const chip = page.locator('.house-chip').filter({ hasText: new RegExp(`^\\s*#${String(a.houseOrder)}(?!\\d)`) }).first();
       if ((await chip.count()) && (await chip.getAttribute('aria-checked')) !== 'true') await chip.click(CLICK);
-      await clickPlacement(page, `House #${String(a.houseOrder)} at ${String(a.x)},${String(a.y)} · garden ${String(a.gardenSide)}`);
+      await clickPlacement(page, new RegExp(`House #${String(a.houseOrder)} on tile \\w+ · square ${String(a.x)},${String(a.y)} · garden ${String(a.gardenSide)}`));
       return true;
     }
     case 'payday.fire': {

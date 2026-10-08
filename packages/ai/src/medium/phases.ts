@@ -24,10 +24,15 @@ export function chooseSetupRestaurant(c: Ctx): Action[] {
 /** Reserve card (§3.8): $300 / 4 slots by default; narrower for fast strategies. */
 export function chooseReserve(c: Ctx): Action[] {
   const opts = readyOf(c.legal, 'setup.chooseReserve').filter((a): a is Extract<Action, { type: 'setup.chooseReserve' }> => a.type === 'setup.chooseReserve');
-  const arch = chooseArchetype(c).id;
+  // Reserve cards are chosen before first restaurants (DLX p4 steps 5-6): with none of mine on the
+  // map the archetype has no map facts to read, so plan the default wide game ($300 / 4 slots).
+  const placed = Object.values(c.s.board.restaurants).some((r) => r.owner === c.me);
+  const arch = placed ? chooseArchetype(c).id : null;
   const score = (r: ReserveCard): number => {
     // Reserve Prices: a $5 base price makes the bank last forever (price war); never vote for it.
-    if (r.kind === 'price') return r.basePrice === 20 ? (arch === 'luxury' || arch === 'cfo_rush' ? 3 : 1) : r.basePrice === 5 ? -1 : 2;
+    // Ties (KX p28): $20 beats $10 and $5, $5 beats $10. So a $10 vote cannot stop a single $5
+    // vote in a 2-way tie; $20 can, and it ends the game sooner too. Vote $20.
+    if (r.kind === 'price') return r.basePrice === 20 ? 3 : r.basePrice === 10 ? 1 : -1;
     if (arch === 'milestone_racer' || arch === 'cfo_rush') return r.amount === 100 ? 2 : r.amount === 300 ? 1 : 0;
     if (arch === 'drinks_waitress') return r.amount === 200 ? 2 : r.amount === 300 ? 1 : 0;
     return r.amount === 300 ? 2 : r.amount === 200 ? 1 : 0;

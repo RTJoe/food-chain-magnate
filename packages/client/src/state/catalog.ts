@@ -65,6 +65,18 @@ export const employeeName = (c: Catalog, id: EmployeeId): string => c.employees[
 export const milestoneName = (c: Catalog, id: MilestoneId): string => c.milestones[id]?.name ?? humanize(id);
 export const foodName = (c: Catalog, id: FoodId): string => c.foods[id]?.name ?? humanize(id);
 
+/** "a Burger Cook", "an Errand Boy". */
+export const withArticle = (name: string): string => `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${name}`;
+
+/** Goods that do not take a plural "s". */
+const UNCOUNTED = new Set(['kimchi', 'sushi', 'noodles']);
+
+/** "3 burgers", "1 beer", "2 kimchi" (lower case, as in running text). */
+export function foodCount(c: Catalog, id: FoodId, n: number): string {
+  const name = foodName(c, id).toLowerCase();
+  return `${n} ${n === 1 || UNCOUNTED.has(id) ? name : `${name}s`}`;
+}
+
 /** Manager slot count (0 for non-managers and the night shift manager). */
 export function managerSlots(d: EmployeeDef | undefined): number {
   return d?.ability.kind === 'manager' ? d.ability.slots : 0;

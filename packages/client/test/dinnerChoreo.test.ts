@@ -160,3 +160,17 @@ describe('replays ("Watch again" / "Play from here")', () => {
     anim.dispose();
   });
 });
+
+describe('rural van rim route', () => {
+  it('goes round the rim (shorter way) when the freeway and the rural area are on different sides', async () => {
+    const { rimWaypoints } = await import('../src/three/anim/choreos/dinner.js');
+    // 20 x 15 board, van leaves by a north freeway, rural area east.
+    expect(rimWaypoints(20, 15, [5, -2.5], [27, 7])).toEqual([[22.5, -2.5]]);
+    // West freeway to east rural area: two corners, never across the board.
+    const w = rimWaypoints(20, 15, [-2.5, 7], [27, 7]);
+    expect(w).toHaveLength(2);
+    for (const [x, z] of w) expect(x < 0 || x > 20 || z < 0 || z > 15).toBe(true);
+    // Same side: straight on.
+    expect(rimWaypoints(20, 15, [22.5, 3], [27, 7])).toEqual([]);
+  });
+});

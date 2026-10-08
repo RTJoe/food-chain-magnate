@@ -1,5 +1,6 @@
 /** Builds engine actions from a placement `LegalAction` plus the board pick and options. */
 import type { Action, ActionType, FoodId, GameView, LegalAction, Placement, PlayerId, Uid } from '@fcm/engine';
+import { tileOf, tileSlotName } from './boardLabels.js';
 
 export interface PlacementOptions {
   /** Campaign good(s). */
@@ -69,11 +70,11 @@ export function needsGoods(legal: PlacementLegal): boolean {
 export function describePlacement(p: Placement, view?: GameView | null): string {
   switch (p.kind) {
     case 'restaurant':
-      return `Square ${p.x},${p.y} · entrance ${p.entrance}`;
+      return `Tile ${tileOf(p.x, p.y)} · square ${p.x},${p.y} · entrance ${p.entrance}`;
     case 'moveRestaurant':
-      return `Move to ${p.x},${p.y} · entrance ${p.entrance}`;
+      return `Move to tile ${tileOf(p.x, p.y)} · square ${p.x},${p.y} · entrance ${p.entrance}`;
     case 'house':
-      return `House #${p.houseOrder} at ${p.x},${p.y} · garden ${p.gardenSide}`;
+      return `House #${p.houseOrder} on tile ${tileOf(p.x, p.y)} · square ${p.x},${p.y} · garden ${p.gardenSide}`;
     case 'garden': {
       // Several houses can take a garden: name the house so list rows are not ambiguous.
       const h = view?.board.houses[p.houseId];
@@ -83,7 +84,7 @@ export function describePlacement(p: Placement, view?: GameView | null): string 
       const pl = p.placement;
       if (pl.kind === 'board') {
         const o = p.orientation ?? (pl.w === pl.h ? 'square' : pl.w > pl.h ? 'landscape' : 'portrait');
-        return `Tile #${p.tileNumber} · ${pl.w}×${pl.h} at ${pl.x},${pl.y}${o === 'square' ? '' : ` (${o})`}`;
+        return `Tile #${p.tileNumber} · ${pl.w}×${pl.h} at ${pl.x},${pl.y} on ${tileOf(pl.x, pl.y)}${o === 'square' ? '' : ` (${o})`}`;
       }
       const where = pl.kind === 'airplane' ? `${pl.side} edge, offset ${pl.offset}` : pl.kind === 'rural' ? `rural ${pl.side}` : 'beside the board';
       return `Tile #${p.tileNumber} ${where}`;
@@ -91,22 +92,38 @@ export function describePlacement(p: Placement, view?: GameView | null): string 
     case 'buyerRoute':
       return p.route.mode === 'errand' ? `Fetch ${p.route.drink.replace('_', ' ')}` : describeHaul(p, view);
     case 'coffeeShop': {
-      if (!p.moveFrom) return `Coffee shop at ${p.x},${p.y}`;
+      if (!p.moveFrom) return `Coffee shop at ${p.x},${p.y} · tile ${tileOf(p.x, p.y)}`;
       const from = view?.board.entities[p.moveFrom];
-      return `Move coffee shop${from && 'x' in from ? ` from ${from.x},${from.y}` : ''} to ${p.x},${p.y}`;
+      return `Move coffee shop${from && 'x' in from ? ` from ${tileOf(from.x, from.y)} (${from.x},${from.y})` : ''} to ${p.x},${p.y} · tile ${tileOf(p.x, p.y)}`;
     }
     case 'pizzaRadio':
     case 'freeMailbox':
-      return `Square ${p.x},${p.y}`;
-    case 'lobbyistRoad':
-      return `Road over ${p.cells.length} squares from ${p.cells[0]?.x},${p.cells[0]?.y}`;
+      return `Square ${p.x},${p.y} · tile ${tileOf(p.x, p.y)}`;
+    case 'lobbyistRoad': {
+      const c = p.cells[0];
+      return `Road over ${p.cells.length} squares from ${c?.x},${c?.y}${c ? ` · tile ${tileOf(c.x, c.y)}` : ''}`;
+    }
     case 'park':
-      return `Park at ${p.x},${p.y}`;
-    case 'freeway':
-      return `Freeway ${p.side} edge, offset ${p.offset}`;
-    case 'mapTile':
-      return `${p.templateId ? `Tile ${p.templateId}` : 'Tile'} at row ${p.row}, col ${p.col} · turned ${p.rotation * 90}°`;
+      return `Park at ${p.x},${p.y} · tile ${tileOf(p.x, p.y)}`;
+    case 'freeway': {
+      const b = view?.board;
+      const at = b ? freewayTile(p.side, p.offset, b.w, b.h) : null;
+      return `Freeway ${p.side} edge, offset ${p.offset}${at ? ` · beside ${at}` : ''}`;
+    }
+    case 'mapTile': {
+      const b = view?.board;
+      const where = b ? `${tileSlotName(p.row, p.col, b.rows, b.cols)} · ` : '';
+      return `${where}${p.templateId ? `Tile ${p.templateId}` : 'Tile'} at row ${p.row}, col ${p.col} · turned ${p.rotation * 90}°`;
+    }
   }
+}
+
+/** Map tile a freeway at (side, offset) touches: the edge square `offset` along that side. */
+function freewayTile(side: string, offset: number, w: number, h: number): string {
+  if (side === 'N') return tileOf(offset, 0);
+  if (side === 'S') return tileOf(offset, h - 1);
+  if (side === 'W') return tileOf(0, offset);
+  return tileOf(w - 1, offset);
 }
 
 /** Drinks a buyer route collects, summed by drink ("2 beer, 2 lemonade"), most first. */
@@ -126,4 +143,9 @@ export function describeHaul(p: Extract<Placement, { kind: 'buyerRoute' }>, view
   const unit = p.route.mode === 'air' ? 'tiles' : 'borders';
   const used = p.bordersUsed !== undefined && p.range !== undefined ? ` · ${p.bordersUsed}/${p.range} ${unit}` : '';
   return `${what}${used}`;
+}
+
+/** The engine labels food actions with raw ids ("get soft_drink"): use the display name. */
+export function readyLabel(label: string, food: FoodId | null, name: (f: FoodId) => string): string {
+  return food ? label.replace(new RegExp(`\\b${food}\\b`), name(food).toLowerCase()) : label;
 }

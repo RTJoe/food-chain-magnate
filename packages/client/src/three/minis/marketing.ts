@@ -285,12 +285,13 @@ function billboardShape(long: number, short: number, giant: boolean): Shape {
   // Grey steel catwalk ledge under the face, with a toe rail.
   grey(box(pw, 0.025, 0.13, 0), 0.04, { at: [0, y0 - 0.1, zp + 0.08] });
   grey(box(pw, 0.03, 0.015, 0), -0.08, { at: [0, y0 - 0.075, zp + 0.14] });
-  // Gooseneck lamps over the top edge, shades tipped back at the poster.
+  // Gooseneck lamps over the top edge, shades tipped back at the poster: small grey heads held
+  // high, so from the usual camera angles they sit above the face, not over the advertised good.
   const nl = giant ? 3 : Math.max(2, Math.round(long));
   for (let i = 0; i < nl; i++) {
     const x = -pw / 2 + (pw * (i + 0.5)) / nl;
-    rod(post, [x, y0 + ph + 0.05, zp], [x, y0 + ph + 0.1, zp + 0.13], 0.01);
-    post(cone(0.05, 0.035, 6), 0.1, { at: [x, y0 + ph + 0.06, zp + 0.14], rot: [0.6, 0, 0] });
+    rod(post, [x, y0 + ph + 0.05, zp], [x, y0 + ph + 0.17, zp + 0.11], 0.01);
+    grey(cone(0.038, 0.03, 6), 0.15, { at: [x, y0 + ph + 0.14, zp + 0.12], rot: [0.6, 0, 0] });
   }
   return s;
 }
@@ -780,7 +781,8 @@ function guideShape(): Shape {
   // Open book: red leather cover, two cream pages bowed into a V, a gold ribbon.
   paintPen(s, LEATHER)(box(0.6, 0.03, 0.42, 0.01), 0, { at: [0, BOOK.y - 0.03, BOOK.z], rot: [BOOK.tilt, 0, 0] });
   for (const sx of [-1, 1]) paintPen(s, PAINT.signCream)(box(0.27, 0.03, 0.38, 0.006), 0, { at: [sx * 0.145, BOOK.y, BOOK.z], rot: [BOOK.tilt, 0, 0] });
-  gilt(box(0.03, 0.01, 0.2, 0), 0, { at: [0.02, BOOK.y + 0.02, BOOK.z + 0.24], rot: [1.0, 0, 0] });
+  // Ribbon hangs off the right page's outer corner, clear of the advertised good.
+  gilt(box(0.03, 0.01, 0.2, 0), 0, { at: [0.25, BOOK.y + 0.02, BOOK.z + 0.24], rot: [1.0, 0, 0] });
   // Three gilt stars on a dark wood arch behind the book.
   const arch = paintPen(s, PAINT.woodDark);
   rod(arch, [-0.3, PLATE_H, -0.3], [-0.3, 0.98, -0.3], 0.02);

@@ -20,7 +20,7 @@ import { OK, reject, type Check } from '../../core/errors.js';
 import { cardPlace, hasEffect, ownsUnique } from '../../core/cards.js';
 import { contentFor, pipe } from '../../modules/registry.js';
 import { readCtx } from '../../core/context.js';
-import { advanceTo, cardCheck, phantomTrainable, spend } from './stages.js';
+import { advanceTo, baseUses, cardCheck, emptyPileHiresFeasible, phantomTrainable, spend } from './stages.js';
 
 export { reachableTargets, type TrainTarget } from './stages.js';
 import { reachableTargets } from './stages.js';
@@ -38,6 +38,17 @@ function pathProblem(s: GameState, from: EmployeeId, path: EmployeeId[], to: Emp
 
 /** Steps already put on `target` this turn by `trainer`. */
 const stepsBy = (s: GameState, target: Uid, trainer: Uid): number => (s.turn?.trained[target]?.by ?? []).filter((u) => u === trainer).length;
+
+/** How many copies of a card are at work (module `cardUses`, e.g. Night Shift doubles salary-free cards). */
+function copiesOf(s: GameState, player: string, uid: Uid): number {
+  const p = s.players[player];
+  const card = p?.employees[uid];
+  const def = card ? contentFor(s.config.modules).employees[card.employeeId] : undefined;
+  const base = baseUses(def);
+  if (!card || !def || base <= 0 || !s.config.modules.length) return 1;
+  const out = pipe(readCtx(s), 'cardUses', { uid, uses: base }, { player, card, def });
+  return Math.max(1, Math.floor(out.uses / base));
+}
 
 /** Module exception (Ketchup First lemonade sold): a card at work may be trained. */
 function trainableAtWork(s: GameState, a: WorkTrain): boolean {
@@ -75,11 +86,14 @@ export function validateTrain(s: GameState, a: WorkTrain): Check {
   const steps = path.length;
   const left = turn.uses[a.trainerUid] ?? 0;
   if (steps > left) return reject('ILLEGAL', `${def.name} has only ${left} training action(s) left`);
-  if (stepsBy(s, a.targetUid, a.trainerUid) + steps > def.ability.maxStepsSameCard) {
-    return reject('ILLEGAL', `${def.name} may train the same card at most ${def.ability.maxStepsSameCard} step(s)`);
+  const stacking = hasEffect(s, content, a.playerId, 'stackTraining').length > 0;
+  // A card working as several copies (Ketchup Night Shift, KX p22) counts as that many trainers, so
+  // with a stacking milestone each copy may train the same card.
+  const cap = def.ability.maxStepsSameCard * (stacking ? copiesOf(s, a.playerId, a.trainerUid) : 1);
+  if (stepsBy(s, a.targetUid, a.trainerUid) + steps > cap) {
+    return reject('ILLEGAL', `${def.name} may train the same card at most ${cap} step(s)`);
   }
   const rec = turn.trained[a.targetUid];
-  const stacking = hasEffect(s, content, a.playerId, 'stackTraining').length > 0;
   if (rec && !stacking && rec.by.some((u) => u !== a.trainerUid)) {
     return reject('ILLEGAL', 'This card was already trained this turn by another card ("First to pay $20" allows stacking)');
   }
@@ -87,6 +101,16 @@ export function validateTrain(s: GameState, a: WorkTrain): Check {
   if ((s.supply[a.toEmployeeId] ?? 0) <= 0) return reject('SUPPLY_EMPTY', `No ${content.employees[a.toEmployeeId]?.name ?? a.toEmployeeId} left`);
   if (content.employees[a.toEmployeeId]?.ability.kind === 'cfo' && hasEffect(s, content, a.playerId, 'ceoIsCfo').length) {
     return reject('ILLEGAL', 'With "First to have $100" you may not train a CFO');
+  }
+  // DLX p16: this training must not strand another card hired from an empty pile this turn.
+  const others = turn.mustTrain.filter((u) => u !== a.targetUid);
+  if (others.length && emptyPileHiresFeasible(s, turn)) {
+    const uses = { ...turn.uses, [a.trainerUid]: left - steps };
+    const supply = { ...s.supply, [a.toEmployeeId]: (s.supply[a.toEmployeeId] ?? 0) - 1 };
+    if (!turn.mustTrain.includes(a.targetUid) && supply[target.employeeId] !== undefined) supply[target.employeeId] = (supply[target.employeeId] ?? 0) + 1;
+    if (!emptyPileHiresFeasible(s, { ...turn, mustTrain: others }, [], uses, supply)) {
+      return reject('ILLEGAL', 'That would leave another card hired from an empty pile with nothing to be trained into');
+    }
   }
   return OK;
 }
@@ -110,5 +134,5 @@ export function applyTrain(ctx: EngineCtx, a: WorkTrain): void {
   for (let i = 0; i < steps; i++) rec.by.push(a.trainerUid);
   rec.steps += steps;
   spend(ctx, a.trainerUid, steps);
-  ctx.emit({ type: 'employeeTrained', player: a.playerId, uid: a.targetUid, from, to: a.toEmployeeId, by: [a.trainerUid], steps });
+  ctx.emit({ type: 'employeeTrained', player: a.playerId, uid: a.targetUid, from, to: a.toEmployeeId, by: [a.trainerUid], steps, path: [...path] });
 }

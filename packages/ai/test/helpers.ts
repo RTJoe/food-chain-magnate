@@ -58,6 +58,7 @@ export function playBots(config: GameConfig, seed: number, levels: Record<Player
     const r = runBotDetailed({ level: levels[who] ?? 'easy', view: redactFor(state, who), playerId: who, seed: decisionSeed(seed, state.history.seq, who), budgetMs }, engine);
     maxMs = Math.max(maxMs, r.ms);
     if (r.fellBack) fellBack.push(`step ${steps} r${state.round} ${state.phase.kind} ${who}: ${r.error ?? 'bot answer invalid'} -> ${r.action.type}`);
+    else if (r.internalFallback) fellBack.push(`step ${steps} r${state.round} ${state.phase.kind} ${who}: no valid move of its own (internal fallback) -> ${r.action.type}`);
     const applied = applyAction(state, r.action);
     if (!applied.ok) {
       rejected.push(`step ${steps} r${state.round} ${state.phase.kind} ${who}: ${r.action.type} ${applied.code} ${applied.message}`);

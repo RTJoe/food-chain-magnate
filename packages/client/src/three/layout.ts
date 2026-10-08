@@ -67,7 +67,7 @@ export function guideSpot(b: Board, i: number): [number, number] {
 }
 
 /** Door side for a house: the side with the most road squares next to it (ties: S, E, W, N). */
-export function houseFacing(b: Board, cells: readonly Cell[]): Direction {
+export function houseFacing(b: Board, cells: readonly Cell[], garden?: readonly Cell[]): Direction {
   const r = cellsRect(cells);
   const count = (d: Direction): number => {
     let n = 0;
@@ -89,6 +89,14 @@ export function houseFacing(b: Board, cells: readonly Cell[]): Direction {
       bestN = n;
     }
   }
+  // No road touches the house itself: the way out is through its garden.
+  if (bestN === 0 && garden?.length) {
+    const g = cellsRect(garden);
+    if (g.y >= r.y + r.h) return 'S';
+    if (g.y + g.h <= r.y) return 'N';
+    if (g.x >= r.x + r.w) return 'E';
+    if (g.x + g.w <= r.x) return 'W';
+  }
   return best;
 }
 
@@ -101,6 +109,30 @@ export interface Anchor {
   height: number;
 }
 
+/**
+ * Squares of empty slot between the board edge on `side` and the outermost real tile, over the
+ * lines `offset … offset + width - 1` (a grown board leaves slots on the edge). Edge pieces
+ * (airplanes, freeways) sit against that tile, not the board's bounding box. 0 when every line is
+ * empty or the edge is a real tile.
+ */
+export function edgeGap(b: Board, side: Direction, offset: number, width = 1): number {
+  const alongX = side === 'N' || side === 'S';
+  const depth = alongX ? b.h : b.w;
+  let gap = Infinity;
+  for (let i = offset; i < offset + width; i++) {
+    for (let d = 0; d < depth; d++) {
+      const x = alongX ? i : side === 'W' ? d : b.w - 1 - d;
+      const y = alongX ? (side === 'N' ? d : b.h - 1 - d) : i;
+      const c = b.cells[y]?.[x];
+      if (c && c.tile !== '') {
+        gap = Math.min(gap, d);
+        break;
+      }
+    }
+  }
+  return Number.isFinite(gap) ? gap : 0;
+}
+
 /** Anchor of a campaign by its placement. `guideIndex` orders off-board guides. */
 export function campaignAnchor(b: Board, p: CampaignPlacement, guideIndex = 0): Anchor {
   switch (p.kind) {
@@ -110,7 +142,7 @@ export function campaignAnchor(b: Board, p: CampaignPlacement, guideIndex = 0): 
       return { x, z, y: 0, rotY: 0, rect, height: 1.6 };
     }
     case 'airplane': {
-      const s = edgeStrip(p.side, p.offset, p.width, b.w, b.h, AIR_STRIP);
+      const s = edgeStrip(p.side, p.offset, p.width, b.w, b.h, AIR_STRIP - edgeGap(b, p.side, p.offset, p.width));
       const half = p.width / 2;
       const rect = s.along === 'x' ? { x0: s.x - half, z0: s.z - 0.6, x1: s.x + half, z1: s.z + 0.6 } : { x0: s.x - 0.6, z0: s.z - half, x1: s.x + 0.6, z1: s.z + half };
       return { x: s.x, z: s.z, y: 0, rotY: s.angle, rect, height: 3 };
@@ -134,7 +166,7 @@ export function campaignAnchor(b: Board, p: CampaignPlacement, guideIndex = 0): 
 
 /** Freeway foot (on the board edge) for side/offset. */
 export function freewayAnchor(b: Board, side: Direction, offset: number): Anchor {
-  const s = edgeStrip(side, offset, 1, b.w, b.h, 0);
+  const s = edgeStrip(side, offset, 1, b.w, b.h, -edgeGap(b, side, offset));
   const [dx, dz] = DELTA[side];
   const far = { x: s.x + dx * 3.6, z: s.z + dz * 3.6 };
   const rect = { x0: Math.min(s.x, far.x) - 0.6, z0: Math.min(s.z, far.z) - 0.6, x1: Math.max(s.x, far.x) + 0.6, z1: Math.max(s.z, far.z) + 0.6 };
@@ -247,7 +279,10 @@ export function chainMark(chain: string | undefined, fallback: string): string {
  */
 export function frameRect(b: Board): Rect {
   const m = 0.45;
-  const r = { x0: -m, z0: -m, x1: b.w + m, z1: b.h + m };
+  // The near (south) rim keeps its tile letters in the home view: label band = LABEL_OFF 0.62 +
+  // half a 0.72 label (board/ground.ts, seams.ts buildRimLabels) + a little air. Portrait boards
+  // (5–6 players) are height-bound and used to cut them.
+  const r = { x0: -m, z0: -m, x1: b.w + m, z1: b.h + 1.1 };
   // Airplanes fly beside the board: keep their strip in view.
   const air = AIR_STRIP + 0.9;
   for (const c of Object.values(b.campaigns)) {

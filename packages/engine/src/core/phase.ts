@@ -5,8 +5,8 @@
  * sets `state.awaiting`. Automatic phases (Dinnertime, Marketing, the salary step of Payday,
  * Clean up without freezer decisions) run inside it, emitting their fine-grained events.
  *
- * Round flow: setup.restaurants → setup.reserve (not in the intro game) → [restructuring →
- * orderOfBusiness → working → dinnertime → payday → marketing → cleanup] × rounds. The game
+ * Round flow: setup.reserve (not in the intro game; DLX p4 step 5) → setup.restaurants (step 6) → [restructuring →
+ * orderOfBusiness → working → dinnertime → payday (not in the intro game) → marketing → cleanup] × rounds. The game
  * only ends in Dinnertime (base.md §3, §12) or when every chain is bankrupt (Clean up).
  *
  * Entry work happens in `enter(...)`; the loop only checks whether the current phase is complete.
@@ -15,12 +15,12 @@ import type { Phase, PhaseKind, PlayerId } from '../types/state.js';
 import type { EngineCtx } from './context.js';
 import { lifecycle } from '../modules/registry.js';
 import { activePlayers } from './cards.js';
-import { normalizeSetup, reserveDone } from '../rules/setup.js';
+import { normalizeSetup, reserveDone, restaurantsPlaced, setupRestaurantsPhase } from '../rules/setup.js';
 import { allSubmitted, autoSubmit, awaitingRestructure, revealStructures } from '../rules/restructuring.js';
 import { choosingQueue, currentChooser, finishOrder, normalizeOrder } from '../rules/orderOfBusiness.js';
 import { beginTurn } from '../rules/working/stages.js';
 import { runDinnertime } from '../rules/dinnertime.js';
-import { enterPayday, isPaydayComplete } from '../rules/payday.js';
+import { enterPayday, fireFirst100Cfos, isPaydayComplete } from '../rules/payday.js';
 import { runMarketing } from '../rules/marketing.js';
 import { isCleanupComplete, runCleanup } from '../rules/cleanup.js';
 
@@ -28,7 +28,7 @@ import { isCleanupComplete, runCleanup } from '../rules/cleanup.js';
 export function setPhase(ctx: EngineCtx, next: Phase): void {
   const s = ctx.state;
   const from: PhaseKind | null = s.phase ? s.phase.kind : null;
-  if (s.phase) lifecycle(ctx, 'onPhaseExit', s.phase);
+  if (s.phase && !(s.phase.kind === 'cleanup' && s.phase.exitDone)) lifecycle(ctx, 'onPhaseExit', s.phase);
   s.phase = next;
   ctx.emit({ type: 'phaseChanged', from, to: structuredPhase(next) });
   lifecycle(ctx, 'onPhaseEnter', s.phase);
@@ -110,14 +110,16 @@ export function runUntilInput(ctx: EngineCtx): void {
           const cur = s.phase.kind === 'setup.restaurants' ? s.phase.order[s.phase.idx] : undefined;
           return wait(ctx, 'setup.restaurant', cur ? [cur] : []);
         }
-        // base.md §2.7: reserve cards are not used in the intro game (§13).
-        if (s.config.intro) startRound(ctx);
+        // base.md §2.7: reserve cards are not used in the intro game (§13). Reserves are normally
+        // chosen before this phase (DLX p4); a state built straight into placement picks them now.
+        if (s.config.intro || reserveDone(s)) startRound(ctx);
         else setPhase(ctx, { kind: 'setup.reserve' });
         continue;
       }
       case 'setup.reserve': {
         if (reserveDone(s)) {
-          startRound(ctx);
+          if (restaurantsPlaced(s)) startRound(ctx);
+          else setPhase(ctx, setupRestaurantsPhase(s.turnOrder));
           continue;
         }
         return wait(ctx, 'setup.reserve', s.turnOrder.filter((id) => !s.players[id]?.bankrupt && !s.secrets[id]?.reserve));
@@ -165,7 +167,11 @@ export function runUntilInput(ctx: EngineCtx): void {
           continue;
         }
         if (held(ctx, 'dinnertime')) continue;
-        enterPaydayPhase(ctx);
+        if (s.config.intro) {
+          // DLX p5: the intro game skips the Payday phase. A First to Have $100 CFO is still fired.
+          fireFirst100Cfos(ctx);
+          enterMarketing(ctx);
+        } else enterPaydayPhase(ctx);
         continue;
       }
       case 'payday': {
@@ -192,6 +198,13 @@ export function runUntilInput(ctx: EngineCtx): void {
       }
       case 'cleanup': {
         if (!isCleanupComplete(s) && s.awaiting.kind === 'cleanup.freezer') return;
+        // Module Clean-up work (KX: kimchi after the freezer step; First coffee sold shops "during
+        // the Cleanup Phase") runs inside this round, before the round counter moves on.
+        if (!ph.exitDone) {
+          ph.exitDone = true;
+          if (s.config.modules.length) lifecycle(ctx, 'onPhaseExit', ph);
+          continue;
+        }
         if (held(ctx, 'cleanup')) continue;
         startRound(ctx);
         continue;

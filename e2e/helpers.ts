@@ -283,3 +283,17 @@ export async function expectBoardSpots(page: Page): Promise<number> {
   await expect(canvas).toHaveAttribute('data-legal-spots', /^[1-9]\d*$/, { timeout: 20_000 });
   return Number(await canvas.getAttribute('data-legal-spots'));
 }
+
+/**
+ * Setup in the rulebook's order (DLX p4 steps 5–6): every seat picks its reserve card first, then
+ * first restaurants go down. From the first seat's reserve prompt, drive the picks (and hand-offs)
+ * until a first-restaurant prompt shows. Returns the trail.
+ */
+export async function reservesThenRestaurant(page: Page, errors?: string[]): Promise<string[]> {
+  await expect(page.locator('.prompt-chooseReserve')).toBeVisible();
+  const trail = await playUntil(page, async () => page.locator('.prompt-placeFirstRestaurant').isVisible(), { errors, maxSteps: 40 });
+  expect(trail.filter((s) => s.endsWith(': reserve')).length).toBeGreaterThan(0);
+  expect(trail.some((s) => s.includes('place restaurant'))).toBe(false);
+  await expect(page.locator('.prompt-placeFirstRestaurant')).toBeVisible();
+  return trail;
+}

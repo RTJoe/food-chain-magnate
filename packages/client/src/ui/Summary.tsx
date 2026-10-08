@@ -12,12 +12,13 @@
 import { useSignal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import type { JSX } from 'preact';
-import type { GameEvent, GameView, PlayerId } from '@fcm/engine';
+import type { GameEvent, GameView, ModuleId, PlayerId } from '@fcm/engine';
 import { employeeName, foodName } from '../state/catalog.js';
 import { boardRenderer } from '../state/boardBridge.js';
 import { boardFeedback, campaignInfo, campaignSteps, currentBeat, dinnerFeedback, dinnerSteps, phaseCaption, requestReplay, type CampaignStep, type DinnerStep, type PhaseCaption } from '../state/feedback.js';
 import { reachPreview } from '../state/guidance.js';
 import { saleCaptionText, scoreTerms } from '../state/offers.js';
+import { isFinalBreak } from '../state/selectors.js';
 import { cameraCommand, finishAnimations, select, selection } from '../state/interaction.js';
 import { catalog, me, summaries, view, type PhaseSummary } from '../state/store.js';
 import { Button, Cash, IconButton, PlayerBadge } from './common.js';
@@ -68,7 +69,7 @@ function SummaryStrip({ view: v, summary: s }: { view: GameView; summary: PhaseS
     [],
   );
   return (
-    <div class="summary-card summary-strip glass" role="dialog" aria-label={TITLES[s.phase]} data-tutorial="summary">
+    <div class={`summary-card summary-strip glass ${openSummary.value === null ? 'is-new' : ''}`} role="dialog" aria-label={TITLES[s.phase]} data-tutorial="summary">
       <header class="summary-head sx-head">
         <h3>
           {TITLES[s.phase] ?? s.phase} <span class="eyebrow">Round {s.round}</span>
@@ -85,6 +86,11 @@ function SummaryStrip({ view: v, summary: s }: { view: GameView; summary: PhaseS
       </footer>
     </div>
   );
+}
+
+/** A results strip the player has not dismissed yet (the final Dinnertime shows before the standings). */
+export function hasUnseenSummary(): boolean {
+  return summaries.value.some((x) => x.id > seenSummary.value && !isTrivial(x));
 }
 
 /** Nothing worth a popup: no sales, no salaries paid, no demand. */
@@ -256,7 +262,7 @@ function Dinner({ view: v, events }: { view: GameView; events: GameEvent[] }) {
         <ul class="summary-totals sx-totals">
           {byPlayer(v, totals).map((id) => (
             <li key={id}>
-              <PlayerBadge view={v} id={id} size={22} />
+              <PlayerBadge view={v} id={id} size={22} hidden />
               <span>{v.players[id]?.name}</span>
               <Cash amount={totals.get(id) ?? 0} size="sm" />
             </li>
@@ -296,7 +302,7 @@ function Dinner({ view: v, events }: { view: GameView; events: GameEvent[] }) {
       )}
       {breaks.map((b) => (
         <p key={b.breakNo} class="org-warn">
-          {Icon.bank({ size: 16 })} The bank broke{b.breakNo === 2 ? ' again: the game ends after this round' : `: reserves revealed, $${b.added} added, CEO slots now ${b.ceoSlots}`}.
+          {Icon.bank({ size: 16 })} The bank broke{isFinalBreak(b.breakNo, v) ? `${b.breakNo === 2 ? ' again' : ''}: the game ends after this Dinnertime (no Payday)` : `: reserves revealed, $${b.added} added${v.config.modules.includes('ketchup:reservePrices' as ModuleId) ? `, base price now $${b.basePrice}` : `, CEO slots now ${b.ceoSlots}`}`}.
         </p>
       ))}
       {of(events, 'bankrupt').map((b) => (
@@ -315,7 +321,7 @@ function DinnerDetail({ view: v, step: s }: { view: GameView; step: DinnerStep }
     <div class="sx-detail" aria-live="polite">
       {sale ? (
         <p class="sx-line">
-          <PlayerBadge view={v} id={sale.player} size={18} />
+          <PlayerBadge view={v} id={sale.player} size={18} hidden />
           <span>
             <b>{nameOf(v, sale.player)}</b> sells to house {houseLabel(v, s.houseId)}:{' '}
             {sale.lines.map((l) => (
@@ -344,7 +350,7 @@ function DinnerDetail({ view: v, step: s }: { view: GameView; step: DinnerStep }
               <span class="sx-swatch" />
               <span>{nameOf(v, o.player)}</span>
               <span class="sx-math">
-                {scoreTerms(o)} = <b>${o.score}</b>
+                {scoreTerms(o)} = <b>{o.score}</b>
               </span>
               {o.won ? <span class="sx-tag">wins</span> : !o.canSupply ? <span class="sx-tag">can’t supply</span> : null}
             </li>
@@ -368,7 +374,7 @@ function Payday({ view: v, events }: { view: GameView; events: GameEvent[] }) {
       <ul class="summary-totals">
         {paid.map((p) => (
           <li key={p.player}>
-            <PlayerBadge view={v} id={p.player} size={24} />
+            <PlayerBadge view={v} id={p.player} size={24} hidden />
             <span>
               {v.players[p.player]?.name}
               {p.discounts > 0 && <span class="muted small"> (−${p.discounts} discounts)</span>}
@@ -382,9 +388,9 @@ function Payday({ view: v, events }: { view: GameView; events: GameEvent[] }) {
         <ul class="summary-lines">
           {fired.map((f) => (
             <li key={f.uid}>
-              <PlayerBadge view={v} id={f.player} size={18} />
+              <PlayerBadge view={v} id={f.player} size={18} hidden />
               <span>
-                fired {employeeName(c, f.employeeId)}
+                {nameOf(v, f.player)} fired a {employeeName(c, f.employeeId)}
                 {f.forced ? ' (could not pay)' : ''}
               </span>
             </li>
@@ -408,8 +414,9 @@ function Marketing({ view: v, events }: { view: GameView; events: GameEvent[] })
   const idx = useSignal(-1);
   const pickStep = useStepSelection();
   const camp = (id: string) => campaignInfo(v, id);
-  /** Houses in the campaign's reach that are full now and took nothing from this run. */
+  /** Houses in the campaign's reach that were full during that run (engine events; else the board now). */
   const fullOf = (st: CampaignStep) => {
+    if (st.full) return st.full;
     const cm = camp(st.campaignId);
     if (!cm) return [];
     const got = new Set(st.drops.map((d) => d.houseId));

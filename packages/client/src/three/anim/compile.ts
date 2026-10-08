@@ -55,6 +55,8 @@ export type BeatKind =
   | 'salary'
   | 'milestone'
   | 'turn'
+  /** `structuresRevealed`: each chain's restaurants pulse in turn order. */
+  | 'reveal'
   | 'phase'
   | 'gameStarted'
   | 'gameEnded'
@@ -154,6 +156,7 @@ const NOMINAL: Record<BeatKind, number> = {
   salary: 1.2,
   milestone: 0.8,
   turn: 0.4,
+  reveal: 1.2,
   phase: 0.5,
   gameStarted: 2.5,
   gameEnded: 4,
@@ -433,6 +436,9 @@ function group(events: readonly GameEvent[], ctx: CompileCtx): Beat[] {
         break;
       case 'phaseChanged':
         make('phase', 'other', null, e);
+        break;
+      case 'structuresRevealed':
+        make('reveal', 'other', null, e);
         break;
       case 'gameStarted':
         make('gameStarted', 'other', null, e);

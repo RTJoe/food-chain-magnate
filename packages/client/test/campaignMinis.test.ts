@@ -71,3 +71,18 @@ describe('roads', () => {
     expect(bridgeLift(b, 4.5, 0.5)).toBe(0);
   });
 });
+
+describe('edge pieces on a grown board', () => {
+  it('airplanes and freeways sit against the outermost real tile, not the bounding box', async () => {
+    const { campaignAnchor, edgeGap, freewayAnchor } = await import('../src/three/layout.js');
+    // 10 x 5 board: the east half of the board is an empty slot (tile '') on rows 0-4.
+    const cells = Array.from({ length: 5 }, () => Array.from({ length: 10 }, (_, x) => ({ tile: x < 5 ? 'A' : '', kind: 'empty' })));
+    const b = { w: 10, h: 5, cells, tiles: [], entities: {}, houses: {} } as unknown as Parameters<typeof edgeGap>[0];
+    expect(edgeGap(b, 'E', 2)).toBe(5);
+    expect(edgeGap(b, 'W', 2)).toBe(0);
+    expect(edgeGap(b, 'N', 7)).toBe(0); // a fully empty column keeps the board edge
+    expect(freewayAnchor(b, 'E', 2).x).toBe(5);
+    const plane = campaignAnchor(b, { kind: 'airplane', side: 'E', offset: 1, width: 3 });
+    expect(plane.x).toBeCloseTo(5 + 1.7);
+  });
+});

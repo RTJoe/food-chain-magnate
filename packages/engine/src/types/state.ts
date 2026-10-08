@@ -138,7 +138,7 @@ export type Phase =
    */
   | { kind: 'marketing'; pass: number; passes: number; order: CampaignId[]; idx: number }
   /** base.md §10: freezer decisions are simultaneous for players that have a freezer. */
-  | { kind: 'cleanup' }
+  | { kind: 'cleanup'; /** Module exit work (kimchi, First coffee sold shops) already ran this round. */ exitDone?: boolean }
   /** base.md §12: most cash wins; ties to earlier turn order. `ranking[0]` is the winner. */
   | { kind: 'gameOver'; ranking: PlayerId[]; reason: 'bankBroke' | 'allBankrupt' };
 
@@ -173,15 +173,15 @@ export type PendingChoice =
   /** ketchup.md §3 First pizza sold: seller must place a 2-turn pizza radio on the house's tile if possible. */
   | { id: ChoiceId; kind: 'pizzaRadio'; player: PlayerId; houseId: HouseId; optional: false }
   /** ketchup.md §3 First new restaurant: free eternal mailbox in that restaurant's block. */
-  | { id: ChoiceId; kind: 'freeMailbox'; player: PlayerId; restaurantId: RestaurantId; optional: false }
+  | { id: ChoiceId; kind: 'freeMailbox'; player: PlayerId; restaurantId: RestaurantId; optional: true }
   /** ketchup.md §3 First campaign manager used: optional second tile, same type/good/duration. */
   | { id: ChoiceId; kind: 'secondCampaign'; player: PlayerId; campaignId: CampaignId; optional: true }
   /** ketchup.md §2 First lobbyist used: place one leftover map tile (turn order if several). */
-  | { id: ChoiceId; kind: 'extraMapTile'; player: PlayerId; optional: false }
+  | { id: ChoiceId; kind: 'extraMapTile'; player: PlayerId; optional: true }
   /** ketchup.md §12 First rural marketeer used: optional freeway. */
   | { id: ChoiceId; kind: 'freeway'; player: PlayerId; optional: true }
   /** ketchup.md §4: coffee shop placement after training a barista, or First coffee sold in Clean up. */
-  | { id: ChoiceId; kind: 'coffeeShop'; player: PlayerId; source: 'training' | 'milestone'; optional: false }
+  | { id: ChoiceId; kind: 'coffeeShop'; player: PlayerId; source: 'training' | 'milestone'; /** True when all 3 shops are on the map: moving one is optional (KX p11). */ optional: boolean }
   /**
    * Tutorial module only (docs/tutorial-plan.md §4.2): the game is paused after `phase` finished
    * (`start` = before anything ran). Resolved by `tutorial.continue`. Never occurs in real games.

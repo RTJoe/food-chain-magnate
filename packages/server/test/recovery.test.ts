@@ -238,4 +238,25 @@ describe('FilePersistence', () => {
     p.delete('ABCDE');
     expect(p.load('ABCDE')).toBeNull();
   });
+
+  it('never reads or writes a file for an unsafe room id (path traversal)', () => {
+    const dataDir = tempDir();
+    const logs: string[] = [];
+    const p = new FilePersistence(dataDir, 60_000, (m) => logs.push(m));
+    const rec = { version: 1, id: '../escaped', createdAt: 1, updatedAt: 2, hostClientId: 'h', config: { seatCount: 2, modules: [], options: {}, intro: false, introMilestones: false }, status: 'lobby', seats: [], seed: null, gameConfig: null, actions: [] } as PersistedRoom;
+    p.schedule('ABCDE', () => ({ ...rec, id: 'ABCDE' }));
+    p.flush();
+    writeFileSync(join(p.dir, 'evil.json'), JSON.stringify(rec));
+    expect(p.loadAll().map((r) => r.id)).toEqual(['ABCDE']);
+    p.schedule('../escaped', () => rec);
+    p.flush();
+    expect(existsSync(join(dataDir, 'escaped.json'))).toBe(false);
+    expect(logs.some((m) => m.includes('unsafe'))).toBe(true);
+  });
+
+  it('assertWritable probes the rooms directory', () => {
+    const p = new FilePersistence(tempDir(), 60_000, () => {});
+    expect(() => p.assertWritable()).not.toThrow();
+    expect(existsSync(p.dir)).toBe(true);
+  });
 });

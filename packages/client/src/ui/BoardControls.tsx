@@ -141,6 +141,15 @@ function GraphicsMenu({ onClose }: { onClose: () => void }) {
 
 const ORIENT_LABEL = { landscape: 'landscape', portrait: 'portrait', square: '' } as const;
 
+/** Campaign picks with an oblong board footprint can turn; off-board ones (giant billboard, gourmet guide) cannot. */
+export function campaignTurns(mode: PickMode): boolean {
+  if (mode.kind !== 'campaign') return false;
+  return mode.placements.some((p) => {
+    const pl = (p as Placement).kind === 'campaign' ? (p as Extract<Placement, { kind: 'campaign' }>).placement : null;
+    return pl?.kind === 'board' && pl.w !== pl.h;
+  });
+}
+
 function pickText(mode: PickMode, staged: Placement | null): string {
   const v = view.value;
   if (mode.kind === 'route') {
@@ -154,7 +163,7 @@ function pickText(mode: PickMode, staged: Placement | null): string {
   const i = activeCandidate.value;
   const at = keyboardUser.value && i >= 0 ? mode.placements[i] : undefined;
   if (at) return `Spot ${i + 1} of ${mode.placements.length} · ${describePlacement(at as Placement, v)}. Enter places it.`;
-  const o = mode.kind === 'campaign' && ghostOrientation.value ? ORIENT_LABEL[ghostOrientation.value] : '';
+  const o = campaignTurns(mode) && ghostOrientation.value ? ORIENT_LABEL[ghostOrientation.value] : '';
   return `${mode.label}${o ? ` (${o})` : ''}: pick a highlighted spot`;
 }
 
@@ -203,7 +212,7 @@ function PickStrip({ mode, is3d }: { mode: PickMode; is3d: boolean }) {
   const route = mode.kind === 'route';
   const n = mode.placements.length;
   const orient = ghostOrientation.value;
-  const canRotate = staged ? pendingVariants.value > 1 : mode.kind === 'campaign' && (orient === 'landscape' || orient === 'portrait');
+  const canRotate = staged ? pendingVariants.value > 1 : campaignTurns(mode) && (orient === 'landscape' || orient === 'portrait');
   const canConfirm = Boolean(staged) || (route && activeCandidate.value >= 0);
   return (
     <div class={`pick-strip glass ${staged ? 'is-staged' : ''} ${notHere && !staged ? 'is-illegal' : ''} ${is3d ? '' : 'is-2d'}`} role="group" aria-label="Board pick" data-tutorial="pick-strip">

@@ -291,6 +291,56 @@ export function phantomTrainable(s: GameState, turn: TurnState, uid: Uid): boole
 }
 
 /**
+ * DLX p16: a card may be hired from an empty pile only if it is trained up this turn, and the card
+ * it ends as must be available (only intermediate cards may be missing). Can every pending
+ * empty-pile hire (`turn.mustTrain`, plus `extra` cards about to be hired) still be given its own
+ * training action and its own available target card? Each needs one trainer card at work with
+ * enough uses left (at most its per-card cap) and one supply copy of a card it reaches; trainers
+ * and supply copies are shared out by a small search (a handful of hires at most).
+ */
+export function emptyPileHiresFeasible(s: GameState, turn: TurnState, extra: EmployeeId[] = [], uses: Record<Uid, number> = turn.uses, supply: GameState['supply'] = s.supply): boolean {
+  const p = s.players[turn.player];
+  if (!p) return false;
+  const content = contentFor(s.config.modules);
+  const noCfo = hasEffect(s, content, turn.player, 'ceoIsCfo').length > 0;
+  const cards: { uid?: Uid; employeeId: EmployeeId }[] = [
+    ...turn.mustTrain.flatMap((uid) => (p.employees[uid] ? [{ uid, employeeId: p.employees[uid].employeeId }] : [])),
+    ...extra.map((employeeId) => ({ employeeId })),
+  ];
+  if (!cards.length) return true;
+  const trainers = Object.keys(uses).flatMap((tUid) => {
+    const a = defOf(content, p, tUid)?.ability;
+    return a?.kind === 'train' && (uses[tUid] ?? 0) > 0 && cardPlace(p, tUid) === 'work' ? [{ uid: tUid, cap: a.maxStepsSameCard }] : [];
+  });
+  const left: Record<Uid, number> = Object.fromEntries(trainers.map((t) => [t.uid, uses[t.uid] ?? 0]));
+  const stock: Partial<Record<EmployeeId, number>> = { ...supply };
+  const taken1x = new Set<EmployeeId>();
+  const place = (i: number): boolean => {
+    const card = cards[i];
+    if (!card) return true;
+    for (const t of trainers) {
+      const max = Math.min(left[t.uid] ?? 0, t.cap);
+      if (max <= 0) continue;
+      for (const target of reachableTargets(s, p, card.employeeId, max)) {
+        const def = content.employees[target.to];
+        if ((stock[target.to] ?? 0) <= 0 || ownsUnique(content, p, target.to, card.uid) || (def?.unique && taken1x.has(target.to))) continue;
+        if (noCfo && def?.ability.kind === 'cfo') continue;
+        stock[target.to] = (stock[target.to] ?? 0) - 1;
+        left[t.uid] = (left[t.uid] ?? 0) - target.path.length;
+        if (def?.unique) taken1x.add(target.to);
+        const ok = place(i + 1);
+        stock[target.to] = (stock[target.to] ?? 0) + 1;
+        left[t.uid] = (left[t.uid] ?? 0) + target.path.length;
+        if (def?.unique) taken1x.delete(target.to);
+        if (ok) return true;
+      }
+    }
+    return false;
+  };
+  return place(0);
+}
+
+/**
  * Leaving the train step: an empty-pile hire that can no longer be trained was never taken from
  * a pile, so it simply disappears (questions.md Q-W1).
  */
@@ -304,7 +354,7 @@ export function dropUntrainedHires(ctx: EngineCtx): void {
     if (!card) continue;
     delete p.employees[uid];
     p.beach = p.beach.filter((u) => u !== uid);
-    ctx.emit({ type: 'employeeFired', player: p.id, uid, employeeId: card.employeeId, forced: true });
+    ctx.emit({ type: 'employeeFired', player: p.id, uid, employeeId: card.employeeId, forced: true, reason: 'untrained' });
   }
   turn.mustTrain = [];
 }

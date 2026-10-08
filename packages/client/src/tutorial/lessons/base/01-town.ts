@@ -34,7 +34,7 @@ export const lesson01 = defineLesson({
   title: 'The town',
   minutes: 5,
   goal: 'Read the map: tiles, roads, tile borders, houses and drink sources.',
-  concepts: ['tile', 'tile_border', 'road', 'house', 'drink_source', 'distance'],
+  concepts: ['map_tile', 'tile_border', 'road', 'house', 'drink_source', 'distance'],
   scenario: {
     build: () =>
       town({ round: 0, restaurants: false })
@@ -53,7 +53,7 @@ export const lesson01 = defineLesson({
       camera: { kind: 'board' },
       until: { next: true },
       checkpoint: true,
-      glossary: 'tile',
+      glossary: 'map_tile',
     },
     {
       id: 'tap-b2',
@@ -106,7 +106,7 @@ export const lesson01 = defineLesson({
     },
     {
       id: 'sources',
-      say: 'The bottle icons are drink sources: beer, lemonade, soda. Restaurants fetch drinks from them.',
+      say: 'The bottle icons are drink sources: beer, lemonade and soft drink (the rulebook says soda). Restaurants fetch drinks from them.',
       show: SOURCES,
       until: { next: true },
       onEnter: [{ select: null }],
@@ -144,7 +144,7 @@ export const lesson01 = defineLesson({
     pass: 2,
     questions: [
       { kind: 'tap', q: 'Tap the house that is 1 border away from tile A1 by road.', target: { house: 18 }, why: 'House 18 is on A2: the road from A1 crosses one tile border.' },
-      { kind: 'choice', q: 'How many tile borders from the beer at B1 to the soda at C1?', options: ['0', '1', '2'], answer: 1, why: 'B1 and C1 are neighbours: one border between them.' },
+      { kind: 'choice', q: 'How many tile borders from the beer at B1 to the soft drink at C1?', options: ['0', '1', '2'], answer: 1, why: 'A road links the B1 beer to C1. It crosses one tile border.' },
       { kind: 'choice', q: 'What makes a house eat?', options: ['Its number', 'Demand tokens', 'Being near a road'], answer: 1, why: 'Only demand makes a house buy; marketing places it.' },
     ],
   },

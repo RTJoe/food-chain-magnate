@@ -1,10 +1,10 @@
 import { useSignal } from '@preact/signals';
 import type { GameView, MilestoneId, PlayerId, ReserveCard } from '@fcm/engine';
 import { milestoneName } from '../state/catalog.js';
-import { busyUids, cardsAtWork, standings } from '../state/selectors.js';
+import { busyUids, cardsAtWork, cashRankLabel } from '../state/selectors.js';
 import { amHost, botSeats, botsThinking, catalog, clientId, me, mode, mySeat, room, view } from '../state/store.js';
 import { cameraCommand, inspectIds } from '../state/interaction.js';
-import { kick, sit } from '../net/session.js';
+import { kick, sit, watchingOnly } from '../net/session.js';
 import { companyPlayer, dockTab } from './uiState.js';
 import { Button, FoodChips, PlayerBadge } from './common.js';
 import { RollingCash } from './motion.js';
@@ -46,7 +46,7 @@ export function SeatControl({ playerId }: { playerId: PlayerId }) {
   const seat = r?.seats.find((s) => s.playerId === playerId);
   if (!r || !seat || r.status !== 'playing' || seat.bot) return null;
   if (seat.clientId === null) {
-    if (mySeat.value) return <span class="muted small">Seat open: anyone in the room can take it over.</span>;
+    if (mySeat.value || watchingOnly()) return <span class="muted small">Seat open: a player in the room can take it over.</span>;
     return (
       <Button size="sm" variant="primary" icon="hand" onClick={() => sit(seat.index)}>
         Take over this seat
@@ -84,7 +84,6 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
   const connected = mode.value === 'online' ? (seat?.connected ?? false) : null;
   const bot = botSeats.value[id] ?? null;
   const thinking = Boolean(bot) && botsThinking.value.includes(id);
-  const rank = standings(v).indexOf(id) + 1;
   const atWork = cardsAtWork(p).length;
   const total = Object.keys(p.employees).length;
   const milestones = Object.keys(p.milestones) as MilestoneId[];
@@ -104,16 +103,16 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
       onMouseLeave={() => (inspectIds.value = [])}
     >
       <button type="button" class="ppanel-head" onClick={() => (open.value = !open.value)} aria-expanded={open.value}>
-        <PlayerBadge view={v} id={id} size={34} ring={active} />
+        <PlayerBadge view={v} id={id} size={34} ring={active} hidden />
         <span class="ppanel-name">
           <b>{p.name}</b>
           {bot && <BotBadge level={bot} thinking={thinking} />}
           {p.chain && <span class="ppanel-chain">{CHAIN_NAMES[p.chain]}</span>}
           <span class="ppanel-sub">
-            {connected !== null && <span class={`dot ${connected ? 'is-on' : 'is-off'}`} aria-label={connected ? 'Online' : 'Offline'} />}
-            {isMe ? 'You' : `#${rank} in cash`}
+            {connected !== null && <span class={`dot ${connected ? 'is-on' : 'is-off'}`} role="img" aria-label={connected ? 'Online' : 'Offline'} />}
+            {isMe ? (p.bankrupt ? 'You · out' : 'You') : cashRankLabel(v, id)}
             {thinking ? <span class="ppanel-turn ppanel-thinking"> · thinking…</span> : active && <span class="ppanel-turn"> · {lessonSeatWaiting(id) ? 'waiting' : simultaneous ? 'deciding' : 'playing'}</span>}
-            {simultaneous && submitted && <span class="ppanel-ok"> · {Icon.check({ size: 12 })} done</span>}
+            {simultaneous && submitted && <>{' '}<span class="ppanel-ok">· {Icon.check({ size: 12 })} done</span></>}
           </span>
         </span>
         <span data-tutorial={`cash-${id}`}>
@@ -127,7 +126,7 @@ function PlayerPanel({ view: v, id }: { view: GameView; id: PlayerId }) {
         <button
           type="button"
           class="stat-btn"
-          title={`${p.restaurantsRemaining} restaurants left to place; ${restaurantsOnBoard} on the board. Click to show them.`}
+          title={`${p.restaurantsRemaining} restaurant${p.restaurantsRemaining === 1 ? '' : 's'} left to place; ${restaurantsOnBoard} on the board. Select to show them.`}
           disabled={restaurantsOnBoard === 0}
           onClick={() => (cameraCommand.value = { kind: 'focus', ids: Object.values(v.board.restaurants).filter((r) => r.owner === id).map((r) => r.id) })}
         >

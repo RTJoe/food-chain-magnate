@@ -18,7 +18,8 @@ import { fallbackAction } from '../heuristics.js';
 import { isValid, makeCtx, type Ctx } from '../shared/ctx.js';
 import { roundsLeftEstimate } from '../shared/facts.js';
 import type { PlanStep } from '../shared/plan.js';
-import { mediumChoose } from '../medium/index.js';
+import { mediumChoose, mediumDecide } from '../medium/index.js';
+import { noteInternalFallback } from '../shared/fallback.js';
 import { chooseArchetype } from '../medium/archetype.js';
 import { combine, fireCands, orderCands, structureCands, workCands, type Labeled } from './candidates.js';
 import { makeSample, sampleCount } from './determinize.js';
@@ -46,9 +47,15 @@ export interface HardOptions {
   horizon?: number;
   /** Phases that search (default all four); others play Medium. For ablations. */
   phases?: readonly ('restructuring' | 'orderOfBusiness' | 'working' | 'payday')[];
+  /**
+   * Budget cap (ms) for the Order of Business and Payday searches. Ablations (ai-strategy.md §4.7)
+   * show each alone is neutral while Working carries the gain, so they get a short search and the
+   * table does not wait 1-2 s for them. A huge value (1e9) restores the full budget.
+   */
+  quickPhaseMs?: number;
 }
 
-const DEFAULTS = { minBudgetMs: 150, safetyMs: 80, margin: 2 };
+const DEFAULTS = { minBudgetMs: 150, safetyMs: 80, margin: 2, quickPhaseMs: 300 };
 
 // ---------------------------------------------------------------------------
 // Per-turn cache (may be missing)
@@ -109,7 +116,8 @@ interface Run<T> {
 }
 
 function medium(input: BotInput, why: string): Decision {
-  return { action: mediumChoose(input), info: { extra: { search: why } } };
+  const d = mediumDecide(input);
+  return { action: d.action, info: { extra: { search: why }, ...(d.fellBack ? { warnings: ['medium fallback'] } : {}) } };
 }
 
 function runSearch<T>(c: Ctx, input: BotInput, opts: Required<HardOptions>, t0: number, r: Run<T>) {
@@ -160,6 +168,11 @@ function once(action: Action, phase: GameState['phase']['kind'], round: number):
   return (s) => (s.phase.kind === phase && s.round === round && !s.pending.length ? action : null);
 }
 
+/** The input with its budget capped for a quick-phase search. */
+function quick(input: BotInput, opts: Required<HardOptions>): BotInput {
+  return input.budgetMs > opts.quickPhaseMs ? { ...input, budgetMs: opts.quickPhaseMs } : input;
+}
+
 function decide(input: BotInput, opts: Required<HardOptions>): Decision {
   const t0 = Date.now();
   const c = makeCtx(input);
@@ -187,13 +200,13 @@ function decide(input: BotInput, opts: Required<HardOptions>): Decision {
       const cands = orderCands(c);
       if (cands.length <= 1) return medium(input, 'one position');
       const round = s.round;
-      const r = runSearch(c, input, opts, t0, { cands, policy: (a) => once(a, 'orderOfBusiness', round) });
+      const r = runSearch(c, quick(input, opts), opts, t0, { cands, policy: (a) => once(a, 'orderOfBusiness', round) });
       return { action: r.res.best.data, info: info(r, arch()) };
     }
     case 'working':
       return decideWork(c, input, opts, t0, arch);
     case 'payday':
-      return decidePayday(c, input, opts, t0, arch);
+      return decidePayday(c, quick(input, opts), opts, t0, arch);
     default:
       return medium(input, 'medium phase');
   }
@@ -272,7 +285,14 @@ function decidePayday(c: Ctx, input: BotInput, opts: Required<HardOptions>, t0: 
   return { action: fire(set), info: info(r, arch()) };
 }
 
+/** `decide` with safety nets; any net that catches notes an internal fallback (shared/fallback.ts). */
 function safeDecide(input: BotInput, opts: Required<HardOptions>): Decision {
+  const d = guardedDecide(input, opts);
+  if (d.info?.warnings?.length) noteInternalFallback();
+  return d;
+}
+
+function guardedDecide(input: BotInput, opts: Required<HardOptions>): Decision {
   let d: Decision | null = null;
   try {
     d = decide(input, opts);
@@ -300,6 +320,7 @@ export function createHardBot(options: HardOptions = {}): Bot {
     margin: options.margin ?? DEFAULTS.margin,
     horizon: options.horizon ?? 0,
     phases: options.phases ?? ['restructuring', 'orderOfBusiness', 'working', 'payday'],
+    quickPhaseMs: options.quickPhaseMs ?? DEFAULTS.quickPhaseMs,
   };
   return {
     level: 'hard',

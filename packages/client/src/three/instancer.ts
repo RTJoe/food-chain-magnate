@@ -10,8 +10,13 @@ const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 class Pool {
   mesh: THREE.InstancedMesh;
+  /** Freed slots (may hold stale entries; `freeSet` is the truth). */
   private free: number[] = [];
+  private freeSet = new Set<number>();
+  /** Slots in use or free below the high-water mark; the mesh draws exactly this many. */
   private used = 0;
+  /** Parked proxies that will want a slot again (the pool must outlive them). */
+  parkedRefs = 0;
 
   constructor(
     readonly key: string,
@@ -38,16 +43,33 @@ class Pool {
   }
 
   alloc(): number {
-    const slot = this.free.pop() ?? this.used++;
+    let slot = -1;
+    while (this.free.length) {
+      const s = this.free.pop()!;
+      if (this.freeSet.delete(s)) {
+        slot = s;
+        break;
+      }
+    }
+    if (slot < 0) slot = this.used++;
     if (slot >= this.mesh.instanceMatrix.count) this.grow();
-    this.mesh.count = Math.max(this.mesh.count, slot + 1);
+    this.mesh.count = this.used;
     return slot;
   }
 
+  /** Free a slot; free slots at the top are dropped from the draw (no zero-scale vertex work). */
   release(slot: number): void {
     this.mesh.setMatrixAt(slot, ZERO);
     this.mesh.instanceMatrix.needsUpdate = true;
     this.free.push(slot);
+    this.freeSet.add(slot);
+    while (this.used > 0 && this.freeSet.has(this.used - 1)) this.freeSet.delete(--this.used);
+    this.mesh.count = this.used;
+  }
+
+  /** No instance allocated and no parked proxy waiting for one. */
+  get empty(): boolean {
+    return this.used === 0 && this.parkedRefs === 0;
   }
 
   private grow(): void {
@@ -86,6 +108,7 @@ class Pool {
 
 export class InstanceProxy extends THREE.Object3D {
   private slot: number;
+  private parked = false;
   constructor(private readonly pool: Pool) {
     super();
     this.slot = pool.alloc();
@@ -93,7 +116,23 @@ export class InstanceProxy extends THREE.Object3D {
 
   override updateMatrixWorld(force?: boolean): void {
     super.updateMatrixWorld(force);
-    this.pool.write(this.slot, this.visibleInScene() ? this.matrixWorld : ZERO);
+    if (this.slot >= 0) this.pool.write(this.slot, this.visibleInScene() ? this.matrixWorld : ZERO);
+  }
+
+  /** Give the slot back while the owner is parked (pooled actors); `unpark` takes a slot again. */
+  park(): void {
+    if (this.slot < 0 || this.parked) return;
+    this.pool.release(this.slot);
+    this.slot = -1;
+    this.parked = true;
+    this.pool.parkedRefs++;
+  }
+
+  unpark(): void {
+    if (!this.parked) return;
+    this.parked = false;
+    this.pool.parkedRefs--;
+    this.slot = this.pool.alloc();
   }
 
   private visibleInScene(): boolean {
@@ -108,6 +147,8 @@ export class InstanceProxy extends THREE.Object3D {
 
   /** Free the slot. Call when the owning mini is removed. */
   release(): void {
+    if (this.parked) this.pool.parkedRefs--;
+    this.parked = false;
     if (this.slot < 0) return;
     this.pool.release(this.slot);
     this.slot = -1;
@@ -141,6 +182,15 @@ export class Instancer {
   setShadows(on: boolean): void {
     this.shadows = on;
     for (const p of this.pools.values()) p.mesh.castShadow = on && p.castShadow;
+  }
+
+  /** Drop pools with no instance left (a finished game's goods, chains and campaign sizes). */
+  trim(): void {
+    for (const [k, p] of this.pools)
+      if (p.empty) {
+        p.dispose();
+        this.pools.delete(k);
+      }
   }
 
   stats(): { pools: number; instances: number } {

@@ -40,7 +40,11 @@ export function legalActions(state: GameState, playerId: PlayerId): LegalAction[
       break;
     case 'setup.reserve':
       if (s.secrets[playerId]?.reserve) break;
-      for (const card of reserveOptions(s)) ready(`Reserve card +$${card.amount}`, { type: 'setup.chooseReserve', playerId, card });
+      for (const card of reserveOptions(s)) {
+        // KX p28: Reserve Prices cards vote on the base price.
+        const label = card.kind === 'price' ? `Reserve card: base price $${card.basePrice} (+$${card.amount})` : `Reserve card +$${card.amount}`;
+        ready(label, { type: 'setup.chooseReserve', playerId, card });
+      }
       break;
     case 'restructuring':
       if (!s.awaiting.players.includes(playerId) && !s.secrets[playerId]?.structureDraft) break;

@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import type { Board, Restaurant } from '../../src/index.js';
 import { createRng } from '../../src/index.js';
 import { BASE_TILES } from '../../src/map/tiles.js';
-import { buildBoard, rotateTileCell, type LayoutEntry } from '../../src/map/grid.js';
+import { buildBoard, growBoard, rotateTileCell, type LayoutEntry } from '../../src/map/grid.js';
+import type { TileDef } from '../../src/types/content.js';
 import { drawLayout, mapSize } from '../../src/map/generate.js';
-import { distanceField, fieldAt, restaurantHouseDistance, restaurantStarts } from '../../src/map/pathfinding.js';
+import { distanceField, enumerateAirRoutes, fieldAt, restaurantHouseDistance, restaurantStarts, validateAirRoute } from '../../src/map/pathfinding.js';
 import { airplaneReach, billboardReach, mailboxReach, radioReach } from '../../src/map/reach.js';
 import { MAP3 } from '../helpers/game.js';
 
@@ -108,5 +109,19 @@ describe('campaign reach (base.md §9)', () => {
   it('§9 radio: houses on its tile or the 8 around it', () => {
     expect(radioReach(b, { x: 14, y: 14 })).toEqual([]);
     expect(radioReach(b, { x: 7, y: 7 }).sort()).toEqual([h10, h2].sort());
+  });
+});
+
+describe('air routes on a board grown by Lobbyists (DLX p10, p21; KX p17)', () => {
+  it('a zeppelin cannot fly over an empty grid spot between two extra tiles', () => {
+    const ids = { nextId: 1 };
+    const board = buildBoard(layoutOf(MAP3), TILES, ids);
+    growBoard(board, TILES.B as TileDef, -1, 0, 0, ids); // new row 0: tile at (0,0); (0,1), (0,2) empty
+    growBoard(board, TILES.C as TileDef, 0, 2, 0, ids); // tile at (0,2); (0,1) stays a gap
+    const gap = [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 }];
+    expect(validateAirRoute(board, [{ row: 0, col: 0 }], gap, 2)).toMatchObject({ ok: false, message: 'Route leaves the map' });
+    expect(validateAirRoute(board, [{ row: 0, col: 0 }], [{ row: 0, col: 0 }, { row: 1, col: 0 }], 2).ok).toBe(true);
+    const offered = enumerateAirRoutes(board, [{ row: 0, col: 0 }], 4);
+    expect(offered.some((o) => o.tiles.some((t) => t.row === 0 && t.col === 1))).toBe(false);
   });
 });

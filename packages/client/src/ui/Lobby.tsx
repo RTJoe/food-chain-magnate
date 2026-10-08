@@ -78,7 +78,10 @@ function JoinRoom({ roomId }: { roomId: string }) {
             Watch
           </Button>
         </div>
-        <p class="hint">{status === 'open' ? 'Connected' : status === 'idle' ? '' : `Server: ${status}`}</p>
+        {status !== 'idle' && <p class="hint">{status === 'open' ? 'Connected' : `Server: ${status}`}</p>}
+        <Button variant="ghost" icon="home" onClick={() => navigate({ name: 'home' })}>
+          Back home
+        </Button>
       </form>
     </main>
   );
@@ -89,6 +92,7 @@ function LobbyRoom({ room: r }: { room: RoomInfo }) {
   const seat = mySeat.value;
   const seated = r.seats.filter((s) => s.clientId !== null || s.bot);
   const allReady = seated.length >= 2 && seated.every((s) => s.ready);
+  const firstOpen = r.seats.slice(0, r.config.seatCount).find((s) => s.clientId === null && !s.bot);
   const url = joinUrl(r.id);
   const copied = useSignal(false);
   const showQr = useSignal(true);
@@ -129,7 +133,7 @@ function LobbyRoom({ room: r }: { room: RoomInfo }) {
       <div class="lobby-grid">
         <section class="glass lobby-invite">
           <h2>Invite players</h2>
-          <p class="muted small">Anyone on this network can join with the link or code.</p>
+          <p class="muted small">Anyone with the link or code can join.</p>
           <div class="copy-row">
             <input id="join-url" class="input" readOnly value={url} aria-label="Join link" onFocus={(e) => (e.currentTarget as HTMLInputElement).select()} />
             <Button variant={copied.value ? 'ok' : 'secondary'} icon={copied.value ? 'check' : 'copy'} onClick={copy}>
@@ -167,9 +171,16 @@ function LobbyRoom({ room: r }: { room: RoomInfo }) {
                 </Button>
               </>
             ) : (
-              <p class="muted small">
-                You are watching as <b>{displayName()}</b>. Take an open seat to play.
-              </p>
+              <>
+                {firstOpen && (
+                  <Button variant="primary" icon="users" onClick={() => sit(firstOpen.index)}>
+                    Take seat {firstOpen.index + 1}
+                  </Button>
+                )}
+                <p class="muted small">
+                  You are watching as <b>{displayName()}</b>. Take an open seat to play.
+                </p>
+              </>
             )}
           </div>
           {r.spectators.length > 0 && (
@@ -241,12 +252,12 @@ function SeatRow({ seat: s, room: r, mine, host }: { seat: Seat; room: RoomInfo;
       <div class="seat-text">
         <span class="seat-name">
           {open ? 'Open seat' : s.name}
-          {bot && <BotBadge level={bot} />}
+          {bot && !host && <BotBadge level={bot} />}
           {isHost && <span title="Host">{Icon.crown({ size: 14 })}</span>}
           {mine && <span class="muted small"> (you)</span>}
         </span>
         <span class="seat-sub">
-          {!open && <span class={`dot ${s.connected ? 'is-on' : 'is-off'}`} aria-label={s.connected ? 'Online' : 'Offline'} />}
+          {!open && <span class={`dot ${s.connected ? 'is-on' : 'is-off'}`} role="img" aria-label={s.connected ? 'Online' : 'Offline'} />}
           {open ? `Seat ${s.index + 1}` : bot ? 'Bot · always ready' : s.ready ? 'Ready' : 'Not ready'}
         </span>
       </div>
@@ -340,7 +351,8 @@ export function GameSettings({ config: cfg, editable, onChange }: { config: Room
       <ul class="module-list">
         {mods.map((m) => {
           const on = cfg.modules.includes(m.id);
-          const needs = m.requires.length ? `Needs ${m.requires.map((x) => mods.find((y) => y.id === x)?.name ?? x).join(', ')}. ` : '';
+          // Skip "Needs …" when the module text already says what it requires.
+          const needs = m.requires.length && !/\brequires\b/i.test(m.description) ? `Needs ${m.requires.map((x) => mods.find((y) => y.id === x)?.name ?? x).join(', ')}. ` : '';
           const clash = m.conflicts.length ? `Not with ${m.conflicts.map((x) => mods.find((y) => y.id === x)?.name ?? x).join(', ')}.` : '';
           return (
             <li key={m.id} class={`module ${on ? 'is-on' : ''}`}>

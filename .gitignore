@@ -3,8 +3,9 @@ dist/
 dist-types/
 *.tsbuildinfo
 data/
-*.png
-!screenshots/*.png
+# Ad-hoc captures: repo root and screenshot sub-folders (screenshots/*.png stay tracked).
+/*.png
+screenshots/*/
 .DS_Store
 docs/rules/source/
 test-results/
@@ -14,3 +15,9 @@ packages/ai/runs/
 # Third-party reference photos for the art bible (research only, not shipped)
 docs/art/refs/
 docs/art/current/
+
+# Local deploy config and tool output
+.env
+docker-compose.override.yml
+coverage/
+npm-debug.log*

@@ -60,7 +60,8 @@ export function openSlotsOf(v: GameView, p: PlayerState, s: Pick<StructureSubmis
   };
   let open = Math.max(0, v.ceoSlots - s.ceoSubs.length);
   for (const m of s.ceoSubs) open += Math.max(0, slotsOf(m) - (s.managerSubs[m]?.length ?? 0));
-  return open;
+  // First Airplane Campaign counts as 2 extra open slots for turn order (DLX p.14).
+  return open + (p.milestones.first_airplane ? 2 : 0);
 }
 
 /** House id by number, or '' (narration-safe). */

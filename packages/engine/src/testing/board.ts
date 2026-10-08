@@ -1,6 +1,7 @@
 /**
  * Testing-only board construction from tile grids. Implements the normative connectivity rule
- * (map.md §2): in-tile orthogonal road adjacency connects; across tiles only at the edge midpoint.
+ * (map.md §2; DLX p8 item E, p21): any two orthogonally adjacent road squares connect, within a
+ * tile or across a tile border, like the production board (`relinkRoads`).
  */
 import type { Direction, Rotation, TileTemplateId } from '../types/content.js';
 import type { Board, BoardCell, Cell, CellKind, House, RoadCell } from '../types/state.js';
@@ -174,10 +175,7 @@ export function buildBoard(layout: LayoutEntry[][], ids: { nextId: number }): Bo
         const links: Direction[] = [];
         for (const d of DIRECTIONS) {
           const n = step({ x, y }, d);
-          if (glyphAt(n.x, n.y) !== '#') continue;
-          const sameTile = tileIds[n.y]?.[n.x] === tileIds[y]?.[x];
-          const midpoint = d === 'E' || d === 'W' ? y % 5 === 2 : x % 5 === 2;
-          if (sameTile || midpoint) links.push(d);
+          if (glyphAt(n.x, n.y) === '#') links.push(d);
         }
         road = { links, bridge: bridges.has(`${x},${y}`), underConstruction: false, roadworks: 0, lobbyistRoad: null };
       }

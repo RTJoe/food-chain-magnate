@@ -36,8 +36,8 @@ function glyphShape(d: GlyphPath): THREE.Shape {
   return s;
 }
 
-/** Largest bbox side of a sub-path (grid units). */
-function extent(d: GlyphPath): number {
+/** Bounding box of a sub-path (grid units). */
+function bbox(d: GlyphPath): { x0: number; y0: number; x1: number; y1: number } {
   let x0 = Infinity;
   let y0 = Infinity;
   let x1 = -Infinity;
@@ -49,7 +49,29 @@ function extent(d: GlyphPath): number {
     y1 = Math.max(y1, y);
   };
   d({ moveTo: pt, lineTo: pt, quadraticCurveTo: (_a, _b, x, y) => pt(x, y), bezierCurveTo: (_a, _b, _c, _d, x, y) => pt(x, y), closePath: () => undefined });
-  return Math.max(x1 - x0, y1 - y0);
+  return { x0, y0, x1, y1 };
+}
+
+/** Largest bbox side of a sub-path (grid units). */
+function extent(d: GlyphPath): number {
+  const b = bbox(d);
+  return Math.max(b.x1 - b.x0, b.y1 - b.y0);
+}
+
+/** Whether grid point (x, y) lies on the token (inside any outline sub-path, even-odd per path). */
+function onToken(outline: THREE.Shape[], x: number, y: number): boolean {
+  const px = (x - 12) * GU;
+  const py = -(y - 12) * GU;
+  return outline.some((s) => {
+    const pts = s.getPoints(4);
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const a = pts[i]!;
+      const b = pts[j]!;
+      if (a.y > py !== b.y > py && px < ((b.x - a.x) * (py - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+  });
 }
 
 /** Shape in xy → lying flat (xz), extruded up from y = 0. */
@@ -60,17 +82,24 @@ export function tokenShape(food: FoodId, h = TOKEN_H): Shape {
   const s = new Shape();
   const g = GOOD_GLYPHS[food];
   // Body: each silhouette sub-path extruded (no bevel: the low-poly flat sides read as cut wood).
-  for (const d of glyphSubpaths(g.outline)) {
-    const geo = new THREE.ExtrudeGeometry(glyphShape(d), { depth: h, bevelEnabled: false, curveSegments: 3 });
+  const outline = glyphSubpaths(g.outline).map(glyphShape);
+  // Busy silhouettes (the coffee cup, handle and saucer) take coarser curves to stay in the
+  // token budget (art bible §6: 60–120 triangles).
+  const curveSegments = outline.reduce((n, sh) => n + sh.getPoints(3).length, 0) > 30 ? 2 : 3;
+  for (const sh of outline) {
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false, curveSegments });
     s.add(geo, g.body, { rot: FLAT, mat: 'plastic', jitter: 0 });
   }
   // Print: flat inlays just above the top face, stepped so they never z-fight. Translucent
-  // highlights are skipped (the plastic sheen does that job).
+  // highlights are skipped (the plastic sheen does that job), and so is print that lies off the
+  // token (the coffee steam is drawn above the cup in the icon; on wood it would float in air).
   let k = 0;
   for (const l of g.layers) {
     if (l.opacity !== undefined && l.opacity < 1) continue;
     for (const d of glyphSubpaths(l.d)) {
       if (extent(d) < MIN_DETAIL) continue;
+      const b = bbox(d);
+      if (!onToken(outline, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2)) continue;
       const geo = new THREE.ShapeGeometry(glyphShape(d), 2);
       s.add(geo, color(l.fill), { at: [0, h + 0.0015 * ++k, 0], rot: FLAT, mat: 'plastic', jitter: 0 });
     }

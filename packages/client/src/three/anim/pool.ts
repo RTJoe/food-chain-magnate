@@ -1,8 +1,8 @@
 /**
  * Actor pool (animation-plan §4.6). Transient actors (vehicles, crates, puffs) are built once per
  * kind × colour × variant and recycled: `get` shows one, `release` hides it again. Pooled actors
- * are never disposed while the scene lives; their instanced slots stay allocated (a hidden actor
- * writes a zero matrix).
+ * park their instanced slots (nothing drawn for them); at most `FREE_CAP` per kind × colour ×
+ * variant are kept, the rest are released.
  *
  * Builders are registered per kind (`registerActor`). WP-B registers the real minis
  * (three/minis/vehicles.ts, props.ts); until a kind has a builder, `get` returns the placeholder
@@ -20,7 +20,8 @@
  */
 import * as THREE from 'three';
 import type { MiniCtx } from '../minis/ctx.js';
-import { blob, solid } from '../minis/ctx.js';
+import { blob, releaseTree, solid } from '../minis/ctx.js';
+import { InstanceProxy } from '../instancer.js';
 import { box, miniGeo, playerPalette, Shape } from '../minis/kit.js';
 import type { Stage } from '../scene.js';
 
@@ -69,6 +70,19 @@ export function hasActor(kind: ActorKind): boolean {
 
 const keyOf = (s: ActorSpec) => `${s.kind}|${s.color ?? '-'}|${s.variant ?? '-'}`;
 
+/** Parked actors kept per key; a busy dinner's extra vans and puffs are released. */
+const FREE_CAP = 4;
+
+/** Park (release) or unpark (re-take) the instanced slots of an actor's parts. */
+function parkTree(o: THREE.Object3D, park: boolean): void {
+  o.traverse((c) => {
+    if (c instanceof InstanceProxy) {
+      if (park) c.park();
+      else c.unpark();
+    }
+  });
+}
+
 export class ActorPool {
   private free = new Map<string, THREE.Object3D[]>();
   private live = new Set<THREE.Object3D>();
@@ -89,7 +103,9 @@ export class ActorPool {
   get(kind: ActorKind, color: string | null = null, variant: string | null = null): THREE.Object3D {
     const spec: ActorSpec = { kind, color, variant };
     const k = keyOf(spec);
-    const obj = this.free.get(k)?.pop() ?? this.build(spec, k);
+    const parked = this.free.get(k)?.pop();
+    if (parked) parkTree(parked, false);
+    const obj = parked ?? this.build(spec, k);
     obj.position.set(0, 0, 0);
     obj.rotation.set(0, 0, 0);
     obj.scale.setScalar(1);
@@ -113,7 +129,13 @@ export class ActorPool {
     const k = obj.userData.actorKey as string;
     let list = this.free.get(k);
     if (!list) this.free.set(k, (list = []));
-    list.push(obj);
+    if (list.length >= FREE_CAP) {
+      releaseTree(obj);
+      obj.removeFromParent();
+    } else {
+      parkTree(obj, true);
+      list.push(obj);
+    }
     this.stage.invalidate();
   }
 
@@ -127,6 +149,7 @@ export class ActorPool {
       while (list.length < n) {
         const o = this.build(spec, k);
         o.visible = false;
+        parkTree(o, true);
         list.push(o);
       }
     }

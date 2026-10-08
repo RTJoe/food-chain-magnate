@@ -443,7 +443,8 @@ export class LocalTransport implements Transport {
       return;
     }
     if (next === this.viewer) return;
-    if (!this.opts.handoff) {
+    // One human against bots: nobody to hide anything from, so no "pass the device" cover.
+    if (!this.opts.handoff || s.turnOrder.filter((p) => !this.isBot(p)).length <= 1) {
       this.viewer = next;
       this.snapshot();
       return;

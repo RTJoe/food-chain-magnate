@@ -1,6 +1,6 @@
 # Food Chain Magnate Online — Architecture & Implementation Plan
 
-Status: approved design, pre-implementation. Companion rules specs live in `docs/rules/` (`base.md`, `employees.md`, `milestones.md`, `map.md`, `ketchup.md`); those documents are the source of truth for rules, this document is the source of truth for structure.
+Status: implemented (chunks C0–C7 done, §6). Where this document and the code disagree, the code wins: the type files named below are the real contracts. Companion rules specs live in `docs/rules/` (`base.md`, `employees.md`, `milestones.md`, `map.md`, `ketchup.md`); those documents are the source of truth for rules, this document is the source of truth for structure.
 
 ## 0. Summary of decisions
 
@@ -8,7 +8,7 @@ Status: approved design, pre-implementation. Companion rules specs live in `docs
 |---|---|
 | Language | TypeScript everywhere (strict). The shared `State`/`Action`/`Event`/`Module` types are the contract that lets parallel agents work without talking. |
 | Client | Vite + Three.js (3D board) + Preact + `@preact/signals` (2D overlay UI). |
-| Server | Node 20+, `ws`, built-in `http` for static files. Compiled with `tsc`; `npm start` = build + run. |
+| Server | Node 24 (22.12+ for the tooling), `ws`, built-in `http` for static files. Compiled with `tsc`; `npm start` = build + run. |
 | Engine | Separate zero-dependency ESM package: pure deterministic reducer, seeded RNG in state, plain-JSON state, event emission, per-viewer redaction, module/hook registry. Imported by both server and client (hot-seat). |
 | Tests | Vitest (unit + scenario + replay/golden tests for engine; integration tests for server); Playwright for a small set of end-to-end flows (join, reconnect, play a round). |
 | Wire format | JSON over WebSocket. Full redacted view after every action (state is small; LAN latency is negligible); events alongside for animation. |
@@ -20,7 +20,7 @@ Why these:
 - Preact + signals over vanilla: the overlay is a large derived view of one state object. Signals give fine-grained re-render for free; Preact is ~4 KB and JSX keeps panels (org chart, market, prompts) declarative.
 - `ws` + `http`, no Express/Fastify: the HTTP surface is "serve `client/dist` and upgrade `/ws`". Fewer moving parts.
 - Full-view broadcast rather than patches: eliminates a whole class of desync bugs; a game state is < 200 KB.
-- Compile server with `tsc` rather than run `tsx`: zero runtime TS dependency, so `npm install && npm start` works on any Node 20+.
+- Compile server with `tsc` rather than run `tsx`: zero runtime TS dependency, so `npm install && npm start` works on any supported Node (22.12+).
 
 ## 1. Tooling and commands
 
@@ -32,11 +32,11 @@ npm start            # tsc -b && vite build && node packages/server/dist/index.j
 npm run dev          # concurrently: tsx watch server (port 3000) + vite dev (port 5173, proxies /ws)
 npm test             # vitest run across workspaces
 npm run e2e          # build, then Playwright against the real server (e2e/)
-npm run typecheck    # tsc -b --noEmit
+npm run typecheck    # tsc -b && tsc -p tsconfig.test.json (sources, then tests)
 npm run lint         # import-boundary check (scripts/check-boundaries.mjs) + typecheck
 ```
 
-Node engines field: `>=20`. Dependencies kept small: `three`, `preact`, `@preact/signals`, `ws`, `zod`; dev: `vite`, `typescript`, `vitest`, `tsx`, `concurrently`, `@types/*`, `eslint`, `prettier`, `playwright`.
+Node engines field: `>=22.12` (`.nvmrc`: 24, as in the Docker image). Dependencies kept small: `three`, `preact`, `@preact/signals`, `uqr`, `ws`, `zod`; dev: `vite`, `typescript`, `vitest`, `tsx`, `concurrently`, `@types/*`, `@playwright/test`. There is no eslint or prettier; `scripts/check-boundaries.mjs` enforces the import rules.
 
 ## 2. Directory layout and module boundaries
 
@@ -93,20 +93,24 @@ food-chain-magnate/
           toyGame.ts               trivial game implementing the same engine interface (for server/client dev)
       test/                        vitest specs mirror src/ layout
     ai/                            @fcm/ai — AI opponents (docs/ai.md). Imports engine only; pure TS, no DOM/Node APIs.
-      src/ types.ts registry.ts run.ts viewState.ts heuristics.ts easy.ts
+      src/ types.ts registry.ts run.ts viewState.ts heuristics.ts easy.ts easyPlan.ts
+           medium/ hard/ shared/ bench/ (ai:bench, ai:inspect, ai:gate)
     protocol/                      @fcm/protocol — message types + zod schemas. Imports engine types only.
       src/ messages.ts room.ts index.ts
     session/                       @fcm/session — transport-agnostic room/game session logic (seats, undo, checkpoints,
       src/                         redaction fan-out). Imports engine + protocol.
         room.ts gameSession.ts undo.ts bots.ts (BotDriver: plays bot seats)
     server/                        @fcm/server — Node runtime
-      src/ index.ts ws.ts static.ts roomStore.ts sessions.ts persistence.ts lanAddress.ts botRunner.ts botWorker.ts
+      src/ index.ts server.ts ws.ts static.ts roomStore.ts sessions.ts persistence.ts limits.ts lanAddress.ts
+           botRunner.ts botWorker.ts checkSaves.ts
     client/                        @fcm/client — Vite app
       index.html
       src/
-        main.tsx                   bootstrap, router (hash routes: #/ , #/room/:id, #/hotseat)
+        main.tsx                   bootstrap
         theme.ts                   colour tokens shared by CSS and 3D
-        state/                     store.ts (signals), selectors.ts, prompt.ts
+        state/                     store.ts (signals), router.ts (hash routes: #/, #/room/:id, #/hotseat, #/dev, #/learn),
+                                   selectors.ts, guidance.ts, boardBridge.ts, ...
+        tutorial/                  Learn-to-play lessons and their runner (docs/tutorial-plan.md)
         net/                       transport.ts (interface), socketTransport.ts, localTransport.ts, session.ts
         ui/                        Preact components (section 5.4)
         three/                     Three.js layer (section 5.1–5.3)
@@ -115,7 +119,7 @@ food-chain-magnate/
   e2e/                             Playwright specs
 ```
 
-Boundary rules (enforced by eslint `no-restricted-imports` and tsconfig `references`):
+Boundary rules (enforced by `scripts/check-boundaries.mjs`, run by `npm run lint`, and tsconfig `references`):
 - `engine` imports nothing from other packages. Everything in it is deterministic and synchronous.
 - `ai` imports engine only; pure and synchronous (runs inline, in worker threads and in Web Workers).
 - `protocol` imports engine *types* only.
@@ -151,97 +155,17 @@ Guidance data on existing types (additive): `buyerRoute` placements carry `range
 
 All functions are pure. `applyAction` never mutates its input (it `structuredClone`s then mutates the clone).
 
-### 3.2 State shape (plain JSON; no Set/Map/class instances/shared references)
+### 3.2 State shape
 
-```ts
-interface GameState {
-  version: 1;
-  config: GameConfig;              // { playerCount, modules: ModuleId[], options: Record<ModuleId, unknown>, intro: boolean }
-  seed: number;
-  rng: RngState;
-  nextId: number;                  // all ids are `${kind}-${nextId++}`
-  round: number;
-  phase: Phase;
-  awaiting: { kind: AwaitKind; players: PlayerId[] };
-  turnOrder: PlayerId[];
-  players: Record<PlayerId, PlayerState>;
-  board: Board;
-  supply: Record<EmployeeId, number>;
-  milestones: Record<MilestoneId, { owner: PlayerId | null; locked: boolean }>;
-  bank: { cash: number; breaks: 0 | 1 | 2; reserveOpened: boolean };
-  ceoSlots: number;
-  secrets: Record<PlayerId, PlayerSecrets>;
-  moduleState: Record<ModuleId, unknown>;
-  turn: TurnState | null;          // working-phase sub-state; also the undo checkpoint boundary
-  history: { seq: number };
-}
-
-interface PlayerState {
-  id: PlayerId; name: string; color: string; cash: number;
-  employees: Record<Uid, { uid: Uid; employeeId: EmployeeId }>;
-  structure: { ceoSubs: Uid[]; managerSubs: Record<Uid, Uid[]> };
-  beach: Uid[];
-  busy: Record<Uid, CampaignId>;
-  inventory: Record<FoodId, number>;
-  freezer: Record<FoodId, number>;
-  milestones: MilestoneId[];
-  restaurantsRemaining: number;
-  reserveCard: ReserveCard | null;
-  unusedRecruitActions: number; earningsThisRound: number;
-}
-
-interface Board {
-  w: number; h: number; tileSize: 5;
-  tiles: { id; row; col; templateId; rotation }[];
-  cells: CellKind[][];                 // derived occupancy index, rebuilt by engine
-  houses: Record<HouseId, House>;
-  restaurants: Record<RestaurantId, Restaurant>;
-  campaigns: Record<CampaignId, Campaign>;
-  drinkSources: Record<SourceId, { id, x, y, food }>;
-  entities: Record<EntityId, ModuleEntity>;
-}
-```
+The authoritative definitions are `packages/engine/src/types/state.ts` (`GameState`, `PlayerState`, `Board`, `Phase`, `GameConfig`), `types/view.ts` (`GameView`), `types/events.ts` and `types/content.ts`. Invariants: plain JSON (no Set/Map/class instances/shared references); RNG state lives in the state; all ids are `${kind}-${nextId++}`; `turn` is the working-phase sub-state and the undo checkpoint boundary.
 
 ### 3.3 Actions
 
-```ts
-type Action =
-  | { type: 'setup.placeRestaurant'; playerId; x; y; entrance: Corner }
-  | { type: 'setup.pass'; playerId }
-  | { type: 'setup.chooseReserve'; playerId; amount: 100 | 200 | 300 }          // secret
-  | { type: 'restructure.submit'; playerId; structure: Structure }              // secret until all submitted
-  | { type: 'restructure.retract'; playerId }
-  | { type: 'order.choosePosition'; playerId; position: number }
-  | { type: 'work.recruit'; playerId; cardUid; employeeId }
-  | { type: 'work.train'; playerId; trainerUid; targetUid; toEmployeeId; steps?: number }
-  | { type: 'work.produce'; playerId; cardUid; food?: FoodId }
-  | { type: 'work.buyDrinks'; playerId; cardUid; restaurantId; entrance: Corner; sourceIds: SourceId[] }
-  | { type: 'work.placeCampaign'; playerId; cardUid; kind; food; placement: Placement; duration }
-  | { type: 'work.placeHouse'; playerId; cardUid; x; y } | { type: 'work.placeGarden'; playerId; cardUid; houseId }
-  | { type: 'work.placeRestaurant'; playerId; cardUid; x; y; entrance } | { type: 'work.moveRestaurant'; ... }
-  | { type: 'work.skip'; playerId; cardUid }
-  | { type: 'work.endTurn'; playerId }
-  | { type: 'payday.fire'; playerId; uids: Uid[] } | { type: 'payday.confirm'; playerId }
-  | { type: 'cleanup.freezer'; playerId; keep: Record<FoodId, number> }
-  | ModuleAction;   // `${moduleId}.${name}`
-```
-
-Every action carries `playerId`; the server overwrites it from the seat. Working phase: the structure's cards form `turn.pending`; stages follow the rules' fixed order. Mandatory/auto cards are consumed by the engine.
+The authoritative union is `packages/engine/src/types/actions.ts` (base actions plus module actions named `${moduleId}.${name}`). Every action carries `playerId`; the server overwrites it from the seat. Secret actions (`setup.chooseReserve` takes a `card: ReserveCard`; `restructure.submit` a structure) are hidden from other viewers until revealed. Working phase: the structure's cards form `turn.pending`; stages follow the rules' fixed order. Mandatory/auto cards are consumed by the engine.
 
 ### 3.4 Phase state machine
 
-```ts
-type Phase =
-  | { kind: 'setup.restaurants'; order: PlayerId[]; idx: number; placed: PlayerId[]; passed: PlayerId[] }
-  | { kind: 'setup.reserve' }
-  | { kind: 'restructuring' }
-  | { kind: 'orderOfBusiness'; chooser: PlayerId; taken: number[] }
-  | { kind: 'working'; player: PlayerId; idx: number }
-  | { kind: 'dinnertime' } | { kind: 'marketing' }
-  | { kind: 'payday' }
-  | { kind: 'cleanup' }
-  | { kind: 'gameOver'; ranking: PlayerId[] };
-```
+The phases (`Phase` in `types/state.ts`) run `setup.restaurants` → `setup.reserve` (not in the intro game) → each round `restructuring` → `orderOfBusiness` → `working` → `dinnertime` → `marketing` → `payday` → `cleanup`, until `gameOver`. Each phase variant carries its own cursor (for example `working { player, idx }`, `dinnertime { houses, idx }`, `payday { queue, idx, decided }`, `gameOver { ranking, reason }`).
 
 `runUntilInput(state)` auto-resolves phases needing no input, emitting fine-grained events (`sale`, `demandPlaced`, `salaryPaid`, `campaignExpired`…) for animation. Simultaneous phases collect submissions in `secrets`, reveal on the last one.
 
@@ -361,7 +285,7 @@ Custom controller: tilted view, yaw, pan/zoom bounds, pinch zoom, "top" toggle. 
 
 ### 5.4 UI overlay (Preact)
 
-Store signals: `connection`, `room`, `view`, `seq`, `me`, `manifest`, `legal`, `prompt`, `draft`, `settings` (game events skip the store: they reach the 3D animator through `boardBridge.setView`, which plays each batch within 1.5 s and fast-forwards the previous one). Components: Lobby, TopBar, PromptPanel, OrgChart, EmployeeMarket, Milestones, PlayerPanels, Log, Chat, Modals, HotseatHandoff. Mobile: bottom sheets, 44 px touch targets.
+Store signals: `connection`, `room`, `view`, `seq`, `me`, `manifest`, `legal`, `prompt`, `draft`, `settings` (game events skip the store: they reach the 3D animator through `boardBridge.setView`, which plays each batch within 1.5 s and fast-forwards the previous one). Components (`client/src/ui/`): Lobby, TopBar, PromptPanel, Work, OrgChart, Market, Milestones, PlayerPanels, Log, Chat, Overlays (modals and the hot-seat handoff), Summary, plus `learn/`, `rules/` and `glossary/`. Mobile: bottom sheets, 44 px touch targets.
 
 ### 5.5 Transports
 

@@ -2,6 +2,13 @@
   "lesson": "base.2",
   "steps": [
     {
+      "id": "reserve",
+      "ops": [
+        "scripted p2 setup.chooseReserve",
+        "setup.chooseReserve"
+      ]
+    },
+    {
       "id": "bo-first",
       "ops": [
         "scripted p2 setup.placeRestaurant",
@@ -33,13 +40,6 @@
       ]
     },
     {
-      "id": "reserve",
-      "ops": [
-        "scripted p2 setup.chooseReserve",
-        "setup.chooseReserve"
-      ]
-    },
-    {
       "id": "ready",
       "ops": [
         "next"
@@ -47,20 +47,6 @@
     }
   ],
   "actions": [
-    {
-      "type": "setup.placeRestaurant",
-      "playerId": "p2",
-      "x": 11,
-      "y": 8,
-      "entrance": "NW"
-    },
-    {
-      "type": "setup.placeRestaurant",
-      "playerId": "p1",
-      "x": 3,
-      "y": 3,
-      "entrance": "NW"
-    },
     {
       "type": "setup.chooseReserve",
       "playerId": "p2",
@@ -78,6 +64,20 @@
         "amount": 200,
         "ceoSlots": 3
       }
+    },
+    {
+      "type": "setup.placeRestaurant",
+      "playerId": "p2",
+      "x": 11,
+      "y": 8,
+      "entrance": "NW"
+    },
+    {
+      "type": "setup.placeRestaurant",
+      "playerId": "p1",
+      "x": 3,
+      "y": 3,
+      "entrance": "NW"
     }
   ],
   "outcome": {

@@ -4,7 +4,8 @@
  */
 import type { GameState, PlayerId } from '../types/state.js';
 import type { GameView, Prompt } from '../types/view.js';
-import { contentFor } from '../modules/registry.js';
+import { contentFor, pipe } from '../modules/registry.js';
+import { readCtx } from './context.js';
 import { reserveOptions, STANDARD_RESERVES } from '../rules/setup.js';
 import { salaryBreakdown } from '../rules/payday.js';
 import { freezerCapacity } from '../rules/cleanup.js';
@@ -64,8 +65,12 @@ export function derivePrompt(view: GameView, me: PlayerId | null): Prompt {
       break;
     case 'payday':
       if (mine) {
-        const owed = salaryBreakdown(asState, contentFor(view.config.modules), me).total;
-        return { kind: 'payday', title: 'Fire employees, then confirm', owed, mustFire: false };
+        const bd = salaryBreakdown(asState, contentFor(view.config.modules), me);
+        // DLX p29: short of cash with salaried cards left → firing will be required (unless a
+        // module waives it, e.g. Ketchup First trainer used).
+        const forced = view.config.modules.length ? pipe(readCtx(asState), 'forcedFiring', true, { player: me }) : true;
+        const mustFire = bd.total > (view.players[me]?.cash ?? 0) && bd.salaried > 0 && forced;
+        return { kind: 'payday', title: 'Fire employees, then confirm', owed: bd.total, mustFire };
       }
       break;
     case 'cleanup':

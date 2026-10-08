@@ -48,7 +48,8 @@ const badgeInk = (color: string | undefined, idx: number): string => (color?.sta
  * Player colour disc with the seat's mark (colour is never the only cue): the same mark the board
  * paints on that player's restaurants, coffee shops and vans (playerMark).
  */
-export function PlayerBadge({ view, id, size = 28, ring }: { view: GameView; id: PlayerId; size?: number; ring?: boolean }) {
+/** `hidden`: the player's name is already beside the badge, so assistive tech skips it; otherwise it reads the name, not the initial. */
+export function PlayerBadge({ view, id, size = 28, ring, hidden }: { view: GameView; id: PlayerId; size?: number; ring?: boolean; hidden?: boolean }) {
   const p = view.players[id];
   const idx = seatIndex(view, id);
   const mark = playerMark(view, id);
@@ -57,6 +58,9 @@ export function PlayerBadge({ view, id, size = 28, ring }: { view: GameView; id:
       class={`pbadge ${ring ? 'is-ring' : ''}`}
       style={{ '--pc': p?.color ?? `var(--player-${idx})`, '--pcl': `var(--player-${idx}-light)`, '--pc-ink': badgeInk(p?.color, idx), width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * (mark.length > 1 ? 0.38 : 0.46))}px` }}
       title={p?.name}
+      role={hidden ? undefined : 'img'}
+      aria-label={hidden ? undefined : (p?.name ?? mark)}
+      aria-hidden={hidden ? 'true' : undefined}
     >
       {mark}
     </span>
@@ -65,7 +69,7 @@ export function PlayerBadge({ view, id, size = 28, ring }: { view: GameView; id:
 
 export function SeatBadge({ name, color, size = 28 }: { name: string; color: string; size?: number }) {
   return (
-    <span class="pbadge" style={{ '--pc': color, '--pc-ink': badgeInk(color, 0), width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * 0.46)}px` }}>
+    <span class="pbadge" style={{ '--pc': color, '--pc-ink': badgeInk(color, 0), width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * 0.46)}px` }} aria-hidden="true">
       {initial(name)}
     </span>
   );
@@ -113,11 +117,11 @@ export function Section({ title, icon, actions, children, class: cls }: { title:
 export function Stepper({ value, min, max, onChange, label }: { value: number; min: number; max: number; onChange: (n: number) => void; label: string }) {
   return (
     <span class="stepper" role="group" aria-label={label}>
-      <button type="button" class="icon-btn" aria-label={`Less ${label}`} disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))}>
+      <button type="button" class="icon-btn" aria-label={`Decrease ${label}`} disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))}>
         {Icon.minus({ size: 16 })}
       </button>
       <output>{value}</output>
-      <button type="button" class="icon-btn" aria-label={`More ${label}`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))}>
+      <button type="button" class="icon-btn" aria-label={`Increase ${label}`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))}>
         {Icon.plus({ size: 16 })}
       </button>
     </span>
@@ -126,12 +130,30 @@ export function Stepper({ value, min, max, onChange, label }: { value: number; m
 
 export function Segmented<T extends string | number>({ value, options, onChange, label }: { value: T; options: { value: T; label: ComponentChildren; disabled?: boolean }[]; onChange: (v: T) => void; label: string }) {
   return (
-    <div class="segmented" role="radiogroup" aria-label={label}>
+    <div
+      class="segmented"
+      role="radiogroup"
+      aria-label={label}
+      onKeyDown={(e) => {
+        // APG radio group: arrows move and select; one Tab stop for the group.
+        const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+        if (!step) return;
+        const live = options.filter((o) => !o.disabled);
+        const i = live.findIndex((o) => o.value === value);
+        const next = live[(i + step + live.length) % live.length];
+        if (!next) return;
+        e.preventDefault();
+        onChange(next.value);
+        const btns = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('[role=radio]')];
+        btns[options.indexOf(next)]?.focus();
+      }}
+    >
       {options.map((o) => (
         <button
           type="button"
           key={String(o.value)}
           role="radio"
+          tabIndex={o.value === value || (!options.some((x) => x.value === value) && o === options[0]) ? 0 : -1}
           aria-checked={o.value === value}
           class={o.value === value ? 'is-on' : ''}
           disabled={o.disabled}

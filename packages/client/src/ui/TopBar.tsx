@@ -1,6 +1,6 @@
 import { useEffect } from "preact/hooks";
 import type { GameView } from "@fcm/engine";
-import { PHASE_STEPS, phaseIndex, phaseLabel } from "../state/selectors.js";
+import { bankBreaksToEnd, PHASE_STEPS, phaseIndex, phaseLabel } from "../state/selectors.js";
 import { connection, mode, view } from "../state/store.js";
 import { IconButton, PlayerBadge } from "./common.js";
 import { MotionLayer, RollingCash } from "./motion.js";
@@ -69,7 +69,7 @@ function PhaseStepper({
   return (
     <nav class="phases" aria-label="Phases">
       <span class="phase-current">
-        {phaseLabel(v.phase)}
+        <span class="phase-label">{phaseLabel(v.phase)}</span>
         <WhatsThis
           id={phaseTermId(v.phase.kind)}
           class="phase-wt wt-btn-light"
@@ -84,15 +84,20 @@ function PhaseStepper({
               key={s.label}
               class={`is-wt ${i < idx ? "is-done" : i === idx ? "is-now" : ""}`}
               aria-current={i === idx ? "step" : undefined}
-              title={`${s.label}: what’s this?`}
-              tabIndex={0}
-              onClick={(e) =>
-                whatsThis(phaseTermId(s.kinds[0]!), e.currentTarget)
-              }
-              {...whatsThisKeys(phaseTermId(s.kinds[0]!))}
             >
-              {Icon[s.icon]({ size: 16 })}
-              <span class="phase-name">{s.short}</span>
+              <button
+                type="button"
+                class="phase-btn"
+                title={`${s.label}: what’s this?`}
+                aria-label={`${s.label}${i < idx ? ", done" : i === idx ? ", now" : ""}. What’s this?`}
+                onClick={(e) =>
+                  whatsThis(phaseTermId(s.kinds[0]!), e.currentTarget)
+                }
+                {...whatsThisKeys(phaseTermId(s.kinds[0]!))}
+              >
+                {Icon[s.icon]({ size: 16 })}
+                <span class="phase-name">{s.short}</span>
+              </button>
             </li>
           ))}
         </ol>
@@ -104,23 +109,26 @@ function PhaseStepper({
 /** The bank: a stack of notes and the cash left; bank breaks and the reserve as sage badges. */
 function BankChip({ view: v }: { view: GameView }) {
   const b = v.bank;
+  const ends = bankBreaksToEnd(v);
   return (
     <div
       class={`bank is-wt ${b.breaks > 0 ? "is-broken" : ""}`}
       data-tutorial="bank"
       data-flip="bank"
       title={`Bank: $${b.cash}${b.reserveOpened ? " (reserve opened)" : ""}. What’s a bank break?`}
+      role="button"
+      aria-label={`Bank $${b.cash}, ${b.breaks} of ${ends} breaks${b.reserveOpened ? ", reserve added" : ""}. What’s a bank break?`}
       tabIndex={0}
       onClick={(e) => whatsThis("bank_break", e.currentTarget)}
       {...whatsThisKeys("bank_break")}
     >
       <BankStack size={30} />
       <RollingCash amount={b.cash} />
-      <span class="bank-breaks" aria-label={`${b.breaks} of 2 bank breaks`}>
+      <span class="bank-breaks" role="img" aria-label={`${b.breaks} of ${ends} bank breaks`}>
         <i class={b.breaks >= 1 ? "is-on" : ""}>1</i>
-        <i class={b.breaks >= 2 ? "is-on" : ""}>2</i>
+        {ends >= 2 && <i class={b.breaks >= 2 ? "is-on" : ""}>2</i>}
       </span>
-      {b.reserveOpened && <span class="bank-reserve">reserve in</span>}
+      {b.reserveOpened && <span class="bank-reserve">reserve added</span>}
     </div>
   );
 }
@@ -168,12 +176,12 @@ function TurnTrack({ view: v }: { view: GameView }) {
               {src ? (
                 <img class="track-totem" src={src} alt="" />
               ) : (
-                <PlayerBadge view={v} id={id} size={26} ring={active.has(id)} />
+                <PlayerBadge view={v} id={id} size={26} ring={active.has(id)} hidden />
               )}
             </span>
             {src && (
               <span class="track-mark">
-                <PlayerBadge view={v} id={id} size={15} />
+                <PlayerBadge view={v} id={id} size={15} hidden />
               </span>
             )}
             <span class="sr-only">

@@ -11,6 +11,6 @@ import type { GameModule } from '../../types/module.js';
 export const SIX_PLAYERS_MODULE: GameModule = {
   id: 'ketchup:sixPlayers',
   name: '6 Players',
-  description: 'A sixth chain (Siap Faji) and a 4x6 map. Requires New Districts.',
+  description: 'A sixth chain (Siap Faji) and a 4x6 map.',
   requires: ['ketchup:newDistricts'],
 };

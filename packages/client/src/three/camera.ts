@@ -142,6 +142,21 @@ export class CameraController {
   }
 
   /**
+   * The board re-based its coordinates by (dx, dz) (Ketchup extra map tile on the north or west):
+   * move the current and wanted pose and the old home with it, so nothing moves on screen. Follow
+   * with `setContent(…, false)`: it glides to the new home only if the camera was at home.
+   */
+  shift(dx: number, dz: number): void {
+    if (!dx && !dz) return;
+    const d = new THREE.Vector3(dx, 0, dz);
+    this.cur.target.add(d);
+    this.want.target.add(d);
+    this.home.target.add(d);
+    this.apply(this.cur);
+    this.onChange();
+  }
+
+  /**
    * Change the covered-canvas inset (a panel opened or closed). The lens shift eases to the new
    * free area, and a camera at home glides to the new home framing; any other pose is kept.
    */

@@ -9,7 +9,7 @@
  * starts for every range (base `playerRouteStarts`). Placed only:
  * - when a card is trained into Barista or Lead Barista: within road range 2 of one of your open
  *   restaurants or coffee shops (a `coffeeShop` choice right after the training, or inline via
- *   `work.train.coffeeShop`);
+ *   `work.train.coffeeShop`); one per such step, so Trainee → Lead Barista in one action gives two;
  * - by "First coffee sold": in the Clean up of that round, in turn order, no range limit (the choice
  *   is queued when Clean up ends, so it is resolved before the next Restructuring).
  * Always on an empty square orthogonally adjacent to a road, on a tile without a coffee shop (any
@@ -21,13 +21,15 @@
  * coffee shop and restaurant entrance of a chain with coffee next to the route, except the route's
  * own end restaurant; each location sells at most 1. A route may trace road squares again and go
  * round loops; it only may not step straight back (DLX p10 Backtracking; KX p13 Example 2, p14
- * Example 4). Among shortest routes the one passing the most coffee is taken; if several tie, only
- * locations common to all of them sell (KX p12 Tied Routes).
+ * Example 4). Among shortest routes the one that would sell the most coffee with the chains' current
+ * stock is taken; if several tie, only selling locations common to all of them sell (KX p12 Tied
+ * Routes; JD BGG 3013738).
  * Implementation: a search over (square, heading, cost, locations passed), bounded by
  * ROUTE_BUDGET expansions. A chain's locations sell nearest-the-house first while it has coffee.
  * Price = the seller's unit price × the house's garden/park multiplier, plus the seller's Fry Chef
  * bonus once per house unless it also served the meal (KX p21; JD BGG 2342129); it is Dinnertime
- * income (CFO applies). Not for the rural area (no road route).
+ * income (CFO applies). The rural area buys too: its route starts at a freeway's road square
+ * (KX p25-26: "treated as one (potentially enormous) house"; distance "starting from any Freeway").
  */
 import type { CoffeePlaceShop, WorkTrain } from '../../types/actions.js';
 import type { MilestoneDef } from '../../types/content.js';
@@ -55,6 +57,7 @@ import {
 import { awardMilestone, checkCashMilestones } from '../../rules/milestones.js';
 import { payFromBank, payToBank } from '../../rules/bank.js';
 import { unitPrice } from '../../rules/pricing.js';
+import { freewayCell } from './ruralMarketeers.js';
 import { headChoice, houseMultiplier, isRejected, kcard, pushChoice, registerChoiceKind, resolveHead, addExtraLuxuriesManager, workDefs } from './shared.js';
 
 const ID = 'ketchup:coffee' as const;
@@ -77,6 +80,9 @@ const FIRST_COFFEE_SOLD: MilestoneDef = {
 // ---------------------------------------------------------------------------
 // Coffee shops
 // ---------------------------------------------------------------------------
+
+/** KX p11: with all 3 shops on the map a player "MAY move" one, so the choice can be declined (Q-K19). */
+const allShopsPlaced = (s: GameState, player: PlayerId): boolean => shopsOf(s, player).length >= SHOPS_PER_CHAIN;
 
 export function shopsOf(s: GameState, player: PlayerId) {
   return Object.values(s.board.entities).filter((e): e is Extract<typeof e, { kind: 'coffeeShop' }> => e.kind === 'coffeeShop' && e.owner === player);
@@ -191,14 +197,26 @@ function coffeeLocations(s: GameState): CoffeeLocation[] {
  * order (nearest the house first). Exported for tests.
  */
 export function coffeeRouteSellers(s: GameState, house: House, dest: Restaurant): CoffeeLocation[] {
-  if (house.cells.length === 0) return [];
+  // KX p25-26: the rural area is "one (potentially enormous) house" whose route starts at a freeway.
+  const rural = house.kind === 'rural';
+  if (house.cells.length === 0 && !rural) return [];
   const locations = coffeeLocations(s);
   if (!locations.length) return [];
   const board = s.board;
-  const D = restaurantHouseDistance(board, dest, house);
+  const ruralEnds = rural
+    ? Object.values(board.entities).flatMap((e) => (e.kind === 'freeway' ? [freewayCell(s, e.side, e.offset)] : [])).filter((c) => roadAt(board, c))
+    : [];
+  // Distance as Dinnertime measures it (ruralMarketeers.ts `ruralDistance` for the rural area, Q-K7).
+  const distanceOf = (r: Restaurant): number | null => {
+    if (!rural) return restaurantHouseDistance(board, r, house);
+    const field = distanceField(board, restaurantStarts(board, r));
+    const d = Math.min(...ruralEnds.map((c) => fieldAt(field, c)));
+    return Number.isFinite(d) ? d : null;
+  };
+  const D = distanceOf(dest);
   if (D === null) return [];
   const dests = Object.values(board.restaurants)
-    .filter((r) => r.id === dest.id || (r.owner === dest.owner && r.status === 'open' && restaurantHouseDistance(board, r, house) === D))
+    .filter((r) => r.id === dest.id || (r.owner === dest.owner && r.status === 'open' && distanceOf(r) === D))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const fR = distanceField(board, dests.flatMap((r) => restaurantStarts(board, r)));
   const rw = (c: Cell) => roadAt(board, c)?.roadworks ?? 0;
@@ -215,8 +233,14 @@ export function coffeeRouteSellers(s: GameState, house: House, dest: Restaurant)
       }
     }
   }
-  // Route starts: road squares next to the house (or its garden).
+  // Route starts: road squares next to the house (or its garden); for the rural area, the road
+  // squares its freeways touch (Q-K7: entering them costs only their roadworks).
   const starts = new Map<string, RoadStart>();
+  for (const c of ruralEnds) {
+    const k = cellKey(c);
+    const cost = rw(c);
+    if (!starts.has(k) || (starts.get(k)?.cost as number) > cost) starts.set(k, { cell: c, cost });
+  }
   for (const t of houseSquares(house)) {
     for (const d of DIRECTIONS) {
       const r = step(t, d);
@@ -271,21 +295,39 @@ export function coffeeRouteSellers(s: GameState, house: House, dest: Restaurant)
     }
   }
   if (!ends.size) return [];
-  const count = (m: bigint) => relevant.reduce((a, l) => a + ((m & (bit.get(l.id) as bigint)) !== 0n ? 1 : 0), 0);
-  const counted = [...ends].map((m) => ({ m, n: count(m) }));
-  const best = Math.max(...counted.map((x) => x.n));
-  if (best === 0) return [];
-  // Tied best routes: only the locations common to all of them sell (KX p12 Tied Routes).
-  const common = counted.filter((x) => x.n === best).reduce((acc, x) => acc & x.m, (1n << BigInt(relevant.length)) - 1n);
   const near = (l: CoffeeLocation) => Math.min(...[...l.roads].map((k) => {
     const [x, y] = k.split(',').map(Number) as [number, number];
     return fieldAt(fH, { x, y });
   }));
-  return relevant
-    .filter((l) => (common & (bit.get(l.id) as bigint)) !== 0n)
+  const ordered = relevant
     .map((l) => ({ l, d: near(l) }))
     .sort((a, b) => a.d - b.d || (a.l.id < b.l.id ? -1 : a.l.id > b.l.id ? 1 : 0))
     .map((x) => x.l);
+  // KX p12 Tied Routes, JD BGG 3013738: score each route by the coffee it would actually sell with
+  // the chains' current stock (nearest the house first), keep the routes selling the most, and let
+  // only the selling locations common to all of them sell.
+  const selling = (m: bigint): bigint => {
+    const used = new Map<PlayerId, number>();
+    let out = 0n;
+    for (const l of ordered) {
+      const b = bit.get(l.id) as bigint;
+      if ((m & b) === 0n) continue;
+      const n = used.get(l.owner) ?? 0;
+      if (n >= coffeeStock(s, l.owner)) continue;
+      used.set(l.owner, n + 1);
+      out |= b;
+    }
+    return out;
+  };
+  const count = (m: bigint) => relevant.reduce((a, l) => a + ((m & (bit.get(l.id) as bigint)) !== 0n ? 1 : 0), 0);
+  const counted = [...ends].map((m) => {
+    const sold = selling(m);
+    return { m: sold, n: count(sold) };
+  });
+  const best = Math.max(...counted.map((x) => x.n));
+  if (best === 0) return [];
+  const common = counted.filter((x) => x.n === best).reduce((acc, x) => acc & x.m, (1n << BigInt(relevant.length)) - 1n);
+  return ordered.filter((l) => (common & (bit.get(l.id) as bigint)) !== 0n);
 }
 
 /** Total Fry Chef bonus ($ per sale) of a player's cards at work (ketchup.md §9). */
@@ -370,7 +412,13 @@ export const COFFEE_MODULE: GameModule = {
     onEvent(ctx, event) {
       switch (event.type) {
         case 'employeeTrained':
-          if (BARISTAS.includes(event.to) && ctx.state.phase.kind === 'working') pushChoice(ctx, { kind: 'coffeeShop', player: event.player, source: 'training', optional: false });
+          if (ctx.state.phase.kind !== 'working') return;
+          // KX p11: each step into a Barista or a Lead Barista places a shop, so a Coach/Guru taking a
+          // Barista Trainee straight to Lead Barista places two, in step order (JD BGG 2379732).
+          (event.path ?? [event.to]).filter((id) => BARISTAS.includes(id)).forEach((_, i) => {
+            const optional = shopsOf(ctx.state, event.player).length + i >= SHOPS_PER_CHAIN;
+            pushChoice(ctx, { kind: 'coffeeShop', player: event.player, source: 'training', optional });
+          });
           return;
         case 'coffeeSold':
           awardMilestone(ctx, event.player, 'ketchup:first_coffee_sold');
@@ -386,10 +434,9 @@ export const COFFEE_MODULE: GameModule = {
       // "First coffee sold": one extra shop each, at the end of that round's Clean up, in turn order.
       if (phase.kind !== 'cleanup') return;
       const s = ctx.state;
-      const round = s.round - 1; // startRound already advanced the round
       for (const id of s.turnOrder) {
         const m = s.players[id]?.milestones['ketchup:first_coffee_sold'];
-        if (m && m.round === round && !s.players[id]?.bankrupt) pushChoice(ctx, { kind: 'coffeeShop', player: id, source: 'milestone', optional: false });
+        if (m && m.round === s.round && !s.players[id]?.bankrupt) pushChoice(ctx, { kind: 'coffeeShop', player: id, source: 'milestone', optional: allShopsPlaced(s, id) });
       }
     },
     actionProblem(problem, ctx, { action }) {

@@ -1,17 +1,38 @@
+# Pinned project name: the volume is always food-chain-magnate_fcm-data, whatever the clone's folder.
+name: food-chain-magnate
 services:
   fcm:
-    build: .
+    build:
+      context: .
+      args:
+        # Deploy with GIT_SHA=$(git rev-parse --short HEAD) so logs, /healthz and saves show the build.
+        GIT_SHA: "${GIT_SHA:-}"
     image: food-chain-magnate
     restart: unless-stopped
     # tini as PID 1: forwards SIGTERM to node and reaps zombies. The server flushes rooms on SIGTERM.
     init: true
     stop_grace_period: 10s
+    # Local overrides go in an untracked .env next to this file (compose reads it for ${...}).
     environment:
       FCM_ROOM_RETENTION_DAYS: "${FCM_ROOM_RETENTION_DAYS:-30}"
+      FCM_LOBBY_RETENTION_DAYS: "${FCM_LOBBY_RETENTION_DAYS:-}"
+      FCM_BOT_WORKERS: "${FCM_BOT_WORKERS:-}"
+      FCM_BOT_DELAY_MS: "${FCM_BOT_DELAY_MS:-}"
+      FCM_ALLOWED_ORIGINS: "${FCM_ALLOWED_ORIGINS:-}"
+      FCM_PUBLIC_URL: "${FCM_PUBLIC_URL:-}"
     ports:
       - "${FCM_PORT:-8090}:3000"
     volumes:
       - fcm-data:/data
+    # Hardening: unprivileged user (Dockerfile), no capabilities, read-only root filesystem.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    mem_limit: "${FCM_MEM_LIMIT:-2g}"
 
 volumes:
   fcm-data:

@@ -289,4 +289,41 @@ describe('server (integration, toy engine)', () => {
     expect((await fetch(`${base}/assets/missing.js`)).status).toBe(404);
     expect((await fetch(`${base}/..%2f..%2fetc/passwd`)).status).not.toBe(200);
   });
+
+  it('answers GET /healthz with JSON (not the SPA fallback)', async () => {
+    const s = await start({ buildId: 'abc1234' });
+    const res = await fetch(`http://127.0.0.1:${s.port}/healthz`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toMatchObject({ ok: true, build: 'abc1234' });
+  });
+
+  it('rejects WebSocket upgrades from origins outside the allowlist', async () => {
+    const { default: WebSocket } = await import('ws');
+    const opens = (port: number, origin?: string) =>
+      new Promise<boolean>((res) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, origin ? { origin } : {});
+        ws.once('open', () => {
+          ws.close();
+          res(true);
+        });
+        ws.once('error', () => res(false));
+      });
+    const self = await start({ allowedOrigins: 'self' });
+    expect(await opens(self.port, `http://127.0.0.1:${self.port}`)).toBe(true);
+    expect(await opens(self.port, 'https://evil.example')).toBe(false);
+    expect(await opens(self.port)).toBe(true);
+    const list = await start({ allowedOrigins: ['https://fcm.example.org'] });
+    expect(await opens(list.port, 'https://fcm.example.org')).toBe(true);
+    expect(await opens(list.port, `http://127.0.0.1:${list.port}`)).toBe(false);
+  });
+});
+
+describe('server env parsing', () => {
+  it('reads FCM_ALLOWED_ORIGINS', async () => {
+    const { allowedOriginsFromEnv } = await import('../src/server.js');
+    expect(allowedOriginsFromEnv({})).toBeUndefined();
+    expect(allowedOriginsFromEnv({ FCM_ALLOWED_ORIGINS: 'self' })).toBe('self');
+    expect(allowedOriginsFromEnv({ FCM_ALLOWED_ORIGINS: 'https://a.org/, https://b.org' })).toEqual(['https://a.org', 'https://b.org']);
+  });
 });

@@ -15,7 +15,8 @@ import type { Board, Cell, Direction, Rotation, TileDef, TileTemplateId } from '
 import { COLORS } from '../theme.js';
 import { DELTA, DIRS, RIM, ROAD_TOP, edgeStrip } from './coords.js';
 import { campaignAnchor, freewayAnchor, ruralCenter, RURAL_SIZE } from './layout.js';
-import { buildApartment, buildHouse } from './minis/buildings.js';
+import { bridgeMesh } from './board/roads.js';
+import { buildApartment, buildGarden, buildHouse } from './minis/buildings.js';
 import { owned, type MiniCtx } from './minis/ctx.js';
 import { buildDrinkSource } from './minis/drinks.js';
 import { buildPark, buildRoadworks } from './minis/ketchup.js';
@@ -109,6 +110,29 @@ export function buildTileGhost(ctx: MiniCtx, def: TileDef | null, rotation: Rota
     const mini = h.kind === 'apartment' ? buildApartment(real, { label: h.label, facing: 'S' }) : buildHouse(real, { label: h.label, facing: 'S', placed: false, variant: h.order % 6 });
     mini.position.set(cx, 0, cz);
     lift.add(mini);
+  }
+  // Printed gardens (tile W) and the overpass (tiles G, P), as on the board.
+  for (const h of def.houses) {
+    if (!h.garden?.length) continue;
+    const pts = h.garden.map(([r, c]) => at(r, c));
+    const xs = pts.map((q) => q[0]);
+    const zs = pts.map((q) => q[1]);
+    const hp = h.cells.map(([r, c]) => at(r, c));
+    const hx = hp.reduce((n, p) => n + p[0], 0) / hp.length;
+    const hz = hp.reduce((n, p) => n + p[1], 0) / hp.length;
+    const gx = (Math.max(...xs) + Math.min(...xs)) / 2;
+    const gz = (Math.max(...zs) + Math.min(...zs)) / 2;
+    const vertical = Math.max(...zs) - Math.min(...zs) > Math.max(...xs) - Math.min(...xs);
+    const house: Direction = vertical ? (hx < gx ? 'W' : 'E') : hz < gz ? 'N' : 'S';
+    const mini = buildGarden(real, { vertical, house });
+    mini.position.set(gx, 0, gz);
+    lift.add(mini);
+  }
+  if (def.bridge) {
+    const [x, z] = at(def.bridge[0], def.bridge[1]);
+    const br = bridgeMesh();
+    br.position.set(x, 0, z);
+    lift.add(br);
   }
   for (const d of def.drinks) {
     const [x, z] = at(d.cell[0], d.cell[1]);

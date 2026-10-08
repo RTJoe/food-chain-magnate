@@ -11,9 +11,11 @@ export function RulesPage() {
   const loc = parseRulesHash(location.hash);
   useEffect(() => {
     document.body.dataset.screen = 'rules';
+    const before = document.title;
     document.title = 'Rules · Food Chain Magnate';
     return () => {
       delete document.body.dataset.screen;
+      document.title = before.startsWith('Rules · ') ? 'Food Chain Magnate' : before;
     };
   }, []);
   const back = () => (location.hash = '#/');

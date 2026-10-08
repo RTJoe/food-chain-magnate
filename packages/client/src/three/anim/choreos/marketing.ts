@@ -135,6 +135,8 @@ registerChoreo('campaign', (beat, at, tl, ctx) => {
   const spot = campaignSpot(ctx, id, camp, piece);
   const src = spot ? new THREE.Vector3(spot.x, Math.max(0.6, spot.h * 0.6), spot.z) : null;
   const lands = drops.map((d) => demandLanding(tl, ctx, d));
+  // Mass marketeer extra passes run the same campaigns again: say so over the piece.
+  if (run.pass > 1 && spot) chip(tl, ctx, `Extra pass ${run.pass}`, color, new THREE.Vector3(spot.x, spot.h + 0.3, spot.z), at, budget + 0.3, { size: 0.32 });
 
   // Houses in reach with no room: grey "full" chip.
   full.forEach((h, i) => {

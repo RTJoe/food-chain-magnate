@@ -62,18 +62,25 @@ export function payToBank(ctx: HookContext, playerId: PlayerId, amount: number, 
 }
 
 /**
- * Remove money from the bank, out of the game (Ketchup "First discount manager used"). Taking the
- * bank to $0 breaks it like a payment would (base.md §12). Returns the amount removed.
+ * Remove money from the bank, out of the game (Ketchup "First discount manager used", KX p19:
+ * "remove $100 from the bank"). Taking the bank to $0 breaks it like a payment would, and the rest
+ * comes out of the refilled bank (as DLX p28 step 4 finishes a payment); only the final break
+ * stops it. Returns the amount removed.
  */
 export function burnFromBank(ctx: HookContext, playerId: PlayerId, amount: number): number {
   const s = ctx.state;
-  if (amount <= 0 || isFinalBreak(s)) return 0;
-  const take = Math.min(amount, s.bank.cash);
-  s.bank.cash -= take;
-  s.bank.burned += take;
-  ctx.emit({ type: 'bankBurned', player: playerId, amount: take });
-  if (s.bank.cash <= 0) breakBank(ctx);
-  return take;
+  let left = amount;
+  let burned = 0;
+  while (left > 0 && !isFinalBreak(s)) {
+    const take = Math.min(left, s.bank.cash);
+    s.bank.cash -= take;
+    s.bank.burned += take;
+    burned += take;
+    left -= take;
+    if (s.bank.cash <= 0) breakBank(ctx);
+  }
+  if (burned > 0) ctx.emit({ type: 'bankBurned', player: playerId, amount: burned });
+  return burned;
 }
 
 /** True once no more money can come out of the bank: second break, or first break in the intro game. */
@@ -101,6 +108,9 @@ function breakBank(ctx: HookContext): void {
     s.bank.reserveOpened = true;
     const slots = ceoSlotsFromReserves(Object.values(reserves));
     if (slots !== null) s.ceoSlots = slots;
+    // Reserve Prices (KX p28): price cards set the base price; done before the event so it is current.
+    const price = basePriceFromReserves(Object.values(reserves));
+    if (price !== null) s.basePrice = price;
     ctx.emit({ type: 'bankBroke', breakNo: 1, reserves, added, ceoSlots: s.ceoSlots, basePrice: s.basePrice });
     return;
   }
@@ -127,6 +137,25 @@ export function ceoSlotsFromReserves(cards: ReserveCard[]): number | null {
   return best;
 }
 
+/** Tie-break preference for price cards (KX p28): $20 beats $10 and $5; $5 beats $10. */
+const PRICE_PREFERENCE: Record<number, number> = { 20: 3, 5: 2, 10: 1 };
+
+/** KX p28 (Reserve Prices): most frequent revealed base price; null if no price card was revealed. */
+export function basePriceFromReserves(cards: ReserveCard[]): number | null {
+  const counts = new Map<number, number>();
+  for (const c of cards) if (c.kind === 'price') counts.set(c.basePrice, (counts.get(c.basePrice) ?? 0) + 1);
+  let best: number | null = null;
+  for (const [price, n] of counts) {
+    if (best === null) {
+      best = price;
+      continue;
+    }
+    const bn = counts.get(best) ?? 0;
+    if (n > bn || (n === bn && (PRICE_PREFERENCE[price] ?? 0) > (PRICE_PREFERENCE[best] ?? 0))) best = price;
+  }
+  return best;
+}
+
 /** base.md §12: most cash (incl. IOUs) wins; tie → earlier in turn order. Bankrupt chains last. */
 export function rankPlayers(s: GameState): PlayerId[] {
   const pos = (id: PlayerId) => s.turnOrder.indexOf(id);
@@ -147,7 +176,9 @@ export function endGame(ctx: HookContext, reason: 'bankBroke' | 'allBankrupt'): 
   s.pending = [];
   const cash: Record<PlayerId, number> = {};
   for (const id of s.turnOrder) cash[id] = s.players[id]?.cash ?? 0;
-  ctx.emit({ type: 'gameEnded', ranking, cash });
+  // base.md §12 (JD 1473813, 1660800): if everyone went bankrupt, everyone loses.
+  const winner = reason === 'allBankrupt' ? null : (ranking[0] ?? null);
+  ctx.emit({ type: 'gameEnded', ranking, cash, winner });
 }
 
 /** End of Dinnertime: the game ends if the bank broke for the last time (base.md §12, §13). */

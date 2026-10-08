@@ -9,6 +9,7 @@ import { connectionBanner, END_HOTSEAT_CONFIRM, hotseatAtRisk } from '../state/c
 import { Button, IconButton, PlayerBadge, Toggle } from './common.js';
 import { Icon, Logo } from './icons.js';
 import { Standings } from './PromptPanel.js';
+import { hasUnseenSummary } from './Summary.js';
 import { menuOpen, minimisedModal } from './uiState.js';
 import { GameMenuExtras } from './hints/CoachHints.js';
 import { takeFreePlayReturn } from './hints/coach.js';
@@ -98,10 +99,10 @@ function HandoffCover({ to }: { to: PlayerId }) {
   return (
     <div ref={ref} class="handoff" style={{ '--pc': p?.color }} role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div class="handoff-card glass">
-        <PlayerBadge view={v} id={to} size={72} />
+        <PlayerBadge view={v} id={to} size={72} hidden />
         <p class="eyebrow">Pass the device to</p>
         <h1 id={titleId}>{p?.name ?? to}</h1>
-        <p class="muted">Everyone else, look away. Private choices are hidden until {p?.name ?? 'they'} confirm.</p>
+        <p class="muted">Everyone else, look away. Private choices stay hidden until {p?.name ? `${p.name} confirms` : 'they confirm'}.</p>
         <Button variant="primary" size="lg" icon="hand" onClick={() => acceptHandoff()}>
           I’m {p?.name ?? to}: show my turn
         </Button>
@@ -116,6 +117,8 @@ export function GameOverModal() {
   if (!v || pr?.kind !== 'gameOver' || minimisedModal.value === 'gameOver') return null;
   // In a lesson the coach card tells the result; a modal would block it.
   if (mode.value === 'tutorial') return null;
+  // One end sequence: the final round's results strip first, then the standings once it is closed.
+  if (hasUnseenSummary()) return null;
   const winner = v.players[pr.ranking[0] ?? ''];
   return (
     <Modal title={<>{Icon.trophy({ size: 22 })} Game over</>} onClose={() => (minimisedModal.value = 'gameOver')} class="gameover">

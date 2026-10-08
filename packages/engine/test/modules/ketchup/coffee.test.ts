@@ -11,7 +11,7 @@
  *   routes that start at (13,12)/(14,12) or climb x=12.
  */
 import { describe, expect, it } from 'vitest';
-import type { EmployeeId, GameState, PlayerId, Uid, WorkTrain } from '../../../src/index.js';
+import type { EmployeeId, GameState, ModuleId, PlayerId, Uid, WorkTrain } from '../../../src/index.js';
 import { applyAction } from '../../../src/index.js';
 import { paint } from '../../../src/map/grid.js';
 import { playerRouteStarts } from '../../../src/map/pathfinding.js';
@@ -187,6 +187,12 @@ describe('Coffee (ketchup.md §4)', () => {
         addShop(g, 'entity-d', 'p2', 8, 6);
       });
       expect(rejected(t, place(1, 8)).message).toMatch(/move one/);
+      // KX p11: moving is optional ("you MAY move one"), so the choice can be declined.
+      const head = t.pending[0];
+      expect(head).toMatchObject({ kind: 'coffeeShop', optional: true });
+      const kept = act(t, { type: 'choice.decline', playerId: 'p1', choiceId: head?.id as string });
+      expect(kept.pending).toEqual([]);
+      expect(shops(kept, 'p1')).toHaveLength(3);
       expect(rejected(t, place(1, 8, 'entity-d')).message).toMatch(/your own/);
       const r = act(t, place(8, 11, 'entity-c'));
       expect(r.pending).toEqual([]);
@@ -195,6 +201,13 @@ describe('Coffee (ketchup.md §4)', () => {
       expect(r.board.entities['entity-c']).toBeUndefined();
       // With 3 on the map every legal placement is a move.
       expect(shopPlacements(r, 'p1', 'training').every((p) => p.moveFrom)).toBe(true);
+    });
+
+    it('KX p11 (JD BGG 2379732): a Coach training a Barista Trainee straight to Lead Barista places two shops', () => {
+      const g = kgame(2, [...M]);
+      const { s, work, beach } = workingTurn(g, 'p1', { work: ['coach'], beach: ['ketchup:barista_trainee'] });
+      const t = act(s, { type: 'work.train', playerId: 'p1', trainerUid: work[0] as Uid, targetUid: beach[0] as Uid, toEmployeeId: 'ketchup:lead_barista' });
+      expect(t.pending.map((c) => c.kind)).toEqual(['coffeeShop', 'coffeeShop']);
     });
 
     it('§4: legalPlacements lists coffee shop squares for the pending choice', () => {
@@ -276,7 +289,10 @@ describe('Coffee (ketchup.md §4)', () => {
         .build();
       const house = Object.values(s.board.houses).find((h) => h.order === 1);
       const dest = s.board.restaurants[Object.keys(s.board.restaurants).find((id) => s.board.restaurants[id]?.owner === 'p1') as string];
-      expect(coffeeRouteSellers(s, house as never, dest as never).map((l) => l.id)).toEqual(['entity-k3', 'restaurant-p2']);
+      // With 1 coffee only the location nearest the house sells (route order); with 2 both do.
+      expect(coffeeRouteSellers(s, house as never, dest as never).map((l) => l.id)).toEqual(['entity-k3']);
+      const s2 = { ...s, players: { ...s.players, p2: { ...(s.players.p2 as NonNullable<typeof s.players.p2>), inventory: { coffee: 2 } } } };
+      expect(coffeeRouteSellers(s2, house as never, dest as never).map((l) => l.id)).toEqual(['entity-k3', 'restaurant-p2']);
       const ctx = dine(dinner().restaurant('p2', 10, 8, 'NE', 'open', 'restaurant-p2').entity(shop('entity-k3', 'p2', 13, 11)).inventory('p2', { coffee: 1 }));
       expect(ctx.of('coffeeSold').map((e) => e.at)).toEqual(['entity-k3']);
       expect(ctx.state.players.p2?.inventory.coffee ?? 0).toBe(0);
@@ -386,6 +402,29 @@ describe('Coffee (ketchup.md §4)', () => {
     });
   });
 
+  describe('KX p12 Tied Routes with limited stock (JD BGG 3013738)', () => {
+    const tie = (p2coffee: number, withP3: boolean) =>
+      dinner(3)
+        .entity(shop('entity-T1', 'p2', 11, 8))
+        .entity(shop('entity-T2', 'p2', 10, 6))
+        .entity(shop('entity-R1', 'p2', withP3 ? 6 : 8, withP3 ? 10 : 11))
+        .mutate((s) => {
+          if (withP3) s.board.entities['entity-R2'] = shop('entity-R2', 'p3', 8, 11);
+        })
+        .inventory('p2', { coffee: p2coffee })
+        .inventory('p3', { coffee: 3 });
+
+    it('routes are compared by the coffee they would sell: one coffee on two routes, no common seller, sells nothing', () => {
+      const ctx = dine(tie(1, false));
+      expect(ctx.of('coffeeSold')).toEqual([]);
+    });
+
+    it('the route selling more coffee wins even if the other passes more of a short chain', () => {
+      const ctx = dine(tie(1, true));
+      expect(ctx.of('coffeeSold').map((e) => e.at).sort()).toEqual(['entity-R1', 'entity-R2']);
+    });
+  });
+
   describe('§4 First coffee sold', () => {
     it('§4: the first coffee sold claims the milestone', () => {
       const ctx = dine(dinner().entity(shop('entity-k1', 'p2', 11, 8)).inventory('p2', { coffee: 3 }));
@@ -405,8 +444,12 @@ describe('Coffee (ketchup.md §4)', () => {
       expect(head).toMatchObject({ kind: 'coffeeShop', player: 'p2', source: 'milestone' });
       // Tile Q at (13,11) is far out of road range 2 of p2's restaurant: legal via the milestone.
       expect(shopPlacements(ctx.state, 'p2', 'milestone')).toContainEqual({ kind: 'coffeeShop', x: 13, y: 11 });
+      // KX p12: placed "during the Cleanup Phase": round 3 has not ended yet.
+      expect(ctx.state.phase.kind).toBe('cleanup');
+      expect(ctx.state.round).toBe(3);
       const t = act(ctx.state, { type: 'ketchup:coffee.placeShop', playerId: 'p2', choiceId: head?.id as string, x: 13, y: 11 });
       expect(t.pending).toEqual([]);
+      expect(t.round).toBe(4);
       expect(shops(t, 'p2')).toEqual([expect.objectContaining({ x: 13, y: 11 })]);
     });
 
@@ -414,5 +457,27 @@ describe('Coffee (ketchup.md §4)', () => {
       const s = kb(2, [...M]).restaurant('p2', 5, 3, 'NW').milestone('p2', 'ketchup:first_coffee_sold', 2).phase({ kind: 'cleanup' }).build();
       expect(fromPhase(s).state.pending).toEqual([]);
     });
+  });
+});
+
+describe('Coffee and the rural area (KX p25-26: "one (potentially enormous) house")', () => {
+  it('the rural area buys coffee along its road route from a freeway', () => {
+    const L = [['X', 'O', 'Y'], ['W', 'U', 'V']];
+    const mods: ModuleId[] = ['ketchup:newDistricts', 'ketchup:lobbyists', 'ketchup:coffee', 'ketchup:ruralMarketeers'];
+    const ctx = dine(
+      kb(2, mods, L)
+        .restaurant('p1', 8, 0, 'SW')
+        .inventory('p1', { beer: 2 })
+        .inventory('p2', { coffee: 3 })
+        .entity({ kind: 'coffeeShop', id: 'shopO', owner: 'p2', x: 6, y: 1 })
+        .ruralArea()
+        .entity({ kind: 'freeway', id: 'fw', owner: 'p1', side: 'N', offset: 7, tile: 't' } as never)
+        .mutate((s) => {
+          const r = Object.values(s.board.houses).find((h) => h.kind === 'rural');
+          if (r) r.demand = [{ good: 'beer', by: null, campaign: null } as never, { good: 'beer', by: null, campaign: null } as never];
+        }),
+    );
+    expect(ctx.of('sale').map((e) => e.player)).toEqual(['p1']);
+    expect(ctx.of('coffeeSold')).toEqual([expect.objectContaining({ player: 'p2', at: 'shopO' })]);
   });
 });

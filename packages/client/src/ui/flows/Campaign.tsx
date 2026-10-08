@@ -77,6 +77,8 @@ export function TokenGlyph({ kind, def }: { kind: CampaignKind; def: MarketingTi
   );
 }
 
+const IDENTICAL: ReadonlySet<CampaignKind> = new Set<CampaignKind>(['giantBillboard', 'gourmetGuide']);
+
 const isOn = (module: string, v: GameView) => module === 'base' || v.config.modules.includes(module as never);
 
 /** Engine reason for a token with no legal spot: the most common `placementProblem` over a sample of spots. */
@@ -116,11 +118,15 @@ export function tokensFor(v: GameView, c: Catalog, who: PlayerId | null, spec: P
     const inUse = campaigns.find((x) => x.number === t.number);
     if (inUse) {
       const owner = v.players[inUse.owner]?.name ?? inUse.owner;
-      t.reason = `On the board: ${owner}'s, ${inUse.eternal ? 'eternal' : `${inUse.remaining} turn${inUse.remaining === 1 ? '' : 's'} left`}`;
+      t.reason = `On the board: ${owner}'s, ${inUse.eternal ? 'eternal' : `${inUse.remaining} round${inUse.remaining === 1 ? '' : 's'} left`}`;
     } else if (!v.marketingTiles.includes(t.number)) t.reason = 'Not available in this game';
     else t.reason = noSpotReason(v, who, spec, t.kind, t.def, t.number);
   }
-  return [...out.values()].sort((a, b) => a.number - b.number);
+  // Giant billboards and gourmet guides are identical pieces off the board: the engine offers only the
+  // lowest free number, so the other free ones are not "blocked", just next in line. Drop them.
+  const offered = new Set([...out.values()].filter((t) => t.spots.length).map((t) => t.kind));
+  const queued = (t: TokenInfo) => IDENTICAL.has(t.kind) && offered.has(t.kind) && !t.spots.length && v.marketingTiles.includes(t.number) && !campaigns.some((x) => x.number === t.number);
+  return [...out.values()].filter((t) => !queued(t)).sort((a, b) => a.number - b.number);
 }
 
 export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps) {
@@ -203,7 +209,9 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
   const listAll = listAllPlacements();
   const listFor = (list: CampaignPlacementT[]) => (listAll ? list : list.filter((p) => listOnly(p) || boardRenderer.value !== '3d'));
   const launch = chosen && v ? eternalLaunch(c, v, who, chosen.kind, { employeeId: card?.employeeId ?? null, goods }) : { eternal: false, claims: null };
-  const eternal = launch.eternal;
+  // Rural marketeers' campaigns are always eternal (KX p25), whatever the milestones say.
+  const always = Boolean(marketing?.alwaysEternal);
+  const eternal = always || launch.eternal;
 
   return (
     <div class="flow campaign-flow">
@@ -259,17 +267,18 @@ export function CampaignFlow({ legal, placements, onDone, onCancel }: FlowProps)
               {eternal ? (
                 <>
                   <Pill tone="ok" icon="star">
-                    Eternal (milestone)
+                    {always ? 'Eternal' : 'Eternal (milestone)'}
                   </Pill>
-                  {launch.claims && chosen && <span class="muted small">{eternalClaimLine(launch.claims, chosen.kind, card ? employeeName(c, card.employeeId) : 'marketeer')}</span>}
+                  {always && <span class="muted small">This campaign never ends; your {card ? employeeName(c, card.employeeId).toLowerCase() : 'marketeer'} stays busy for the rest of the game.</span>}
+                  {!always && launch.claims && chosen && <span class="muted small">{eternalClaimLine(launch.claims, chosen.kind, card ? employeeName(c, card.employeeId) : 'marketeer')}</span>}
                 </>
               ) : maxDuration > 1 ? (
                 <>
-                  <Stepper label="turns" value={duration.value} min={1} max={maxDuration} onChange={(n) => (duration.value = n)} />
+                  <Stepper label="rounds" value={duration.value} min={1} max={maxDuration} onChange={(n) => (duration.value = n)} />
                   <span class="muted small">max {maxDuration}</span>
                 </>
               ) : (
-                <span class="muted small">1 turn</span>
+                <span class="muted small">1 round</span>
               )}
             </label>
           )}

@@ -2,7 +2,7 @@
  * Reserve Prices (ketchup.md §14; KX p16; DLX p28).
  */
 import { describe, expect, it } from 'vitest';
-import { derivePrompt, redactFor, type Corner, type PlayerId, type ReserveCard } from '../../../src/index.js';
+import { derivePrompt, legalActions, redactFor, type Corner, type PlayerId, type ReserveCard } from '../../../src/index.js';
 import { basePriceFromReserves, PRICE_RESERVES } from '../../../src/modules/ketchup/reservePrices.js';
 import { payFromBank } from '../../../src/rules/bank.js';
 import { runDinnertime } from '../../../src/rules/dinnertime.js';
@@ -44,6 +44,7 @@ describe('Reserve Prices - reserve cards (ketchup.md §14)', () => {
     const who = s.awaiting.players[0] as PlayerId;
     expect(derivePrompt(redactFor(s, who), who)).toMatchObject({ kind: 'chooseReserve', options: [P(5), P(10), P(20)] });
     expect(rejected(s, { type: 'setup.chooseReserve', playerId: 'p1', card: reserve(100) }).code).toBe('INVALID_PAYLOAD');
+    expect(legalActions(s, 'p1').map((l) => l.label)).toEqual(['Reserve card: base price $5 (+$200)', 'Reserve card: base price $10 (+$200)', 'Reserve card: base price $20 (+$200)']);
     s = act(s, { type: 'setup.chooseReserve', playerId: 'p1', card: P(20) });
     expect(s.secrets.p1?.reserve).toEqual(P(20));
   });
@@ -77,6 +78,8 @@ describe('Reserve Prices - first bank break (ketchup.md §14)', () => {
     const ctx = nearBreak([P(5), P(5), P(20)]);
     payFromBank(ctx, 'p1', 10, 'sale');
     expect(ctx.state.basePrice).toBe(5);
+    // KX p28: the bankBroke event carries the new price, not the old $10.
+    expect(ctx.of('bankBroke')[0]?.basePrice).toBe(5);
     const ctx2 = nearBreak([P(10), P(20), P(20)]);
     payFromBank(ctx2, 'p1', 10, 'sale');
     expect(ctx2.state.basePrice).toBe(20);

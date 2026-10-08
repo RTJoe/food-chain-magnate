@@ -11,7 +11,8 @@
  *   - passive cards count twice: a pricing manager gives −$2, a waitress tips twice and counts as
  *     2 waitresses for ties (questions.md Q-K9: literal reading);
  *   - a management trainee gains no slots.
- * - Same-card training limits are unchanged (a trainer still trains a card at most once).
+ * - Same-card training: a night-shift Trainer trains a card at most once, unless a stacking milestone
+ *   (First to pay $20, First house built) lets its two copies both train it (KX p22 clarification).
  */
 import type { GameModule } from '../../types/module.js';
 import type { GameState, PlayerId } from '../../types/state.js';

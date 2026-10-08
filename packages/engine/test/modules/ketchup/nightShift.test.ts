@@ -63,11 +63,15 @@ describe('Night Shift Managers (ketchup.md §11)', () => {
       expect(rejected(s, submit([nsm], { [nsm]: [w] })).message).toMatch(/not a manager/);
     });
 
-    it('§11 clarification: a management trainee gains no slots from it (3 under a 2-slot trainee is still overfill)', () => {
-      const { s, uids } = restructuring([NSM, 'management_trainee', 'waitress', 'waitress', 'waitress']);
-      const [nsm, mt, a, b, c] = uids as [Uid, Uid, Uid, Uid, Uid];
-      const over = actE(s, submit([nsm, mt], { [mt]: [a, b, c] }));
+    it('§11 clarification: a management trainee gains no slots from it (4 cards for 1 CEO slot + 2 trainee slots is overfill)', () => {
+      const { s, uids } = restructuring([NSM, 'management_trainee', 'waitress', 'waitress', 'waitress', 'waitress']);
+      const [nsm, mt, a, b, c, d] = uids as [Uid, Uid, Uid, Uid, Uid, Uid];
+      const over = actE(s, submit([nsm, mt], { [mt]: [a, b, c, d] }));
       expect(over.events.some((e) => e.type === 'structurePenalty')).toBe(true);
+      // 3 under the trainee re-seat to CEO:[NSM, MT, W] + MT:[W, W] (DLX p13), so no penalty.
+      const reseated = actE(s, submit([nsm, mt], { [mt]: [a, b, c] }));
+      expect(reseated.events.some((e) => e.type === 'structurePenalty')).toBe(false);
+      expect(reseated.state.players.p1?.structure).toMatchObject({ ceoSubs: [nsm, mt, a], managerSubs: { [mt]: [b, c] } });
       const ok = actE(s, submit([nsm, mt], { [mt]: [a, b] }));
       expect(ok.events.some((e) => e.type === 'structurePenalty')).toBe(false);
       expect(ok.state.players.p1?.structure.ceoSubs).toEqual([nsm, mt]);
@@ -105,6 +109,14 @@ describe('Night Shift Managers (ketchup.md §11)', () => {
       let t = act(s, { type: 'work.recruit', playerId: 'p1', cardUid: rg, employeeId: 'waitress' });
       t = act(t, { type: 'work.recruit', playerId: 'p1', cardUid: rg, employeeId: 'errand_boy' });
       expect(rejected(t, { type: 'work.recruit', playerId: 'p1', cardUid: rg, employeeId: 'waitress' }).code).toBe('CARD_UNAVAILABLE');
+    });
+
+    it('KX p22: with First to pay $20 the two night-shift copies of a Trainer may both train the same card', () => {
+      const { s, work, beach } = workingTurn(kgame(2, [...M]), 'p1', { work: [NSM, 'trainer'], beach: ['kitchen_trainee'], milestones: ['first_pay_20'] });
+      const trainer = work[1] as Uid;
+      let t = act(s, { type: 'work.train', playerId: 'p1', trainerUid: trainer, targetUid: beach[0] as Uid, toEmployeeId: 'burger_cook' });
+      t = act(t, { type: 'work.train', playerId: 'p1', trainerUid: trainer, targetUid: beach[0] as Uid, toEmployeeId: 'burger_chef' });
+      expect(t.players.p1?.employees[beach[0] as Uid]?.employeeId).toBe('burger_chef');
     });
 
     it('§11: a trainer trains 2 different cards, but never the same card twice', () => {

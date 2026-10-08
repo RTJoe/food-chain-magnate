@@ -29,6 +29,11 @@ const GROUP = 'anim';
 const CAPTION_HOLD_MS = 3800;
 /** Queue a same-phase batch only when the running timeline ends within this (wall-clock s). */
 const QUEUE_WITHIN = 3;
+/**
+ * A next-phase batch (bots answering at once) waits behind a running Dinnertime / Marketing that
+ * ends within this, instead of cutting it (the plan's "about 4 s behind" bound).
+ */
+const QUEUE_SEGMENT_WITHIN = 4;
 const QUEUE_MAX = 2;
 /** Batches older than this (wall-clock ms) are finished without playing. */
 const STALE_MS = 20_000;
@@ -56,6 +61,8 @@ interface Pending {
   arrived: number;
   /** "Watch again": the real pieces are left alone (choreographies check `isReplay`). */
   replay?: boolean;
+  /** Pieces this batch adds, hidden while it waits in the queue (keys into `rec.live`). */
+  hidden?: string[];
 }
 
 export class Animator {
@@ -117,6 +124,7 @@ export class Animator {
   finish(): void {
     const queued = this.queue;
     this.queue = [];
+    for (const q of queued) this.unhide(q);
     this.tl?.finish();
     // Queued batches never play; the newest closing caption wins.
     const last = queued[queued.length - 1];
@@ -176,7 +184,10 @@ export class Animator {
         return;
       }
       const left = this.tl.remaining / Math.max(0.01, speed);
-      if (plan.phase === this.current.plan.phase && left < QUEUE_WITHIN && this.queue.length < QUEUE_MAX) {
+      const story = this.current.plan.segments.some((s) => s.segment === 'dinnertime' || s.segment === 'marketing');
+      const wait = plan.phase === this.current.plan.phase ? left < QUEUE_WITHIN : story && left <= QUEUE_SEGMENT_WITHIN;
+      if (wait && this.queue.length < QUEUE_MAX) {
+        this.hide(p);
         this.queue.push(p);
         return;
       }
@@ -192,7 +203,34 @@ export class Animator {
     if (p.plan.closing) showCaption(p.plan.closing, CAPTION_HOLD_MS);
   }
 
+  /**
+   * The reconciler already shows a queued batch's new pieces: hide them until their batch plays,
+   * so they do not sit on the board at full size and then drop in again. Demand stacks have their
+   * own plaque masking.
+   */
+  private hide(p: Pending): void {
+    const keys: string[] = [];
+    for (const k of p.info.added) {
+      const lp = this.rec.live.get(k);
+      if (!lp || lp.kind === 'demand' || !lp.obj.visible) continue;
+      lp.obj.visible = false;
+      keys.push(k);
+    }
+    p.hidden = keys;
+    if (keys.length) this.stage.invalidate();
+  }
+
+  private unhide(p: Pending): void {
+    for (const k of p.hidden ?? []) {
+      const lp = this.rec.live.get(k);
+      if (lp) lp.obj.visible = true;
+    }
+    if (p.hidden?.length) this.stage.invalidate();
+    p.hidden = undefined;
+  }
+
   private start(p: Pending): void {
+    this.unhide(p);
     if (performance.now() - p.arrived > STALE_MS) {
       this.settle(p);
       return this.next();

@@ -8,6 +8,9 @@ import { applyPaydayAction, enterPayday, isPaydayComplete, salaryAfterFiring, sa
 import { contentFor } from '../../src/modules/registry.js';
 import type { PaydayConfirm, PaydayFire } from '../../src/types/index.js';
 import { MAP, makeCtx, type TestCtx } from './c2ctx.js';
+import { makeCtx as coreCtx } from '../../src/core/context.js';
+import { runUntilInput } from '../../src/core/phase.js';
+import { applyAction, derivePrompt, redactFor } from '../../src/index.js';
 
 /** A W-side 1-wide airplane over row 3 (needs no board squares). */
 const PLANE = { kind: 'airplane', side: 'W', offset: 3, width: 1 } as const;
@@ -169,14 +172,15 @@ describe('voluntary firing (base.md §8.1)', () => {
   it('firing a manager leaves its reports owned (on the beach, still salaried)', () => {
     const ctx = payday(make());
     act(ctx, fire('p1', 'mt'));
+    act(ctx, confirm('p1'));
+    act(ctx, confirm('p2'));
     const p1 = ctx.state.players.p1;
     expect(p1?.employees.mt).toBeUndefined();
     expect(p1?.beach).toContain('jvp-under');
     expect(p1?.structure.managerSubs.mt).toBeUndefined();
-    act(ctx, confirm('p1'));
-    act(ctx, confirm('p2'));
     expect(ctx.of('salaryPaid')[0]).toMatchObject({ player: 'p1', paid: 15 });
   });
+
 });
 
 describe("can't pay (base.md §8.4)", () => {
@@ -276,9 +280,59 @@ describe('Payday milestones', () => {
   it('Q-B6 First to Have $100: an owned CFO is fired at the start of Payday (no salary due for it)', () => {
     const ctx = payday(base().cash('p1', 120).milestone('p1', 'first_100', 3).card('p1', 'cfo', 'work', 'cfo').card('p1', 'junior_vp', 'work'));
     expect(ctx.state.players.p1?.employees.cfo).toBeUndefined();
-    expect(ctx.of('employeeFired')[0]).toMatchObject({ uid: 'cfo', forced: true });
+    expect(ctx.of('employeeFired')[0]).toMatchObject({ uid: 'cfo', forced: true, reason: 'milestone' });
     act(ctx, confirm('p1'));
     expect(ctx.of('salaryPaid')[0]).toMatchObject({ paid: 5 });
+  });
+});
+
+describe('Payday prompt', () => {
+  it('DLX p29: mustFire warns a player whose cash cannot cover the salaries', () => {
+    const ctx = payday(base().cash('p1', 0).cash('p2', 50).card('p1', 'junior_vp', 'work', 'j1').card('p2', 'junior_vp', 'work', 'j2'));
+    expect(derivePrompt(redactFor(ctx.state, 'p1'), 'p1')).toMatchObject({ kind: 'payday', owed: 5, mustFire: true });
+    expect(derivePrompt(redactFor(ctx.state, 'p2'), 'p2')).toMatchObject({ kind: 'payday', owed: 5, mustFire: false });
+  });
+});
+
+describe('undo while others decide (DLX p29 simultaneous)', () => {
+  it('a payday.confirm stays undoable until the last player confirms', () => {
+    const b = base().cash('p1', 50).cash('p2', 50).card('p1', 'junior_vp', 'work', 'j1').card('p2', 'junior_vp', 'work', 'j2');
+    const ctx = coreCtx(b.phase({ kind: 'payday', queue: [], idx: 0 }).build());
+    enterPayday(ctx);
+    let s = ctx.state;
+    const step = (a: PaydayFire | PaydayConfirm) => {
+      const r = applyAction(s, a);
+      if (!r.ok) throw new Error(r.message);
+      s = r.state;
+      return r.undoable;
+    };
+    expect(step(fire('p1', 'j1'))).toBe(true);
+    expect(step(confirm('p1'))).toBe(true);
+    expect(step(confirm('p2'))).toBe(false);
+    expect(s.players.p1?.employees.j1).toBeUndefined();
+  });
+});
+
+describe('intro game through the phase loop (DLX p5)', () => {
+  function afterDinner(b: StateBuilder) {
+    const ctx = coreCtx(b.phase({ kind: 'dinnertime', houses: [], idx: 0 }).build());
+    runUntilInput(ctx);
+    return ctx;
+  }
+
+  it('DLX p5: Dinnertime goes straight to Marketing; no Payday phase is entered', () => {
+    const ctx = afterDinner(base({ intro: true }).cash('p1', 50).card('p1', 'junior_vp', 'work'));
+    const to = ctx.events.flatMap((e) => (e.type === 'phaseChanged' ? [e.to.kind] : []));
+    expect(to).toContain('marketing');
+    expect(to).not.toContain('payday');
+    expect(ctx.state.players.p1?.cash).toBe(50);
+  });
+
+  it('DLX p34 + p5: with milestones, the First to Have $100 CFO is still fired although Payday is skipped', () => {
+    const ctx = afterDinner(base({ intro: true }).cash('p1', 120).milestone('p1', 'first_100', 3).card('p1', 'cfo', 'work', 'cfo'));
+    expect(ctx.state.players.p1?.employees.cfo).toBeUndefined();
+    expect(ctx.events.find((e) => e.type === 'employeeFired')).toMatchObject({ uid: 'cfo', reason: 'milestone' });
+    expect(ctx.state.supply.cfo).toBeGreaterThan(0);
   });
 });
 

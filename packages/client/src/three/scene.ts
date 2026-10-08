@@ -134,13 +134,23 @@ export class Stage {
   contextLost = false;
 
   private dirty = true;
+  /** The shadow map needs redrawing (casters moved). Camera-only and decorative frames skip it. */
+  private shadowDirty = true;
+  /** A decorative-only frame is wanted (pulses, radio rings): throttled, no shadow pass. */
+  private decorDue = false;
+  private lastDecor = 0;
+  private lastAmbientShadow = 0;
   private raf = 0;
   private last = 0;
   private clock = 0;
-  private slowFrames = 0;
+  /** Seconds of slow frames (decays on fast ones) and the run of very slow frames in a row. */
+  private slowTime = 0;
+  private verySlow = 0;
+  /** Clock time before which frame times are ignored (start-up and tier-change shader compiles). */
+  private perfFrom = 3;
+  private dprMq: MediaQueryList | null = null;
   private ro: ResizeObserver;
   private env: THREE.Texture | null = null;
-  private lastAmbient = 0;
 
   constructor(readonly el: HTMLElement, tier: Tier = guessTier()) {
     this.tier = tier;
@@ -150,6 +160,8 @@ export class Stage {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = LIGHT.exposure;
     this.renderer.setClearColor(COLORS.paper);
+    // Shadows redraw only when something that casts them moved (see `invalidate`).
+    this.renderer.shadowMap.autoUpdate = false;
     const canvas = this.renderer.domElement;
     canvas.style.display = 'block';
     canvas.style.width = '100%';
@@ -196,7 +208,20 @@ export class Stage {
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(el);
     this.resize();
+    this.listenDpr();
     this.raf = requestAnimationFrame(this.frame);
+  }
+
+  /** Follow devicePixelRatio changes (window moved to a Retina screen, browser zoom). */
+  private onDpr = (): void => {
+    this.listenDpr();
+    this.resize();
+  };
+
+  private listenDpr(): void {
+    this.dprMq?.removeEventListener?.('change', this.onDpr);
+    this.dprMq = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`) : null;
+    this.dprMq?.addEventListener?.('change', this.onDpr);
   }
 
   /** Image-based lighting: a one-off PMREM render. GPU-made, so it must be rebuilt after a context restore. */
@@ -222,6 +247,7 @@ export class Stage {
     this.contextLost = false;
     this.buildEnvironment();
     this.sun.shadow.needsUpdate = true;
+    this.shadowDirty = true;
     this.scene.traverse((o) => {
       const m = (o as THREE.Mesh).material;
       if (!m) return;
@@ -256,6 +282,7 @@ export class Stage {
   setTier(t: Tier): void {
     if (t === this.tier) return;
     this.tier = t;
+    this.perfFrom = this.clock + 1.5;
     this.applyTier();
     this.resize();
     for (const f of this.onTier) f(t);
@@ -317,8 +344,10 @@ export class Stage {
   }
 
   private v = new THREE.Vector3();
-  private updateSized(): void {
+  /** Scale screen-sized labels and keep "behind" objects behind; true when a behind object moved. */
+  private updateSized(): boolean {
     const cam = this.camera;
+    let moved = false;
     if (this.behind.size) {
       // Screen "up" projected on the ground: away from the viewer when tilted, north-up from above.
       const e = cam.matrixWorld.elements;
@@ -329,11 +358,12 @@ export class Stage {
       uz /= l;
       for (const o of this.behind) {
         const d = o.userData.screenBehind as number;
+        if (Math.abs(o.position.x - ux * d) > 1e-3 || Math.abs(o.position.z - uz * d) > 1e-3) moved = true;
         o.position.x = ux * d;
         o.position.z = uz * d;
       }
     }
-    if (!this.sized.size) return;
+    if (!this.sized.size) return moved;
     const hPx = Math.max(1, this.el.clientHeight);
     const k0 = (2 * Math.tan((cam.fov * Math.PI) / 360)) / hPx / cam.zoom;
     const plaques: { s: THREE.Sprite; wpp: number }[] = [];
@@ -363,6 +393,7 @@ export class Stage {
       }
     }
     if (plaques.length) this.layoutPlaques(plaques, obstacles);
+    return moved;
   }
 
   /** Client px (canvas space) of a sprite's anchor, or null when behind the camera. */
@@ -426,49 +457,99 @@ export class Stage {
     }
   }
 
-  invalidate(): void {
+  /**
+   * Request a render. `shadows` = false for changes that move no shadow caster (camera moves, seam
+   * and label styling), so the shadow pass is skipped.
+   */
+  invalidate(shadows = true): void {
     this.dirty = true;
+    if (shadows) this.shadowDirty = true;
+  }
+
+  /**
+   * Request a decorative frame (highlight / reach pulses): rendered at most ~30 fps (20 on low),
+   * without a shadow pass, and not at all while the board is hidden.
+   */
+  invalidateDecor(): void {
+    this.decorDue = true;
+  }
+
+  /** The board canvas is on screen (not hidden behind another view or a background tab). */
+  private get shown(): boolean {
+    return this.el.clientWidth > 1 && !(typeof document !== 'undefined' && document.hidden);
   }
 
   private frame = (now: number): void => {
     this.raf = requestAnimationFrame(this.frame);
-    const dt = this.last ? Math.min(0.1, (now - this.last) / 1000) : 0;
+    const rawDt = this.last ? (now - this.last) / 1000 : 0;
+    const dt = Math.min(0.1, rawDt);
     this.last = now;
     this.clock += dt;
     for (const f of this.onFrame) f(dt, this.clock);
     const tweening = this.tweens.active;
     this.tweens.tick(dt);
-    let ambientDue = false;
-    if (this.ambient.size) {
-      const step = this.tier === 'low' ? 1 / 20 : 0;
-      if (this.clock - this.lastAmbient >= step) {
-        ambientDue = true;
-        this.lastAmbient = this.clock;
-        for (const o of this.ambient) (o.userData.animate as ((t: number) => void) | undefined)?.(this.clock);
+    // Decorative frames (ambient minis, pulses): ~30 fps (20 on low), none while hidden.
+    const decorStep = this.tier === 'low' ? 1 / 20 : 1 / 30;
+    let decor = false;
+    let casters = false;
+    if ((this.ambient.size || this.decorDue) && this.shown && this.clock - this.lastDecor >= decorStep) {
+      decor = true;
+      this.lastDecor = this.clock;
+      this.decorDue = false;
+      if (this.ambient.size) {
+        for (const o of this.ambient) {
+          (o.userData.animate as ((t: number) => void) | undefined)?.(this.clock);
+          if (o.userData.ambient === 'plane') casters = true;
+        }
       }
     }
-    if (!(this.dirty || tweening || ambientDue) || this.contextLost) return;
+    if (!(this.dirty || tweening || decor) || this.contextLost) return;
     this.dirty = false;
-    this.updateSized();
+    if (this.updateSized()) this.shadowDirty = true;
+    // A bobbing plane moves its shadow a little: refresh it at a few fps only.
+    if (casters && this.clock - this.lastAmbientShadow >= 0.25) {
+      this.lastAmbientShadow = this.clock;
+      this.shadowDirty = true;
+    }
+    if (tweening || this.shadowDirty) {
+      this.renderer.shadowMap.needsUpdate = true;
+      this.shadowDirty = false;
+    }
     const t0 = performance.now();
     this.renderer.render(this.scene, this.camera);
-    this.watchPerf(performance.now() - t0, dt);
+    // Uncapped frame time (a GPU-bound device returns from render() quickly but frames come late);
+    // a long gap after a background tab is not a slow frame.
+    this.watchPerf(performance.now() - t0, rawDt < 1 ? rawDt : 0);
   };
 
-  /** Step the tier down after ~2 s of consistently slow frames. */
+  /**
+   * Step the tier down after ~2 s (wall time, not a frame count, so slow devices are not slower to
+   * react) of consistently slow frames; six frames over 100 ms in a row go straight to low. The
+   * first seconds after start and after a tier change (shader compiles) do not count.
+   * Note: a runtime step to low keeps the MSAA the renderer was created with (WebGL cannot drop it
+   * without a new context); a stored or guessed low tier starts without it.
+   */
   private watchPerf(renderMs: number, dt: number): void {
+    if (forcedTier() || this.clock < this.perfFrom) return;
+    const frameS = Math.max(dt, renderMs / 1000);
     const slow = renderMs > 22 || dt > 0.045;
-    this.slowFrames = slow ? this.slowFrames + 1 : Math.max(0, this.slowFrames - 2);
-    if (this.slowFrames > 90 && !forcedTier()) {
-      this.slowFrames = 0;
-      const i = TIER_ORDER.indexOf(this.tier);
-      if (i < TIER_ORDER.length - 1) this.setTier(TIER_ORDER[i + 1]!);
+    this.slowTime = slow ? this.slowTime + frameS : Math.max(0, this.slowTime - 2 * frameS);
+    this.verySlow = frameS > 0.1 ? this.verySlow + 1 : 0;
+    const i = TIER_ORDER.indexOf(this.tier);
+    if (i >= TIER_ORDER.length - 1) return;
+    if (this.verySlow >= 6) {
+      this.slowTime = this.verySlow = 0;
+      this.setTier('low');
+    } else if (this.slowTime > 2) {
+      this.slowTime = this.verySlow = 0;
+      this.setTier(TIER_ORDER[i + 1]!);
     }
   }
 
   dispose(): void {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
+    this.dprMq?.removeEventListener?.('change', this.onDpr);
     this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLostHandler, false);
     this.renderer.domElement.removeEventListener('webglcontextrestored', this.contextRestoredHandler, false);
     this.tweens.finish();

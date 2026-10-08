@@ -154,6 +154,7 @@ const saleCandidate = ({ candidate: c, canSupply }: { candidate: DinnerCandidate
   score: c.score,
   tier: c.tier,
   canSupply,
+  items: { ...c.items },
 });
 
 function resolveHouse(ctx: HookContext, house: House): void {

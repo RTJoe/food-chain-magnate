@@ -1406,6 +1406,7 @@
           "occupant": null,
           "road": {
             "links": [
+              "E",
               "S",
               "W"
             ],
@@ -1422,7 +1423,8 @@
           "road": {
             "links": [
               "E",
-              "S"
+              "S",
+              "W"
             ],
             "bridge": false,
             "underConstruction": false,
@@ -1602,6 +1604,7 @@
           "road": {
             "links": [
               "N",
+              "E",
               "S"
             ],
             "bridge": false,
@@ -1617,7 +1620,8 @@
           "road": {
             "links": [
               "N",
-              "S"
+              "S",
+              "W"
             ],
             "bridge": false,
             "underConstruction": false,
@@ -2165,7 +2169,8 @@
           "road": {
             "links": [
               "N",
-              "E"
+              "E",
+              "S"
             ],
             "bridge": false,
             "underConstruction": false,
@@ -2180,6 +2185,7 @@
           "road": {
             "links": [
               "E",
+              "S",
               "W"
             ],
             "bridge": false,
@@ -2349,6 +2355,7 @@
           "occupant": null,
           "road": {
             "links": [
+              "N",
               "E",
               "S"
             ],
@@ -2364,6 +2371,7 @@
           "occupant": null,
           "road": {
             "links": [
+              "N",
               "E",
               "W"
             ],

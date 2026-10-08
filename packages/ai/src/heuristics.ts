@@ -394,6 +394,12 @@ export function placementCells(pl: Placement): Pt[] {
       return [{ x: pl.x, y: pl.y }];
     case 'lobbyistRoad':
       return pl.cells;
+    case 'mapTile':
+      // Corners of the 5x5 tile in current board coordinates (row/col -1 = beside the map).
+      return [
+        { x: pl.col * 5, y: pl.row * 5 },
+        { x: pl.col * 5 + 4, y: pl.row * 5 + 4 },
+      ];
     default:
       return [];
   }

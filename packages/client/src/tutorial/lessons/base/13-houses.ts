@@ -38,7 +38,7 @@ export const lesson13 = defineLesson({
   title: 'Houses, gardens and new restaurants',
   minutes: 8,
   goal: 'Gardens double a house’s price, new houses get a number, Local Managers open COMING SOON restaurants.',
-  concepts: ['nbd', 'garden', 'local_manager', 'coming_soon', 'regional_manager', 'drive_in'],
+  concepts: ['new_business_developer', 'garden', 'local_manager', 'coming_soon', 'regional_manager', 'drive_in'],
   scenario: {
     build: () => {
       const b = town({ round: 6 })
@@ -91,7 +91,7 @@ export const lesson13 = defineLesson({
       then: 'House 1 comes with its own garden, and it now eats before every other house.',
       hint: { say: 'Tap the other Developer, "Build a house", pick house tile 1, then a spot on tiles A1 or A2.', show: [{ tile: 'A1' }] },
       checkpoint: true,
-      glossary: 'nbd',
+      glossary: 'new_business_developer',
     },
     {
       id: 'local-manager',

@@ -22,6 +22,7 @@ import { chooseChoice } from './ketchup.js';
 import { chooseFreezer, chooseOrder, choosePayday, chooseReserve, chooseSetupRestaurant } from './phases.js';
 import { chooseStructure, structureCandidates } from './restructure.js';
 import { chooseWork, workPlan } from './working.js';
+import { noteInternalFallback } from '../shared/fallback.js';
 
 export { structureCandidates, structureScore } from './restructure.js';
 export { fireCandidates, orderValue, forcedFire } from './phases.js';
@@ -55,7 +56,13 @@ function candidates(c: Ctx): Action[] {
   }
 }
 
+/** Medium's move (also Hard's opponent model in rollouts). */
 export function mediumChoose(input: BotInput): Action {
+  return mediumDecide(input).action;
+}
+
+/** Medium's move, and whether none of its own candidates was valid (the safe fallback was played). */
+export function mediumDecide(input: BotInput): { action: Action; fellBack: boolean } {
   const c = makeCtx(input);
   let list: Action[] = [];
   try {
@@ -63,12 +70,19 @@ export function mediumChoose(input: BotInput): Action {
   } catch {
     list = [];
   }
-  for (const a of list) if (isValid(c, a)) return a;
-  return fallbackAction(c.s, c.me, c.engine, c.legal, c.rng);
+  for (const a of list) if (isValid(c, a)) return { action: a, fellBack: false };
+  return { action: fallbackAction(c.s, c.me, c.engine, c.legal, c.rng), fellBack: true };
+}
+
+/** Top-level `choose`: notes an internal fallback (shared/fallback.ts). */
+function choose(input: BotInput): Action {
+  const d = mediumDecide(input);
+  if (d.fellBack) noteInternalFallback();
+  return d.action;
 }
 
 function explain(input: BotInput): BotExplanation {
-  const action = mediumChoose({ ...input, rng: [...input.rng] as typeof input.rng });
+  const action = choose({ ...input, rng: [...input.rng] as typeof input.rng });
   try {
     const c = makeCtx(input);
     const arch = chooseArchetype(c);
@@ -88,7 +102,7 @@ function explain(input: BotInput): BotExplanation {
 }
 
 export function createMediumBot(): Bot {
-  return { level: 'medium', choose: mediumChoose, explain };
+  return { level: 'medium', choose, explain };
 }
 
 /** Hard's view of Medium's Working plan: base plan, ranked alternatives, single-substitution neighbours. */

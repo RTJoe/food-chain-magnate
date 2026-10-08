@@ -102,6 +102,7 @@ export interface GroupSummary {
   decisions: number;
   threw: number;
   invalid: number;
+  internal: number;
   fallbacks: number;
   rejected: number;
   latency: LatencyStats;
@@ -167,7 +168,7 @@ export function summarize(o: TournamentOptions, results: GameResult[]): Summary 
     const places: number[] = [];
     const lat: number[] = [];
     const byPhase: Record<string, number[]> = {};
-    const t = { decisions: 0, threw: 0, invalid: 0, fallbacks: 0, rejected: 0 };
+    const t = { decisions: 0, threw: 0, invalid: 0, internal: 0, fallbacks: 0, rejected: 0 };
     for (const r of sorted) {
       if (r.winner && r.seats.find((s) => s.playerId === r.winner)?.label === g.label) wins++;
       for (const s of r.seats) {

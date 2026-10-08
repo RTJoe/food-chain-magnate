@@ -114,7 +114,7 @@ export const kimchiLesson = defineLesson({
     },
     {
       id: 'priority',
-      say: 'With Sushi or Noodles in play, kimchi still comes first: it adds to whichever order wins its tier.',
+      say: 'With Sushi or Noodles in play, any order that comes with a kimchi beats every order without one. Even noodles plus a kimchi beat the exact order.',
       until: { next: true },
       glossary: 'food_priority',
     },

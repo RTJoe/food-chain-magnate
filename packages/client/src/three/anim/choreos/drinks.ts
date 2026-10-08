@@ -37,9 +37,10 @@ function vehicleKind(ctx: ChoreoCtx, e: Ev<'drinksBought'>, trip: BuyTrip): Vehi
 }
 
 /** Static or fading ribbon of the route (reduced mode; faint under a moving vehicle otherwise). */
-function routeFlash(tl: Timeline, ctx: ChoreoCtx, pts: readonly P2[], color: string, at: number, dur: number, peak: number): void {
+function routeFlash(tl: Timeline, ctx: ChoreoCtx, pts: readonly P2[], color: string, at: number, dur: number, peak: number, y = 0): void {
   if (pts.length < 2) return;
   const g = routeRibbon(pts.map((q): [number, number] => [q[0], q[1]]), color, 0.2);
+  g.position.y += y;
   const mats: { m: THREE.Material & { opacity: number }; base: number }[] = [];
   g.traverse((o) => {
     const m = (o as THREE.Mesh).material as (THREE.Material & { opacity: number }) | undefined;
@@ -127,7 +128,8 @@ registerChoreo('drinks', (beat, at, tl, ctx) => {
   if (!trip) return milestoneHaul(tl, ctx, e, at, budget);
 
   if (reduced) {
-    if (trip.mode !== 'air') routeFlash(tl, ctx, trip.pts, color, at, budget, 0.9);
+    // Air hauls: the zeppelin's line over the visited tiles, held above the house roofs.
+    routeFlash(tl, ctx, trip.pts, color, at, budget, 0.9, trip.mode === 'air' ? 1.6 : 0);
     for (const s of trip.stops) pickupChip(tl, ctx, s.sourceId, s.drink, s.count, color, at);
     if (trip.mode === 'errand') errandChip(tl, ctx, e, color, at);
     return at + budget;

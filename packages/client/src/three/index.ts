@@ -121,14 +121,15 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
     rec.setTileStyle(t, highContrastTiles.peek(), cam.yaw);
   };
 
-  cam.onChange = () => stage.invalidate();
+  // Camera moves never move a shadow caster: no shadow pass.
+  cam.onChange = () => stage.invalidate(false);
   cam.onTopChange = (on) => {
     topView.value = on;
   };
   const camTick = (dt: number) => {
     if (cam.update(dt)) {
       seamStyle();
-      stage.invalidate();
+      stage.invalidate(false);
     }
   };
   stage.onFrame.add(camTick);
@@ -240,7 +241,13 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
         boardKey = key;
         boardGrid = fk?.grid ?? '';
         boardRural = fk?.rural ?? '';
-        if (b) cam.setContent(contentRect(b), first || res.boardChanged, inset, frameRect(b));
+        // An extra map tile re-bases the board (same game, tiles shifted): keep the view where it
+        // is (shift the camera with the board) instead of snapping to the new home framing.
+        const shift = !first && res.boardChanged && b && prevView ? tileShift(prevView.board, b) : null;
+        if (b && shift) {
+          cam.shift(shift[0], shift[1]);
+          cam.setContent(contentRect(b), false, inset, frameRect(b));
+        } else if (b) cam.setContent(contentRect(b), first || res.boardChanged, inset, frameRect(b));
         // The rural area moved to the first freeway's side: glide to the new home framing.
         if (moved && boardRural) cam.reset();
         seamStyle();
@@ -255,9 +262,10 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
         }
       }
       if (events.length) anim.play(events, { view, prevView, me, added: res.added, removed: res.removed, prevDemand: res.prevDemand });
-      else if (!prevView && view && view.phase.kind === 'setup.restaurants' && !Object.keys(view.board.restaurants).length && !skipBoardBuild.peek()) {
+      else if (!prevView && view && (view.phase.kind === 'setup.reserve' || view.phase.kind === 'setup.restaurants') && !Object.keys(view.board.restaurants).length && !skipBoardBuild.peek()) {
         // Games start from a snapshot (`gameStarted` is never a live batch): the first look at a
-        // fresh board plays the setup board build (animation-plan §2.1).
+        // fresh board plays the setup board build (animation-plan §2.1). Setup opens on reserve
+        // cards (DLX p4), then first restaurants.
         anim.play([{ type: 'gameStarted', players: Object.keys(view.players), turnOrder: [...view.turnOrder] }], { view, prevView: null, me, added: [], removed: [], prevDemand: res.prevDemand });
       }
       inter.refresh();
@@ -381,6 +389,25 @@ export function createScene(el: HTMLElement, opts: SceneOptions = {}): SceneHand
 }
 
 /** How long a lost WebGL context may stay lost before the 2D board takes over (ms). */
+/**
+ * World shift (dx, dz) between two boards of the same game (a map tile was added and the grid
+ * re-based), from a tile both share; null for unrelated boards (a new game).
+ */
+export function tileShift(a: GameView['board'], b: GameView['board']): [number, number] | null {
+  // A grown board keeps every old tile, all moved by the same offset, and has more tiles.
+  if (!a.tiles.length || b.tiles.length <= a.tiles.length) return null;
+  const now = new Map(b.tiles.map((t) => [t.id, t]));
+  let shift: [number, number] | null = null;
+  for (const o of a.tiles) {
+    const t = now.get(o.id);
+    if (!t) return null;
+    const d: [number, number] = [t.col - o.col, t.row - o.row];
+    if (shift && (shift[0] !== d[0] || shift[1] !== d[1])) return null;
+    shift = d;
+  }
+  return shift ? [shift[0] * b.tileSize, shift[1] * b.tileSize] : null;
+}
+
 export const CONTEXT_FALLBACK_MS = 2500;
 
 /**

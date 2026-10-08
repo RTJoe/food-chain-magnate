@@ -131,7 +131,7 @@ function RulesView({ book, section, sources, go, scroller }: { book: Book; secti
                   .filter((c) => c.group === g)
                   .map((c) => (
                     <li key={c.id}>
-                      <button type="button" class={`rb-toc-item ${c === chapter ? 'is-on' : ''}`} aria-current={c === chapter ? 'page' : undefined} onClick={() => go({ tab: 'rules', section: c.id })}>
+                      <button type="button" class={`rb-toc-item ${c === chapter ? 'is-on' : ''}`} aria-current={c === chapter ? 'page' : undefined} onClick={() => (section === c.id ? scroller.current?.scrollTo({ top: 0 }) : go({ tab: 'rules', section: c.id }))}>
                         {Icon[chapterIcon(c)]({ size: 16 })}
                         <span>{c.title}</span>
                       </button>
@@ -171,7 +171,12 @@ function RulesView({ book, section, sources, go, scroller }: { book: Book; secti
               {showTitle && (
                 <H class="rb-section-title">
                   {s.title}
-                  <a class="rb-anchor" href={`#/rules/${s.id}`} aria-label={`Link to ${s.title}`} onClick={(e) => (e.preventDefault(), go({ tab: 'rules', section: s.id }))}>
+                  <a class="rb-anchor" href={`#/rules/${s.id}`} aria-label={`Link to ${s.title}`} onClick={(e) => {
+                      e.preventDefault();
+                      // Same hash again: go() changes nothing, so scroll back to the section here.
+                      if (section === s.id) document.getElementById(`rule-${s.id}`)?.scrollIntoView({ block: 'start' });
+                      else go({ tab: 'rules', section: s.id });
+                    }}>
                     #
                   </a>
                 </H>
@@ -205,7 +210,7 @@ const sameTitle = (a: string, b: string) => a.toLowerCase().replace(/[^a-z0-9]/g
 /** Glossary terms whose rule lives in this chapter: a quick way into plain-English definitions. */
 function TermsHere({ chapter, go }: { chapter: Chapter; go: (l: RulesLoc) => void }) {
   const ids = new Set(chapter.sections.map((s) => s.id));
-  const terms = GLOSSARY.filter((e) => e.rule && ids.has(e.rule) && e.group !== 'employee' && e.group !== 'milestone').slice(0, 24);
+  const terms = GLOSSARY.filter((e) => e.rule && ids.has(e.rule) && !e.employee && !e.milestone);
   if (!terms.length) return null;
   return (
     <aside class="rb-terms">

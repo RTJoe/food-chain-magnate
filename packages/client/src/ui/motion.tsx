@@ -285,7 +285,7 @@ function effect(e: GameEvent, b: MotionBatch, old: Map<string, Snap>, chip: (p: 
       break;
     }
     case 'reserveChosen':
-      chip(e.player, '▮ Reserve chosen', 'info');
+      chip(e.player, 'Reserve chosen', 'info');
       break;
     case 'iouIssued': {
       const p = panelOf(e.player);

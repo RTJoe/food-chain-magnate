@@ -109,7 +109,7 @@ export const sushiLesson = defineLesson({
     },
     {
       id: 'combine',
-      say: 'Kimchi still beats sushi, and sushi beats the exact order. Noodles only come in when nobody can serve a house.',
+      say: 'Any order that comes with a kimchi beats every order without one. After that, sushi beats the exact order, and the exact order beats noodles.',
       until: { next: true },
       glossary: 'food_priority',
     },

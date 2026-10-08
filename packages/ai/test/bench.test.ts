@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Action } from '@fcm/engine';
 import { createEasyBot, type Bot } from '../src/index.js';
-import { playGame, type TraceLine } from '../src/bench/game.js';
+import { parseModules, playGame, type TraceLine } from '../src/bench/game.js';
 import { formatReport } from '../src/bench/report.js';
 import { multiplayerElo, percentile, wilson } from '../src/bench/stats.js';
 import { buildGroups, runInline, schedule, summarize, type TournamentOptions } from '../src/bench/tournament.js';
@@ -20,6 +20,18 @@ const opts = (over: Partial<TournamentOptions> = {}): TournamentOptions => ({
   rotate: true,
   trace: false,
   ...over,
+});
+
+describe('bench modules', () => {
+  it('6 players always get 6 Players and the New Districts it requires', () => {
+    for (const arg of ['none', 'all', 'coffee', 'ketchup:newDistricts,kimchi']) {
+      const ids = parseModules(arg, 6);
+      expect(ids).toContain('ketchup:sixPlayers');
+      expect(ids).toContain('ketchup:newDistricts');
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+    expect(parseModules('none', 4)).toEqual([]);
+  });
 });
 
 describe('bench stats', () => {

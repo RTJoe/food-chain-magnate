@@ -10,7 +10,7 @@ import type { EngineCtx } from '../../core/context.js';
 import { OK, reject, type Check } from '../../core/errors.js';
 import { cardPlace, cardsAtWork, defOf } from '../../core/cards.js';
 import { contentFor } from '../../modules/registry.js';
-import { DRINKS } from '../../content/foods.js';
+import { DRINKS, FOODS } from '../../content/foods.js';
 import { CORNERS, DIRECTIONS, allEmpty, rect, restaurantCells } from '../../map/grid.js';
 import {
   enumerateAirRoutes,
@@ -155,6 +155,13 @@ export function applyWork(ctx: EngineCtx, a: WorkAction): { undoable: boolean } 
 // Legal actions (UI guidance; every `ready` action is re-validated by core/legal.ts)
 // ---------------------------------------------------------------------------
 
+
+/** "3 burgers", "1 soda": display name, lower case, plural when needed (kimchi, sushi, noodles never change). */
+function countOf(n: number, food: string): string {
+  const name = (FOODS.find((f) => f.id === food)?.name ?? food).toLowerCase();
+  return `${n} ${n === 1 || /s$|kimchi|sushi/.test(name) ? name : `${name}s`}`;
+}
+
 /**
  * Cards a trainer may consider: the beach, then cards at work (only trainable through a module
  * exception such as Ketchup First lemonade sold, checked by `validateTrain`). Never the CEO or
@@ -209,13 +216,14 @@ export function workingLegalActions(s: GameState, player: PlayerId): LegalAction
       }
       case 'produce':
         for (const food of a.foods) {
-          out.push({ kind: 'ready', label: `${def.name}: make ${a.amount} ${food}`, action: { type: 'work.produce', playerId: player, cardUid: uid, food } });
+          out.push({ kind: 'ready', label: `${def.name}: make ${countOf(a.amount, food)}`, action: { type: 'work.produce', playerId: player, cardUid: uid, food } });
         }
         break;
       case 'buyDrinks':
         if (a.mode === 'errand') {
+          const per = buyerStats(s, player, def).perSource;
           for (const drink of DRINKS) {
-            out.push({ kind: 'ready', label: `${def.name}: get ${drink}`, action: { type: 'work.buyDrinks', playerId: player, cardUid: uid, route: { mode: 'errand', drink: drink as DrinkId } } });
+            out.push({ kind: 'ready', label: `${def.name}: get ${countOf(per, drink)}`, action: { type: 'work.buyDrinks', playerId: player, cardUid: uid, route: { mode: 'errand', drink: drink as DrinkId } } });
           }
         } else {
           out.push({ kind: 'placement', label: `${def.name}: buy drinks`, actionType: 'work.buyDrinks', cardUid: uid, spec: { kind: 'buyerRoute', cardUid: uid } });
@@ -262,38 +270,29 @@ export function workingPlacements(s: GameState, player: PlayerId, spec: Placemen
     case 'buyerRoute': {
       if (a.kind !== 'buyDrinks' || a.mode === 'errand') return [];
       const { range, perSource } = buyerStats(s, player, def);
-      const seen = new Set<string>();
+      // One haul per distinct source set, using its cheapest route over every start. A haul that
+      // collects nothing is left out: gaining drinks is optional (DLX p21) and Skip covers it.
+      const best = new Map<string, Extract<Placement, { kind: 'buyerRoute' }>>();
+      const offer = (sources: string[], p: Extract<Placement, { kind: 'buyerRoute' }>) => {
+        if (!sources.length) return;
+        const key = sources.join(',');
+        const prev = best.get(key);
+        if (!prev || (p.bordersUsed ?? 0) < (prev.bordersUsed ?? 0)) best.set(key, p);
+      };
       for (const from of playerRouteStarts(s.board, player)) {
         if (a.mode === 'road') {
           for (const r of enumerateRoadRoutes(s.board, routeStartRoads(s.board, from), range)) {
-            const key = r.sources.join(',');
-            if (seen.has(key)) continue;
-            seen.add(key);
-            out.push({
-              kind: 'buyerRoute',
-              route: { mode: 'road', from, path: r.path },
-              collects: r.sources.map((sourceId) => ({ sourceId, count: perSource })),
-              range,
-              bordersUsed: r.borders,
-            });
+            offer(r.sources, { kind: 'buyerRoute', route: { mode: 'road', from, path: r.path }, collects: r.sources.map((sourceId) => ({ sourceId, count: perSource })), range, bordersUsed: r.borders });
           }
         } else {
           const origin = routeStartOrigin(s.board, from);
           if (!origin) continue;
           for (const r of enumerateAirRoutes(s.board, [tileRCOf(origin)], range)) {
-            const key = r.sources.join(',');
-            if (seen.has(key)) continue;
-            seen.add(key);
-            out.push({
-              kind: 'buyerRoute',
-              route: { mode: 'air', from, tiles: r.tiles },
-              collects: r.sources.map((sourceId) => ({ sourceId, count: perSource })),
-              range,
-              bordersUsed: r.tiles.length - 1,
-            });
+            offer(r.sources, { kind: 'buyerRoute', route: { mode: 'air', from, tiles: r.tiles }, collects: r.sources.map((sourceId) => ({ sourceId, count: perSource })), range, bordersUsed: r.tiles.length - 1 });
           }
         }
       }
+      out.push(...best.values());
       return out;
     }
     case 'campaign': {
@@ -448,6 +447,12 @@ export function noActionReason(s: GameState, player: PlayerId, uid: string): str
       return 'No house or garden tiles left';
     case 'restaurant':
       return p.restaurantsRemaining <= 0 ? 'All your restaurants are on the map' : 'No legal restaurant placement';
+    case 'lobbyist': {
+      // KX p15: once the road and park tiles run out, the lobbyist can do nothing useful.
+      const st = s.moduleState['ketchup:lobbyists'] as { roads?: Record<string, number>; parks?: Record<string, number> } | undefined;
+      const any = !st || [...Object.values(st.roads ?? {}), ...Object.values(st.parks ?? {})].some((n) => n > 0);
+      return any ? 'No legal road or park placement' : 'No road or park tiles left';
+    }
     default:
       return 'Nothing this card can do now';
   }

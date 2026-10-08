@@ -58,7 +58,7 @@ export const lesson12 = defineLesson({
   title: 'Milestones',
   minutes: 7,
   goal: 'Milestones: claimed at once, shared within a round, gone for the rest at Clean up, and mandatory.',
-  concepts: ['milestone', 'same_round_sharing', 'eternal_campaign', 'mandatory_effect'],
+  concepts: ['milestone', 'eternal_campaign', 'mandatory'],
   scenario: {
     build: () => {
       const b = town({ round: 3 })
@@ -77,7 +77,7 @@ export const lesson12 = defineLesson({
   steps: [
     {
       id: 'open-tab',
-      say: 'Milestones are one-off rewards for being first. Open the Milestones tab: all 18 are still open.',
+      say: 'Milestones reward being first, and most last for the rest of the game. Open the Milestones tab: all 18 are still open.',
       show: [{ ui: 'tab-milestones' }],
       allow: { ui: ['tab-milestones'] },
       until: { signal: 'dockTab', equals: 'milestones' },
@@ -103,7 +103,7 @@ export const lesson12 = defineLesson({
       show: [{ ui: 'milestone-first_billboard' }, { restaurant: 'p1' }],
       until: { next: true },
       checkpoint: true,
-      glossary: 'mandatory_effect',
+      glossary: 'mandatory',
     },
     {
       id: 'same-round',
@@ -118,7 +118,7 @@ export const lesson12 = defineLesson({
       solution: [{ type: 'work.endTurn', playerId: 'p1' }],
       then: (ctx) => (claimed(ctx.events, 'p2', 'first_billboard') ? 'Same round, so Bo claims First Billboard too: everyone who qualifies this round gets it.' : 'Bo ended his turn.'),
       onEnter: [{ openTab: 'turn' }],
-      glossary: 'same_round_sharing',
+      glossary: 'milestone',
     },
     {
       id: 'cleanup',
@@ -144,8 +144,8 @@ export const lesson12 = defineLesson({
     },
     {
       id: 'costs',
-      say: 'Some milestones cut both ways. First to Lower Prices is −$1 on every item forever; First Burger Marketed pays +$5 per burger sold.',
-      show: [{ ui: 'milestone-first_lower_prices' }, { ui: 'milestone-first_burger_marketed' }],
+      say: 'Some milestones cut both ways. First to Lower Prices is −$1 forever, and First Billboard makes every later campaign eternal, tying up its marketeer.',
+      show: [{ ui: 'milestone-first_lower_prices' }, { ui: 'milestone-first_billboard' }],
       until: { next: true },
     },
   ],

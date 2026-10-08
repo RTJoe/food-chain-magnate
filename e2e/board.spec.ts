@@ -65,7 +65,8 @@ test('route: pick a haul by clicking its ribbon on the board, then buy it', asyn
   const errors = trackErrors(page);
   await openFixture(page, 'working', 'p2');
   await startAction(page, 'cart_operator');
-  await expect(page.locator('.haul-row')).toHaveCount(5);
+  // Cheapest route per source set, no empty haul (DLX p21): four distinct hauls.
+  await expect(page.locator('.haul-row')).toHaveCount(4);
   await expectBoardSpots(page);
   await expect(page.locator('.haul-row.is-active')).toContainText('6× beer'); // haul 1 is active by default
   await cameraSettled(page);
@@ -95,12 +96,12 @@ test('route: pick a haul by clicking its ribbon on the board, then buy it', asyn
     await expect(strip(page)).toHaveClass(/is-staged/, { timeout: 1000 });
   }).toPass();
   const row = page.locator('.haul-row').nth(idx);
-  await expect(strip(page)).toContainText(`Haul ${idx + 1} of 5`);
+  await expect(strip(page)).toContainText(`Haul ${idx + 1} of 4`);
   const drinks = (await row.locator('.haul-drink').allTextContents()).map((t) => t.replace(/\s+/g, ' ').trim()); // "3× beer"
   expect(drinks.length).toBeGreaterThan(0);
 
   // The strip's Buy commits that exact haul.
-  await expect(strip(page)).toContainText(`Haul ${idx + 1} of 5`);
+  await expect(strip(page)).toContainText(`Haul ${idx + 1} of 4`);
   await strip(page).getByRole('button', { name: 'Buy', exact: true }).click();
   await expect(strip(page)).toHaveCount(0);
 
@@ -140,10 +141,11 @@ test('campaign: token picker, board placement, rotate with R, confirm', async ({
     await page.mouse.click(spot.centre.x, spot.centre.y);
     await expect(strip(page)).toHaveClass(/is-staged/, { timeout: 1000 });
   }).toPass();
-  await expect(strip(page)).toContainText(`Tile #13 · 3×1 at ${anchor[0]},${anchor[1]} (landscape)`);
+  // The strip names the board tile under the anchor ("… on C1").
+  await expect(strip(page)).toContainText(new RegExp(`Tile #13 · 3×1 at ${anchor[0]},${anchor[1]} on [A-Z]\\d \\(landscape\\)`));
 
   await page.keyboard.press('r');
-  await expect(strip(page)).toContainText(`Tile #13 · 1×3 at ${anchor[0]},${anchor[1]} (portrait)`);
+  await expect(strip(page)).toContainText(new RegExp(`Tile #13 · 1×3 at ${anchor[0]},${anchor[1]} on [A-Z]\\d \\(portrait\\)`));
   await strip(page).getByRole('button', { name: /Place/ }).click();
   await expect(strip(page)).toHaveCount(0);
 
@@ -218,9 +220,9 @@ test.describe('phone', () => {
       await page.touchscreen.tap(spot.centre.x, spot.centre.y);
       await expect(strip(page)).toHaveClass(/is-staged/, { timeout: 1000 });
     }).toPass();
-    await expect(strip(page)).toContainText(`3×1 at ${anchor[0]},${anchor[1]} (landscape)`);
+    await expect(strip(page)).toContainText(new RegExp(`3×1 at ${anchor[0]},${anchor[1]} on [A-Z]\\d \\(landscape\\)`));
     await strip(page).getByRole('button', { name: 'Rotate' }).tap();
-    await expect(strip(page)).toContainText(`1×3 at ${anchor[0]},${anchor[1]} (portrait)`);
+    await expect(strip(page)).toContainText(new RegExp(`1×3 at ${anchor[0]},${anchor[1]} on [A-Z]\\d \\(portrait\\)`));
     await strip(page).getByRole('button', { name: /Place/ }).tap();
 
     // Placing launches straight away (the good was chosen first) and the sheet comes back.

@@ -135,11 +135,19 @@ describe('bots over the wire', () => {
 
   it('bots wait while nobody is connected and resume when the host returns', async () => {
     const s = await start({ botDelay: 20 });
-    const { host } = await hostWithBots(s);
-    await playHuman(host, 'p1', (v) => v.phase.kind === 'restructuring');
+    const { host, roomId } = await hostWithBots(s);
+    // Leave during a bot's working turn, so the bots have moves to make.
+    await playHuman(host, 'p1', (v) => v.phase.kind === 'working' && !v.awaiting.players.includes('p1'));
     const token = host.token;
     await host.close();
+    const entry = s.hub.store.get(roomId);
+    if (!entry?.game || !entry.bots) throw new Error('no game');
+    // A move already in flight may still land; after that nothing moves.
+    await entry.bots.whenIdle();
+    const seq = entry.game.seq;
     await sleep(150);
+    expect(entry.game.seq).toBe(seq);
+    expect(entry.game.awaitedBot()).not.toBeNull();
     const h2 = await connect(s, { sessionToken: token });
     await playHuman(h2, 'p1', (v) => v.round >= 2);
   }, 60_000);

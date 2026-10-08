@@ -20,7 +20,7 @@ import { OK, reject, type Check } from '../../core/errors.js';
 import { hasEffect } from '../../core/cards.js';
 import { contentFor } from '../../modules/registry.js';
 import { DRINKS } from '../../content/foods.js';
-import { playerRouteStarts, routeStartOrigin, routeStartRoads, tileRCOf, validateAirRoute, validateRoadRoute } from '../../map/pathfinding.js';
+import { playerRouteStarts, routeStartOrigin, routeStartRoads, tileRCOf, validateAirRoute, validateRoadRoute, sameRouteStart } from '../../map/pathfinding.js';
 import { advanceTo, cardCheck, spend } from './stages.js';
 
 /** Effective per-source amount and range for a buyer card of `player`. */
@@ -38,7 +38,6 @@ export function buyerStats(s: GameState, player: PlayerId, def: EmployeeDef): { 
   return { perSource, range };
 }
 
-const sameStart = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export type DrinkHaul = { sourceId: SourceId | null; drink: DrinkId; count: number }[];
 
@@ -51,11 +50,11 @@ export function drinkHaul(s: GameState, a: WorkBuyDrinks, def: EmployeeDef): Dri
   const mode = def.ability.mode;
   if (route.mode !== mode) return `${def.name} needs a ${mode} route`;
   if (route.mode === 'errand') {
-    if (!(DRINKS as readonly string[]).includes(route.drink)) return 'Choose beer, lemonade or soft drink';
+    if (!(DRINKS as readonly string[]).includes(route.drink)) return 'Choose beer, lemonade or soda';
     return [{ sourceId: null, drink: route.drink, count: perSource }];
   }
   const starts = playerRouteStarts(s.board, a.playerId);
-  if (!starts.some((st) => sameStart(st, route.from))) return 'The route must start at an entrance of one of your open restaurants';
+  if (!starts.some((st) => sameRouteStart(st, route.from))) return 'The route must start at an entrance of one of your open restaurants';
   let sources: SourceId[];
   if (route.mode === 'road') {
     if (!Array.isArray(route.path)) return 'Missing path';

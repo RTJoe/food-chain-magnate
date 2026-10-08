@@ -42,7 +42,7 @@ export const lesson08 = defineLesson({
   title: 'Drinks and buyer routes',
   minutes: 8,
   goal: 'Fetch drinks: the Errand Boy gets one of any kind; the Cart Operator collects along a road route.',
-  concepts: ['errand_boy', 'cart_operator', 'route', 'route_range', 'collect'],
+  concepts: ['errand_boy', 'cart_operator', 'buyer_route', 'range', 'drink_source'],
   scenario: {
     build: () => {
       const b = town({ round: 4 })
@@ -52,6 +52,9 @@ export const lesson08 = defineLesson({
         .demand(2, ['beer', 'beer', 'burger'])
         .cash('p1', 20)
         .cash('p2', 20)
+        // Bo played both cards first, so their milestones are gone and Ada's cards use printed numbers.
+        .milestone('p2', 'first_errand_boy', 2)
+        .milestone('p2', 'first_cart_operator', 3)
         .phase({ kind: 'working', player: 'p1', idx: 0 });
       return b.turn({ player: 'p1', stage: 'food', uses: { [b.ceoUid('p1')]: 0, [EB]: 1, [CO]: 1 } }).build();
     },
@@ -63,7 +66,7 @@ export const lesson08 = defineLesson({
   steps: [
     {
       id: 'want-beer',
-      say: (ctx) => `House 2 wants ${demandWords(ctx.view, 2)}. You have the burger; two of your cards fetch drinks.`,
+      say: (ctx) => `House 2 wants ${demandWords(ctx.view, 2)}. You have the burger; two of your cards fetch drinks. Bo played these cards first and took their milestones, so yours use the printed numbers.`,
       show: [{ house: 2 }, { card: { player: 'p1', uid: EB } }, { card: { player: 'p1', uid: CO } }],
       until: { next: true },
       checkpoint: true,
@@ -101,14 +104,14 @@ export const lesson08 = defineLesson({
       },
       hint: { say: 'The longest ribbon heads right along the top road into tile C1: "2× beer, 2× soft drink".', show: [{ source: BEER_C1 }, { source: SODA_C1 }] },
       checkpoint: true,
-      glossary: 'route',
+      glossary: 'buyer_route',
     },
     {
       id: 'must-collect',
-      say: "You can't skip a source your road touches: the soda came along too. The beer on B1 sits on another road, so this haul missed it.",
+      say: "You can't skip a source your road touches, so the soft drink came too. The B1 beer is at a dead end and a route can't turn back, so this haul missed it.",
       show: [{ source: SODA_C1 }, { source: BEER_B1 }],
       until: { next: true },
-      glossary: 'collect',
+      glossary: 'drink_source',
     },
     {
       id: 'end-turn',
@@ -150,7 +153,7 @@ export const lesson08 = defineLesson({
     questions: [
       { kind: 'number', q: 'How many tile borders can a Cart Operator drive?', answer: 2, why: 'Cart Operator: road range 2. A Truck Driver reaches 3.' },
       { kind: 'tap', q: 'Tap the house that bought your beers.', target: { house: 2 }, why: 'House 2, on your own tile: 2 beers and a burger, $30.' },
-      { kind: 'choice', q: 'Can a cart skip a source it drives past?', options: ['Yes, if you want', 'No, it collects every source it passes', 'Only soda'], answer: 1, why: 'Every source next to the road you drive is collected, 2 drinks each.' },
+      { kind: 'choice', q: 'Can a cart skip a source it drives past?', options: ['Yes, if you want', 'No, it collects every source it passes', 'Only soft drinks'], answer: 1, why: 'Every source next to the road you drive is collected, 2 drinks each.' },
     ],
   },
 });

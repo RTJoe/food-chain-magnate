@@ -1,5 +1,5 @@
 /**
- * Setup: first restaurants and reserve cards (base.md §2.6–2.7; DLX p4–6).
+ * Setup: reserve cards, then first restaurants (base.md §2.6–2.7; DLX p4 steps 5 and 6).
  *
  * §2.6 First restaurants: round 1 in REVERSE turn order, each player places one restaurant or
  * passes; round 2 in turn order for those who passed, who must place now. Placement: all 4
@@ -12,7 +12,7 @@
  * intro game.
  */
 import type { SetupChooseReserve, SetupPass, SetupPlaceRestaurant } from '../types/actions.js';
-import type { Corner, GameState, PlayerId, ReserveCard } from '../types/state.js';
+import type { Corner, GameState, Phase, PlayerId, ReserveCard } from '../types/state.js';
 import type { Placement } from '../types/view.js';
 import type { EngineCtx } from '../core/context.js';
 import { OK, reject, type Check } from '../core/errors.js';
@@ -39,7 +39,12 @@ export function restaurantSpotProblem(s: GameState, x: number, y: number, entran
     return cell?.kind === 'empty' || (cell?.occupant !== null && cell?.occupant !== undefined && ignore.includes(cell.occupant));
   });
   if (!free) return 'All 4 squares must be empty';
-  if (!entranceOutside(x, y, entrance).some((c) => roadAt(s.board, c))) return 'The entrance must touch a road';
+  const outside = entranceOutside(x, y, entrance);
+  if (!outside.some((c) => roadAt(s.board, c))) {
+    // questions.md Q-K28: an entrance needs a finished road (a lobbyist road under construction is not one yet).
+    if (outside.some((c) => cellAt(s.board, c)?.kind === 'road')) return 'The entrance must touch a finished road (roads under construction do not count yet)';
+    return 'The entrance must touch a road';
+  }
   return null;
 }
 
@@ -63,6 +68,16 @@ export function legalInitialPlacements(s: GameState): Placement[] {
     }
   }
   return out;
+}
+
+/** DLX p4 step 6: the first-restaurant phase, starting with the last player in turn order. */
+export function setupRestaurantsPhase(turnOrder: readonly PlayerId[]): Phase {
+  return { kind: 'setup.restaurants', round: 1, order: [...turnOrder].reverse(), idx: 0, placed: [], passed: [] };
+}
+
+/** True once first restaurants have been placed (setup step 6 is behind us). */
+export function restaurantsPlaced(s: GameState): boolean {
+  return Object.keys(s.board.restaurants).length > 0;
 }
 
 export function currentSetupPlayer(s: GameState): PlayerId | null {

@@ -5,7 +5,7 @@
  * mutable `EngineCtx`, then runs `runUntilInput` so automatic phases resolve before returning.
  *
  * Undo (architecture §3.6): an action is undoable unless it revealed hidden information, ended a
- * decision window (end of turn, order choice, setup placement, payday confirm), or moved the game
+ * decision window (end of turn, order choice, setup placement, the last payday confirm), or moved the game
  * to another phase / round / active player.
  */
 import type { Action, ActionOf, Applied, ChoiceDecline, Ok, Rejected } from '../types/actions.js';
@@ -121,9 +121,13 @@ function dispatch(ctx: EngineCtx, action: Action): boolean {
     case 'payday.fire':
       applyPaydayAction(ctx, action);
       return true;
-    case 'payday.confirm':
+    case 'payday.confirm': {
+      // Simultaneous decision (DLX p29): a confirm stays undoable while others are still deciding;
+      // the last one reveals every firing and settles salaries, so it is final.
       applyPaydayAction(ctx, action);
-      return false;
+      const ph = ctx.state.phase;
+      return ph.kind === 'payday' && (ph.decided ?? []).length < ph.queue.length;
+    }
     case 'cleanup.freezer':
       applyCleanupAction(ctx, action as ActionOf<'cleanup.freezer'>);
       return true;

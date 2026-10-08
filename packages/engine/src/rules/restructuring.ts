@@ -6,8 +6,11 @@
  * the last one arrives; then all are revealed at once.
  * - CEO always at work; CEO slots (3, changed by the first bank break) hold any card.
  * - Managers only in CEO slots; manager slots hold non-managers only (max 3 levels).
- * - Overfill (more cards than slots, on the CEO or on any manager) is legal to submit and
- *   triggers the penalty: everything except the CEO goes to the beach (base.md §4.5).
+ * - Overfill (more cards than slots, on the CEO or on any manager) is legal to submit. DLX p13:
+ *   players commit a stack and assign it after the reveal, and the position of a card changes
+ *   nothing (p14), so an over-full layout whose cards fit some legal layout is re-seated. Only
+ *   cards that cannot all be assigned trigger the penalty: everything except the CEO goes to the
+ *   beach (base.md §4.5).
  * - Busy marketeers are never placed (base.md §4.6).
  * - Players with no cards in hand are submitted automatically (turn 1: CEO only).
  */
@@ -60,6 +63,35 @@ export function isOverfilled(s: GameState, player: PlayerId, sub: StructureSubmi
   const content = contentFor(s.config.modules);
   if (sub.ceoSubs.length > ceoSlotsFor(s, content, player)) return true;
   return Object.entries(sub.managerSubs).some(([mgr, subs]) => subs.length > managerSlots(defOf(content, p, mgr)));
+}
+
+/**
+ * DLX p13: a legal assignment of the same played cards, or null if none exists. Managers and
+ * CEO-only cards (category 'manager', e.g. the Night Shift Manager) take CEO slots; the other cards
+ * fill the free CEO slots first, then the managers' slots in order.
+ */
+export function reseatStructure(s: GameState, player: PlayerId, sub: StructureSubmission): StructureSubmission | null {
+  const p = s.players[player];
+  if (!p) return null;
+  const content = contentFor(s.config.modules);
+  const cards = [...sub.ceoSubs, ...Object.values(sub.managerSubs).flat()];
+  const ceoOnly = cards.filter((u) => defOf(content, p, u)?.category === 'manager');
+  const others = cards.filter((u) => defOf(content, p, u)?.category !== 'manager');
+  const ceoSlots = ceoSlotsFor(s, content, player);
+  if (ceoOnly.length > ceoSlots) return null;
+  const managers = ceoOnly.filter((u) => isManager(defOf(content, p, u)));
+  const room = ceoSlots - ceoOnly.length + managers.reduce((a, u) => a + managerSlots(defOf(content, p, u)), 0);
+  if (others.length > room) return null;
+  const ceoSubs = [...ceoOnly, ...others.slice(0, ceoSlots - ceoOnly.length)];
+  let rest = others.slice(ceoSlots - ceoOnly.length);
+  const managerSubs: Record<string, string[]> = {};
+  for (const m of managers) {
+    const n = managerSlots(defOf(content, p, m));
+    if (!rest.length) break;
+    managerSubs[m] = rest.slice(0, n);
+    rest = rest.slice(n);
+  }
+  return { ceoSubs, managerSubs };
 }
 
 export function validateRestructure(s: GameState, a: RestructureSubmit | RestructureRetract): Check {
@@ -122,7 +154,10 @@ export function revealStructures(ctx: EngineCtx): void {
     if (!p || !sec?.structureDraft) continue;
     const draft = sec.structureDraft;
     const hand = cardsInHand(p);
-    if (isOverfilled(s, id, draft)) {
+    const reseated = isOverfilled(s, id, draft) ? reseatStructure(s, id, draft) : null;
+    if (reseated) {
+      p.structure = { ceo: p.structure.ceo, ceoSubs: reseated.ceoSubs, managerSubs: reseated.managerSubs };
+    } else if (isOverfilled(s, id, draft)) {
       p.structure = { ceo: p.structure.ceo, ceoSubs: [], managerSubs: {} };
       ctx.emit({ type: 'structurePenalty', player: id });
     } else {

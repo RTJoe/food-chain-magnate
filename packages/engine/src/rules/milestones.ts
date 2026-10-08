@@ -23,10 +23,15 @@ import { cardsAtWork, defOf, hasMilestone } from './pricing.js';
 // Queries
 // ---------------------------------------------------------------------------
 
-/** In play, not crossed out, and not yet owned by this player. */
+/**
+ * In play, not crossed out, and not yet owned by this player. A bankrupt chain claims nothing: it
+ * leaves the game at the end of the turn (base.md §12), so it must not close a milestone for the
+ * players still in it.
+ */
 export function milestoneAvailable(s: GameState, player: PlayerId, id: MilestoneId): boolean {
   const m = s.milestones[id];
-  return Boolean(m && !m.removed && s.players[player] && !s.players[player]?.milestones[id]);
+  const p = s.players[player];
+  return Boolean(m && !m.removed && p && !p.bankrupt && !p.milestones[id]);
 }
 
 function defs(ctx: HookContext): MilestoneDef[] {
@@ -191,9 +196,23 @@ function ownsEternalEffect(ctx: HookContext, player: PlayerId, kind: string): bo
   );
 }
 
-/** True if a campaign `player` launches now must be eternal (for the placement code). */
-export function launchesEternal(ctx: HookContext, player: PlayerId, kind: string): boolean {
-  return ownsEternalEffect(ctx, player, kind);
+/**
+ * True if a campaign `player` launches now must be eternal (for the placement code): the player
+ * owns an eternal-campaign milestone for this kind, or (with `goods`) this very campaign claims one
+ * (First Billboard: the triggering billboard is eternal, DLX p20/p35), so `campaignPlaced`
+ * already reports the campaign as it stands after the action.
+ */
+export function launchesEternal(ctx: HookContext, player: PlayerId, kind: string, goods?: FoodId[]): boolean {
+  if (ownsEternalEffect(ctx, player, kind)) return true;
+  if (!goods) return false;
+  return defs(ctx).some(
+    (d) =>
+      milestoneAvailable(ctx.state, player, d.id) &&
+      d.trigger.kind === 'campaignPlaced' &&
+      (d.trigger.campaignKind === undefined || d.trigger.campaignKind === kind) &&
+      matchesGood(d.trigger.good, goods) &&
+      d.effects.some((e) => e.kind === 'eternalCampaigns' && (!e.campaignKinds || e.campaignKinds.some((k) => k === kind))),
+  );
 }
 
 /**

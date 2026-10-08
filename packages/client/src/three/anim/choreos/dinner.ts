@@ -26,6 +26,7 @@ import { buildDemandStack } from '../../minis/tokens.js';
 import { CARGO_SLOTS } from '../../minis/vehicles.js';
 import { makeChip, disposeOverlay } from '../../overlays/badges.js';
 import { collapseOffers } from '../../../state/offers.js';
+import { humanize } from '../../../state/catalog.js';
 import { offerText, routeRibbon } from '../../overlays/feedback.js';
 import { houseCapacity } from '../../reconcile.js';
 import { ease } from '../../tween.js';
@@ -127,17 +128,64 @@ function replayGhost(tl: Timeline, ctx: ChoreoCtx, e: Ev<'sale'>): GhostStack | 
   };
 }
 
-/** Van leg to a rural house: on from the freeway run to the rural area. */
+/**
+ * Rim corners to drive past from an off-board point `from` to an off-board point `to` on another
+ * side of a w × h board (the shorter way round), so the van never cuts across the town.
+ */
+export function rimWaypoints(w: number, h: number, from: P2, to: P2): P2[] {
+  const sideOf = (p: P2): number => (p[1] < 0 ? 0 : p[0] > w ? 1 : p[1] > h ? 2 : p[0] < 0 ? 3 : -1);
+  const s1 = sideOf(from);
+  const s2 = sideOf(to);
+  if (s1 < 0 || s2 < 0 || s1 === s2) return [];
+  // Keep the van's distance from the board edge it left on.
+  const o = Math.max(1, Math.min(3, s1 === 0 ? -from[1] : s1 === 1 ? from[0] - w : s1 === 2 ? from[1] - h : -from[0]));
+  // Corner after each side going clockwise (N → E → S → W): NE, SE, SW, NW.
+  const after: P2[] = [
+    [w + o, -o],
+    [w + o, h + o],
+    [-o, h + o],
+    [-o, -o],
+  ];
+  const cw = (s2 - s1 + 4) % 4;
+  const out: P2[] = [];
+  if (cw <= 2) for (let k = 0; k < cw; k++) out.push(after[(s1 + k) % 4]!);
+  else for (let k = 0; k < 4 - cw; k++) out.push(after[(s1 - k + 3) % 4]!);
+  return out;
+}
+
+/** Van leg to a rural house: on from the freeway run to the rural area, round the rim if needed. */
 function ruralLeg(ctx: ChoreoCtx, pts: readonly P2[], house: THREE.Vector3, ground?: (x: number, z: number) => number): { follow: Follow; back: Follow; pts: P2[] } {
   const last = pts[pts.length - 1]!;
-  const dx = house.x - last[0];
-  const dz = house.z - last[1];
+  const b = ctx.view?.board;
+  const rim = b ? rimWaypoints(b.w, b.h, last, [house.x, house.z]) : [];
+  const prev = rim[rim.length - 1] ?? last;
+  const dx = house.x - prev[0];
+  const dz = house.z - prev[1];
   const d = Math.hypot(dx, dz) || 1;
   const stop: P2 = [house.x - (dx / d) * 1.1, house.z - (dz / d) * 1.1];
-  const all = [...pts, stop];
+  const all = [...pts, ...rim, stop];
   const follow = ctx.paths.road(all);
   const back = ctx.paths.road([...all].reverse());
   return ground ? { follow: withHeight(follow, ground), back: withHeight(back, ground), pts: all } : { follow, back, pts: all };
+}
+
+/** Chip text for a sale bonus, included in the total: "Fry chefs +$20", "First burger marketed +$15". */
+export function bonusText(b: { source: string; amount: number }): string {
+  const name = /fry_chef/.test(b.source) ? 'Fry chefs' : humanize(b.source.replace(/^.*:/, ''));
+  return `${name} +$${b.amount}`;
+}
+
+/** Total chip size, bonus chip size (world height at the anchor; both screen-sized alike). */
+const TOTAL_CHIP = 0.46;
+const BONUS_CHIP = 0.3;
+
+/**
+ * Bonus chips stacked above the "+$total" chip (anchored at its bottom edge, `totalCenterY` as
+ * passed to it), clear of it: the stack starts one total-chip height up plus a small gap.
+ */
+function bonusChips(tl: Timeline, ctx: ChoreoCtx, e: Ev<'sale'>, color: string, anchor: THREE.Vector3, start: number, life: number, totalSize: number, rise: number, cx: number): void {
+  const first = totalSize / BONUS_CHIP + 0.15;
+  e.bonuses.forEach((b, i) => chip(tl, ctx, bonusText(b), color, anchor, start + i * 0.12, life, { rise, size: BONUS_CHIP, center: [cx, -(first + i * 1.15)] }));
 }
 
 /** "×N" tag riding on the van when it carries more goods than fit on the roof. */
@@ -195,7 +243,11 @@ registerChoreo('sale', (beat, at, tl, ctx) => {
     if (tripPts) ribbon(tl, ctx, tripPts, color, at, budget, 0.9);
     offerChips(tl, ctx, beat, e.player, at, budget);
     ghost?.popAt(mid);
-    if (house) chip(tl, ctx, `+$${e.total}`, color, house.clone().setY(house.y + 0.35), mid, Math.max(0.6, budget * 0.5), { size: 0.44 });
+    if (house) {
+      const where = house.clone().setY(house.y + 0.35);
+      chip(tl, ctx, `+$${e.total}`, color, where, mid, Math.max(0.6, budget * 0.5), { size: 0.44 });
+      bonusChips(tl, ctx, e, color, where, mid, Math.max(0.6, budget * 0.5), 0.44, 0, 0.5);
+    }
     for (const c of coffee) {
       const src = idTop(ctx, c.at, 0.3);
       if (src) chip(tl, ctx, `+$${c.amount}`, ctx.color(c.player), src, at, budget, { size: 0.34 });
@@ -205,7 +257,9 @@ registerChoreo('sale', (beat, at, tl, ctx) => {
     return mid;
   }
 
-  if (relaxed) offerChips(tl, ctx, beat, e.player, at, budget - 0.05);
+  // Competing scores: for the whole beat when relaxed; on a busy (compressed) dinner, briefly, so
+  // the "house considered" read survives (animation-plan §2.7 must row).
+  offerChips(tl, ctx, beat, e.player, at, relaxed ? budget - 0.05 : Math.max(0.35, gap * 0.9));
   const shown = goods.slice(0, MAX_CARGO);
   const span = shown.length ? HOP + HOP_GAP * (shown.length - 1) : 0;
 
@@ -292,9 +346,9 @@ registerChoreo('sale', (beat, at, tl, ctx) => {
   // Money: "+$total" over the house, bonus chips beside it.
   // Beside the plaque (right), so the ghost tokens popping stay visible.
   const chipAt = target.clone().setY(target.y + 0.2);
-  chip(tl, ctx, `+$${e.total}`, color, chipAt, land + 0.05, 1.1, { rise: 0.45, size: 0.46, center: [-0.3, 0] });
-  // Bonus chips stack above the total (screen-space offset: chips are screen-sized).
-  e.bonuses.forEach((b, i) => chip(tl, ctx, `+$${b.amount}`, color, chipAt, land + 0.2 + i * 0.12, 0.95, { rise: 0.45, size: 0.3, center: [-0.45, -1.25 - i * 1.15] }));
+  chip(tl, ctx, `+$${e.total}`, color, chipAt, land + 0.05, 1.1, { rise: 0.45, size: TOTAL_CHIP, center: [-0.3, 0] });
+  // Named bonus chips (part of the total) stack above it, clear of it.
+  bonusChips(tl, ctx, e, color, chipAt, land + 0.2, 0.95, TOTAL_CHIP, 0.45, 0);
 
   // The van goes home as a tail, unless the road is full (at most N vans out at once).
   const vans = Math.max(1, Math.min(PACING.maxVans, ctx.caps.vehicles));

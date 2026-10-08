@@ -3,7 +3,7 @@
  * then says what to hire and whom to train over the next rounds, within the slots the managers
  * provide and the salaries the chain can carry. Recomputed from the view on every call.
  */
-import type { EmployeeId, FoodId, PlayerId, Uid } from '@fcm/engine';
+import type { EmployeeId, PlayerId, Uid } from '@fcm/engine';
 import type { FoodCounts } from '@fcm/engine';
 import { cardsAtWork, ceoSlotsFor, ownsUnique } from '@fcm/engine';
 import { memo, type Ctx } from '../shared/ctx.js';
@@ -335,18 +335,4 @@ function usableMarketeer(c: Ctx, id: EmployeeId): EmployeeId {
     cur = next;
   }
   return cur;
-}
-
-/** Value of hiring `id` now for the plan: position in the hire list (higher = sooner). */
-export function hireRank(plan: OrgPlan, id: EmployeeId): number {
-  const i = plan.hires.indexOf(id);
-  return i < 0 ? -1 : 20 - i * 3;
-}
-
-/** The archetype's main food (for flexible cooks and campaigns). */
-export const planFood = (plan: OrgPlan): FoodId => plan.arch.food;
-
-/** first_hire_3 is open and reachable with this many hire actions. */
-export function hire3Open(c: Ctx, hiresAvailable: number, me: PlayerId = c.me): boolean {
-  return hiresAvailable >= 3 && msOpen(c.s, me, 'first_hire_3');
 }

@@ -481,7 +481,7 @@ registerChoreo('entityPlaced', (beat, at, tl, ctx) => {
   const cx = (p.rect.x0 + p.rect.x1) / 2;
   const cz = (p.rect.z0 + p.rect.z1) / 2;
 
-  // A lobbyist road finished (clean up): barriers and cones pack away, arrows switch colour.
+  // A lobbyist road finished (clean up): barriers, cones and arrows pack away (plain road left).
   if (before && old && ent.kind === 'lobbyistRoad' && before.kind === 'lobbyistRoad' && before.underConstruction && !ent.underConstruction) {
     const works = worksOf(old.obj);
     const step = Math.min(0.06, (0.3 * f) / Math.max(1, works.length));
@@ -491,7 +491,6 @@ registerChoreo('entityPlaced', (beat, at, tl, ctx) => {
     const done = at + works.length * step + 0.22 * f;
     tl.call(done, () => void (old.obj.visible = false));
     revealAt(tl, o, done);
-    for (const a of o.children.filter((c) => c.name === 'arrow')) popIn(tl, ctx, a, done, 0.2, 0);
     return Math.min(at + beat.dur, done + 0.1);
   }
   if (old) old.obj.visible = false;
@@ -621,6 +620,9 @@ export function tileDrop(tl: Timeline, ctx: ChoreoCtx, col: number, row: number,
     return at;
   }
   const parts = slabParts();
+  // The tile's bridge stands far above the slot cover: hide it until the tile lands.
+  const bridge = ctx.rec.layers.roads?.getObjectByName(`bridges:${col},${row}`);
+  if (bridge) bridge.visible = false;
   const cover = new THREE.Mesh(new THREE.PlaneGeometry(5.02, 5.02).rotateX(-Math.PI / 2), parts.cover);
   cover.position.set(cx, COVER_Y, cz);
   cover.renderOrder = 1;
@@ -644,6 +646,7 @@ export function tileDrop(tl: Timeline, ctx: ChoreoCtx, col: number, row: number,
     update: (_k, raw) => {
       slab.visible = raw > 0 && raw < 1;
       cover.visible = raw < 1;
+      if (bridge) bridge.visible = raw >= 1;
       const u = slide ? ease.outCubic(Math.min(1, raw / slide)) : 1;
       const f = ease.inCubic(Math.max(0, (raw - slide) / (1 - slide)));
       slab.position.set(cx + ox * (1 - u), y1 + oy * (1 - f), cz + oz * (1 - u));

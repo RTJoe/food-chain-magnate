@@ -7,7 +7,7 @@ import type { Cell, Direction } from '@fcm/engine';
 import { COLORS } from '../../theme.js';
 import { FREEWAY } from '../anim/path.js';
 import { dirAngle } from '../coords.js';
-import { makeBadge } from '../labels.js';
+import { BADGE_MIN_PX, makeBadge } from '../labels.js';
 import { paintedTree } from './buildings.js';
 import { blob, face, solid, type MiniCtx } from './ctx.js';
 import { decalTexture, roundRect } from './marketing.js';
@@ -219,8 +219,9 @@ export function buildLobbyistRoad(
 ): THREE.Group {
   const g = new THREE.Group();
   const [ox, oz] = p.origin;
-  const pal = playerPalette(p.color);
-  for (const a of p.arrows) {
+  // Arrows are printed on the under-construction side only; the flipped (finished) tile is plain
+  // road, which the road layer already draws.
+  for (const a of p.underConstruction ? p.arrows : []) {
     const o = new THREE.Group();
     o.name = 'arrow';
     o.position.set(a.from.x + 0.5 - ox, 0.045, a.from.y + 0.5 - oz);
@@ -230,7 +231,7 @@ export function buildLobbyistRoad(
     inner.position.z = 0.15;
     o.add(inner);
     g.add(o);
-    solid(ctx, inner, arrowGeo(p.underConstruction ? '#f8d24a' : pal.light), { castShadow: false });
+    solid(ctx, inner, arrowGeo('#f8d24a'), { castShadow: false });
   }
   if (p.underConstruction) {
     p.cells.forEach((c, i) => {
@@ -256,6 +257,8 @@ export function buildLobbyistRoad(
     const badge = makeBadge('Works', { bg: '#f8d24a', fg: COLORS.ink, ring: COLORS.ink, pill: true }, 0.3);
     badge.position.set(0, 0.9, 0);
     badge.name = 'badge';
+    badge.userData.minPx = BADGE_MIN_PX * 0.8;
+    badge.userData.obstacle = true;
     g.add(badge);
   }
   return g;

@@ -63,7 +63,7 @@ export const reservePricesLesson = defineLesson({
     },
     {
       id: 'order',
-      say: 'Equal open slots, so you choose turn order first. Take position 1.',
+      say: 'Open slots are equal, so the starting order breaks the tie: you choose first. Take position 1.',
       show: [{ ui: 'order-pos-1' }],
       allow: { actions: [only('order.choosePosition', (a) => a.position === 0)] },
       until: { view: (v) => v.phase.kind === 'working' },

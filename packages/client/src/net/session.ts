@@ -60,13 +60,12 @@ function attach(t: Transport, m: Mode): void {
   mode.value = m;
   unsubs.push(
     t.onStatus((s) => {
-      const wasDown = connection.value === 'reconnecting';
       connection.value = s;
       if (t instanceof SocketTransport) reconnectAttempt.value = t.attempt;
       if (s === 'closed' && t instanceof SocketTransport && t.replaced) {
         pushToast('This game is open in another tab or window. Press "Use here" to play here instead.', 'info', 8000);
       }
-      if (s === 'open' && t.kind === 'socket') hello(wasDown);
+      if (s === 'open' && t.kind === 'socket') hello();
     }),
     t.onMessage((incoming) => {
       let msg = incoming;
@@ -74,10 +73,15 @@ function attach(t: Transport, m: Mode): void {
         saveToken(msg.sessionToken);
         const want = wantRoom;
         wantRoom = null;
-        if (msg.room && (!want || want.id === msg.room.id)) {
-          // Re-attached to a game in progress: make sure we have the latest view.
-          if (msg.room.status !== 'lobby') queueMicrotask(() => send({ t: 'game.resync' }));
-        } else if (want) {
+        const was = room.value;
+        // A restart keeps seats but not spectators or seatless members: re-join the room we were in.
+        if (!want && !msg.room && was && lastJoin?.id === was.id) {
+          const again = lastJoin;
+          queueMicrotask(() => sendJoin(again.id, again.spectate));
+        }
+        // Re-attached to a game in progress: the server sends its snapshot right after welcome, so no
+        // resync here (each one is a full snapshot and a board rebuild).
+        if (want && !(msg.room && want.id === msg.room.id)) {
           // Asked for another room than the one the server re-attached: go there instead.
           if (msg.room) msg = { ...msg, room: null };
           queueMicrotask(() => sendJoin(want.id, want.spectate));
@@ -112,11 +116,10 @@ function detach(): void {
   transport = null;
 }
 
-function hello(reconnected: boolean): void {
+function hello(): void {
   const token = loadToken();
   const name = settings.value.name.trim();
   send({ t: 'hello', clientVersion: ENGINE_VERSION, protocol: PROTOCOL_VERSION, ...(token ? { sessionToken: token } : {}), ...(name ? { name } : {}) });
-  if (reconnected && room.value && room.value.status !== 'lobby') send({ t: 'game.resync' });
 }
 
 function send(msg: ClientMessage): void {
@@ -150,14 +153,21 @@ export function reconnectNow(): void {
 }
 
 export const createRoom = (config?: Partial<RoomConfig>) => send({ t: 'room.create', name: displayName(), ...(config ? { config } : {}) });
+/** The room this client last asked to join, and how (re-sent if a server restart forgets a seatless member). */
+let lastJoin: { id: string; spectate: boolean } | null = null;
+
 function sendJoin(roomId: string, spectate: boolean): void {
   joiningRoom = roomId;
+  lastJoin = { id: roomId, spectate };
   send({ t: 'room.join', roomId, name: displayName(), spectate });
 }
 export const joinRoom = (roomId: string, spectate = false) => sendJoin(roomId, spectate);
+/** Joined the current room with Watch: the server will not let this client sit. */
+export const watchingOnly = (): boolean => Boolean(lastJoin?.spectate && room.value?.id === lastJoin.id);
 export const leaveRoom = () => {
   // Leaving a lobby frees the seat, so there is nothing to resume. A game in progress keeps it.
   if (room.value?.status === 'lobby') forgetRoom(room.value.id);
+  lastJoin = null;
   send({ t: 'room.leave' });
   room.value = null;
 };

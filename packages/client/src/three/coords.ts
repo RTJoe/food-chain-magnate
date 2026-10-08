@@ -92,5 +92,12 @@ export function hash2(x: number, y: number, seed = 0): number {
 export function hashStr(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  // murmur3 fmix32: FNV leaves the top bits nearly equal for ids that differ in the last digit
+  // ("house-30", "house-36"), so `hashStr(id) * n` picked the same variant for every house.
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
   return (h >>> 0) / 4294967296;
 }

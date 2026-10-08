@@ -55,8 +55,8 @@ describe('Six Players - a 6-player game (ketchup.md §17)', () => {
     expect(Object.keys(s.players)).toHaveLength(6);
     expect(s.players.p6?.chain).toBe('siap_faji');
     expect(s.turnOrder).toHaveLength(6);
-    expect(s.phase).toMatchObject({ kind: 'setup.restaurants' });
-    expect(s.awaiting.players).toHaveLength(1);
+    expect(s.phase).toMatchObject({ kind: 'setup.reserve' });
+    expect(s.awaiting.players).toHaveLength(6);
   });
 
   it('§17: the map is a 4x6 grid of tiles (24 tiles, New Districts tiles available)', () => {

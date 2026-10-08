@@ -66,7 +66,6 @@ const playerIdFor = (index: number): PlayerId => `p${index + 1}`;
 
 /** Names for bot seats (the first one not already used in the room). */
 export const BOT_NAMES = ['Robo Ada', 'Robo Alan', 'Robo Grace', 'Robo Kit', 'Robo Max', 'Robo Zoe'] as const;
-export const BOT_LEVEL_LABEL: Record<BotLevel, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
 function makeSeat(index: number): Seat {
   return { index, playerId: playerIdFor(index), clientId: null, name: null, color: SEAT_COLORS[index] ?? '#888888', ready: false, connected: false, bot: null };

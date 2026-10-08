@@ -19,7 +19,7 @@ export const lesson10 = defineLesson({
   title: 'Turn order and open slots',
   minutes: 5,
   goal: 'Order of Business: the chain with the most open slots chooses its turn order spot first.',
-  concepts: ['open_slots', 'order_of_business', 'turn_order_tie'],
+  concepts: ['open_slots', 'order_of_business', 'turn_order'],
   scenario: {
     build: () =>
       town({ round: 5 })
@@ -30,6 +30,7 @@ export const lesson10 = defineLesson({
         .card('p2', 'kitchen_trainee', 'work', 'p2-kt')
         .cash('p1', 30)
         .cash('p2', 30)
+        .milestone('p2', 'first_waitress', 4)
         .turnOrder(['p2', 'p1'])
         .phase({ kind: 'orderOfBusiness', queue: ['p1', 'p2'], picks: {} })
         .build(),
@@ -68,10 +69,10 @@ export const lesson10 = defineLesson({
     },
     {
       id: 'ties',
-      say: 'With tied open slots, whoever was earlier in last round’s order chooses first. Going first also wins Dinnertime ties.',
+      say: 'With tied open slots, whoever was earlier in last round’s order chooses first. Going first also wins Dinnertime ties that Waitresses don’t settle.',
       show: [{ ui: 'rail-p1' }, { ui: 'rail-p2' }],
       until: { next: true },
-      glossary: 'turn_order_tie',
+      glossary: 'open_slots',
     },
     {
       id: 'hire-first',

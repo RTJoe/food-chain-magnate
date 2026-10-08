@@ -11,6 +11,8 @@ async function sitAndReady(page: Page): Promise<void> {
 }
 
 test('online: create, join, sit, ready, start; a reload keeps the seat', async ({ browser }) => {
+  // Two pages boot WebGL scenes on software GL at once (the second waits ~10–16 s for the GPU process), then play a round each.
+  test.setTimeout(240_000);
   const hostCtx = await browser.newContext();
   const guestCtx = await browser.newContext();
   const host = await hostCtx.newPage();
@@ -38,7 +40,7 @@ test('online: create, join, sit, ready, start; a reload keeps the seat', async (
   await expect(host.locator('.seat-list .seat .seat-ready')).toHaveCount(2);
   await host.getByRole('button', { name: 'Start game' }).click();
 
-  for (const p of [host, guest]) await expect(p.locator('.table')).toBeVisible({ timeout: 20_000 });
+  for (const p of [host, guest]) await expect(p.locator('.table')).toBeVisible({ timeout: 60_000 });
   await expect(guest.locator('.ppanel.is-me .ppanel-name')).toContainText('Gus');
 
   // Play through setup into round 1 with both browsers.

@@ -15,8 +15,8 @@
  * outside the restaurant. If that road square is on another tile than the corner square, the route
  * starts at cost 1. Ending at a piece (house, campaign, new restaurant entrance): the piece is
  * reached from a road square orthogonally adjacent to one of its squares; if that square and the
- * road square are on different tiles the extra border counts (DLX p19 example C; symmetric with
- * the start rule; questions.md Q-C1).
+ * road square are on different tiles the extra border counts (DLX p19 example C for campaigns;
+ * symmetric with the start rule; questions.md Q-W8 for pieces, Q-C1 for houses).
  *
  * API for other rules code (C2 dinnertime/marketing use the first group):
  * - `restaurantHouseDistance(board, restaurant, house)` → borders or null if not connected.
@@ -129,6 +129,19 @@ export function routeStartOrigin(board: Board, start: RouteStart): Cell | null {
   }
   const e = board.entities[start.entityId];
   return e && e.kind === 'coffeeShop' ? { x: e.x, y: e.y } : null;
+}
+
+/**
+ * Same route start by meaning (kind + restaurantId + corner, or kind + entityId), so key order or
+ * extra fields sent by a client, replay tool or bot do not matter.
+ */
+export function sameRouteStart(a: unknown, b: unknown): boolean {
+  const x = a as Record<string, unknown> | null;
+  const y = b as Record<string, unknown> | null;
+  if (!x || !y || typeof x !== 'object' || typeof y !== 'object' || x.kind !== y.kind) return false;
+  if (x.kind === 'restaurant') return x.restaurantId === y.restaurantId && x.corner === y.corner;
+  if (x.kind === 'coffeeShop') return x.entityId === y.entityId;
+  return false;
 }
 
 /**
@@ -507,6 +520,14 @@ export function sourcesOnTiles(board: Board, tiles: TileRC[]): SourceId[] {
  * Zeppelin route: `tiles[0]` = start tile; orthogonal tile-to-tile steps inside the map; no tile
  * entered twice; at most `range` borders. Collects from every source on every tile incl. the start.
  */
+/**
+ * A placed map tile at (row, col)? A board grown by Lobbyists (KX p17) is not a rectangle: its
+ * empty grid spots are off the map, and a zeppelin flies over map tiles only (DLX p10, p21).
+ */
+function tileAtRC(board: Board, row: number, col: number): boolean {
+  return board.tiles.some((t) => t.row === row && t.col === col);
+}
+
 export function validateAirRoute(board: Board, startTiles: TileRC[], tiles: TileRC[], range: number): RouteCheck {
   const first = tiles[0];
   if (!first) return { ok: false, message: 'Route is empty' };
@@ -514,7 +535,7 @@ export function validateAirRoute(board: Board, startTiles: TileRC[], tiles: Tile
   const seen = new Set<string>();
   for (let i = 0; i < tiles.length; i++) {
     const t = tiles[i] as TileRC;
-    if (t.row < 0 || t.col < 0 || t.row >= board.rows || t.col >= board.cols) return { ok: false, message: 'Route leaves the map' };
+    if (!tileAtRC(board, t.row, t.col)) return { ok: false, message: 'Route leaves the map' };
     const k = `${t.row},${t.col}`;
     if (seen.has(k)) return { ok: false, message: 'A zeppelin may not enter a tile twice' };
     seen.add(k);
@@ -554,7 +575,7 @@ export function enumerateAirRoutes(board: Board, startTiles: TileRC[], range: nu
       const last = route[route.length - 1] as TileRC;
       for (const [dr, dc] of [[-1, 0], [0, 1], [1, 0], [0, -1]] as const) {
         const t = { row: last.row + dr, col: last.col + dc };
-        if (t.row < 0 || t.col < 0 || t.row >= board.rows || t.col >= board.cols) continue;
+        if (!tileAtRC(board, t.row, t.col)) continue;
         if (route.some((r) => r.row === t.row && r.col === t.col)) continue;
         next.push([...route, t]);
       }

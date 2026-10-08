@@ -7,8 +7,9 @@
  * - Marketing tiles minus the billboards removed at low player counts (§2.1).
  * - Players start with $0, a CEO, 3 restaurants (§2.4). Random initial turn order (§2.5).
  * - Bank $50/player ($75 in the intro game). Intro game: no milestones unless `introMilestones`.
- * - Module `onCreateGame` hooks run last; then the engine advances to the first decision
- *   (first restaurant placement, reverse turn order, §2.6).
+ * - Module `onCreateGame` hooks run last; then the engine advances to the first decision: the
+ *   secret reserve cards (§2.7, DLX p4 step 5), then first restaurants in reverse turn order
+ *   (§2.6, step 6). The intro game has no reserve cards and starts with the restaurants.
  * Only createGame and module setup hooks draw randomness.
  */
 import type { EmployeeId, TileTemplateId } from '../types/content.js';
@@ -21,6 +22,7 @@ import { allocId } from './ids.js';
 import { createRng, shuffle } from './rng.js';
 import { makeCtx } from './context.js';
 import { runUntilInput } from './phase.js';
+import { setupRestaurantsPhase } from '../rules/setup.js';
 
 export function configProblem(config: GameConfig): string | null {
   if (!config || !Array.isArray(config.players)) return 'Missing players';
@@ -37,6 +39,9 @@ export function createGame(config: GameConfig, seed: number): GameState {
   if (problem) throw new Error(`createGame: ${problem}`);
   const cfg: GameConfig = JSON.parse(JSON.stringify({ ...config, modules: config.modules ?? [], options: config.options ?? {}, introMilestones: config.introMilestones ?? false, map: config.map ?? { kind: 'random' } })) as GameConfig;
   const n = cfg.players.length;
+  // KX p15 (Lobbyists, map setup): "If playing with 5 or 6 players, you must include all 6 new map
+  // tiles in the map pool." Tiles U–Y come with New Districts, so it joins such games.
+  if (n >= 5 && cfg.modules.includes('ketchup:lobbyists') && !cfg.modules.includes('ketchup:newDistricts')) cfg.modules.push('ketchup:newDistricts');
   const content = contentFor(cfg.modules);
   const rng = createRng(seed);
   const ids = { nextId: 1 };
@@ -116,7 +121,7 @@ export function createGame(config: GameConfig, seed: number): GameState {
     rng,
     nextId: ids.nextId,
     round: 0,
-    phase: { kind: 'setup.restaurants', round: 1, order: [...turnOrder].reverse(), idx: 0, placed: [], passed: [] },
+    phase: cfg.intro ? setupRestaurantsPhase(turnOrder) : { kind: 'setup.reserve' },
     awaiting: { kind: 'none', players: [] },
     turnOrder,
     players,

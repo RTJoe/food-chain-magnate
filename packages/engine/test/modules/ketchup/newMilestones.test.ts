@@ -527,6 +527,27 @@ describe('§3 First trainer used', () => {
     expect(Object.keys(r.state.players.p1?.employees ?? {})).toHaveLength(4);
   });
 
+  it('KX p19: with First beer sold, goods must cover salaries the cash cannot (First trainer used: no firing)', () => {
+    const s = fromPhase(
+      nb()
+        .card('p1', 'junior_vp', 'work')
+        .card('p1', 'junior_vp', 'work')
+        .card('p1', 'junior_vp', 'work')
+        .cash('p1', 7)
+        .inventory('p1', { burger: 3, coffee: 2 } as never)
+        .milestone('p1', ID('first_trainer_used'))
+        .milestone('p1', ID('first_beer_sold'))
+        .phase({ kind: 'dinnertime', houses: [], idx: 0 })
+        .build(),
+    ).state;
+    // $15 owed, $7 cash: 2 salaries ($10) must be paid with goods, then $5 in cash.
+    const r = actE(s, { type: 'payday.confirm', playerId: 'p1' });
+    expect(r.events.find((e) => e.type === 'salaryPaid' && e.player === 'p1')).toMatchObject({ paid: 5 });
+    expect(r.state.players.p1?.cash).toBe(2);
+    // Coffee cannot pay salaries; the burger left over is thrown away at Clean up.
+    expect(r.events.find((e) => e.type === 'foodDiscarded' && e.player === 'p1')).toMatchObject({ goods: { burger: 1, coffee: 2 } });
+  });
+
   it('§3 First trainer used: without it the player must fire (control)', () => {
     const s = act(broke(false), { type: 'payday.confirm', playerId: 'p1' });
     expect(s.pending[0]).toMatchObject({ kind: 'forcedFire', player: 'p1' });
@@ -559,9 +580,33 @@ describe('§3 First discount manager used', () => {
     expect(t.round).toBe(3);
   });
 
-  it('§3 First discount manager used: nothing burned the round it is earned, or with a discount under $3', () => {
+  it('§3 First discount manager used: no second burn at the reveal of the claiming round; nothing with a discount under $3', () => {
     expect(reveal('discount_manager', 3).bank.burned).toBe(0);
     expect(reveal('pricing_manager', 0).bank.burned).toBe(0);
+  });
+
+  it('KX p19 "including this one": the claiming turn burns $100 when the milestone is claimed (Q-K5)', () => {
+    const r = fromPhase(nb().bank({ cash: 500 }).card('p1', 'discount_manager', 'work').phase({ kind: 'working', player: 'p2', idx: 2 }).build());
+    expect(owns(r.state, 'p1', ID('first_discount_manager_used'))).toBe(true);
+    expect(r.state.bank.burned).toBe(100);
+    expect(r.events.find((e) => e.type === 'bankBurned')).toMatchObject({ player: 'p1', amount: 100 });
+  });
+
+  it('KX p19 + p22: Night Shift doubles salary-free pricing managers, so 2 of them discount $4 and burn $100', () => {
+    const s = kb(2, [...M, 'ketchup:nightShift'])
+      .mutate((st) => {
+        st.milestones = {};
+        for (const d of NEW_MILESTONES) st.milestones[d.id] = { claimedBy: [], claimedRound: null, removed: false, removeAfterRound: d.removeAfterRound ?? null };
+      })
+      .bank({ cash: 500 })
+      .card('p1', 'ketchup:night_shift_manager', 'hand', 'ns')
+      .card('p1', 'pricing_manager', 'hand', 'pm1')
+      .card('p1', 'pricing_manager', 'hand', 'pm2')
+      .milestone('p1', ID('first_discount_manager_used'), 0)
+      .phase({ kind: 'restructuring' })
+      .build();
+    const t = act(s, { type: 'restructure.submit', playerId: 'p1', structure: { ceoSubs: ['ns', 'pm1', 'pm2'], managerSubs: {} } });
+    expect(t.bank.burned).toBe(100);
   });
 });
 
@@ -591,9 +636,10 @@ describe('§3 First new restaurant', () => {
     const t = act(s, { type: 'work.placeRestaurant', playerId: 'p1', cardUid: work[0] as Uid, x: 8, y: 8, entrance: 'NW' });
     expect(owns(t, 'p1', ID('first_new_restaurant'))).toBe(true);
     const head = t.pending[0];
-    expect(head).toMatchObject({ kind: 'freeMailbox', player: 'p1', optional: false });
+    // KX p19 "allows you to": the free mailbox may be declined (Q-K36).
+    expect(head).toMatchObject({ kind: 'freeMailbox', player: 'p1', optional: true });
     const choiceId = head?.id as string;
-    expect(rejected(t, { type: 'choice.decline', playerId: 'p1', choiceId }).code).toBe('ILLEGAL');
+    expect(act(t, { type: 'choice.decline', playerId: 'p1', choiceId }).pending).toEqual([]);
     const opts = legalPlacements(t, 'p1', { kind: 'freeMailbox', choiceId });
     expect(opts.length).toBeGreaterThan(0);
     // Block bounded by the roads at x = 7, 12 and y = 7, 12.
@@ -630,6 +676,13 @@ describe('§3 First cart operator used', () => {
     const t = act(s, { type: 'work.buyDrinks', playerId: 'p1', cardUid: work[0] as Uid, route: { mode: 'road', from: from(s), path } });
     expect(owns(t, 'p1', ID('first_cart_operator_used'))).toBe(true);
     expect(t.players.p1?.inventory).toEqual({ lemonade: 4, beer: 4 });
+  });
+
+  it('KX p17: a cart operator haul that collects nothing does not count as used', () => {
+    const { s, work } = workingTurn(game(), 'p1', { work: ['cart_operator'] });
+    const t = act(s, { type: 'work.buyDrinks', playerId: 'p1', cardUid: work[0] as Uid, route: { mode: 'road', from: from(s), path: line([[3, 2]]) } });
+    expect(t.players.p1?.inventory).toEqual({});
+    expect(owns(t, 'p1', ID('first_cart_operator_used'))).toBe(false);
   });
 
   it('§3 First cart operator used: afterwards truck drivers collect 6 per source', () => {

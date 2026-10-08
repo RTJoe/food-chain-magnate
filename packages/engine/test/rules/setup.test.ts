@@ -1,7 +1,7 @@
 /** Setup (base.md §2; DLX p2–6) through createGame and the reducer. */
 import { describe, expect, it } from 'vitest';
 import { createGame, legalActions, legalPlacements, redactFor } from '../../src/index.js';
-import { act, cfg, newGame, rejected, reserve, throughSetup } from '../helpers/game.js';
+import { act, cfg, newGame, newPlacing, rejected, reserve, throughSetup } from '../helpers/game.js';
 
 describe('createGame (base.md §2.1–2.5)', () => {
   it('§2.1/§2.3: 2p supply keeps 1 copy of each 1x card and all copies of the rest; billboards #12, #15, #16 removed', () => {
@@ -81,13 +81,13 @@ describe('createGame (base.md §2.1–2.5)', () => {
 
 describe('first restaurants (base.md §2.6)', () => {
   it('§2.6.1: placement goes in reverse turn order', () => {
-    const s = newGame(3);
+    const s = newPlacing(3);
     expect(s.phase.kind).toBe('setup.restaurants');
     expect(s.awaiting).toEqual({ kind: 'setup.restaurant', players: [s.turnOrder[2]] });
   });
 
   it('§2.6.3: squares must be empty and the entrance must touch a road from outside', () => {
-    const s = newGame(2);
+    const s = newPlacing(2);
     const me = s.awaiting.players[0] as string;
     // (0,3) is house 2.
     expect(rejected(s, { type: 'setup.placeRestaurant', playerId: me, x: 0, y: 3, entrance: 'NW' }).code).toBe('ILLEGAL_PLACEMENT');
@@ -99,7 +99,7 @@ describe('first restaurants (base.md §2.6)', () => {
   });
 
   it('§2.6.3: an entrance may not share a map tile with an existing entrance (setup only)', () => {
-    let s = newGame(2);
+    let s = newPlacing(2);
     const [first, second] = [s.awaiting.players[0] as string, s.turnOrder[0] as string];
     s = act(s, { type: 'setup.placeRestaurant', playerId: first, x: 3, y: 3, entrance: 'NW' });
     // (0,0) NE: corner (1,0) touches road (2,0), but it is on tile (0,0) like the first entrance.
@@ -110,7 +110,7 @@ describe('first restaurants (base.md §2.6)', () => {
   });
 
   it('§2.6.2: passers place in a second round in normal turn order and may not pass again', () => {
-    let s = newGame(3);
+    let s = newPlacing(3);
     const [a, b, c] = s.turnOrder as [string, string, string];
     s = act(s, { type: 'setup.pass', playerId: c });
     s = act(s, { type: 'setup.placeRestaurant', playerId: b, x: 3, y: 3, entrance: 'NW' });
@@ -121,21 +121,21 @@ describe('first restaurants (base.md §2.6)', () => {
     expect(legalActions(s, a).map((l) => l.kind)).toEqual(['placement']);
     s = act(s, { type: 'setup.placeRestaurant', playerId: a, x: 5, y: 3, entrance: 'NW' });
     s = act(s, { type: 'setup.placeRestaurant', playerId: c, x: 8, y: 8, entrance: 'NW' });
-    expect(s.phase.kind).toBe('setup.reserve');
+    expect(s.round).toBe(1);
   });
 
   it('§2.6: only the current player may place', () => {
-    const s = newGame(2);
+    const s = newPlacing(2);
     const other = s.turnOrder[0] as string;
     expect(rejected(s, { type: 'setup.pass', playerId: other }).code).toBe('NOT_YOUR_TURN');
   });
 });
 
 describe('reserve cards (base.md §2.7)', () => {
-  it('§2.7: chosen secretly and simultaneously; hidden from others; round 1 starts when all have chosen', () => {
+  it('§2.7 / DLX p4 step 5: chosen secretly and simultaneously before any restaurant; hidden from others', () => {
     let s = newGame(2);
-    s = act(s, { type: 'setup.placeRestaurant', playerId: s.awaiting.players[0] as string, x: 3, y: 3, entrance: 'NW' });
-    s = act(s, { type: 'setup.placeRestaurant', playerId: s.awaiting.players[0] as string, x: 5, y: 3, entrance: 'NW' });
+    expect(s.phase.kind).toBe('setup.reserve');
+    expect(Object.keys(s.board.restaurants)).toHaveLength(0);
     expect(s.awaiting).toMatchObject({ kind: 'setup.reserve' });
     expect([...s.awaiting.players].sort()).toEqual(['p1', 'p2']);
     s = act(s, { type: 'setup.chooseReserve', playerId: 'p1', card: reserve(300) });
@@ -147,8 +147,25 @@ describe('reserve cards (base.md §2.7)', () => {
     expect(JSON.stringify(v2)).not.toContain('"amount":300');
     expect(redactFor(s, 'p1').visibleReserves.p1).toEqual(reserve(300));
     s = act(s, { type: 'setup.chooseReserve', playerId: 'p2', card: reserve(200) });
+    // DLX p4 step 6: then first restaurants, starting with the last player in turn order.
+    expect(s.phase).toMatchObject({ kind: 'setup.restaurants', round: 1 });
+    expect(s.awaiting).toEqual({ kind: 'setup.restaurant', players: [s.turnOrder[1]] });
+    expect(redactFor(s, 'p2').visibleReserves.p1).toBeUndefined();
+    s = act(s, { type: 'setup.placeRestaurant', playerId: s.awaiting.players[0] as string, x: 3, y: 3, entrance: 'NW' });
+    s = act(s, { type: 'setup.placeRestaurant', playerId: s.awaiting.players[0] as string, x: 5, y: 3, entrance: 'NW' });
     expect(s.round).toBe(1);
     // Round 1: everyone holds only the CEO, so Restructuring resolves itself (base.md §4.3).
     expect(s.phase.kind).toBe('orderOfBusiness');
+  });
+
+  it('§2.7: a state built straight into placement (no reserves yet) asks for reserves after it', () => {
+    let s = newGame(2);
+    s.phase = { kind: 'setup.restaurants', round: 1, order: [...s.turnOrder].reverse(), idx: 0, placed: [], passed: [] };
+    s.awaiting = { kind: 'setup.restaurant', players: [s.turnOrder[1] as string] };
+    s = act(s, { type: 'setup.placeRestaurant', playerId: s.awaiting.players[0] as string, x: 3, y: 3, entrance: 'NW' });
+    s = act(s, { type: 'setup.placeRestaurant', playerId: s.awaiting.players[0] as string, x: 5, y: 3, entrance: 'NW' });
+    expect(s.phase.kind).toBe('setup.reserve');
+    s = throughSetup(s);
+    expect(s.round).toBe(1);
   });
 });

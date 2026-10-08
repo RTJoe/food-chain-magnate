@@ -38,7 +38,7 @@ export const lesson11 = defineLesson({
   title: 'Payday and salaries',
   minutes: 9,
   goal: 'Salaries: $5 per salaried card, firing decided by everyone at once, forced firing when you cannot pay.',
-  concepts: ['salary', 'payday', 'fire', 'forced_fire', 'salary_discount'],
+  concepts: ['salary', 'payday', 'firing', 'first_train'],
   scenario: {
     build: () =>
       town({ round: 5 })
@@ -50,6 +50,9 @@ export const lesson11 = defineLesson({
         .card('p2', 'kitchen_trainee', 'work', 'p2-kt')
         .cash('p1', 8)
         .cash('p2', 40)
+        // Bo played these first in an earlier round, so Ada's cards use printed numbers.
+        .milestone('p2', 'first_cart_operator', 3)
+        .milestone('p2', 'first_waitress', 3)
         .demand(2, ['burger', 'burger'])
         .phase({ kind: 'payday', queue: ['p1', 'p2'], idx: 0 })
         .build(),
@@ -90,7 +93,7 @@ export const lesson11 = defineLesson({
       then: (ctx) => `You paid $${salaryOf(ctx, 'p1')} and have $${cashOf(ctx.view, 'p1')} left. The Cart Operator went back to the supply.`,
       hint: { say: 'Tap the Cart Operator card, then "Fire 1".', show: [{ ui: `fire-${CO}` }] },
       checkpoint: true,
-      glossary: 'forced_fire',
+      glossary: 'firing',
     },
     {
       id: 'bo-beach',
@@ -181,14 +184,14 @@ export const lesson11 = defineLesson({
       hint: { say: 'Press Continue, then the pay button in the Payday panel.', show: [{ ui: 'payday-confirm' }] },
       onEnter: [{ summary: 'close' }, { openTab: 'turn' }],
       checkpoint: true,
-      glossary: 'fire',
+      glossary: 'firing',
     },
     {
       id: 'discounts',
       say: 'Discounts: First to Train takes $15 off every Payday, and each unused Recruiting Manager hire takes $5. The total never goes below $0.',
       show: [{ ui: 'tab-milestones' }],
       until: { next: true },
-      glossary: 'salary_discount',
+      glossary: 'first_train',
     },
   ],
   quiz: {

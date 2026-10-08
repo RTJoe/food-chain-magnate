@@ -5,7 +5,9 @@ import type {
   EmployeeId,
   FoodCounts,
   FoodId,
+  GameEvent,
   GameView,
+  HouseId,
   MilestoneId,
   Phase,
   PhaseKind,
@@ -33,7 +35,7 @@ export const PHASE_STEPS: readonly PhaseStep[] = [
   { kinds: ['working'], label: 'Working 9–5', short: 'Work', icon: 'work' },
   { kinds: ['dinnertime'], label: 'Dinnertime', short: 'Dinner', icon: 'dinner' },
   { kinds: ['payday'], label: 'Payday', short: 'Payday', icon: 'payday' },
-  { kinds: ['marketing'], label: 'Marketing Campaigns', short: 'Marketing', icon: 'marketing' },
+  { kinds: ['marketing'], label: 'Marketing', short: 'Marketing', icon: 'marketing' },
   { kinds: ['cleanup'], label: 'Clean up', short: 'Clean up', icon: 'cleanup' },
 ];
 
@@ -63,6 +65,10 @@ export function workStages(view: GameView): WorkStage[] {
   out.push('restaurants');
   return out;
 }
+
+/** Bank breaks that end the game: 2, or 1 in the intro game (no reserve cards, DLX p5). */
+export const bankBreaksToEnd = (v: Pick<GameView, 'config'>): number => (v.config.intro ? 1 : 2);
+export const isFinalBreak = (breakNo: number, v: Pick<GameView, 'config'>): boolean => breakNo >= bankBreaksToEnd(v);
 
 export const STAGE_LABELS: Record<WorkStage, string> = {
   recruit: 'Hire',
@@ -153,7 +159,20 @@ export const foodTotal = (counts: FoodCounts | undefined): number => foodList(co
 export function standings(view: GameView): PlayerId[] {
   if (view.phase.kind === 'gameOver') return view.phase.ranking;
   const order = view.turnOrder;
-  return [...order].sort((a, b) => (view.players[b]?.cash ?? 0) - (view.players[a]?.cash ?? 0) || order.indexOf(a) - order.indexOf(b));
+  const out = (id: PlayerId) => (view.players[id]?.bankrupt ? 1 : 0);
+  // Bankrupt chains are out and rank last, like the engine's rankPlayers.
+  return [...order].sort((a, b) => out(a) - out(b) || (view.players[b]?.cash ?? 0) - (view.players[a]?.cash ?? 0) || order.indexOf(a) - order.indexOf(b));
+}
+
+/** Rail rank by cash: "#2 in cash", "tied #1 in cash" (equal cash shares a rank), "Out" when bankrupt. */
+export function cashRankLabel(view: GameView, id: PlayerId): string {
+  const p = view.players[id];
+  if (!p) return '';
+  if (p.bankrupt) return 'Out';
+  const live = view.turnOrder.map((x) => view.players[x]).filter((x) => x && !x.bankrupt);
+  const rank = live.filter((x) => (x?.cash ?? 0) > p.cash).length + 1;
+  const tied = live.some((x) => x && x.id !== id && x.cash === p.cash);
+  return `${tied ? 'tied ' : ''}#${rank} in cash`;
 }
 
 /** Seat index (config order) for `--player-N` colour tokens. */
@@ -298,7 +317,8 @@ export function milestoneRows(view: GameView): MilestoneRow[] {
 export function freeOrderPositions(view: GameView): number[] {
   if (view.phase.kind !== 'orderOfBusiness') return [];
   const taken = new Set(Object.values(view.phase.picks));
-  return view.turnOrder.map((_, i) => i).filter((i) => !taken.has(i));
+  // One slot per chooser: bankrupt chains are not in the queue (engine orderOfBusiness).
+  return view.phase.queue.map((_, i) => i).filter((i) => !taken.has(i));
 }
 
 export const initial = (name: string): string => (name.trim().charAt(0) || '?').toUpperCase();
@@ -320,3 +340,19 @@ export function playerMark(view: Pick<GameView, 'players'> & { config?: { player
   return `${one}${seat >= 0 ? seat + 1 : ''}`;
 }
 
+/** "Garden: pays ×2", "Park: pays ×2", "Garden + park: pays ×3" (KX p17), or null at ×1. */
+export function housePaysLabel(garden: boolean, park: number): string | null {
+  const mult = garden ? Math.max(2, park) : park;
+  if (mult <= 1) return null;
+  const why = garden && park > 1 ? 'Garden + park' : garden ? 'Garden' : 'Park';
+  return `${why}: pays ×${mult}`;
+}
+
+/** Who sold to `house` in this round's Dinnertime (its demand is gone, so say why). */
+export function servedBy(list: readonly { round: number; phase: string; events: readonly GameEvent[] }[], round: number, house: HouseId): PlayerId | null {
+  for (const s of list) {
+    if (s.round !== round || s.phase !== 'dinnertime') continue;
+    for (const e of s.events) if (e.type === 'sale' && e.houseId === house) return e.player;
+  }
+  return null;
+}

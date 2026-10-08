@@ -78,7 +78,7 @@ export const lesson04 = defineLesson({
     },
     {
       id: 'order',
-      say: 'You both kept 2 slots empty, a tie, so last round’s order stands and you choose first. Take position 1.',
+      say: 'You both kept 2 slots empty: a tie, so whoever was earlier in last round’s order chooses first. That is you: take position 1.',
       show: [{ ui: 'order-pos-1' }],
       allow: { actions: [{ type: 'order.choosePosition', where: (a) => a.type === 'order.choosePosition' && a.position === 0 }] },
       until: { view: (v) => v.phase.kind === 'working' },
@@ -89,7 +89,7 @@ export const lesson04 = defineLesson({
     },
     {
       id: 'optional',
-      say: 'Your CEO could hire again, but every Working action is optional. This round, leave the CEO alone.',
+      say: 'Your CEO could hire again, but most Working actions are optional; only cards marked auto must act. Leave the CEO alone this round.',
       show: [{ ui: `work-card-${CEO}` }],
       until: { next: true },
       glossary: 'working',
@@ -172,7 +172,7 @@ export const lesson04 = defineLesson({
     pass: 2,
     questions: [
       { kind: 'choice', q: 'What happens to unsold food at Clean up?', options: ['It keeps for next round', 'It is thrown away', 'It sells at half price'], answer: 1, why: 'Without a freezer, every unsold item is discarded at Clean up.' },
-      { kind: 'choice', q: 'Must a card at work use its action?', options: ['Yes, always', 'No, it can skip'], answer: 1, why: 'Working actions are optional: you left your CEO’s hire unused.' },
+      { kind: 'choice', q: 'Must your CEO use its hire?', options: ['Yes, always', 'No, it can skip'], answer: 1, why: 'Hiring is optional: you left your CEO’s hire unused. Only cards marked auto must act.' },
       { kind: 'tap', q: 'Tap the tab where you choose who goes to work.', target: { ui: 'tab-company' }, why: 'The Company tab holds your chart: cards under the CEO work that round.' },
     ],
   },

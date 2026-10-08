@@ -45,9 +45,33 @@ if (!fontReady)
       for (const r of redraws.splice(0)) r();
     });
 
+/**
+ * Label textures kept (least recently used evicted past this): plaques, chips and badges are keyed
+ * by content, so a long session would otherwise keep every one it ever drew. An evicted texture
+ * still on screen keeps its canvas and is simply uploaded again on its next draw.
+ */
+const TEX_CAP = 256;
+
+function evictLabels(): void {
+  for (const [key, tex] of texCache) {
+    if (texCache.size <= TEX_CAP) return;
+    texCache.delete(key);
+    tex.dispose();
+    spriteMats.get(tex.uuid)?.dispose();
+    spriteMats.delete(tex.uuid);
+    topMats.get(tex.uuid)?.dispose();
+    topMats.delete(tex.uuid);
+  }
+}
+
 function canvasTex(key: string, w: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void): THREE.Texture {
   let t = texCache.get(key);
-  if (t) return t;
+  if (t) {
+    // Most recently used last (Map keeps insertion order).
+    texCache.delete(key);
+    texCache.set(key, t);
+    return t;
+  }
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -59,6 +83,7 @@ function canvasTex(key: string, w: number, h: number, draw: (ctx: CanvasRenderin
   tex.generateMipmaps = true;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
   texCache.set(key, tex);
+  evictLabels();
   if (!fontReady)
     redraws.push(() => {
       ctx.clearRect(0, 0, w, h);
@@ -805,15 +830,23 @@ export function compactPlaqueTexture(c: PlaqueContent): THREE.Texture {
 }
 
 /** Smallest plaque (crowded): the most-wanted good and the total demand count. */
+/**
+ * Smallest plaque: the main good's glyph (a second glyph tucked behind it when the house wants
+ * more than one good) and the total in its own ink pill, so it never reads as "N of that good".
+ */
 export function miniPlaqueTexture(c: PlaqueContent): THREE.Texture {
-  const top = [...c.goods].sort((a, b) => b.count - a.count)[0];
+  const [top, second] = [...c.goods].sort((a, b) => b.count - a.count);
   const W = 128;
   const H = 76;
   const full = c.capacity !== null && c.count >= c.capacity;
-  return canvasTex(`plaqueM2:${top?.good}:${c.count}:${full}`, W, H, (ctx) => {
+  return canvasTex(`plaqueM3:${top?.good}:${second?.good ?? ''}:${c.count}:${full}`, W, H, (ctx) => {
     chromePlate(ctx, 1, 1, W - 4, H - 6, 34, 4, CREAM, full ? { color: COLORS.warn, w: 3 } : undefined);
-    if (top) drawFood(ctx, top.good, 38, H / 2 - 2, 54);
-    text(ctx, String(c.count), 92, H / 2, 52, COLORS.ink);
+    if (second) drawFood(ctx, second.good, 28, H / 2 - 9, 40);
+    if (top) drawFood(ctx, top.good, second ? 44 : 38, H / 2 + (second ? 3 : -2), second ? 46 : 54);
+    ctx.fillStyle = COLORS.ink;
+    roundRect(ctx, 70, 15, 46, H - 36, 18);
+    ctx.fill();
+    text(ctx, String(c.count), 93, H / 2 - 1, 40, CREAM);
   });
 }
 

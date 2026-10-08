@@ -41,7 +41,7 @@ const PAID = { salary: true } as const;
 const PAID1X = { salary: true, unique: true } as const;
 
 export const BASE_EMPLOYEES: readonly EmployeeDef[] = [
-  card('ceo', 'CEO', 0, 'ceo', 'ceo', { kind: 'ceo', slots: 3, recruits: 1 }, 'Hire 1 person. Always at work.', { availability: 'rewardOnly' }),
+  card('ceo', 'CEO', 0, 'ceo', 'ceo', { kind: 'ceo', slots: 3, recruits: 1 }, 'Hire 1 entry-level employee. Always at work.', { availability: 'rewardOnly' }),
   card('waitress', 'Waitress', 12, 'purple', 'service', { kind: 'waitress', tip: 3 }, 'Get $3 cash. Win ties against restaurants with fewer waitresses.', { ...ENTRY, mandatory: true }),
   card('management_trainee', 'Management Trainee', 18, 'black', 'manager', { kind: 'manager', slots: 2 }, 'Manager (2 slots).', {
     ...ENTRY,
@@ -67,12 +67,12 @@ export const BASE_EMPLOYEES: readonly EmployeeDef[] = [
   card('local_manager', 'Local Manager', 6, 'red', 'restaurant', { kind: 'restaurant', mode: 'local', range: 3, driveIn: true }, 'Place a new restaurant (COMING SOON) within road range 3. Drive-in while at work.', PAID),
   card('regional_manager', 'Regional Manager', 3, 'red', 'restaurant', { kind: 'restaurant', mode: 'regional', range: 'unlimited', driveIn: true }, 'Place a new restaurant anywhere, or move one; opens immediately. Drive-in while at work.', PAID1X),
   card('cfo', 'CFO', 3, 'purple', 'finance', { kind: 'cfo', percent: 50 }, '+50% to cash earned this round.', { ...PAID1X, mandatory: true }),
-  card('recruiting_girl', 'Recruiting Girl', 12, 'grey', 'recruiting', { kind: 'recruit', actions: 1, salaryDiscountPerUnused: 0 }, 'Hire 1 person.', ENTRY),
-  card('recruiting_manager', 'Recruiting Manager', 6, 'grey', 'recruiting', { kind: 'recruit', actions: 2, salaryDiscountPerUnused: 5 }, '2x: hire 1 person or $5 less salary.', PAID),
-  card('hr_director', 'HR Director', 3, 'grey', 'recruiting', { kind: 'recruit', actions: 4, salaryDiscountPerUnused: 5 }, '4x: hire 1 person or $5 less salary.', PAID1X),
-  card('trainer', 'Trainer', 12, 'grey', 'training', { kind: 'train', actions: 1, maxStepsSameCard: 1 }, 'Train 1 person.', ENTRY),
-  card('coach', 'Coach', 6, 'grey', 'training', { kind: 'train', actions: 2, maxStepsSameCard: 2 }, '2 training slots; may train the same person two steps.', PAID),
-  card('guru', 'Guru', 3, 'grey', 'training', { kind: 'train', actions: 3, maxStepsSameCard: 3 }, '3 training slots; may train the same person up to three steps.', PAID1X),
+  card('recruiting_girl', 'Recruiting Girl', 12, 'grey', 'recruiting', { kind: 'recruit', actions: 1, salaryDiscountPerUnused: 0 }, 'Hire 1 entry-level employee.', ENTRY),
+  card('recruiting_manager', 'Recruiting Manager', 6, 'grey', 'recruiting', { kind: 'recruit', actions: 2, salaryDiscountPerUnused: 5 }, 'Do 2 times: hire 1 entry-level employee, or pay $5 less salary.', PAID),
+  card('hr_director', 'HR Director', 3, 'grey', 'recruiting', { kind: 'recruit', actions: 4, salaryDiscountPerUnused: 5 }, 'Do 4 times: hire 1 entry-level employee, or pay $5 less salary.', PAID1X),
+  card('trainer', 'Trainer', 12, 'grey', 'training', { kind: 'train', actions: 1, maxStepsSameCard: 1 }, 'Train 1 employee on the beach.', ENTRY),
+  card('coach', 'Coach', 6, 'grey', 'training', { kind: 'train', actions: 2, maxStepsSameCard: 2 }, 'Do 2 times: train 1 employee on the beach. You may use these on the same employee.', PAID),
+  card('guru', 'Guru', 3, 'grey', 'training', { kind: 'train', actions: 3, maxStepsSameCard: 3 }, 'Do 3 times: train 1 employee on the beach. You may use these on the same employee.', PAID1X),
   card('errand_boy', 'Errand Boy', 12, 'lightGreen', 'buyer', { kind: 'buyDrinks', mode: 'errand', range: 0, perSource: 1 }, 'Get 1 drink of any type.', {
     ...ENTRY,
     trainsInto: ['cart_operator'],

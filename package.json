@@ -13,7 +13,7 @@
     "packages/client"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
     "start": "npm run build && node packages/server/dist/index.js",
@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "@types/node": "^26.6.3",
+    "@types/node": "^24.19.1",
     "concurrently": "^10.0.5",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

@@ -37,6 +37,9 @@ describe('Kimchi (ketchup.md §5)', () => {
       expect(ctx.of('foodProduced')).toEqual([expect.objectContaining({ player: 'p1', food: 'kimchi', count: 1 })]);
       const types = ctx.events.map((e) => e.type);
       expect(types.indexOf('foodDiscarded')).toBeLessThan(types.indexOf('foodProduced'));
+      // ...and still inside this round's Clean up, before the next round starts.
+      expect(types.indexOf('foodProduced')).toBeLessThan(types.indexOf('roundStarted'));
+      expect(ctx.state.round).toBe(4);
     });
 
     it('§5: a master on the beach, or none at all, makes nothing; two masters make 1 each', () => {
@@ -59,6 +62,15 @@ describe('Kimchi (ketchup.md §5)', () => {
       expect(allKimchi.state.players.p1?.freezer).toEqual({ kimchi: 10 });
       // +1 fresh kimchi from the master (produced after the freezer step), burger thrown away.
       expect(allKimchi.state.players.p1?.inventory).toEqual({ kimchi: 1 });
+    });
+
+    it('freezer: a kimchi-only stock that fits is kept without asking; coffee alone is just thrown away', () => {
+      const ctx = fromPhase(cleanupBase().milestone('p1', 'first_throw_away', 2).inventory('p1', { kimchi: 3 }).build());
+      expect(ctx.state.awaiting.kind).not.toBe('cleanup.freezer');
+      expect(ctx.state.players.p1?.freezer).toEqual({ kimchi: 3 });
+      const c2 = fromPhase(cleanupBase().milestone('p1', 'first_throw_away', 2).inventory('p1', { coffee: 2, burger: 2 } as never).build());
+      expect(c2.state.awaiting.kind).not.toBe('cleanup.freezer');
+      expect(c2.state.players.p1?.freezer).toEqual({ burger: 2 });
     });
 
     it('§5 freezer: an exclusive kimchi stock cannot be frozen with other items, but other items alone are fine', () => {

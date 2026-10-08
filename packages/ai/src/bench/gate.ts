@@ -58,6 +58,8 @@ export const PROFILES: Record<string, GateCheck[]> = {
     { ...base, name: 'easy-completion', a: 'easy', b: 'easy', games: 20, seed: 1, modules: 'all', minCompletion: 0.9, completionRounds: 40 },
     { ...base, name: 'medium-vs-easy', a: 'medium', b: 'easy', games: 20, seed: 2000, minWinRate: 0.6, minCompletion: 0.9 },
     { ...base, name: 'hard-vs-medium', a: 'hard', b: 'medium', games: 10, seed: 3000, minCompletion: 0.9 },
+    // Medium must also finish Ketchup games, not only stay legal (completion, not a round cap).
+    { ...base, name: 'medium-ketchup-completion', a: 'medium', b: 'medium', players: 3, games: 10, seed: 4000, modules: 'all', minCompletion: 0.9, completionRounds: 40 },
   ],
   /** The full §8.5 success-criteria table. */
   full: [
@@ -108,11 +110,11 @@ export function evaluate(c: GateCheck, s: Summary): CriterionResult[] {
   const out: CriterionResult[] = [];
   const subjectLevel = c.subject ?? c.bots?.[0] ?? c.a ?? 'easy';
   const subject = s.groups.find((g) => g.level === subjectLevel) ?? s.groups[0]!;
-  const total = (k: 'rejected' | 'fallbacks' | 'invalid' | 'threw') => s.groups.reduce((n, g) => n + g[k], 0);
+  const total = (k: 'rejected' | 'fallbacks' | 'invalid' | 'threw' | 'internal') => s.groups.reduce((n, g) => n + g[k], 0);
   const maxRejected = c.maxRejected ?? 0;
   const maxFallbacks = c.maxFallbacks ?? 0;
   out.push({ criterion: 'rejected actions', ok: total('rejected') <= maxRejected, actual: String(total('rejected')), target: `<= ${maxRejected}` });
-  out.push({ criterion: 'fallbacks (invalid + threw)', ok: total('fallbacks') <= maxFallbacks, actual: `${total('fallbacks')} (${total('invalid')} + ${total('threw')})`, target: `<= ${maxFallbacks}` });
+  out.push({ criterion: 'fallbacks (invalid + threw + internal)', ok: total('fallbacks') <= maxFallbacks, actual: `${total('fallbacks')} (${total('invalid')} + ${total('threw')} + ${total('internal')})`, target: `<= ${maxFallbacks}` });
   if (c.minWinRate !== undefined) out.push({ criterion: `${subject.label} win rate`, ok: subject.winRate >= c.minWinRate, actual: pct(subject.winRate), target: `>= ${pct(c.minWinRate)}` });
   if (c.minWinLower !== undefined) out.push({ criterion: `${subject.label} win rate CI lower bound`, ok: subject.ci95[0] >= c.minWinLower, actual: pct(subject.ci95[0]), target: `>= ${pct(c.minWinLower)}` });
   if (c.minCompletion !== undefined) {

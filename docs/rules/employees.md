@@ -13,6 +13,8 @@ Legend:
 
 ## 1. Base game (222 cards + 6 CEOs)
 
+The DLX box holds 10 CEO cards (DLX p1 component list); each player uses one.
+
 | id | Name | Count | Entry | Salary | 1x | Mgr slots | Action / text | Trains into | Trained from |
 |---|---|---|---|---|---|---|---|---|---|
 | ceo | CEO | 10 in DLX box (each player picks any 1; cosmetic) | — | no | — | 3 (CEO slots; changes when bank breaks) | Hire 1 person. Always at work. | — | — |

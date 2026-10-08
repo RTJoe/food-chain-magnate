@@ -100,6 +100,13 @@ export function Table() {
     sheetOpen.value = true;
   }, [mine, v?.phase.kind, picking, animating, sheetPhone]);
 
+  // A new pick while already picking (another road length, park shape or token chosen in the open
+  // sheet) collapses the sheet again, as starting the pick did.
+  const pickMode = picking ? interactionMode.value : null;
+  useEffect(() => {
+    if (pickMode && sheetOpen.peek()) sheetOpen.value = false;
+  }, [pickMode]);
+
   useAnnouncements();
 
   if (!v) return null;
@@ -218,17 +225,36 @@ function Dock() {
       <button type="button" class={`sheet-handle ${mine ? 'is-mine' : ''}`} onClick={() => (sheetOpen.value = !sheetOpen.value)} aria-expanded={sheetOpen.value}>
         <span class="sheet-grip" aria-hidden="true" />
         <span class="sheet-title">
-          {mine && <span class="dot is-on" />}
+          {mine && <span class="dot is-on" aria-hidden="true" />}
           {pr?.title ?? 'Game'}
         </span>
         {sheetOpen.value ? Icon.chevronDown({ size: 18 }) : Icon.chevronUp({ size: 18 })}
       </button>
-      <nav class="dock-tabs" role="tablist">
+      <nav
+        class="dock-tabs"
+        role="tablist"
+        aria-label="Panels"
+        onKeyDown={(e) => {
+          // APG tabs: arrows (and Home / End) move between tabs and open the one reached.
+          const i = tabs.findIndex((t) => t.id === tab);
+          const j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
+          if (j === null) return;
+          const next = tabs[(j + tabs.length) % tabs.length];
+          if (!next) return;
+          e.preventDefault();
+          e.stopPropagation();
+          dockTab.value = next.id;
+          document.getElementById(`dock-tab-${next.id}`)?.focus();
+        }}
+      >
         {tabs.map((t) => (
           <button
             key={t.id}
+            id={`dock-tab-${t.id}`}
             type="button"
             role="tab"
+            tabIndex={tab === t.id ? 0 : -1}
+            aria-controls="dock-panel"
             data-tutorial={`tab-${t.id}`}
             aria-selected={tab === t.id}
             aria-label={t.id === 'turn' && mine ? 'Turn, your turn' : t.id === 'chat' && unreadChat.value > 0 ? `Chat, ${unreadChat.value} unread` : undefined}
@@ -245,7 +271,8 @@ function Dock() {
           </button>
         ))}
       </nav>
-      <div class="dock-body" role="tabpanel">
+      {/* Keyed by tab: each tab opens at its top, not at the last tab's scroll position. */}
+      <div class="dock-body" role="tabpanel" id="dock-panel" aria-labelledby={`dock-tab-${tab}`} key={tab}>
         {tab === 'turn' && <PromptPanel />}
         {tab === 'company' && <Company />}
         {tab === 'market' && <Market />}

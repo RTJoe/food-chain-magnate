@@ -15,7 +15,7 @@ import type { HookContext } from '../types/module.js';
 import type { CleanupFreezer, FoodCounts, FoodId, GameState, Ok, PlayerId, Rejected } from '../types/index.js';
 import { FOODS } from '../content/foods.js';
 import { endGame } from './bank.js';
-import { crossOutMilestones, onMilestoneEvent } from './milestones.js';
+import { crossOutMilestones } from './milestones.js';
 import { hasMilestoneBefore } from './pricing.js';
 import { pipe } from '../modules/registry.js';
 import { readCtx } from '../core/context.js';
@@ -51,10 +51,16 @@ export function runCleanup(ctx: HookContext): void {
     const stock = stockOf(s, player);
     const cap = p.bankrupt ? 0 : freezerCapacity(s, player);
     if (cap > 0 && total(stock) > 0) {
-      const allPlain = (Object.keys(stock) as FoodId[]).every((g) => freezerRule(g) === 'yes');
-      // Keeping is never worse than discarding, so an obvious choice is made automatically.
-      if (allPlain && total(stock) <= cap) {
-        keep(ctx, player, stock);
+      // Goods that cannot be frozen (coffee) are simply thrown away.
+      const freezable: FoodCounts = {};
+      for (const [g, n] of Object.entries(stock) as [FoodId, number][]) if (freezerRule(g) !== 'no') freezable[g] = n;
+      const kinds = Object.keys(freezable) as FoodId[];
+      const allPlain = kinds.every((g) => freezerRule(g) === 'yes');
+      const oneExclusive = kinds.length === 1 && freezerRule(kinds[0] as FoodId) === 'exclusive';
+      // Keeping is never worse than discarding, so an obvious choice is made automatically:
+      // nothing freezable, or everything freezable fits without an either/or (kimchi) choice.
+      if (total(freezable) === 0 || ((allPlain || oneExclusive) && total(freezable) <= cap)) {
+        keep(ctx, player, freezable);
         continue;
       }
       waiting.push(player);
@@ -87,8 +93,7 @@ function keep(ctx: HookContext, player: PlayerId, kept: FoodCounts): void {
   if (total(frozen) > 0) ctx.emit({ type: 'foodFrozen', player, goods: frozen });
   if (total(discarded) > 0) {
     const ev = { type: 'foodDiscarded' as const, player, goods: discarded };
-    ctx.emit(ev);
-    if (!p.bankrupt) onMilestoneEvent(ctx, ev);
+    ctx.emit(ev); // the emit runs the milestone tracker; a bankrupt chain claims nothing
   }
 }
 
@@ -179,7 +184,7 @@ function removeBankruptChain(ctx: HookContext, player: PlayerId): void {
     }
     if (s.supply[card.employeeId] !== undefined) s.supply[card.employeeId] = (s.supply[card.employeeId] ?? 0) + 1;
     delete p.employees[uid];
-    ctx.emit({ type: 'employeeFired', player, uid, employeeId: card.employeeId, forced: true });
+    ctx.emit({ type: 'employeeFired', player, uid, employeeId: card.employeeId, forced: true, reason: 'bankrupt' });
   }
   p.busy = {};
   p.beach = [];

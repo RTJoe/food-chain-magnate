@@ -204,7 +204,7 @@ export const lesson06 = defineLesson({
       id: 'replay-2',
       say: () => {
         const tips = lastTips('p1');
-        return `Your Waitress won the tie: you sold the burger for $${saleTotal(H18, 9)}. She also brought in ${tips === null ? 'tips' : `$${tips} in tips`} at the end of dinner.`;
+        return `Your Waitress won the tie: you sold the burger for $${saleTotal(H18, 9)}. She also brought in ${tips === null ? 'tips' : `$${tips} in tips`} at the end of dinner.${tips === 5 ? ' That is $3, plus $2 because you were first to play a Waitress: the First Waitress Played milestone.' : ''}`;
       },
       show: [{ house: 18 }, { ui: 'cash-p1' }],
       replay: { phase: 'dinnertime', from: H18 },

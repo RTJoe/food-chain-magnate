@@ -71,6 +71,8 @@ export function placementError(d: OrgDraft, uid: Uid, target: SlotTarget, rules:
   if (target.managerUid === uid) return 'A card cannot report to itself';
   if (!d.ceoSubs.includes(target.managerUid)) return 'Put the manager in a CEO slot first';
   if (!rules.isManager(target.managerUid)) return 'Only managers have slots';
+  // Night Shift Manager: a manager card with no slots (KX p22); the engine rejects reports under it.
+  if (rules.slotsOf(target.managerUid) === 0) return 'A Night Shift Manager has no slots';
   if (rules.isManager(uid)) return 'Managers report only to the CEO';
   return null;
 }
@@ -101,11 +103,12 @@ export function validateDraft(d: OrgDraft, rules: OrgRules): OrgValidation {
     if (!subs.length) continue;
     if (!d.ceoSubs.includes(m)) errors.push('Reports to a manager who is not in a CEO slot');
     if (!rules.isManager(m)) errors.push('Only managers can have reports');
+    else if (rules.slotsOf(m) === 0) errors.push('A Night Shift Manager has no slots');
     if (subs.some((s) => rules.isManager(s))) errors.push('Managers report only to the CEO');
   }
   const ceo = { used: d.ceoSubs.length, capacity: rules.ceoSlots };
   const managers = d.ceoSubs
-    .filter((u) => rules.isManager(u))
+    .filter((u) => rules.isManager(u) && (rules.slotsOf(u) > 0 || (d.managerSubs[u] ?? []).length > 0))
     .map((uid) => ({ uid, used: (d.managerSubs[uid] ?? []).length, capacity: rules.slotsOf(uid) }));
   const overfilled = ceo.used > ceo.capacity || managers.some((m) => m.used > m.capacity);
   return { ceo, managers, errors: [...new Set(errors)], overfilled, placed: seen.size };

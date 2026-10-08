@@ -10,7 +10,9 @@ import { boardRenderer, interactionMode, isPickMode } from '../state/boardBridge
 import { foodName } from '../state/catalog.js';
 import { campaignReachIds, outlookFor, placementsFor } from '../state/guidance.js';
 import { cameraCommand, select, selectedOutlook, selection, type Selection } from '../state/interaction.js';
-import { catalog, legal, manifest, me, view } from '../state/store.js';
+import { catalog, legal, manifest, me, summaries, view } from '../state/store.js';
+import { housePaysLabel, servedBy } from '../state/selectors.js';
+import { parkMultiplier } from '../three/layout.js';
 import { humanize } from '../state/catalog.js';
 import { collapseOffers, scoreTerms } from '../state/offers.js';
 import { IconButton, PlayerBadge, Pill } from './common.js';
@@ -88,6 +90,8 @@ function campaignLine(v: GameView, camp: Campaign): string {
   return `${camp.number !== null ? `#${camp.number} ` : ''}${KIND_LABEL[camp.kind] ?? humanize(camp.kind)} · ${name(v, camp.owner)} · ${camp.goods.map((g) => foodName(c, g).toLowerCase()).join(' + ')} · ${left}`;
 }
 
+
+
 function HouseCard({ id, view: v }: { id: HouseId; view: GameView }) {
   const h = v.board.houses[id];
   const o = selectedOutlook.value;
@@ -95,6 +99,8 @@ function HouseCard({ id, view: v }: { id: HouseId; view: GameView }) {
   const cap = o?.capacity ?? (h.kind === 'apartment' || h.kind === 'rural' ? null : h.garden ? 5 : 3);
   const demand = h.demand.map((d) => d.good);
   const full = cap !== null && demand.length >= cap;
+  const pays = housePaysLabel(Boolean(h.garden), parkMultiplier(v.board, h));
+  const served = demand.length ? null : servedBy(summaries.value, v.round, id);
   return (
     <>
       <Head eyebrow={HOUSE_KIND[h.kind] ?? 'House'} title={houseLabel(v, id)} id={id} term={houseTermId(h.kind)} />
@@ -102,13 +108,13 @@ function HouseCard({ id, view: v }: { id: HouseId; view: GameView }) {
         <Pill tone={full ? 'warn' : 'neutral'}>
           {demand.length}/{cap ?? '∞'} demand{full ? ' (full)' : ''}
         </Pill>
-        {h.garden && (
+        {pays && (
           <Pill tone="ok" icon="sparkle">
-            Garden: pays ×2
+            {pays}
           </Pill>
         )}
       </div>
-      {demand.length ? <Goods goods={demand} size={22} /> : <p class="muted small">No demand yet.</p>}
+      {demand.length ? <Goods goods={demand} size={22} /> : <p class="muted small">{served ? `Served this round by ${name(v, served)}.` : 'No demand yet.'}</p>}
       <h4>
         Who can sell <WhatsThis id="winning_a_sale" />
       </h4>
@@ -124,9 +130,9 @@ function HouseCard({ id, view: v }: { id: HouseId; view: GameView }) {
             return (
               <li key={`${s.player}-${s.restaurantId}`} class={wins ? 'is-win' : ''}>
                 <button type="button" class="inspect-row" onClick={() => select({ kind: 'restaurant', id: s.restaurantId })}>
-                  <PlayerBadge view={v} id={s.player} size={20} />
+                  <PlayerBadge view={v} id={s.player} size={20} hidden />
                   <span class="inspect-row-main">
-                    <b>{name(v, s.player)}</b> {scoreTerms(s)} = <b>${s.score}</b>
+                    <b>{name(v, s.player)}</b> {scoreTerms(s)} = <b>{s.score}</b>
                   </span>
                   {wins ? <span class="inspect-win">wins</span> : !s.canSupply && demand.length > 0 ? <span class="muted small">can’t supply</span> : null}
                 </button>
@@ -217,7 +223,7 @@ function CampaignCard({ id, view: v }: { id: CampaignId; view: GameView }) {
       <Head eyebrow={`${name(v, camp.owner)}’s campaign`} title={`${camp.number !== null ? `#${camp.number} ` : ''}${KIND_LABEL[camp.kind] ?? humanize(camp.kind)}`} id={id} term={campaignTermId(camp.kind)} />
       <div class="inspect-chips">
         <Goods goods={camp.goods} size={22} />
-        <Pill tone={camp.eternal ? 'ok' : 'neutral'}>{camp.eternal ? 'Eternal' : `${camp.remaining} turn${camp.remaining === 1 ? '' : 's'} left`}</Pill>
+        <Pill tone={camp.eternal ? 'ok' : 'neutral'}>{camp.eternal ? 'Eternal' : `${camp.remaining} round${camp.remaining === 1 ? '' : 's'} left`}</Pill>
         <Pill>{where}</Pill>
       </div>
       <h4>Houses it reaches</h4>
